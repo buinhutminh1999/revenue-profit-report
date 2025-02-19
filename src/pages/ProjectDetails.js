@@ -1,38 +1,140 @@
-// src/pages/ProjectDetails.js
+// 📂 src/pages/ProjectDetails.js
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Table,
-  TableHead,
-  TableBody,
-  TableRow,
-  TableCell,
-  Button,
+  AppBar,
+  Toolbar,
   Typography,
   Paper,
-  TextField,
+  Button,
   MenuItem,
   Select,
+  TextField,
   Tooltip,
   CircularProgress,
-  Box,
+  Pagination,
   Stack,
-  Pagination
+  Box,
+  Snackbar,
+  Alert,
+  ThemeProvider,
+  createTheme
 } from '@mui/material';
+import { ArrowBack, Save } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import FileSaver from 'file-saver';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase-config';
 
-// Hàm format / parse số
-function formatNumber(value) {
-  return Number(value).toLocaleString('en-US');
-}
+// =====================
+// 1. Hàm parse / format số
 function parseNumber(value) {
   return value.replace(/,/g, '');
 }
+function formatNumber(value) {
+  return Number(value).toLocaleString('en-US');
+}
 
-// Hàm xuất Excel
+// =====================
+// 2. Tạo theme MUI (màu brand, border, font, etc.)
+const theme = createTheme({
+  palette: {
+    primary: { main: '#1976d2' },
+    secondary: { main: '#f50057' }
+  },
+  shape: { borderRadius: 8 },
+  typography: { fontFamily: 'Roboto, sans-serif' }
+});
+
+// =====================
+// 3. Công thức Excel cho cột carryoverMinus (I27):
+//   =IF(E27+G27>O27, 0, IF(O27-(E27+G27)<H27, O27-(E27+G27), H27))
+function calcCarryoverMinus(row) {
+  const direct = Number(parseNumber(row.directCost || '0')); // E27
+  const alloc  = Number(parseNumber(row.allocated || '0'));  // G27
+  const rev    = Number(parseNumber(row.revenue || '0'));    // O27
+  const carry  = Number(parseNumber(row.carryover || '0'));  // H27
+
+  if ((direct + alloc) > rev) {
+    return '0';
+  } else if ((rev - (direct + alloc)) < carry) {
+    return String(rev - (direct + alloc));
+  } else {
+    return String(carry);
+  }
+}
+
+// =====================
+// 4. Công thức cột carryoverEnd (Chuyển Tiếp Cuối Kỳ):
+//   =IF(O27=0,O27, IF(O27<(E27+G27),(E27+G27)-O27,0)) + H27 - I27
+function calcCarryoverEnd(row) {
+  const direct = Number(parseNumber(row.directCost || '0')); 
+  const alloc  = Number(parseNumber(row.allocated || '0')); 
+  const rev    = Number(parseNumber(row.revenue || '0'));    
+  const carry  = Number(parseNumber(row.carryover || '0'));  
+  const minus  = Number(parseNumber(row.carryoverMinus || '0')); // I27
+
+  let part1 = 0;
+  if (rev === 0) {
+    part1 = 0;
+  } else if (rev < (direct + alloc)) {
+    part1 = (direct + alloc) - rev;
+  } else {
+    part1 = 0;
+  }
+  const endVal = part1 + carry - minus;
+  return String(endVal);
+}
+
+// =====================
+// 5. Công thức cột noPhaiTraAuto:
+//   =IF(I27+(E27+G27)<O27, O27-(E27+G27)-I27,0) + D27
+function calcNoPhaiTraAuto(row) {
+  const minus  = Number(parseNumber(row.carryoverMinus || '0')); 
+  const direct = Number(parseNumber(row.directCost || '0'));     
+  const alloc  = Number(parseNumber(row.allocated || '0'));      
+  const rev    = Number(parseNumber(row.revenue || '0'));        
+  const debtDK = Number(parseNumber(row.debt || '0'));           // D27
+
+  let part1 = 0;
+  if ((minus + direct + alloc) < rev) {
+    part1 = rev - (direct + alloc) - minus;
+  } else {
+    part1 = 0;
+  }
+  return String(part1 + debtDK);
+}
+
+// =====================
+// 6. Công thức cột totalCost (Tổng Chi Phí):
+//   =IF(O27=0, (E27+G27), O27)
+function calcTotalCost(row) {
+  const direct = Number(parseNumber(row.directCost || '0')); 
+  const alloc  = Number(parseNumber(row.allocated || '0'));  
+  const rev    = Number(parseNumber(row.revenue || '0'));    
+
+  if (rev === 0) {
+    return String(direct + alloc);
+  } else {
+    return String(rev);
+  }
+}
+
+// =====================
+// 7. Gói toàn bộ công thức trong hàm calcAllFields(row)
+function calcAllFields(row) {
+  // 1) carryoverMinus
+  row.carryoverMinus = calcCarryoverMinus(row);
+  // 2) carryoverEnd
+  row.carryoverEnd   = calcCarryoverEnd(row);
+  // 3) noPhaiTraAuto
+  row.noPhaiTraAuto  = calcNoPhaiTraAuto(row);
+  // 4) totalCost
+  row.totalCost      = calcTotalCost(row);
+}
+
+// =====================
+// 8. Xuất Excel
 function exportToExcel(items) {
   const sheet = XLSX.utils.json_to_sheet(items);
   const wb = XLSX.utils.book_new();
@@ -42,23 +144,37 @@ function exportToExcel(items) {
   FileSaver.saveAs(blob, `Report_${Date.now()}.xlsx`);
 }
 
-// Xử lý upload file
+// =====================
+// 9. Upload file
 function handleFileUpload(e, setCostItems, setLoading) {
   const file = e.target.files[0];
   if (!file) return;
-
   setLoading(true);
   const reader = new FileReader();
   reader.onload = (event) => {
     try {
       const sheetObj = XLSX.read(event.target.result, { type: 'array' }).Sheets;
       const rows = XLSX.utils.sheet_to_json(sheetObj[Object.keys(sheetObj)[0]]);
-      const data = rows.map(row => ({
+
+      // Tạo data default 13 cột
+      const data = rows.map((row) => ({
         project: row['Công Trình'] || '',
         description: row['Khoản Mục Chi Phí'] || '',
-        inventory: '0',
-        debt: '0'
+        inventory: '0',          // Tồn Đầu Kỳ
+        debt: '0',               // Nợ Phải Trả ĐK
+        directCost: '0',         // E27
+        allocated: '0',          // G27
+        carryover: '0',          // H27
+        carryoverMinus: '0',     // I27
+        carryoverEnd: '0',
+        tonKhoUngKH: '0',
+        noPhaiTraAuto: '0',
+        revenue: '0',            // O27
+        totalCost: '0'
       }));
+
+      // Tính trước cho mỗi row
+      data.forEach((row) => calcAllFields(row));
       setCostItems(data);
     } finally {
       setLoading(false);
@@ -67,24 +183,28 @@ function handleFileUpload(e, setCostItems, setLoading) {
   reader.readAsArrayBuffer(file);
 }
 
+// =====================
 export default function ProjectDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // State
   const [costItems, setCostItems] = useState([]);
-  const [year, setYear] = useState(new Date().getFullYear().toString());
-  const [quarter, setQuarter] = useState('Q1');
   const [loading, setLoading] = useState(false);
 
-  // Tìm kiếm (Filter)
+  // Search, pagination
   const [search, setSearch] = useState('');
-
-  // Phân trang
   const [page, setPage] = useState(1);
-  const itemsPerPage = 5; // Số dòng mỗi trang
+  const itemsPerPage = 5;
 
-  // Tải dữ liệu Firestore
+  // Năm, Quý
+  const [year, setYear] = useState(new Date().getFullYear().toString());
+  const [quarter, setQuarter] = useState('Q1');
+
+  // Snackbar
+  const [snackOpen, setSnackOpen] = useState(false);
+
+  // ------------------------
+  // 1) Load Firestore
   useEffect(() => {
     const loadSavedData = async () => {
       setLoading(true);
@@ -92,7 +212,10 @@ export default function ProjectDetails() {
         const docRef = doc(db, 'projects', id, 'years', year, 'quarters', quarter);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setCostItems(docSnap.data().items || []);
+          const data = docSnap.data().items || [];
+          // Tính sẵn cột auto
+          data.forEach((row) => calcAllFields(row));
+          setCostItems(data);
         } else {
           setCostItems([]);
         }
@@ -101,10 +224,10 @@ export default function ProjectDetails() {
       }
     };
     loadSavedData();
-    setPage(1); // Reset trang về 1 khi đổi năm/quý
+    setPage(1);
   }, [id, year, quarter]);
 
-  // Lưu Firestore
+  // 2) Lưu Firestore
   const handleSave = async () => {
     setLoading(true);
     try {
@@ -112,26 +235,25 @@ export default function ProjectDetails() {
         items: costItems,
         updated_at: new Date().toISOString()
       });
-      alert(`Đã lưu dữ liệu cho Năm ${year} - Quý ${quarter}`);
+      setSnackOpen(true); // show snackbar
     } finally {
       setLoading(false);
     }
   };
 
-  // Tính tổng cột
-  const sumColumn = (key) =>
-    costItems.reduce((acc, item) => acc + Number(parseNumber(item[key] || '0')), 0);
+  // 3) Tính sum cột
+  function sumColumn(field) {
+    return costItems.reduce((acc, item) => acc + Number(parseNumber(item[field] || '0')), 0);
+  }
 
-  // Filter theo search
-  const filteredItems = costItems.filter(
-    (item) =>
-      item.project.toLowerCase().includes(search.toLowerCase()) ||
-      item.description.toLowerCase().includes(search.toLowerCase())
+  // Filter + pagination
+  const filtered = costItems.filter(
+    (x) =>
+      (x.project || '').toLowerCase().includes(search.toLowerCase()) ||
+      (x.description || '').toLowerCase().includes(search.toLowerCase())
   );
-
-  // Pagination
-  const pageCount = Math.ceil(filteredItems.length / itemsPerPage);
-  const currentItems = filteredItems.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+  const pageCount = Math.ceil(filtered.length / itemsPerPage);
+  const currentItems = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
   // Xóa dòng
   const handleRemoveRow = (index) => {
@@ -140,165 +262,256 @@ export default function ProjectDetails() {
     setCostItems(updated);
   };
 
+  // 4) Mỗi khi user gõ cột input => Tính cột auto
+  const handleChangeField = (index, field, val) => {
+    const updated = [...costItems];
+    updated[index][field] = parseNumber(val);
+    // Tính cột auto
+    calcAllFields(updated[index]);
+    setCostItems(updated);
+  };
+
   return (
-    <Paper sx={{ p: 4, borderRadius: 4 }}>
-      {/* Spinner */}
-      {loading && (
-        <Box display="flex" justifyContent="center" alignItems="center" mb={2}>
-          <CircularProgress />
-        </Box>
-      )}
+    <ThemeProvider theme={theme}>
+      {/* Thanh AppBar cố định trên cùng */}
+      <AppBar position="sticky">
+        <Toolbar>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            Chi Tiết Công Trình
+          </Typography>
+          {/* Upload Excel */}
+          <Button variant="text" color="inherit" component="label">
+            Upload Excel
+            <input
+              hidden
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={(e) => handleFileUpload(e, setCostItems, setLoading)}
+            />
+          </Button>
+          {/* Xuất Excel */}
+          <Button variant="text" color="inherit" onClick={() => exportToExcel(costItems)}>
+            Xuất Excel
+          </Button>
+          {/* Lưu */}
+          <Button variant="text" color="inherit" startIcon={<Save />} onClick={handleSave}>
+            Lưu
+          </Button>
+          {/* Quay lại */}
+          <Button variant="text" color="inherit" startIcon={<ArrowBack />} onClick={() => navigate('/construction-plan')}>
+            Quay lại
+          </Button>
+        </Toolbar>
+      </AppBar>
 
-      <Typography variant="h5" align="center" fontWeight="bold" mb={3}>
-        Chi Tiết Công Trình - Năm {year}, Quý {quarter}
-      </Typography>
-
-      <Stack direction="row" spacing={2} mb={2} alignItems="center" justifyContent="center">
-        {/* Upload file */}
-        <Button variant="outlined" component="label">
-          Upload Excel
-          <input
-            hidden
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={(e) => handleFileUpload(e, setCostItems, setLoading)}
+      <Paper sx={{ p: 3, borderRadius: 0 }}>
+        {/* Search + Chọn Năm/Quý */}
+        <Stack direction="row" spacing={2} mb={2} justifyContent="center" alignItems="center">
+          <TextField
+            label="Tìm kiếm..."
+            variant="outlined"
+            size="small"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
-        </Button>
-
-        {/* Export Excel */}
-        <Button variant="outlined" onClick={() => exportToExcel(costItems)}>
-          Xuất Excel
-        </Button>
-
-        {/* Chọn năm */}
-        <Select value={year} onChange={(e) => setYear(e.target.value)}>
-          {Array.from({ length: 10 }, (_, i) => (new Date().getFullYear() - 5 + i).toString()).map((y) => (
-            <MenuItem key={y} value={y}>
-              {y}
-            </MenuItem>
-          ))}
-        </Select>
-
-        {/* Chọn quý */}
-        <Select value={quarter} onChange={(e) => setQuarter(e.target.value)}>
-          {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => (
-            <MenuItem key={q} value={q}>
-              {q}
-            </MenuItem>
-          ))}
-        </Select>
-      </Stack>
-
-      {/* Ô tìm kiếm */}
-      <Box mb={2} display="flex" justifyContent="center">
-        <TextField
-          label="Tìm kiếm..."
-          variant="outlined"
-          size="small"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1); // Mỗi lần search đổi, quay về trang đầu
-          }}
-        />
-      </Box>
-
-      <Table>
-        <TableHead>
-          <TableRow>
-            {['Công Trình', 'Khoản Mục Chi Phí', 'Tồn Kho ĐK', 'Nợ Phải Trả ĐK', 'Xóa'].map((header) => (
-              <Tooltip key={header} title={`Cột: ${header}`} placement="top">
-                <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                  {header}
-                </TableCell>
-              </Tooltip>
+          <Select value={year} onChange={(e) => setYear(e.target.value)}>
+            {Array.from({ length: 10 }, (_, i) => (new Date().getFullYear() - 5 + i).toString()).map((y) => (
+              <MenuItem key={y} value={y}>{y}</MenuItem>
             ))}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {/* Hàng tổng */}
-          <TableRow>
-            <TableCell colSpan={2} align="center" sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
-              Tổng
-            </TableCell>
-            <TableCell align="center" sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
-              {formatNumber(sumColumn('inventory'))}
-            </TableCell>
-            <TableCell align="center" sx={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
-              {formatNumber(sumColumn('debt'))}
-            </TableCell>
-            <TableCell sx={{ backgroundColor: '#f5f5f5' }} />
-          </TableRow>
+          </Select>
+          <Select value={quarter} onChange={(e) => setQuarter(e.target.value)}>
+            {['Q1','Q2','Q3','Q4'].map((q) => (
+              <MenuItem key={q} value={q}>{q}</MenuItem>
+            ))}
+          </Select>
+        </Stack>
 
-          {/* Nếu không có dữ liệu hiển thị thông báo */}
-          {currentItems.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={5} align="center">
-                Không có dữ liệu
-              </TableCell>
-            </TableRow>
-          ) : (
-            currentItems.map((item, index) => {
-              // Tính index thực trong costItems
-              const realIndex = (page - 1) * itemsPerPage + index;
-              return (
-                <TableRow key={realIndex}>
-                  <TableCell>{item.project}</TableCell>
-                  <TableCell>{item.description}</TableCell>
-                  <TableCell>
-                    <TextField
-                      size="small"
-                      value={formatNumber(item.inventory)}
-                      onChange={(e) => {
-                        const updated = [...costItems];
-                        updated[realIndex].inventory = parseNumber(e.target.value);
-                        setCostItems(updated);
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <TextField
-                      size="small"
-                      value={formatNumber(item.debt)}
-                      onChange={(e) => {
-                        const updated = [...costItems];
-                        updated[realIndex].debt = parseNumber(e.target.value);
-                        setCostItems(updated);
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    <Button variant="text" color="error" onClick={() => handleRemoveRow(realIndex)}>
-                      X
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })
-          )}
-        </TableBody>
-      </Table>
+        {loading && (
+          <Box textAlign="center" mb={2}>
+            <CircularProgress />
+          </Box>
+        )}
 
-      {/* Pagination */}
-      <Box mt={2} display="flex" justifyContent="center">
-        <Pagination
-          page={page}
-          count={pageCount}
-          onChange={(_, value) => setPage(value)}
-          color="primary"
-          shape="rounded"
-        />
-      </Box>
+        {/* Bảng */}
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#eaeaea' }}>
+              {[
+                'Công Trình','Khoản Mục','Tồn ĐK','Nợ Phải Trả ĐK','Chi Phí Trực Tiếp','Phân Bổ',
+                'Chuyển Tiếp ĐK','Trừ Quỹ','Cuối Kỳ','TỒN KHO/ỨNG KH','NỢ PHẢI TRẢ (Auto)',
+                'Doanh Thu','Tổng Chi Phí','Xóa'
+              ].map((header) => (
+                <th key={header} style={{ textAlign: 'center', padding: '8px', fontWeight: 'bold' }}>
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Hàng Tổng */}
+            <tr style={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
+              <td style={{ textAlign: 'center' }}>Tổng</td>
+              <td />
+              <td style={{ textAlign: 'center' }}>{formatNumber(sumColumn('inventory'))}</td>
+              <td style={{ textAlign: 'center' }}>{formatNumber(sumColumn('debt'))}</td>
+              <td style={{ textAlign: 'center' }}>{formatNumber(sumColumn('directCost'))}</td>
+              <td style={{ textAlign: 'center' }}>{formatNumber(sumColumn('allocated'))}</td>
+              <td style={{ textAlign: 'center' }}>{formatNumber(sumColumn('carryover'))}</td>
+              <td style={{ textAlign: 'center' }}>{formatNumber(sumColumn('carryoverMinus'))}</td>
+              <td style={{ textAlign: 'center' }}>{formatNumber(sumColumn('carryoverEnd'))}</td>
+              <td style={{ textAlign: 'center' }}>{formatNumber(sumColumn('tonKhoUngKH'))}</td>
+              <td style={{ textAlign: 'center' }}>{formatNumber(sumColumn('noPhaiTraAuto'))}</td>
+              <td style={{ textAlign: 'center' }}>{formatNumber(sumColumn('revenue'))}</td>
+              <td style={{ textAlign: 'center' }}>{formatNumber(sumColumn('totalCost'))}</td>
+              <td />
+            </tr>
 
-      {/* Nút Lưu / Quay lại */}
-      <Stack direction="row" spacing={2} justifyContent="center" mt={2}>
-        <Button variant="contained" color="primary" onClick={handleSave} disabled={loading}>
-          Lưu
-        </Button>
-        <Button variant="outlined" color="secondary" onClick={() => navigate('/construction-plan')}>
-          Quay lại
-        </Button>
-      </Stack>
-    </Paper>
+            {currentItems.length === 0 ? (
+              <tr>
+                <td colSpan={14} style={{ textAlign: 'center', padding: '8px' }}>
+                  Không có dữ liệu
+                </td>
+              </tr>
+            ) : (
+              currentItems.map((row, idx) => {
+                const realIndex = (page - 1) * itemsPerPage + idx;
+                return (
+                  <tr key={realIndex} style={{ borderBottom: '1px solid #ddd' }}>
+                    {/* project */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>{row.project}</td>
+                    {/* description */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>{row.description}</td>
+                    {/* inventory */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <TextField
+                        size="small"
+                        value={formatNumber(row.inventory || '0')}
+                        onChange={(e) => handleChangeField(realIndex, 'inventory', e.target.value)}
+                      />
+                    </td>
+                    {/* debt */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <TextField
+                        size="small"
+                        value={formatNumber(row.debt || '0')}
+                        onChange={(e) => handleChangeField(realIndex, 'debt', e.target.value)}
+                      />
+                    </td>
+                    {/* directCost */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <TextField
+                        size="small"
+                        value={formatNumber(row.directCost || '0')}
+                        onChange={(e) => handleChangeField(realIndex, 'directCost', e.target.value)}
+                      />
+                    </td>
+                    {/* allocated */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <TextField
+                        size="small"
+                        value={formatNumber(row.allocated || '0')}
+                        onChange={(e) => handleChangeField(realIndex, 'allocated', e.target.value)}
+                      />
+                    </td>
+                    {/* carryover */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <TextField
+                        size="small"
+                        value={formatNumber(row.carryover || '0')}
+                        onChange={(e) => handleChangeField(realIndex, 'carryover', e.target.value)}
+                      />
+                    </td>
+                    {/* carryoverMinus -> readOnly */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <TextField
+                        size="small"
+                        value={formatNumber(row.carryoverMinus || '0')}
+                        disabled
+                        style={{ backgroundColor: '#eee' }}
+                      />
+                    </td>
+                    {/* carryoverEnd -> readOnly */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <TextField
+                        size="small"
+                        value={formatNumber(row.carryoverEnd || '0')}
+                        disabled
+                        style={{ backgroundColor: '#eee' }}
+                      />
+                    </td>
+                    {/* tonKhoUngKH */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <TextField
+                        size="small"
+                        value={formatNumber(row.tonKhoUngKH || '0')}
+                        onChange={(e) => handleChangeField(realIndex, 'tonKhoUngKH', e.target.value)}
+                      />
+                    </td>
+                    {/* noPhaiTraAuto -> readOnly */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <TextField
+                        size="small"
+                        value={formatNumber(row.noPhaiTraAuto || '0')}
+                        disabled
+                        style={{ backgroundColor: '#eee' }}
+                      />
+                    </td>
+                    {/* revenue */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <TextField
+                        size="small"
+                        value={formatNumber(row.revenue || '0')}
+                        onChange={(e) => handleChangeField(realIndex, 'revenue', e.target.value)}
+                      />
+                    </td>
+                    {/* totalCost -> readOnly */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <TextField
+                        size="small"
+                        value={formatNumber(row.totalCost || '0')}
+                        disabled
+                        style={{ backgroundColor: '#eee' }}
+                      />
+                    </td>
+                    {/* Xóa */}
+                    <td style={{ textAlign: 'center', padding: '6px' }}>
+                      <Button variant="text" color="error" onClick={() => handleRemoveRow(realIndex)}>
+                        X
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+
+        {/* Pagination */}
+        <Box mt={2} display="flex" justifyContent="center">
+          <Pagination
+            page={page}
+            count={pageCount}
+            onChange={(_, val) => setPage(val)}
+            color="primary"
+            shape="rounded"
+          />
+        </Box>
+      </Paper>
+
+      {/* Snackbar Lưu thành công */}
+      <Snackbar
+        open={snackOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackOpen(false)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setSnackOpen(false)}>
+          Lưu dữ liệu thành công!
+        </Alert>
+      </Snackbar>
+    </ThemeProvider>
   );
 }
