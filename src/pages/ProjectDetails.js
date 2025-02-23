@@ -9,7 +9,6 @@ import {
   MenuItem,
   Select,
   TextField,
-  CircularProgress,
   Box,
   Snackbar,
   Alert,
@@ -30,6 +29,7 @@ import {
   FormControlLabel,
   Checkbox,
   IconButton,
+  Skeleton,
 } from "@mui/material";
 import { Save, Add, FileUpload, FileDownload, ArrowBack } from "@mui/icons-material";
 import * as XLSX from "xlsx";
@@ -63,7 +63,7 @@ export const defaultRow = {
 };
 
 // --------------------
-// 3. Các hàm tính toán
+// 3. Các hàm tính toán (giữ nguyên như cũ)
 export const calcCarryoverMinus = (row) => {
   const directCost = Number(parseNumber(row.directCost));
   const allocated = Number(parseNumber(row.allocated));
@@ -80,7 +80,8 @@ export const calcCarryoverEnd = (row) => {
   const revenue = Number(parseNumber(row.revenue));
   const carryover = Number(parseNumber(row.carryover));
   const carryoverMinus = Number(parseNumber(row.carryoverMinus));
-  const part1 = revenue === 0 ? 0 : revenue < directCost + allocated ? directCost + allocated - revenue : 0;
+  const part1 =
+    revenue === 0 ? 0 : revenue < directCost + allocated ? directCost + allocated - revenue : 0;
   return String(part1 + carryover - carryoverMinus);
 };
 
@@ -90,7 +91,10 @@ export const calcNoPhaiTraCK = (row) => {
   const allocated = Number(parseNumber(row.allocated));
   const revenue = Number(parseNumber(row.revenue));
   const debtDK = Number(parseNumber(row.debt));
-  const part1 = carryoverMinus + directCost + allocated < revenue ? revenue - (directCost + allocated) - carryoverMinus : 0;
+  const part1 =
+    carryoverMinus + directCost + allocated < revenue
+      ? revenue - (directCost + allocated) - carryoverMinus
+      : 0;
   return String(part1 + debtDK);
 };
 
@@ -120,7 +124,7 @@ export const calcAllFields = (row, isUserEditingNoPhaiTraCK = false) => {
 };
 
 // --------------------
-// 4. Xuất Excel
+// 4. Xuất Excel (giữ nguyên)
 export const exportToExcel = (items) => {
   const sheet = XLSX.utils.json_to_sheet(items);
   const wb = XLSX.utils.book_new();
@@ -131,7 +135,7 @@ export const exportToExcel = (items) => {
 };
 
 // --------------------
-// 5. Upload Excel
+// 5. Upload Excel (giữ nguyên)
 export const handleFileUpload = (e, setCostItems, setLoading) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -161,6 +165,8 @@ export const handleFileUpload = (e, setCostItems, setLoading) => {
       }));
       data.forEach(calcAllFields);
       setCostItems(data);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -199,23 +205,65 @@ export const computedOverallRevenue = (groupedData, overallRevenueValue) =>
   overallRevenueValue;
 
 // --------------------
-// 7. Component EditableRow
+// Hàm kiểm tra tự động ẩn các cột không dùng cho dự án có "-VT" hoặc "-NC"
+const isProjectHide = (proj) => proj.includes("-VT") || proj.includes("-NC");
+
+// Danh sách các key cần ẩn đối với dự án có "-VT", "-NC"
+const hiddenKeys = ["allocated", "carryover", "carryoverMinus", "carryoverEnd", "hskh"];
+
+// --------------------
+// Hàm kiểm tra tính hợp lệ của các trường số
+const numericFields = [
+  "inventory",
+  "debt",
+  "directCost",
+  "allocated",
+  "carryover",
+  "carryoverMinus",
+  "carryoverEnd",
+  "tonKhoUngKH",
+  "noPhaiTraCK",
+  "totalCost",
+  "revenue",
+  "hskh",
+];
+
+const validateRow = (row) => {
+  for (const key of numericFields) {
+    const value = row[key] || "";
+    const parsed = parseNumber(value);
+    if (value !== "" && isNaN(Number(parsed))) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const validateData = (rows) => rows.every((row) => validateRow(row));
+
+// --------------------
+// 7. Component EditableRow (chỉ dùng double click để chỉnh sửa)
+// Nếu cột là "description" thì không bọc Tooltip
 const EditableRow = React.memo(
   ({
     row,
     idx,
     columnsAll,
-    hiddenKeys,
     columnsVisibility,
-    isProjectHide,
     handleChangeField,
     handleRemoveRow,
     editingCell,
     setEditingCell,
   }) => (
-    <TableRow sx={{ "&:hover": { backgroundColor: "#f9f9f9" }, transition: "background-color 0.3s" }}>
+    <TableRow
+      sx={{
+        "&:hover": { backgroundColor: "#f9f9f9" },
+        transition: "background-color 0.3s",
+      }}
+    >
       {columnsAll.map((col) => {
         if (!columnsVisibility[col.key]) return null;
+        // Nếu dự án có chứa "-VT" hoặc "-NC" và cột thuộc hiddenKeys thì ẩn cell
         if (isProjectHide(row.project) && hiddenKeys.includes(col.key))
           return <TableCell key={col.key} align="center" sx={{ p: 1 }} />;
         if (col.key === "carryoverEnd") {
@@ -236,17 +284,39 @@ const EditableRow = React.memo(
         }
         const currentlyEditing = editingCell.rowIndex === idx && editingCell.colKey === col.key;
         if (currentlyEditing) {
+          const isNumericField = !["project", "description"].includes(col.key);
+          const cellValue = row[col.key] || "";
+          const numericValue = parseNumber(cellValue);
+          const hasError = isNumericField && cellValue !== "" && isNaN(Number(numericValue));
           return (
             <TableCell key={col.key} align="center">
               <TextField
                 variant="outlined"
                 size="small"
                 fullWidth
-                value={row[col.key] || ""}
+                value={cellValue}
                 onChange={(e) => handleChangeField(idx, col.key, e.target.value)}
                 onBlur={() => setEditingCell({ rowIndex: null, colKey: null })}
                 autoFocus
+                error={hasError}
+                helperText={hasError ? "Giá trị không hợp lệ" : ""}
+                sx={{ border: "1px solid #0288d1", borderRadius: 1 }}
               />
+            </TableCell>
+          );
+        }
+        if (col.key === "description") {
+          return (
+            <TableCell key={col.key} align="center">
+              <Typography
+                variant="body2"
+                sx={{ cursor: col.editable ? "pointer" : "default" }}
+                onDoubleClick={() =>
+                  col.editable && setEditingCell({ rowIndex: idx, colKey: col.key })
+                }
+              >
+                {row[col.key] ? row[col.key] : "Double click để nhập"}
+              </Typography>
             </TableCell>
           );
         }
@@ -256,7 +326,9 @@ const EditableRow = React.memo(
               <Typography
                 variant="body2"
                 sx={{ cursor: col.editable ? "pointer" : "default" }}
-                onDoubleClick={() => col.editable && setEditingCell({ rowIndex: idx, colKey: col.key })}
+                onDoubleClick={() =>
+                  col.editable && setEditingCell({ rowIndex: idx, colKey: col.key })
+                }
               >
                 {row[col.key] ? formatNumber(row[col.key]) : "Double click để nhập"}
               </Typography>
@@ -306,9 +378,13 @@ export default function ProjectDetails() {
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [quarter, setQuarter] = useState("Q1");
   const [snackOpen, setSnackOpen] = useState(false);
+  const [error, setError] = useState(null);
   const [editingCell, setEditingCell] = useState({ rowIndex: null, colKey: null });
+  // overallRevenue dùng cho phần nhập "Doanh Thu" (table header)
   const [overallRevenue, setOverallRevenue] = useState("");
   const [overallRevenueEditing, setOverallRevenueEditing] = useState(false);
+  // projectTotalAmount dùng cho "Doanh Thu Hoàn Thành Dự Kiến"
+  const [projectTotalAmount, setProjectTotalAmount] = useState("");
 
   const columnsAll = useMemo(
     () => [
@@ -324,14 +400,34 @@ export default function ProjectDetails() {
       { key: "tonKhoUngKH", label: "Tồn Kho/Ứng KH", editable: true },
       { key: "noPhaiTraCK", label: "Nợ Phải Trả CK", editable: true },
       { key: "totalCost", label: "Tổng Chi Phí", editable: false },
+      // Revenue column header đổi thành "Doanh Thu"
       { key: "revenue", label: "Doanh Thu", editable: true },
       { key: "hskh", label: "HSKH", editable: true },
     ],
     []
   );
 
-  const hiddenKeys = useMemo(() => ["allocated", "carryover", "carryoverMinus", "carryoverEnd", "hskh"], []);
-  const isProjectHide = useCallback((proj) => proj.includes("-VT") || proj.includes("-NC"), []);
+  // Lưu trạng thái hiển thị cột vào localStorage
+  const [columnsVisibility, setColumnsVisibility] = useState(() =>
+    JSON.parse(localStorage.getItem("columnsVisibility")) ||
+    columnsAll.reduce((acc, col) => ({ ...acc, [col.key]: true }), {})
+  );
+  useEffect(() => {
+    localStorage.setItem("columnsVisibility", JSON.stringify(columnsVisibility));
+  }, [columnsVisibility]);
+
+  const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
+  const handleOpenColumnsDialog = useCallback(() => setColumnsDialogOpen(true), []);
+  const handleCloseColumnsDialog = useCallback(() => setColumnsDialogOpen(false), []);
+  const handleToggleColumn = useCallback(
+    (key) =>
+      setColumnsVisibility((prev) => ({
+        ...prev,
+        [key]: !prev[key],
+      })),
+    []
+  );
+
   const sumKeys = useMemo(
     () => [
       "inventory",
@@ -349,25 +445,14 @@ export default function ProjectDetails() {
     ],
     []
   );
+  // Loại bỏ revenue khỏi summarySumKeys để hiển thị riêng
   const summarySumKeys = useMemo(
-    () => sumKeys.filter((key) => key !== "allocated" && key !== "hskh"),
+    () => sumKeys.filter((key) => key !== "allocated" && key !== "hskh" && key !== "revenue"),
     [sumKeys]
   );
 
-  const [columnsVisibility, setColumnsVisibility] = useState(() =>
-    columnsAll.reduce((acc, col) => ({ ...acc, [col.key]: true }), {})
-  );
-  const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
-
-  const handleOpenColumnsDialog = useCallback(() => setColumnsDialogOpen(true), []);
-  const handleCloseColumnsDialog = useCallback(() => setColumnsDialogOpen(false), []);
-  const handleToggleColumn = useCallback(
-    (key) => setColumnsVisibility((prev) => ({ ...prev, [key]: !prev[key] })),
-    []
-  );
-
   // --------------------
-  // Load dữ liệu từ Firestore
+  // Load dữ liệu chi tiết từ Firestore
   useEffect(() => {
     const loadSavedData = async () => {
       setLoading(true);
@@ -384,12 +469,31 @@ export default function ProjectDetails() {
         if (docSnap.exists() && docSnap.data().overallRevenue) {
           setOverallRevenue(docSnap.data().overallRevenue);
         }
+      } catch (err) {
+        setError("Lỗi tải dữ liệu: " + err.message);
       } finally {
         setLoading(false);
       }
     };
     loadSavedData();
   }, [id, year, quarter]);
+
+  // Load totalAmount từ document gốc của project
+  useEffect(() => {
+    const loadProjectData = async () => {
+      try {
+        const projectDocRef = doc(db, "projects", id);
+        const projectDocSnap = await getDoc(projectDocRef);
+        if (projectDocSnap.exists()) {
+          const data = projectDocSnap.data();
+          setProjectTotalAmount(data.totalAmount || "0");
+        }
+      } catch (err) {
+        setError("Lỗi tải dữ liệu project: " + err.message);
+      }
+    };
+    loadProjectData();
+  }, [id]);
 
   const handleChangeField = useCallback((index, field, val) => {
     setCostItems((prev) => {
@@ -407,7 +511,12 @@ export default function ProjectDetails() {
     setCostItems((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  // Trước khi lưu, kiểm tra tính hợp lệ của tất cả các dòng
   const handleSave = async () => {
+    if (!validateData(costItems)) {
+      setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
+      return;
+    }
     setLoading(true);
     try {
       await setDoc(doc(db, "projects", id, "years", year, "quarters", quarter), {
@@ -416,6 +525,8 @@ export default function ProjectDetails() {
         updated_at: new Date().toISOString(),
       });
       setSnackOpen(true);
+    } catch (err) {
+      setError("Lỗi lưu dữ liệu: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -490,10 +601,10 @@ export default function ProjectDetails() {
           <Button variant="contained" color="secondary" startIcon={<Save />} onClick={handleSave} sx={{ mr: 1 }}>
             Lưu
           </Button>
-          <Button variant="outlined" onClick={handleOpenColumnsDialog} sx={{ mr: 1 }}>
+          <Button variant="contained" color="primary" onClick={handleOpenColumnsDialog} sx={{ mr: 1 }}>
             Tuỳ chọn cột
           </Button>
-          <Button variant="outlined" onClick={() => navigate(-1)} startIcon={<ArrowBack />}>
+          <Button variant="contained" color="primary" onClick={() => navigate(-1)} startIcon={<ArrowBack />}>
             Quay lại
           </Button>
         </Toolbar>
@@ -536,12 +647,6 @@ export default function ProjectDetails() {
           </Grid>
         </Paper>
 
-        {loading && (
-          <Box textAlign="center" mb={2}>
-            <CircularProgress />
-          </Box>
-        )}
-
         <TableContainer
           component={Paper}
           sx={{
@@ -550,29 +655,14 @@ export default function ProjectDetails() {
             borderRadius: 2,
             border: "1px solid #ddd",
             scrollBehavior: "smooth",
-            /* Custom scrollbar cho Chrome, Edge, và Safari */
-            "&::-webkit-scrollbar": {
-              width: "8px",
-              height: "8px",
-            },
-            "&::-webkit-scrollbar-track": {
-              background: "#f1f1f1",
-              borderRadius: "4px",
-            },
-            "&::-webkit-scrollbar-thumb": {
-              background: "#c1c1c1",
-              borderRadius: "4px",
-            },
-            /* Custom scrollbar cho Firefox */
+            "&::-webkit-scrollbar": { width: "8px", height: "8px" },
+            "&::-webkit-scrollbar-track": { background: "#f1f1f1", borderRadius: "4px" },
+            "&::-webkit-scrollbar-thumb": { background: "#c1c1c1", borderRadius: "4px" },
             scrollbarWidth: "thin",
             scrollbarColor: "#c1c1c1 #f1f1f1",
           }}
         >
-          <Table
-            size="small"
-            stickyHeader
-            sx={{ width: "100%", "& thead th": { backgroundColor: "#f1f1f1", borderBottom: "1px solid #ccc" } }}
-          >
+          <Table size="small" stickyHeader sx={{ width: "100%", "& thead th": { backgroundColor: "#f1f1f1", borderBottom: "1px solid #ccc" } }}>
             <TableHead>
               <TableRow>
                 {columnsAll.map(
@@ -588,123 +678,187 @@ export default function ProjectDetails() {
                 </TableCell>
               </TableRow>
             </TableHead>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={columnsAll.length + 1} align="center">
-                    Không có dữ liệu
-                  </TableCell>
-                </TableRow>
-              ) : (
-                Object.entries(groupedData).map(([projectName, groupItems]) => (
-                  <React.Fragment key={projectName}>
-                    <GroupHeader projectName={projectName} colSpan={columnsAll.length + 1} />
-                    {groupItems.map((row) => {
-                      const idx = row._originalIndex;
-                      return (
-                        <EditableRow
-                          key={idx}
-                          row={row}
-                          idx={idx}
-                          columnsAll={columnsAll}
-                          hiddenKeys={hiddenKeys}
-                          columnsVisibility={columnsVisibility}
-                          isProjectHide={isProjectHide}
-                          handleChangeField={handleChangeField}
-                          handleRemoveRow={handleRemoveRow}
-                          editingCell={editingCell}
-                          setEditingCell={setEditingCell}
-                        />
-                      );
-                    })}
-                    <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-                      <TableCell align="right" colSpan={2} sx={{ fontWeight: "bold" }}>
-                        Tổng {projectName}
-                      </TableCell>
-                      {columnsAll.slice(2).map((col) => {
-                        if (!columnsVisibility[col.key])
-                          return <TableCell key={col.key} sx={{ p: 1 }} />;
-                        const val = sumColumnOfGroup(groupItems, col.key);
-                        if (col.key === "revenue" && projectName.includes("-CP")) {
-                          const computed = computedRevenueForGroup(
-                            groupItems,
-                            Number(parseNumber(overallRevenue || "0"))
-                          );
-                          return (
-                            <TableCell key={col.key} align="center" sx={{ fontWeight: "bold" }}>
-                              {formatNumber(computed)}
-                            </TableCell>
-                          );
-                        }
+            {loading ? (
+              <TableBody>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={`skeleton-${i}`}>
+                    {columnsAll.map((col, j) =>
+                      columnsVisibility[col.key] ? (
+                        <TableCell key={`skeleton-${j}`} align="center">
+                          <Skeleton variant="text" />
+                        </TableCell>
+                      ) : null
+                    )}
+                    <TableCell align="center">
+                      <Skeleton variant="text" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            ) : (
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={columnsAll.length + 1} align="center">
+                      Không có dữ liệu
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  Object.entries(groupedData).map(([projectName, groupItems]) => (
+                    <React.Fragment key={projectName}>
+                      <GroupHeader projectName={projectName} colSpan={columnsAll.length + 1} />
+                      {groupItems.map((row) => {
+                        const idx = row._originalIndex;
                         return (
-                          <TableCell key={col.key} align="center" sx={{ fontWeight: "bold" }}>
-                            {formatNumber(val)}
-                          </TableCell>
+                          <EditableRow
+                            key={idx}
+                            row={row}
+                            idx={idx}
+                            columnsAll={columnsAll}
+                            columnsVisibility={columnsVisibility}
+                            handleChangeField={handleChangeField}
+                            handleRemoveRow={handleRemoveRow}
+                            editingCell={editingCell}
+                            setEditingCell={setEditingCell}
+                          />
                         );
                       })}
-                      <TableCell />
-                    </TableRow>
-                  </React.Fragment>
-                ))
-              )}
-            </TableBody>
+                      <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+                        <TableCell align="right" colSpan={2} sx={{ fontWeight: "bold" }}>
+                          Tổng {projectName}
+                        </TableCell>
+                        {columnsAll.slice(2).map((col) => {
+                          if (!columnsVisibility[col.key])
+                            return <TableCell key={col.key} sx={{ p: 1 }} />;
+                          const val = sumColumnOfGroup(groupItems, col.key);
+                          if (col.key === "revenue" && projectName.includes("-CP")) {
+                            const computed = computedRevenueForGroup(
+                              groupItems,
+                              Number(parseNumber(overallRevenue || "0"))
+                            );
+                            return (
+                              <TableCell key={col.key} align="center" sx={{ fontWeight: "bold" }}>
+                                {formatNumber(computed)}
+                              </TableCell>
+                            );
+                          }
+                          return (
+                            <TableCell key={col.key} align="center" sx={{ fontWeight: "bold" }}>
+                              {formatNumber(val)}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell />
+                      </TableRow>
+                    </React.Fragment>
+                  ))
+                )}
+              </TableBody>
+            )}
           </Table>
         </TableContainer>
 
-        <Paper sx={{ mt: 2, p: 2, borderRadius: 2, boxShadow: 3, backgroundColor: "#fdfdfd" }}>
-          <Typography variant="h6" gutterBottom sx={{ color: "#0288d1" }}>
+        {/* Summary: Tổng Tất Cả Công Trình */}
+        <Paper sx={{ mt: 3, p: 3, borderRadius: 2, boxShadow: 3, backgroundColor: "#fff" }}>
+          <Typography variant="h6" gutterBottom sx={{ color: "#0288d1", mb: 2 }}>
             Tổng Tất Cả Công Trình
           </Typography>
           <Grid container spacing={2}>
-            {summarySumKeys.map(
-              (key) =>
-                columnsVisibility[key] && (
-                  <Grid item xs={6} md={3} lg={2} key={key}>
-                    <Box sx={{ p: 1, border: "1px solid #ccc", borderRadius: 1, textAlign: "center" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                        {key === "revenue" ? "Doanh Thu Quý" : columnsAll.find((c) => c.key === key)?.label || key}
-                      </Typography>
-                      {key === "revenue" ? (
-                        overallRevenueEditing ? (
-                          <TextField
-                            variant="outlined"
-                            size="small"
-                            value={overallRevenue}
-                            onChange={(e) => setOverallRevenue(e.target.value)}
-                            onBlur={() => setOverallRevenueEditing(false)}
-                            autoFocus
-                            inputProps={{ style: { textAlign: "center" } }}
-                          />
-                        ) : (
-                          <Tooltip title="Double click để nhập/sửa Doanh Thu Tổng">
-                            <Typography variant="body1" sx={{ cursor: "pointer" }} onDoubleClick={() => setOverallRevenueEditing(true)}>
-                              {overallRevenue
-                                ? formatNumber(
-                                    computedOverallRevenue(groupedData, Number(parseNumber(overallRevenue || "0")))
-                                  )
-                                : "Double click để nhập"}
-                            </Typography>
-                          </Tooltip>
-                        )
-                      ) : (
-                        <Typography variant="body1">{formatNumber(overallSum(groupedData, key))}</Typography>
-                      )}
-                    </Box>
-                  </Grid>
-                )
-            )}
-            {columnsVisibility["totalCost"] && (
-              <Grid item xs={6} md={3} lg={2}>
-                <Box sx={{ p: 1, border: "1px solid #ccc", borderRadius: 1, textAlign: "center" }}>
-                  <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                    LỢI NHUẬN
+            {/* Box cho "Doanh Thu Quý" (nhãn ở phần summary vẫn giữ nguyên) */}
+            <Grid item xs={12} sm={4} md={3}>
+              <Box
+                sx={{
+                  p: 2,
+                  border: "1px solid #ccc",
+                  borderRadius: 2,
+                  textAlign: "center",
+                  background: "#f7f7f7",
+                }}
+              >
+                <Typography variant="subtitle1" sx={{ fontWeight: "bold", mb: 1 }}>
+                  Doanh Thu Quý
+                </Typography>
+                {overallRevenueEditing ? (
+                  <TextField
+                    variant="outlined"
+                    size="small"
+                    value={overallRevenue}
+                    onChange={(e) => setOverallRevenue(e.target.value)}
+                    onBlur={() => setOverallRevenueEditing(false)}
+                    autoFocus
+                    inputProps={{ style: { textAlign: "center" } }}
+                    sx={{ border: "1px solid #0288d1", borderRadius: 1 }}
+                  />
+                ) : (
+                  <Tooltip title="Double click để nhập/sửa Doanh Thu">
+                    <Typography
+                      variant="h6"
+                      sx={{ cursor: "pointer", textAlign: "center" }}
+                      onDoubleClick={() => setOverallRevenueEditing(true)}
+                    >
+                      {overallRevenue
+                        ? formatNumber(Number(parseNumber(overallRevenue)))
+                        : "Double click để nhập"}
+                    </Typography>
+                  </Tooltip>
+                )}
+              </Box>
+            </Grid>
+            {/* Box cho "Doanh Thu Hoàn Thành Dự Kiến" */}
+            <Grid item xs={12} sm={4} md={3}>
+              <Box
+                sx={{
+                  p: 2,
+                  border: "1px solid #ccc",
+                  borderRadius: 2,
+                  textAlign: "center",
+                  background: "#f7f7f7",
+                }}
+              >
+                <Typography variant="subtitle1" sx={{ fontWeight: "bold", mb: 1 }}>
+                  Doanh Thu Hoàn Thành Dự Kiến
+                </Typography>
+                <Typography variant="h6">{formatNumber(projectTotalAmount)}</Typography>
+              </Box>
+            </Grid>
+            {/* Box cho "LỢI NHUẬN" */}
+            <Grid item xs={12} sm={4} md={3}>
+              <Box
+                sx={{
+                  p: 2,
+                  border: "1px solid #ccc",
+                  borderRadius: 2,
+                  textAlign: "center",
+                  background: "#f7f7f7",
+                }}
+              >
+                <Typography variant="subtitle1" sx={{ fontWeight: "bold", mb: 1 }}>
+                  LỢI NHUẬN
+                </Typography>
+                <Typography variant="h6">
+                  {formatNumber(Number(parseNumber(overallRevenue || "0")) - overallSum(groupedData, "totalCost"))}
+                </Typography>
+              </Box>
+            </Grid>
+            {/* Các box summary khác */}
+            {summarySumKeys.map((key) => (
+              <Grid item xs={12} sm={4} md={3} key={key}>
+                <Box
+                  sx={{
+                    p: 2,
+                    border: "1px solid #ccc",
+                    borderRadius: 2,
+                    textAlign: "center",
+                    background: "#f7f7f7",
+                  }}
+                >
+                  <Typography variant="subtitle1" sx={{ fontWeight: "bold", mb: 1 }}>
+                    {columnsAll.find((c) => c.key === key)?.label || key}
                   </Typography>
-                  <Typography variant="body1">
-                    {formatNumber(Number(parseNumber(overallRevenue || "0")) - overallSum(groupedData, "totalCost"))}
-                  </Typography>
+                  <Typography variant="h6">{formatNumber(overallSum(groupedData, key))}</Typography>
                 </Box>
               </Grid>
-            )}
+            ))}
           </Grid>
         </Paper>
       </Box>
@@ -734,6 +888,16 @@ export default function ProjectDetails() {
       >
         <Alert severity="success" onClose={() => setSnackOpen(false)}>
           Lưu dữ liệu thành công!
+        </Alert>
+      </Snackbar>
+      <Snackbar
+        open={Boolean(error)}
+        autoHideDuration={3000}
+        onClose={() => setError(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
         </Alert>
       </Snackbar>
     </ThemeProvider>
