@@ -1,7 +1,6 @@
-// CPDetails.jsx
-import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, QueryClient, QueryClientProvider } from 'react-query';
+// src/components/CPDetails.jsx
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase-config';
 import {
@@ -11,94 +10,174 @@ import {
   Snackbar,
   Alert,
   Typography,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import { ArrowBack } from '@mui/icons-material';
+import { ArrowBack, Add, Delete, Save } from '@mui/icons-material';
 
-// Khởi tạo QueryClient cho React Query
-const queryClient = new QueryClient();
-
-// Hàm fetch dữ liệu -CP (tuỳ chỉnh đường dẫn Firestore theo cấu trúc bạn mong muốn)
-const fetchCPItems = async ({ queryKey }) => {
-  const [_key, projectId] = queryKey;
-  // Ví dụ: Lưu dữ liệu -CP ở doc(db, "projects", projectId, "cp", "items")
-  const cpDocRef = doc(db, 'projects', projectId, 'cp', 'items');
-  const cpSnap = await getDoc(cpDocRef);
-  return cpSnap.exists() ? cpSnap.data().items || [] : [];
-};
-
+// 1) Component chính
 function CPDetails() {
-  const { id } = useParams();      // Lấy id công trình từ URL, ví dụ /project/:id/cp
+  const { id } = useParams(); // projectId
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const year = searchParams.get('year') || String(new Date().getFullYear());
+  const quarter = searchParams.get('quarter') || 'Q1';
 
-  // 1. useQuery để fetch dữ liệu -CP
-  const {
-    data: cpItems,
-    isLoading,
-    isError,
-    error,
-    refetch
-  } = useQuery(['cpItems', id], fetchCPItems);
+  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState([]);  // Dữ liệu -CP (chỉ dòng có project.includes("-CP"))
+  const [allItems, setAllItems] = useState([]); // Tất cả dòng trong quarters, để khi lưu còn gộp lại
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // 2. useMutation để lưu/cập nhật dữ liệu -CP
-  const mutation = useMutation(
-    async (updatedRows) => {
-      // Lưu toàn bộ mảng items mới
-      const cpDocRef = doc(db, 'projects', id, 'cp', 'items');
-      await setDoc(cpDocRef, { items: updatedRows, updated_at: new Date().toISOString() });
-      return updatedRows;
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  // 2) Load dữ liệu từ doc(db, "projects", id, "years", year, "quarters", quarter)
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const quarterRef = doc(db, 'projects', id, 'years', year, 'quarters', quarter);
+      const quarterSnap = await getDoc(quarterRef);
+      if (quarterSnap.exists()) {
+        const data = quarterSnap.data();
+        const items = data.items || [];
+        // Lọc các dòng có project.includes("-CP") để hiển thị
+        const cpRows = items.filter((item) => (item.project || '').includes('-CP'));
+
+        // Lưu items đầy đủ để khi lưu ta có thể cập nhật
+        setAllItems(items);
+        setRows(cpRows);
+      } else {
+        // Nếu document chưa tồn tại
+        setAllItems([]);
+        setRows([]);
+      }
+    } catch (err) {
+      showSnackbar(`Lỗi tải dữ liệu -CP: ${err.message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // 3) Cấu hình các cột DataGrid
+  const columns = [
+    {
+      field: 'project',
+      headerName: 'Công Trình (-CP)',
+      flex: 1,
+      editable: false, // giả sử project = '-CP' cố định, bạn có thể để editable = true nếu muốn
     },
     {
-      onSuccess: () => {
-        refetch(); // reload dữ liệu sau khi lưu thành công
-      },
-    }
-  );
+      field: 'description',
+      headerName: 'Khoản Mục',
+      flex: 2,
+      editable: true,
+    },
+    {
+      field: 'revenue',
+      headerName: 'Doanh Thu',
+      flex: 1,
+      type: 'number',
+      editable: true,
+    },
+    {
+      field: 'allocated',
+      headerName: 'Phân Bổ',
+      flex: 1,
+      type: 'number',
+      editable: true,
+    },
+    {
+      field: 'actions',
+      headerName: 'Xoá',
+      width: 80,
+      sortable: false,
+      renderCell: (params) => (
+        <Button
+          variant="outlined"
+          color="error"
+          startIcon={<Delete />}
+          onClick={() => handleDeleteRow(params.row.id)}
+        >
+          Xoá
+        </Button>
+      ),
+    },
+  ];
 
-  // 3. Xử lý loading & error
-  if (isLoading) {
+  // 4) Sự kiện khi edit cell
+  const handleCellEditCommit = (params) => {
+    const { id: rowId, field, value } = params;
+    setRows((prev) =>
+      prev.map((r) => (r.id === rowId ? { ...r, [field]: value } : r))
+    );
+  };
+
+  // 5) Thêm dòng mới
+  const handleAddRow = () => {
+    const newId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    setRows((prev) => [
+      ...prev,
+      {
+        id: newId,
+        project: '-CP',
+        description: '',
+        revenue: 0,
+        allocated: 0,
+      },
+    ]);
+  };
+
+  // 6) Xoá dòng
+  const handleDeleteRow = (rowId) => {
+    setRows((prev) => prev.filter((r) => r.id !== rowId));
+  };
+
+  // 7) Lưu dữ liệu
+  const handleSaveAll = async () => {
+    setLoading(true);
+    try {
+      // 7.1 Tạo bản copy của allItems
+      let updatedAll = [...allItems];
+
+      // 7.2 Xoá tất cả dòng -CP cũ
+      updatedAll = updatedAll.filter((item) => !(item.project || '').includes('-CP'));
+
+      // 7.3 Thêm/ghép các dòng -CP mới (rows)
+      updatedAll = [...updatedAll, ...rows];
+
+      // 7.4 Lưu vào Firestore
+      const quarterRef = doc(db, 'projects', id, 'years', year, 'quarters', quarter);
+      await setDoc(quarterRef, {
+        items: updatedAll,
+        updated_at: new Date().toISOString(),
+      });
+
+      // 7.5 Reload data
+      loadData();
+
+      showSnackbar('Đã lưu -CP vào ProjectDetail!');
+    } catch (err) {
+      showSnackbar(`Lỗi khi lưu -CP: ${err.message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
     return (
       <Box sx={{ p: 2, textAlign: 'center' }}>
         <CircularProgress />
       </Box>
     );
   }
-  if (isError) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography color="error">
-          Lỗi tải dữ liệu -CP: {error.message}
-        </Typography>
-      </Box>
-    );
-  }
-
-  // 4. Định nghĩa các cột DataGrid cho khoản mục -CP (16 cột tuỳ ý)
-  // Ví dụ minh hoạ 3 cột: name, percent, allocated
-  const columns = [
-    { field: 'name', headerName: 'Khoản Mục -CP', flex: 2, editable: true },
-    { field: 'percent', headerName: '% Chi Phí', flex: 1, editable: true },
-    { field: 'allocated', headerName: 'Phân Bổ', flex: 1, editable: true },
-    // ... tuỳ chỉnh thêm
-  ];
-
-  // 5. State local (nếu cần) để quản lý dataGrid. Ở đây ta dùng cpItems trực tiếp
-  // Sử dụng editMode="cell" hoặc "row" tuỳ theo bạn
-
-  // 6. Hàm lưu toàn bộ
-  const handleSaveAll = () => {
-    // Giả sử cpItems là mảng data, ta lưu mutation
-    mutation.mutate(cpItems);
-  };
 
   return (
     <Box sx={{ p: 2 }}>
-      {/* Nút quay lại */}
       <Button
         variant="contained"
         startIcon={<ArrowBack />}
@@ -108,59 +187,56 @@ function CPDetails() {
         Quay lại
       </Button>
 
-      <Typography variant="h6" gutterBottom>
+      <Typography variant="h5" gutterBottom>
         Quản lý Chi Phí -CP cho Công Trình
       </Typography>
 
-      <Box sx={{ height: 500, width: '100%' }}>
+      <Box sx={{ height: 500, width: '100%', mb: 2 }}>
         <DataGrid
-          rows={cpItems.map((row, index) => ({ id: index, ...row }))}
+          rows={rows}
           columns={columns}
-          editMode="cell" // hoặc "row"
-          sx={{ minWidth: 300 }}
+          onCellEditCommit={handleCellEditCommit}
+          getRowId={(row) => row.id}
+          disableSelectionOnClick
         />
       </Box>
 
-      <Box sx={{ mt: 2 }}>
+      <Box sx={{ mb: 2 }}>
         <Button
           variant="contained"
           color="primary"
-          onClick={handleSaveAll}
-          disabled={mutation.isLoading}
+          startIcon={<Add />}
+          onClick={handleAddRow}
+          sx={{ mr: 2 }}
         >
-          Lưu dữ liệu -CP
+          Thêm Dòng
+        </Button>
+        <Button
+          variant="contained"
+          color="success"
+          startIcon={<Save />}
+          onClick={handleSaveAll}
+          disabled={loading}
+        >
+          Lưu -CP
         </Button>
       </Box>
 
-      {/* Thông báo lưu thành công */}
       <Snackbar
-        open={mutation.isSuccess}
+        open={snackbar.open}
         autoHideDuration={3000}
-        onClose={() => mutation.reset()}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
       >
-        <Alert severity="success" onClose={() => mutation.reset()}>
-          Lưu dữ liệu thành công!
-        </Alert>
-      </Snackbar>
-      {/* Thông báo lỗi */}
-      <Snackbar
-        open={Boolean(mutation.isError)}
-        autoHideDuration={3000}
-        onClose={() => mutation.reset()}
-      >
-        <Alert severity="error" onClose={() => mutation.reset()}>
-          Có lỗi xảy ra khi lưu dữ liệu -CP!
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        >
+          {snackbar.message}
         </Alert>
       </Snackbar>
     </Box>
   );
 }
 
-// Bọc CPDetails trong QueryClientProvider
-export default function CPDetailsPage() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <CPDetails />
-    </QueryClientProvider>
-  );
-}
+// 8) Export mặc định
+export default CPDetails;

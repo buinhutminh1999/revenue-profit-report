@@ -37,15 +37,21 @@ import FileSaver from "file-saver";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 
-// --------------------
-// 1. Hàm tiện ích: parseNumber & formatNumber
+// ---------- Utility Functions ----------
 const parseNumber = (val) => val.replace(/,/g, "");
 const formatNumber = (val) =>
-  val && !isNaN(+val) ? Number(val).toLocaleString("en-US") : val;
+  val && !isNaN(+val)
+    ? Number(val).toLocaleString("en-US", { maximumFractionDigits: 0 })
+    : val;
 
-// --------------------
-// 2. Dữ liệu mặc định
+
+// Hàm tạo id duy nhất (bạn có thể sử dụng thư viện uuid nếu cần)
+const generateUniqueId = () =>
+  Date.now().toString() + Math.random().toString(36).substr(2, 9);
+
+// ---------- Default Data ----------
 export const defaultRow = {
+  id: generateUniqueId(), // đảm bảo mỗi dòng luôn có id
   project: "",
   description: "",
   inventory: "0",
@@ -62,81 +68,88 @@ export const defaultRow = {
   hskh: "0",
 };
 
-// --------------------
-// 3. Các hàm tính toán (giữ nguyên như cũ)
-export const calcCarryoverMinus = (row) => {
-  const directCost = Number(parseNumber(row.directCost));
-  const allocated = Number(parseNumber(row.allocated));
-  const revenue = Number(parseNumber(row.revenue));
-  const carryover = Number(parseNumber(row.carryover));
-  if (directCost + allocated > revenue) return "0";
-  const remain = revenue - (directCost + allocated);
-  return String(remain < carryover ? remain : carryover);
+// ---------- Calculation Functions ----------
+const calcCarryoverMinus = ({ directCost, allocated, revenue, carryover }) => {
+  const dc = Number(parseNumber(directCost)),
+    al = Number(parseNumber(allocated)),
+    rev = Number(parseNumber(revenue)),
+    car = Number(parseNumber(carryover));
+  if (dc + al > rev) return "0";
+  const remain = rev - (dc + al);
+  return String(remain < car ? remain : car);
 };
 
-export const calcCarryoverEnd = (row) => {
-  const directCost = Number(parseNumber(row.directCost));
-  const allocated = Number(parseNumber(row.allocated));
-  const revenue = Number(parseNumber(row.revenue));
-  const carryover = Number(parseNumber(row.carryover));
-  const carryoverMinus = Number(parseNumber(row.carryoverMinus));
-  const part1 =
-    revenue === 0 ? 0 : revenue < directCost + allocated ? directCost + allocated - revenue : 0;
-  return String(part1 + carryover - carryoverMinus);
+const calcCarryoverEnd = (row) => {
+  const dc = Number(parseNumber(row.directCost)),
+    al = Number(parseNumber(row.allocated)),
+    rev = Number(parseNumber(row.revenue)),
+    car = Number(parseNumber(row.carryover)),
+    carMinus = Number(parseNumber(row.carryoverMinus)),
+    part1 = rev === 0 ? 0 : (rev < dc + al ? dc + al - rev : 0);
+  return String(part1 + car - carMinus);
 };
 
-export const calcNoPhaiTraCK = (row) => {
-  const carryoverMinus = Number(parseNumber(row.carryoverMinus));
-  const directCost = Number(parseNumber(row.directCost));
-  const allocated = Number(parseNumber(row.allocated));
-  const revenue = Number(parseNumber(row.revenue));
-  const debtDK = Number(parseNumber(row.debt));
-  const part1 =
-    carryoverMinus + directCost + allocated < revenue
-      ? revenue - (directCost + allocated) - carryoverMinus
-      : 0;
-  return String(part1 + debtDK);
+const calcNoPhaiTraCK = (row) => {
+  const carMinus = Number(parseNumber(row.carryoverMinus)),
+    dc = Number(parseNumber(row.directCost)),
+    al = Number(parseNumber(row.allocated)),
+    rev = Number(parseNumber(row.revenue)),
+    debt = Number(parseNumber(row.debt)),
+    part1 = carMinus + dc + al < rev ? rev - (dc + al) - carMinus : 0;
+  return String(part1 + debt);
 };
 
-export const calcTotalCost = (row) => {
-  const directCost = Number(parseNumber(row.directCost));
-  const allocated = Number(parseNumber(row.allocated));
-  const revenue = Number(parseNumber(row.revenue));
-  const inventory = Number(parseNumber(row.inventory));
-  const debt = Number(parseNumber(row.debt));
-  const ton = Number(parseNumber(row.tonKhoUngKH));
-  const noCK = Number(parseNumber(row.noPhaiTraCK));
-  const proj = (row.project || "").toUpperCase();
-  if (proj.includes("-VT") || proj.includes("-NC")) {
-    return String(inventory - debt + directCost + allocated + noCK - ton);
-  }
-  return String(revenue === 0 ? directCost + allocated : revenue);
+const calcTotalCost = (row) => {
+  const dc = Number(parseNumber(row.directCost)),
+    al = Number(parseNumber(row.allocated)),
+    rev = Number(parseNumber(row.revenue)),
+    inv = Number(parseNumber(row.inventory)),
+    debt = Number(parseNumber(row.debt)),
+    ton = Number(parseNumber(row.tonKhoUngKH)),
+    noCK = Number(parseNumber(row.noPhaiTraCK)),
+    proj = (row.project || "").toUpperCase();
+  return proj.includes("-VT") || proj.includes("-NC")
+    ? String(inv - debt + dc + al + noCK - ton)
+    : String(rev === 0 ? dc + al : rev);
 };
 
-export const calcAllFields = (row, isUserEditingNoPhaiTraCK = false) => {
+export const calcAllFields = (
+  row,
+  { isUserEditingNoPhaiTraCK = false, overallRevenue = "0", projectTotalAmount = "0" } = {}
+) => {
   if (!row.project) return;
+  if (row.project.includes("-VT") || row.project.includes("-NC")) {
+    row.revenue = "0"; // ép doanh thu về 0 cho -VT, -NC
+  } else if (row.project.includes("-CP")) {
+    const hskh = Number(parseNumber(row.hskh)),
+      orv = Number(parseNumber(overallRevenue)),
+      pta = Number(parseNumber(projectTotalAmount));
+    row.revenue = pta === 0 ? "0" : String((hskh * orv) / pta);
+  }
   row.carryoverMinus = calcCarryoverMinus(row);
   row.carryoverEnd = calcCarryoverEnd(row);
-  if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP")) {
+  if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP"))
     row.noPhaiTraCK = calcNoPhaiTraCK(row);
-  }
   row.totalCost = calcTotalCost(row);
 };
 
-// --------------------
-// 4. Xuất Excel (giữ nguyên)
+// ---------- Excel & File Upload ----------
 export const exportToExcel = (items) => {
-  const sheet = XLSX.utils.json_to_sheet(items);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheet, "Data");
-  const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
-  FileSaver.saveAs(blob, `Report_${Date.now()}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(items), "Data");
+  FileSaver.saveAs(
+    new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })], { type: "application/octet-stream" }),
+    `Report_${Date.now()}.xlsx`
+  );
 };
 
-// --------------------
-// 5. Upload Excel (giữ nguyên)
-export const handleFileUpload = (e, setCostItems, setLoading) => {
+export const handleFileUpload = (
+  e,
+  setCostItems,
+  setLoading,
+  overallRevenue,
+  projectTotalAmount
+) => {
   const file = e.target.files[0];
   if (!file) return;
   setLoading(true);
@@ -144,26 +157,29 @@ export const handleFileUpload = (e, setCostItems, setLoading) => {
   reader.onload = (evt) => {
     try {
       const sheets = XLSX.read(evt.target.result, { type: "array" }).Sheets;
-      const firstSheetName = Object.keys(sheets)[0];
-      const rows = XLSX.utils.sheet_to_json(sheets[firstSheetName]);
-      const data = rows.map((row) => ({
-        ...defaultRow,
-        project: (row["Công Trình"] || "").trim().toUpperCase(),
-        description: (row["Khoản Mục Chi Phí"] || "").trim(),
-        inventory: (row["Tồn ĐK"] || "0").toString().trim(),
-        debt: (row["Nợ Phải Trả ĐK"] || "0").toString().trim(),
-        directCost: (row["Chi Phí Trực Tiếp"] || "0").toString().trim(),
-        allocated: (row["Phân Bổ"] || "0").toString().trim(),
-        carryover: (row["Chuyển Tiếp ĐK"] || "0").toString().trim(),
-        carryoverMinus: (row["Trừ Quỹ"] || "0").toString().trim(),
-        carryoverEnd: (row["Cuối Kỳ"] || "0").toString().trim(),
-        tonKhoUngKH: (row["Tồn Kho/Ứng KH"] || "0").toString().trim(),
-        noPhaiTraCK: (row["Nợ Phải Trả CK"] || "0").toString().trim(),
-        totalCost: (row["Tổng Chi Phí"] || "0").toString().trim(),
-        revenue: (row["Doanh Thu"] || "0").toString().trim(),
-        hskh: (row["HSKH"] || "0").toString().trim(),
-      }));
-      data.forEach(calcAllFields);
+      const firstSheet = sheets[Object.keys(sheets)[0]];
+      const data = XLSX.utils.sheet_to_json(firstSheet).map((row) => {
+        const newItem = {
+          ...defaultRow,
+          id: generateUniqueId(), // gán id mới khi import
+          project: (row["Công Trình"] || "").trim().toUpperCase(),
+          description: (row["Khoản Mục Chi Phí"] || "").trim(),
+          inventory: String(row["Tồn ĐK"] || "0").trim(),
+          debt: String(row["Nợ Phải Trả ĐK"] || "0").trim(),
+          directCost: String(row["Chi Phí Trực Tiếp"] || "0").trim(),
+          allocated: String(row["Phân Bổ"] || "0").trim(),
+          carryover: String(row["Chuyển Tiếp ĐK"] || "0").trim(),
+          carryoverMinus: String(row["Trừ Quỹ"] || "0").trim(),
+          carryoverEnd: String(row["Cuối Kỳ"] || "0").trim(),
+          tonKhoUngKH: String(row["Tồn Kho/Ứng KH"] || "0").trim(),
+          noPhaiTraCK: String(row["Nợ Phải Trả CK"] || "0").trim(),
+          totalCost: String(row["Tổng Chi Phí"] || "0").trim(),
+          revenue: String(row["Doanh Thu"] || "0").trim(),
+          hskh: String(row["HSKH"] || "0").trim(),
+        };
+        calcAllFields(newItem, { overallRevenue, projectTotalAmount });
+        return newItem;
+      });
       setCostItems(data);
     } catch (err) {
       console.error(err);
@@ -174,45 +190,31 @@ export const handleFileUpload = (e, setCostItems, setLoading) => {
   reader.readAsArrayBuffer(file);
 };
 
-// --------------------
-// 6. Gom nhóm theo Công Trình
+// ---------- Grouping & Sum ----------
 export const groupByProject = (items) =>
-  items.reduce((acc, row, idx) => {
+  items.reduce((acc, row) => {
     const key = row.project || "(CHƯA CÓ CÔNG TRÌNH)";
     acc[key] = acc[key] || [];
-    acc[key].push({ ...row, _originalIndex: idx });
+    acc[key].push(row);
     return acc;
   }, {});
 
-export const sumColumnOfGroup = (groupItems, field) =>
-  groupItems.reduce((acc, item) => acc + Number(parseNumber(item[field] || "0")), 0);
+export const sumColumnOfGroup = (group, field) =>
+  group.reduce((acc, item) => {
+    const value = Number(parseNumber(item[field] || "0"));
+    return !isNaN(value) ? acc + value : acc;
+  }, 0);
 
-export const overallSum = (groupedData, field) =>
-  Object.values(groupedData).reduce(
-    (total, groupItems) => total + sumColumnOfGroup(groupItems, field),
-    0
-  );
+export const overallSum = (grouped, field) =>
+  Object.values(grouped).reduce((total, group) => total + sumColumnOfGroup(group, field), 0);
 
-// Hàm tính riêng cho cột "revenue" nếu project chứa "-CP"
-export const computedRevenueForGroup = (groupItems, overallRevenueValue) => {
-  const groupRevenue = sumColumnOfGroup(groupItems, "revenue");
-  const groupHSKH = sumColumnOfGroup(groupItems, "hskh");
-  if (groupHSKH === 0) return 0;
-  return (groupRevenue * overallRevenueValue) / groupHSKH;
-};
+// ---------- Hidden Columns Helper (cho -VT, -NC) ----------
+const getHiddenColumnsForProject = (project) =>
+  project.includes("-VT") || project.includes("-NC")
+    ? ["allocated", "carryover", "carryoverMinus", "carryoverEnd", "hskh", "revenue"]
+    : [];
 
-export const computedOverallRevenue = (groupedData, overallRevenueValue) =>
-  overallRevenueValue;
-
-// --------------------
-// Hàm kiểm tra tự động ẩn các cột không dùng cho dự án có "-VT" hoặc "-NC"
-const isProjectHide = (proj) => proj.includes("-VT") || proj.includes("-NC");
-
-// Danh sách các key cần ẩn đối với dự án có "-VT", "-NC"
-const hiddenKeys = ["allocated", "carryover", "carryoverMinus", "carryoverEnd", "hskh"];
-
-// --------------------
-// Hàm kiểm tra tính hợp lệ của các trường số
+// ---------- Validation ----------
 const numericFields = [
   "inventory",
   "debt",
@@ -227,126 +229,114 @@ const numericFields = [
   "revenue",
   "hskh",
 ];
-
-const validateRow = (row) => {
-  for (const key of numericFields) {
+const validateRow = (row) =>
+  numericFields.every((key) => {
     const value = row[key] || "";
-    const parsed = parseNumber(value);
-    if (value !== "" && isNaN(Number(parsed))) {
-      return false;
-    }
-  }
-  return true;
-};
+    return value === "" || !isNaN(Number(parseNumber(value)));
+  });
+const validateData = (rows) => rows.every(validateRow);
 
-const validateData = (rows) => rows.every((row) => validateRow(row));
-
-// --------------------
-// 7. Component EditableRow (chỉ dùng double click để chỉnh sửa)
-// Nếu cột là "description" thì không bọc Tooltip
+// ---------- EditableRow Component ----------
 const EditableRow = React.memo(
   ({
     row,
-    idx,
     columnsAll,
     columnsVisibility,
     handleChangeField,
     handleRemoveRow,
     editingCell,
     setEditingCell,
-  }) => (
-    <TableRow
-      sx={{
-        "&:hover": { backgroundColor: "#f9f9f9" },
-        transition: "background-color 0.3s",
-      }}
-    >
-      {columnsAll.map((col) => {
-        if (!columnsVisibility[col.key]) return null;
-        // Nếu dự án có chứa "-VT" hoặc "-NC" và cột thuộc hiddenKeys thì ẩn cell
-        if (isProjectHide(row.project) && hiddenKeys.includes(col.key))
-          return <TableCell key={col.key} align="center" sx={{ p: 1 }} />;
-        if (col.key === "carryoverEnd") {
+    overallRevenue,
+    projectTotalAmount,
+  }) => {
+    const hiddenCols = getHiddenColumnsForProject(row.project);
+    return (
+      <TableRow sx={{ "&:hover": { backgroundColor: "#f9f9f9" }, transition: "background-color 0.3s" }}>
+        {columnsAll.map((col) => {
+          if (!columnsVisibility[col.key]) return null;
+          if (hiddenCols.includes(col.key))
+            return <TableCell key={col.key} align="center" sx={{ p: 1 }} />;
+          if (col.key === "carryoverEnd")
+            return (
+              <TableCell key={col.key} align="center">
+                <Tooltip title="Chỉ đọc – Giá trị tự động">
+                  <Typography variant="body2">{formatNumber(row[col.key])}</Typography>
+                </Tooltip>
+              </TableCell>
+            );
+          if (row.project.includes("-CP") && col.key === "revenue")
+            return (
+              <TableCell key={col.key} align="center">
+                <Tooltip title="Tự động tính (không sửa)">
+                  <Typography variant="body2">{formatNumber(row[col.key])}</Typography>
+                </Tooltip>
+              </TableCell>
+            );
+          if (col.key === "noPhaiTraCK" && !row.project.includes("-CP"))
+            return (
+              <TableCell key={col.key} align="center">
+                <Typography variant="body2">{formatNumber(row[col.key])}</Typography>
+              </TableCell>
+            );
+          const isEditing = editingCell.id === row.id && editingCell.colKey === col.key;
+          if (isEditing) {
+            const isNumeric = !["project", "description"].includes(col.key);
+            const val = row[col.key] || "";
+            const hasError = isNumeric && val !== "" && isNaN(Number(parseNumber(val)));
+            return (
+              <TableCell key={col.key} align="center">
+                <TextField
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                  value={val}
+                  onChange={(e) => handleChangeField(row.id, col.key, e.target.value)}
+                  onBlur={() => setEditingCell({ id: null, colKey: null })}
+                  autoFocus
+                  error={hasError}
+                  helperText={hasError ? "Giá trị không hợp lệ" : ""}
+                  sx={{ border: "1px solid #0288d1", borderRadius: 1 }}
+                />
+              </TableCell>
+            );
+          }
+          if (col.key === "description")
+            return (
+              <TableCell key={col.key} align="center">
+                <Typography
+                  variant="body2"
+                  sx={{ cursor: col.editable ? "pointer" : "default" }}
+                  onDoubleClick={() => col.editable && setEditingCell({ id: row.id, colKey: col.key })}
+                >
+                  {row[col.key] || "Double click để nhập"}
+                </Typography>
+              </TableCell>
+            );
           return (
             <TableCell key={col.key} align="center">
-              <Tooltip title="Chỉ đọc – Giá trị được tính tự động">
-                <Typography variant="body2">{formatNumber(row[col.key])}</Typography>
+              <Tooltip title={col.editable ? "Double click để chỉnh sửa" : "Chỉ đọc"}>
+                <Typography
+                  variant="body2"
+                  sx={{ cursor: col.editable ? "pointer" : "default" }}
+                  onDoubleClick={() => col.editable && setEditingCell({ id: row.id, colKey: col.key })}
+                >
+                  {row[col.key] ? formatNumber(row[col.key]) : "Double click để nhập"}
+                </Typography>
               </Tooltip>
             </TableCell>
           );
-        }
-        if (col.key === "noPhaiTraCK" && !row.project.includes("-CP")) {
-          return (
-            <TableCell key={col.key} align="center">
-              <Typography variant="body2">{formatNumber(row[col.key])}</Typography>
-            </TableCell>
-          );
-        }
-        const currentlyEditing = editingCell.rowIndex === idx && editingCell.colKey === col.key;
-        if (currentlyEditing) {
-          const isNumericField = !["project", "description"].includes(col.key);
-          const cellValue = row[col.key] || "";
-          const numericValue = parseNumber(cellValue);
-          const hasError = isNumericField && cellValue !== "" && isNaN(Number(numericValue));
-          return (
-            <TableCell key={col.key} align="center">
-              <TextField
-                variant="outlined"
-                size="small"
-                fullWidth
-                value={cellValue}
-                onChange={(e) => handleChangeField(idx, col.key, e.target.value)}
-                onBlur={() => setEditingCell({ rowIndex: null, colKey: null })}
-                autoFocus
-                error={hasError}
-                helperText={hasError ? "Giá trị không hợp lệ" : ""}
-                sx={{ border: "1px solid #0288d1", borderRadius: 1 }}
-              />
-            </TableCell>
-          );
-        }
-        if (col.key === "description") {
-          return (
-            <TableCell key={col.key} align="center">
-              <Typography
-                variant="body2"
-                sx={{ cursor: col.editable ? "pointer" : "default" }}
-                onDoubleClick={() =>
-                  col.editable && setEditingCell({ rowIndex: idx, colKey: col.key })
-                }
-              >
-                {row[col.key] ? row[col.key] : "Double click để nhập"}
-              </Typography>
-            </TableCell>
-          );
-        }
-        return (
-          <TableCell key={col.key} align="center">
-            <Tooltip title={col.editable ? "Double click để chỉnh sửa" : "Chỉ đọc"}>
-              <Typography
-                variant="body2"
-                sx={{ cursor: col.editable ? "pointer" : "default" }}
-                onDoubleClick={() =>
-                  col.editable && setEditingCell({ rowIndex: idx, colKey: col.key })
-                }
-              >
-                {row[col.key] ? formatNumber(row[col.key]) : "Double click để nhập"}
-              </Typography>
-            </Tooltip>
-          </TableCell>
-        );
-      })}
-      <TableCell align="center">
-        <IconButton color="error" onClick={() => handleRemoveRow(idx)}>
-          X
-        </IconButton>
-      </TableCell>
-    </TableRow>
-  )
+        })}
+        <TableCell align="center">
+          <IconButton color="error" onClick={() => handleRemoveRow(row.id)}>
+            X
+          </IconButton>
+        </TableCell>
+      </TableRow>
+    );
+  }
 );
 
-// --------------------
-// 8. Group Header
+// ---------- GroupHeader Component ----------
 const GroupHeader = React.memo(({ projectName, colSpan }) => (
   <TableRow
     sx={{
@@ -357,7 +347,12 @@ const GroupHeader = React.memo(({ projectName, colSpan }) => (
   >
     <TableCell
       align="center"
-      sx={{ fontWeight: "bold", p: 1, borderBottom: "1px solid #ccc", color: "#0288d1" }}
+      sx={{
+        fontWeight: "bold",
+        p: 1,
+        borderBottom: "1px solid #ccc",
+        color: "#0288d1",
+      }}
     >
       {projectName}
     </TableCell>
@@ -366,12 +361,10 @@ const GroupHeader = React.memo(({ projectName, colSpan }) => (
   </TableRow>
 ));
 
-// --------------------
-// 9. Component chính
+// ---------- Main Component ----------
 export default function ProjectDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-
   const [costItems, setCostItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -379,11 +372,10 @@ export default function ProjectDetails() {
   const [quarter, setQuarter] = useState("Q1");
   const [snackOpen, setSnackOpen] = useState(false);
   const [error, setError] = useState(null);
-  const [editingCell, setEditingCell] = useState({ rowIndex: null, colKey: null });
-  // overallRevenue dùng cho phần nhập "Doanh Thu" (table header)
+  // editingCell sử dụng { id, colKey } để theo dõi dòng đang chỉnh sửa
+  const [editingCell, setEditingCell] = useState({ id: null, colKey: null });
   const [overallRevenue, setOverallRevenue] = useState("");
   const [overallRevenueEditing, setOverallRevenueEditing] = useState(false);
-  // projectTotalAmount dùng cho "Doanh Thu Hoàn Thành Dự Kiến"
   const [projectTotalAmount, setProjectTotalAmount] = useState("");
 
   const columnsAll = useMemo(
@@ -400,14 +392,12 @@ export default function ProjectDetails() {
       { key: "tonKhoUngKH", label: "Tồn Kho/Ứng KH", editable: true },
       { key: "noPhaiTraCK", label: "Nợ Phải Trả CK", editable: true },
       { key: "totalCost", label: "Tổng Chi Phí", editable: false },
-      // Revenue column header đổi thành "Doanh Thu"
       { key: "revenue", label: "Doanh Thu", editable: true },
       { key: "hskh", label: "HSKH", editable: true },
     ],
     []
   );
 
-  // Lưu trạng thái hiển thị cột vào localStorage
   const [columnsVisibility, setColumnsVisibility] = useState(() =>
     JSON.parse(localStorage.getItem("columnsVisibility")) ||
     columnsAll.reduce((acc, col) => ({ ...acc, [col.key]: true }), {})
@@ -420,11 +410,7 @@ export default function ProjectDetails() {
   const handleOpenColumnsDialog = useCallback(() => setColumnsDialogOpen(true), []);
   const handleCloseColumnsDialog = useCallback(() => setColumnsDialogOpen(false), []);
   const handleToggleColumn = useCallback(
-    (key) =>
-      setColumnsVisibility((prev) => ({
-        ...prev,
-        [key]: !prev[key],
-      })),
+    (key) => setColumnsVisibility((prev) => ({ ...prev, [key]: !prev[key] })),
     []
   );
 
@@ -445,14 +431,12 @@ export default function ProjectDetails() {
     ],
     []
   );
-  // Loại bỏ revenue khỏi summarySumKeys để hiển thị riêng
   const summarySumKeys = useMemo(
-    () => sumKeys.filter((key) => key !== "allocated" && key !== "hskh" && key !== "revenue"),
+    () => sumKeys.filter((key) => !["allocated", "hskh", "revenue"].includes(key)),
     [sumKeys]
   );
 
-  // --------------------
-  // Load dữ liệu chi tiết từ Firestore
+  // Load dữ liệu từ Firestore
   useEffect(() => {
     const loadSavedData = async () => {
       setLoading(true);
@@ -461,14 +445,15 @@ export default function ProjectDetails() {
         const docSnap = await getDoc(docRef);
         const data = docSnap.exists() ? docSnap.data().items || [] : [];
         data.forEach((item) => {
+          // Nếu item không có id, tạo mới
+          item.id = item.id || generateUniqueId();
           item.project = (item.project || "").trim().toUpperCase();
           item.description = (item.description || "").trim();
-          calcAllFields(item);
+          calcAllFields(item, { overallRevenue, projectTotalAmount });
         });
         setCostItems(data);
-        if (docSnap.exists() && docSnap.data().overallRevenue) {
+        if (docSnap.exists() && docSnap.data().overallRevenue)
           setOverallRevenue(docSnap.data().overallRevenue);
-        }
       } catch (err) {
         setError("Lỗi tải dữ liệu: " + err.message);
       } finally {
@@ -476,9 +461,9 @@ export default function ProjectDetails() {
       }
     };
     loadSavedData();
-  }, [id, year, quarter]);
+  }, [id, year, quarter, overallRevenue, projectTotalAmount]);
 
-  // Load totalAmount từ document gốc của project
+  // Load dữ liệu dự án (ví dụ: tổng doanh thu dự kiến)
   useEffect(() => {
     const loadProjectData = async () => {
       try {
@@ -495,23 +480,46 @@ export default function ProjectDetails() {
     loadProjectData();
   }, [id]);
 
-  const handleChangeField = useCallback((index, field, val) => {
-    setCostItems((prev) => {
-      const updated = [...prev];
-      updated[index][field] = ["project", "description"].includes(field)
-        ? val
-        : parseNumber(val.trim() === "" ? "0" : val);
-      const isUserEditingNoPhaiTraCK = field === "noPhaiTraCK";
-      calcAllFields(updated[index], isUserEditingNoPhaiTraCK);
-      return updated;
-    });
-  }, []);
+  // Cập nhật lại các dòng khi overallRevenue hoặc projectTotalAmount thay đổi
+  useEffect(() => {
+    setCostItems((prev) =>
+      prev.map((row) => {
+        const newRow = { ...row };
+        calcAllFields(newRow, { overallRevenue, projectTotalAmount });
+        return newRow;
+      })
+    );
+  }, [overallRevenue, projectTotalAmount]);
 
-  const handleRemoveRow = useCallback((index) => {
-    setCostItems((prev) => prev.filter((_, i) => i !== index));
-  }, []);
+  // Cập nhật trường dựa trên id (không sử dụng index)
+  const handleChangeField = useCallback(
+    (id, field, val) => {
+      setCostItems((prev) =>
+        prev.map((row) => {
+          if (row.id === id) {
+            const newVal = ["project", "description"].includes(field)
+              ? val
+              : parseNumber(val.trim() === "" ? "0" : val);
+            const newRow = { ...row, [field]: newVal };
+            calcAllFields(newRow, {
+              isUserEditingNoPhaiTraCK: field === "noPhaiTraCK",
+              overallRevenue,
+              projectTotalAmount,
+            });
+            return newRow;
+          }
+          return row;
+        })
+      );
+    },
+    [overallRevenue, projectTotalAmount]
+  );
 
-  // Trước khi lưu, kiểm tra tính hợp lệ của tất cả các dòng
+  const handleRemoveRow = useCallback(
+    (id) => setCostItems((prev) => prev.filter((row) => row.id !== id)),
+    []
+  );
+
   const handleSave = async () => {
     if (!validateData(costItems)) {
       setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
@@ -532,7 +540,14 @@ export default function ProjectDetails() {
     }
   };
 
-  const handleAddRow = useCallback(() => setCostItems((prev) => [...prev, { ...defaultRow }]), []);
+  const handleAddRow = useCallback(
+    () =>
+      setCostItems((prev) => [
+        ...prev,
+        { ...defaultRow, id: generateUniqueId() },
+      ]),
+    []
+  );
 
   const filtered = useMemo(
     () =>
@@ -543,7 +558,6 @@ export default function ProjectDetails() {
       ),
     [costItems, search]
   );
-
   const groupedData = useMemo(() => groupByProject(filtered), [filtered]);
 
   const modernTheme = useMemo(
@@ -562,18 +576,12 @@ export default function ProjectDetails() {
         components: {
           MuiPaper: {
             styleOverrides: {
-              root: {
-                borderRadius: 8,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-              },
+              root: { borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.1)" },
             },
           },
           MuiTableCell: {
             styleOverrides: {
-              root: {
-                borderBottom: "1px solid #eee",
-                padding: "8px",
-              },
+              root: { borderBottom: "1px solid #eee", padding: "8px" },
             },
           },
         },
@@ -593,7 +601,14 @@ export default function ProjectDetails() {
           </Button>
           <Button variant="contained" color="primary" component="label" startIcon={<FileUpload />} sx={{ mr: 1 }}>
             Upload Excel
-            <input type="file" hidden accept=".xlsx,.xls" onChange={(e) => handleFileUpload(e, setCostItems, setLoading)} />
+            <input
+              type="file"
+              hidden
+              accept=".xlsx,.xls"
+              onChange={(e) =>
+                handleFileUpload(e, setCostItems, setLoading, overallRevenue, projectTotalAmount)
+              }
+            />
           </Button>
           <Button variant="contained" color="primary" onClick={() => exportToExcel(costItems)} startIcon={<FileDownload />} sx={{ mr: 1 }}>
             Xuất Excel
@@ -662,7 +677,11 @@ export default function ProjectDetails() {
             scrollbarColor: "#c1c1c1 #f1f1f1",
           }}
         >
-          <Table size="small" stickyHeader sx={{ width: "100%", "& thead th": { backgroundColor: "#f1f1f1", borderBottom: "1px solid #ccc" } }}>
+          <Table
+            size="small"
+            stickyHeader
+            sx={{ width: "100%", "& thead th": { backgroundColor: "#f1f1f1", borderBottom: "1px solid #ccc" } }}
+          >
             <TableHead>
               <TableRow>
                 {columnsAll.map(
@@ -682,12 +701,13 @@ export default function ProjectDetails() {
               <TableBody>
                 {Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`skeleton-${i}`}>
-                    {columnsAll.map((col, j) =>
-                      columnsVisibility[col.key] ? (
-                        <TableCell key={`skeleton-${j}`} align="center">
-                          <Skeleton variant="text" />
-                        </TableCell>
-                      ) : null
+                    {columnsAll.map(
+                      (col, j) =>
+                        columnsVisibility[col.key] && (
+                          <TableCell key={`skeleton-${j}`} align="center">
+                            <Skeleton variant="text" />
+                          </TableCell>
+                        )
                     )}
                     <TableCell align="center">
                       <Skeleton variant="text" />
@@ -707,22 +727,20 @@ export default function ProjectDetails() {
                   Object.entries(groupedData).map(([projectName, groupItems]) => (
                     <React.Fragment key={projectName}>
                       <GroupHeader projectName={projectName} colSpan={columnsAll.length + 1} />
-                      {groupItems.map((row) => {
-                        const idx = row._originalIndex;
-                        return (
-                          <EditableRow
-                            key={idx}
-                            row={row}
-                            idx={idx}
-                            columnsAll={columnsAll}
-                            columnsVisibility={columnsVisibility}
-                            handleChangeField={handleChangeField}
-                            handleRemoveRow={handleRemoveRow}
-                            editingCell={editingCell}
-                            setEditingCell={setEditingCell}
-                          />
-                        );
-                      })}
+                      {groupItems.map((row) => (
+                        <EditableRow
+                          key={row.id}
+                          row={row}
+                          columnsAll={columnsAll}
+                          columnsVisibility={columnsVisibility}
+                          handleChangeField={handleChangeField}
+                          handleRemoveRow={handleRemoveRow}
+                          editingCell={editingCell}
+                          setEditingCell={setEditingCell}
+                          overallRevenue={overallRevenue}
+                          projectTotalAmount={projectTotalAmount}
+                        />
+                      ))}
                       <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
                         <TableCell align="right" colSpan={2} sx={{ fontWeight: "bold" }}>
                           Tổng {projectName}
@@ -730,18 +748,9 @@ export default function ProjectDetails() {
                         {columnsAll.slice(2).map((col) => {
                           if (!columnsVisibility[col.key])
                             return <TableCell key={col.key} sx={{ p: 1 }} />;
+                          if (getHiddenColumnsForProject(projectName).includes(col.key))
+                            return <TableCell key={col.key} sx={{ p: 1 }} />;
                           const val = sumColumnOfGroup(groupItems, col.key);
-                          if (col.key === "revenue" && projectName.includes("-CP")) {
-                            const computed = computedRevenueForGroup(
-                              groupItems,
-                              Number(parseNumber(overallRevenue || "0"))
-                            );
-                            return (
-                              <TableCell key={col.key} align="center" sx={{ fontWeight: "bold" }}>
-                                {formatNumber(computed)}
-                              </TableCell>
-                            );
-                          }
                           return (
                             <TableCell key={col.key} align="center" sx={{ fontWeight: "bold" }}>
                               {formatNumber(val)}
@@ -758,13 +767,11 @@ export default function ProjectDetails() {
           </Table>
         </TableContainer>
 
-        {/* Summary: Tổng Tất Cả Công Trình */}
         <Paper sx={{ mt: 3, p: 3, borderRadius: 2, boxShadow: 3, backgroundColor: "#fff" }}>
           <Typography variant="h6" gutterBottom sx={{ color: "#0288d1", mb: 2 }}>
             Tổng Tất Cả Công Trình
           </Typography>
           <Grid container spacing={2}>
-            {/* Box cho "Doanh Thu Quý" (nhãn ở phần summary vẫn giữ nguyên) */}
             <Grid item xs={12} sm={4} md={3}>
               <Box
                 sx={{
@@ -804,7 +811,6 @@ export default function ProjectDetails() {
                 )}
               </Box>
             </Grid>
-            {/* Box cho "Doanh Thu Hoàn Thành Dự Kiến" */}
             <Grid item xs={12} sm={4} md={3}>
               <Box
                 sx={{
@@ -821,7 +827,6 @@ export default function ProjectDetails() {
                 <Typography variant="h6">{formatNumber(projectTotalAmount)}</Typography>
               </Box>
             </Grid>
-            {/* Box cho "LỢI NHUẬN" */}
             <Grid item xs={12} sm={4} md={3}>
               <Box
                 sx={{
@@ -840,7 +845,6 @@ export default function ProjectDetails() {
                 </Typography>
               </Box>
             </Grid>
-            {/* Các box summary khác */}
             {summarySumKeys.map((key) => (
               <Grid item xs={12} sm={4} md={3} key={key}>
                 <Box
@@ -869,7 +873,12 @@ export default function ProjectDetails() {
           {columnsAll.map((col) => (
             <FormControlLabel
               key={col.key}
-              control={<Checkbox checked={columnsVisibility[col.key]} onChange={() => handleToggleColumn(col.key)} />}
+              control={
+                <Checkbox
+                  checked={columnsVisibility[col.key]}
+                  onChange={() => handleToggleColumn(col.key)}
+                />
+              }
               label={col.label}
               sx={{ display: "block" }}
             />

@@ -8,6 +8,7 @@ import {
   doc,
   deleteDoc,
   updateDoc,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from '../services/firebase-config';
 import {
@@ -44,20 +45,54 @@ import {
 const formatNumber = (val) =>
   val && !isNaN(+val) ? Number(val).toLocaleString('en-US') : val;
 
+/**
+ * Hàm xóa toàn bộ subcollection `years` và document cha trong `projects`.
+ * Nếu bạn không có subcollection `years`, hãy xóa hoặc comment toàn bộ hàm này.
+ */
+async function deleteProjectRecursively(projectId) {
+  // 1. Lấy tất cả document trong subcollection `years`
+  const subcollectionRef = collection(db, `projects/${projectId}/years`);
+  const subSnap = await getDocs(subcollectionRef);
+
+  // 2. Xóa từng document trong subcollection `years`
+  for (const subDoc of subSnap.docs) {
+    await deleteDoc(doc(db, `projects/${projectId}/years`, subDoc.id));
+  }
+
+  // 3. Xóa document cha trong `projects`
+  await deleteDoc(doc(db, 'projects', projectId));
+}
+
 export default function ConstructionPlan() {
   const navigate = useNavigate();
 
-  // State quản lý thông tin
+  // State quản lý thông tin công trình mới
   const [project, setProject] = useState({ name: '', totalAmount: '' });
+
+  // Danh sách công trình
   const [projects, setProjects] = useState([]);
+
+  // Tìm kiếm
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Dialog tạo mới
   const [openDialog, setOpenDialog] = useState(false);
+
+  // Dialog sửa
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState(null);
   const [editProject, setEditProject] = useState({ name: '', totalAmount: '' });
+
+  // Dialog xóa
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState(null);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  // Snackbar
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   // Hàm hiển thị thông báo Snackbar
   const showSnackbar = useCallback((message, severity = 'success') => {
@@ -81,6 +116,7 @@ export default function ConstructionPlan() {
         created_at: new Date(),
       });
       showSnackbar('Tạo công trình thành công!');
+      // Chuyển sang trang chi tiết công trình vừa tạo
       navigate(`/project-details/${docRef.id}`);
     } catch (error) {
       showSnackbar('Lỗi khi tạo công trình.', 'error');
@@ -91,12 +127,13 @@ export default function ConstructionPlan() {
   const handleOpenEditDialog = (proj, e) => {
     e.stopPropagation();
     setProjectToEdit(proj);
-    setEditProject({ name: proj.name, totalAmount: proj.totalAmount });
+    setEditProject({ name: proj.name || '', totalAmount: proj.totalAmount || '' });
     setOpenEditDialog(true);
   };
 
   // Cập nhật thông tin công trình
   const handleUpdateProject = async () => {
+    if (!projectToEdit?.id) return;
     try {
       await updateDoc(doc(db, 'projects', projectToEdit.id), {
         name: editProject.name,
@@ -117,10 +154,15 @@ export default function ConstructionPlan() {
     setOpenDeleteDialog(true);
   };
 
-  // Xác nhận xóa công trình
+  // Xác nhận xóa công trình (bao gồm subcollection nếu có)
   const handleConfirmDelete = async () => {
+    if (!projectToDelete?.id) {
+      showSnackbar('Không tìm thấy projectId để xóa', 'error');
+      return;
+    }
     try {
-      await deleteDoc(doc(db, 'projects', projectToDelete.id));
+      // Gọi hàm xóa đệ quy subcollection + document cha
+      await deleteProjectRecursively(projectToDelete.id);
       showSnackbar('Xóa công trình thành công!');
     } catch (error) {
       showSnackbar('Lỗi khi xóa công trình.', 'error');
@@ -168,7 +210,10 @@ export default function ConstructionPlan() {
             Thêm Công Trình
           </Button>
         </Stack>
-        <TableContainer component={Paper} sx={{ borderRadius: '16px', overflow: 'hidden' }}>
+        <TableContainer
+          component={Paper}
+          sx={{ borderRadius: '16px', overflow: 'hidden' }}
+        >
           <Table>
             <TableHead>
               <TableRow sx={{ backgroundColor: '#0288d1' }}>
@@ -184,8 +229,9 @@ export default function ConstructionPlan() {
             </TableHead>
             <TableBody>
               {projects
+                // Kiểm tra proj.name trước khi gọi toLowerCase
                 .filter((proj) =>
-                  proj.name.toLowerCase().includes(searchTerm.toLowerCase())
+                  (proj.name ?? '').toLowerCase().includes(searchTerm.toLowerCase())
                 )
                 .map((proj, index) => (
                   <TableRow
