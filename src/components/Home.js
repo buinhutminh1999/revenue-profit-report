@@ -42,6 +42,19 @@ export default function Home() {
           Chào mừng bạn đến với Hệ Thống Quản Lý Kế Hoạch!
         </Alert>
 
+        {/* Phần Giới thiệu */}
+        <Typography variant="h5" component="h2" fontWeight="bold" textAlign="center" sx={{ mb: 4 }}>
+          Hệ Thống Quản Lý Kế Hoạch Giúp Bạn Theo Dõi Các Dự Án, Doanh Thu Và Chi Phí Một Cách Dễ Dàng.
+        </Typography>
+        <Typography variant="body1" textAlign="center" sx={{ mb: 4 }}>
+          Với hệ thống này, bạn có thể dễ dàng quản lý tiến độ thi công, theo dõi chi phí, và tối ưu hóa hoạt động kinh doanh. Bắt đầu ngay hôm nay để trải nghiệm những tiện ích tuyệt vời!
+        </Typography>
+
+        {/* Phần Tin tức Cập nhật */}
+        <Alert severity="success" sx={{ mb: 4, borderRadius: 2 }}>
+          <Typography variant="body2">Cập nhật: Chúng tôi đã bổ sung tính năng quản lý chi phí dự án mới. Hãy kiểm tra ngay!</Typography>
+        </Alert>
+
         {/* Dashboard Summary */}
         <Grid container spacing={2} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={4}>
@@ -156,6 +169,11 @@ export default function Home() {
             </Card>
           </Grid>
         </Grid>
+
+        {/* Phần Liên hệ và Hỗ trợ */}
+        <Typography variant="body2" color="textSecondary" textAlign="center" sx={{ mt: 4 }}>
+          Cần hỗ trợ? Liên hệ tôi qua email: <strong>buinhutminh1999@gmail.com</strong>
+        </Typography>
       </Container>
     </Box>
   );
