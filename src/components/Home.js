@@ -142,7 +142,7 @@ export default function Home() {
                 transition: 'transform 0.3s, box-shadow 0.3s',
                 '&:hover': { transform: 'scale(1.02)', boxShadow: 6 },
               }}
-              onClick={() => navigate('/project/123/cp')}
+              onClick={() => navigate('/allocations')}
             >
               <CardContent sx={{ textAlign: 'center' }}>
                 <AssessmentIcon sx={{ fontSize: 50, color: '#0288d1' }} />

@@ -2,9 +2,10 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import ProjectDetails from './pages/ProjectDetails';  // file cũ
-import CPDetailsPage from './pages/CPDetails';        // file mới
+import CostAllocation from './pages/CostAllocation';        // file mới
 import Home from './components/Home'
 import ConstructionPlan from './components/ConstructionPlan';
+import AllocationDetails from './pages/AllocationDetails';
 export default function App() {
   return (
     <BrowserRouter>
@@ -15,7 +16,9 @@ export default function App() {
         <Route path="/project-details/:id" element={<ProjectDetails />} />
         
         {/* Route trang CPDetails mới */}
-        <Route path="/project/:id/cp" element={<CPDetailsPage />} />
+        <Route path="/allocations" element={<CostAllocation />} />
+        <Route path="/allocations/details" element={<AllocationDetails />} />
+
       </Routes>
     </BrowserRouter>
   );
