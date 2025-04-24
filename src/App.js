@@ -1,25 +1,31 @@
-// App.js
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import ProjectDetails from './pages/ProjectDetails';  // file cũ
-import CostAllocation from './pages/CostAllocation';        // file mới
-import Home from './components/Home'
+import Layout from './components/Layout';
+import Home from './components/Home';
 import ConstructionPlan from './components/ConstructionPlan';
-import AllocationDetails from './pages/AllocationDetails';
+import ProjectDetails from './pages/ProjectDetails';
+import CostAllocation from './pages/CostAllocation';
+import CostAllocationQuarter from './pages/CostAllocationQuarter'; // import thêm trang Chi phí phân bổ quý
+import NotFound from './components/NotFound';
+import CustomThemeProvider from './ThemeContext';
+import Office from './pages/Office';
+
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-      <Route path="/" element={<Home/>} />
-      <Route path="/construction-plan" element={<ConstructionPlan/>} />
-        {/* Route trang chi tiết cũ */}
-        <Route path="/project-details/:id" element={<ProjectDetails />} />
-        
-        {/* Route trang CPDetails mới */}
-        <Route path="/allocations" element={<CostAllocation />} />
-        <Route path="/allocations/details" element={<AllocationDetails />} />
-
-      </Routes>
-    </BrowserRouter>
+    <CustomThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/construction-plan" element={<ConstructionPlan />} />
+            <Route path="/project-details/:id" element={<ProjectDetails />} />
+            <Route path="/allocations" element={<CostAllocation />} />
+            <Route path="/cost-allocation-quarter" element={<CostAllocationQuarter />} />
+            <Route path="/office" element={<Office />} /> {/* Thêm route cho trang Office */}
+            <Route path="*" element={<NotFound />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </CustomThemeProvider>
   );
 }

@@ -1,4 +1,5 @@
-import React from 'react';
+// src/components/Home.jsx
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Box,
@@ -9,7 +10,8 @@ import {
   Button,
   Grid,
   Alert,
-  Paper
+  Paper,
+  TextField
 } from '@mui/material';
 import ConstructionIcon from '@mui/icons-material/Construction';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -17,6 +19,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 
 export default function Home() {
   const navigate = useNavigate();
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
 
   // Ví dụ Dashboard Summary (số liệu mẫu, thay thế bằng dữ liệu thực)
   const dashboardSummary = {
@@ -37,12 +40,12 @@ export default function Home() {
       }}
     >
       <Container maxWidth="md">
-        {/* Phần Alert chào mừng */}
+        {/* Alert chào mừng */}
         <Alert severity="info" icon={false} sx={{ mb: 4, borderRadius: 2 }}>
           Chào mừng bạn đến với Hệ Thống Quản Lý Kế Hoạch!
         </Alert>
 
-        {/* Phần Giới thiệu */}
+        {/* Giới thiệu */}
         <Typography variant="h5" component="h2" fontWeight="bold" textAlign="center" sx={{ mb: 4 }}>
           Hệ Thống Quản Lý Kế Hoạch Giúp Bạn Theo Dõi Các Dự Án, Doanh Thu Và Chi Phí Một Cách Dễ Dàng.
         </Typography>
@@ -50,10 +53,24 @@ export default function Home() {
           Với hệ thống này, bạn có thể dễ dàng quản lý tiến độ thi công, theo dõi chi phí, và tối ưu hóa hoạt động kinh doanh. Bắt đầu ngay hôm nay để trải nghiệm những tiện ích tuyệt vời!
         </Typography>
 
-        {/* Phần Tin tức Cập nhật */}
+        {/* Tin tức cập nhật */}
         <Alert severity="success" sx={{ mb: 4, borderRadius: 2 }}>
-          <Typography variant="body2">Cập nhật: Chúng tôi đã bổ sung tính năng quản lý chi phí dự án mới. Hãy kiểm tra ngay!</Typography>
+          <Typography variant="body2">Cập nhật: Đã bổ sung tính năng quản lý chi phí dự án mới. Hãy kiểm tra ngay!</Typography>
         </Alert>
+
+        {/* Nút bật/tắt tìm kiếm nâng cao */}
+        <Box sx={{ textAlign: 'center', mb: 2 }}>
+          <Button variant="text" onClick={() => setShowAdvancedSearch(prev => !prev)}>
+            {showAdvancedSearch ? 'Ẩn tìm kiếm nâng cao' : 'Tìm kiếm nâng cao'}
+          </Button>
+        </Box>
+        {showAdvancedSearch && (
+          <Box sx={{ mb: 4 }}>
+            <TextField label="Từ khóa" variant="outlined" fullWidth sx={{ mb: 2 }} />
+            <TextField label="Danh mục" variant="outlined" fullWidth sx={{ mb: 2 }} />
+            <Button variant="contained" color="primary">Tìm kiếm</Button>
+          </Box>
+        )}
 
         {/* Dashboard Summary */}
         <Grid container spacing={2} sx={{ mb: 4 }}>
@@ -96,7 +113,7 @@ export default function Home() {
 
         {/* Các Card chức năng */}
         <Grid container spacing={4}>
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={3}>
             <Card 
               variant="outlined" 
               sx={{ 
@@ -120,7 +137,7 @@ export default function Home() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={3}>
             <Card 
               variant="outlined" 
               sx={{ 
@@ -131,7 +148,7 @@ export default function Home() {
                 transition: 'transform 0.3s, box-shadow 0.3s',
                 '&:hover': { transform: 'scale(1.02)', boxShadow: 6 },
               }}
-              onClick={() => navigate('/project/123')}
+              onClick={() => navigate('/project-details/123')}
             >
               <CardContent sx={{ textAlign: 'center' }}>
                 <DescriptionIcon sx={{ fontSize: 50, color: '#0288d1' }} />
@@ -144,7 +161,7 @@ export default function Home() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={3}>
             <Card 
               variant="outlined" 
               sx={{ 
@@ -168,9 +185,34 @@ export default function Home() {
               </CardContent>
             </Card>
           </Grid>
+          {/* Thêm menu Chi phí Quý */}
+          <Grid item xs={12} sm={3}>
+            <Card
+              variant="outlined"
+              sx={{
+                boxShadow: 3,
+                borderRadius: 3,
+                p: 2,
+                cursor: 'pointer',
+                transition: 'transform 0.3s, box-shadow 0.3s',
+                '&:hover': { transform: 'scale(1.02)', boxShadow: 6 },
+              }}
+              onClick={() => navigate('/cost-allocation-quarter')}
+            >
+              <CardContent sx={{ textAlign: 'center' }}>
+                <AssessmentIcon sx={{ fontSize: 50, color: '#0288d1' }} />
+                <Typography variant="h6" sx={{ mt: 1 }}>
+                  Chi Phí Theo Quý
+                </Typography>
+                <Button variant="contained" color="primary" sx={{ mt: 2, borderRadius: 2 }}>
+                  Xem chi tiết
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
 
-        {/* Phần Liên hệ và Hỗ trợ */}
+        {/* Liên hệ và Hỗ trợ */}
         <Typography variant="body2" color="textSecondary" textAlign="center" sx={{ mt: 4 }}>
           Cần hỗ trợ? Liên hệ tôi qua email: <strong>buinhutminh1999@gmail.com</strong>
         </Typography>
