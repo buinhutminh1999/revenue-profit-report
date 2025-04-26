@@ -7,12 +7,11 @@ import {
   Typography,
   IconButton,
   Tooltip,
-  Select,
-  MenuItem,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { formatNumber, parseNumber } from "../utils/numberUtils";
 import { getHiddenColumnsForProject } from "../utils/calcUtils";
+import EditableSelect from "./EditableSelect"; // ⬅️ new
 
 const EditableRow = ({
   row,
@@ -22,12 +21,12 @@ const EditableRow = ({
   handleRemoveRow,
   editingCell,
   setEditingCell,
-  overallRevenue,       // (chưa dùng nhưng cứ để nếu sau này cần)
-  projectTotalAmount,   // (chưa dùng nhưng cứ để nếu sau này cần)
-  categories,           // mảng category phải truyền vào
+  overallRevenue,
+  projectTotalAmount,
+  categories,          // [{ id, label }] hoặc [label] – tuỳ bạn truyền
 }) => {
-  /* Những cột cần ẩn theo cấu hình project */
   const hiddenCols = getHiddenColumnsForProject(row.project);
+  const catLabels  = categories.map((c) => (c.label ?? c)); // đảm bảo mảng string
 
   return (
     <TableRow
@@ -37,21 +36,21 @@ const EditableRow = ({
       }}
     >
       {columnsAll.map((col) => {
-        /* 1️⃣ Không hiển thị nếu cột đang bị tắt trong cấu hình */
+        /* 1️⃣ cột bị tắt */
         if (!columnsVisibility[col.key]) return null;
 
-        /* 2️⃣ Ẩn cột theo quy tắc của từng project */
+        /* 2️⃣ cột ẩn theo project */
         if (hiddenCols.includes(col.key)) {
           return <TableCell key={col.key} align="center" sx={{ p: 1 }} />;
         }
 
-        /* 3️⃣ Những cột chỉ đọc */
+        /* 3️⃣ chỉ-đọc */
         if (
           col.key === "carryoverEnd" ||
           (row.project.includes("-CP") && col.key === "revenue") ||
           (col.key === "noPhaiTraCK" && !row.project.includes("-CP"))
         ) {
-          const tooltipTitle =
+          const tooltip =
             col.key === "carryoverEnd"
               ? "Chỉ đọc – Giá trị tự động"
               : row.project.includes("-CP") && col.key === "revenue"
@@ -59,7 +58,7 @@ const EditableRow = ({
               : "Chỉ đọc";
           return (
             <TableCell key={col.key} align="center">
-              <Tooltip title={tooltipTitle}>
+              <Tooltip title={tooltip}>
                 <Typography variant="body2">
                   {formatNumber(row[col.key])}
                 </Typography>
@@ -68,17 +67,16 @@ const EditableRow = ({
           );
         }
 
-        /* 4️⃣ Đang edit ô này? */
+        /* 4️⃣ xác định ô đang edit */
         const isEditing =
           editingCell.id === row.id && editingCell.colKey === col.key;
 
-        /* 4a. Đang edit KHÔNG phải description → TextField chung */
+        /* 4a. đang edit (trừ description) */
         if (isEditing && col.key !== "description") {
           const isNumeric = !["project", "description"].includes(col.key);
-          const val = row[col.key] ?? "";
-          const parsed = parseNumber(val);
-          const hasError =
-            isNumeric && val !== "" && isNaN(Number(parsed));
+          const val       = row[col.key] ?? "";
+          const parsed    = parseNumber(val);
+          const hasErr    = isNumeric && val !== "" && isNaN(Number(parsed));
 
           return (
             <TableCell key={col.key} align="center">
@@ -92,51 +90,37 @@ const EditableRow = ({
                 }
                 onBlur={() => setEditingCell({ id: null, colKey: null })}
                 autoFocus
-                error={hasError}
-                helperText={hasError ? "Giá trị không hợp lệ" : ""}
+                error={hasErr}
+                helperText={hasErr ? "Giá trị không hợp lệ" : ""}
                 sx={{ border: "1px solid #0288d1", borderRadius: 1 }}
               />
             </TableCell>
           );
         }
 
-        /* 5️⃣ Logic riêng cho cột description */
+        /* 5️⃣ cột description */
         if (col.key === "description") {
-          const isDescEditing =
-            editingCell.id === row.id &&
-            editingCell.colKey === "description";
-
-          /* 5a. Project có "-CP" → dropdown */
-          if (isDescEditing && row.project.includes("-CP")) {
+          /* Project có "-CP" → EditableSelect với double-click mở */
+          if (row.project.includes("-CP")) {
             return (
               <TableCell key="description" align="center">
-                <Select
-                  variant="outlined"
-                  size="small"
-                  fullWidth
+                <EditableSelect
                   value={row.description || ""}
-                  onChange={(e) =>
-                    handleChangeField(
-                      row.id,
-                      "description",
-                      e.target.value
-                    )
-                  }
-                  onClose={() => setEditingCell({ id: null, colKey: null })}
-                  autoFocus
-                >
-                  {categories.map((cat) => (
-                    <MenuItem key={cat.id} value={cat.label}>
-                      {cat.label}
-                    </MenuItem>
-                  ))}
-                </Select>
+                  options={catLabels}
+                  onChange={(v) => handleChangeField(row.id, "description", v)}
+                  placeholder="Chọn khoản mục"
+                  trigger="double"          // double-click để mở
+                  sx={{ minWidth: 180 }}
+                />
               </TableCell>
             );
           }
 
-          /* 5b. Project thường → TextField */
-          if (isDescEditing) {
+          /* Project thường → giống logic cũ (click để edit TextField) */
+          if (
+            editingCell.id === row.id &&
+            editingCell.colKey === "description"
+          ) {
             return (
               <TableCell key="description" align="center">
                 <TextField
@@ -145,11 +129,7 @@ const EditableRow = ({
                   fullWidth
                   value={row.description || ""}
                   onChange={(e) =>
-                    handleChangeField(
-                      row.id,
-                      "description",
-                      e.target.value
-                    )
+                    handleChangeField(row.id, "description", e.target.value)
                   }
                   onBlur={() => setEditingCell({ id: null, colKey: null })}
                   autoFocus
@@ -159,7 +139,7 @@ const EditableRow = ({
             );
           }
 
-          /* 5c. Mặc định chỉ hiển thị text */
+          /* hiển thị text */
           return (
             <TableCell key="description" align="center">
               <Typography
@@ -175,13 +155,11 @@ const EditableRow = ({
           );
         }
 
-        /* 6️⃣ Mặc định: hiển thị value, double-click để edit (nếu được phép) */
+        /* 6️⃣ mặc định: hiển thị, dbl-click để edit */
         return (
           <TableCell key={col.key} align="center">
             <Tooltip
-              title={
-                col.editable ? "Double click để chỉnh sửa" : "Chỉ đọc"
-              }
+              title={col.editable ? "Double click để chỉnh sửa" : "Chỉ đọc"}
             >
               <Typography
                 variant="body2"
@@ -191,21 +169,16 @@ const EditableRow = ({
                   setEditingCell({ id: row.id, colKey: col.key })
                 }
               >
-                {row[col.key]
-                  ? formatNumber(row[col.key])
-                  : "Double click để nhập"}
+                {row[col.key] ? formatNumber(row[col.key]) : "Double click để nhập"}
               </Typography>
             </Tooltip>
           </TableCell>
         );
       })}
 
-      {/* 7️⃣ Nút xoá */}
+      {/* 7️⃣ nút xoá */}
       <TableCell align="center">
-        <IconButton
-          color="error"
-          onClick={() => handleRemoveRow(row.id)}
-        >
+        <IconButton color="error" onClick={() => handleRemoveRow(row.id)}>
           <CloseIcon />
         </IconButton>
       </TableCell>

@@ -1,12 +1,19 @@
 // src/components/ActionBar.jsx
-import React from "react";
-import { AppBar, Toolbar, Typography, Button } from "@mui/material";
+import React, { useRef, useState } from "react";
 import {
-  Add,
-  FileUpload,
-  FileDownload,
-  Save,
-  ArrowBack,
+  AppBar,
+  Toolbar,
+  Typography,
+  Button,
+  IconButton,
+  Tooltip,
+  useMediaQuery,
+  Chip,
+  CircularProgress,
+} from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import {
+  Add, FileUpload, FileDownload, Save, ArrowBack, ViewColumn,
 } from "@mui/icons-material";
 
 export default function ActionBar({
@@ -17,72 +24,134 @@ export default function ActionBar({
   onToggleColumns,
   onBack,
   costItems,
+  saving = false,
   sx = { mb: 2 },
 }) {
+  const theme        = useTheme();
+  const isSmall      = useMediaQuery(theme.breakpoints.down("sm"));
+  const fileInputRef = useRef(null);
+  const [fileName, setFileName] = useState("");
+
+  /* ----- helpers ----- */
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    onFileUpload(e);
+    // cho phép chọn lại cùng file
+    e.target.value = null;
+  };
+
+  /* ----- btn factory ----- */
+  const Btn = ({ icon, label, onClick, color = "primary", ...rest }) =>
+    isSmall ? (
+      <Tooltip title={label}>
+        <IconButton color={color} onClick={onClick} {...rest}>
+          {icon}
+        </IconButton>
+      </Tooltip>
+    ) : (
+      <Button
+        variant="contained"
+        color={color}
+        startIcon={icon}
+        onClick={onClick}
+        sx={{ mr: 1 }}
+        {...rest}
+      >
+        {label}
+      </Button>
+    );
+
   return (
     <AppBar position="sticky" elevation={1} sx={sx}>
       <Toolbar>
         <Typography variant="h6" sx={{ flexGrow: 1 }}>
           Chi Tiết Công Trình
         </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={onAddRow}
-          startIcon={<Add />}
-          sx={{ mr: 1 }}
-        >
-          Thêm Dòng
-        </Button>
-        <Button
-          variant="contained"
-          color="primary"
-          component="label"
-          startIcon={<FileUpload />}
-          sx={{ mr: 1 }}
-        >
-          Upload Excel
-          <input
-            type="file"
-            hidden
-            accept=".xlsx,.xls"
-            onChange={onFileUpload}
+
+        <Btn icon={<Add />} label="Thêm dòng" onClick={onAddRow} />
+
+        {/* Upload */}
+        {isSmall ? (
+          <Tooltip title="Tải Excel">
+            <IconButton color="primary" component="label">
+              <FileUpload />
+              <input
+                ref={fileInputRef}
+                hidden
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFile}
+                aria-label="Upload Excel"
+              />
+            </IconButton>
+          </Tooltip>
+        ) : (
+          <Button
+            variant="contained"
+            component="label"
+            startIcon={<FileUpload />}
+            sx={{ mr: 1 }}
+          >
+            Upload Excel
+            <input
+              ref={fileInputRef}
+              hidden
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFile}
+              aria-label="Upload Excel"
+            />
+          </Button>
+        )}
+
+        {/* file chip */}
+        {fileName && !isSmall && (
+          <Chip
+            label={fileName}
+            size="small"
+            onDelete={() => setFileName("")}
+            sx={{ mr: 1 }}
           />
-        </Button>
-        <Button
-          variant="contained"
-          color="primary"
+        )}
+
+        <Btn
+          icon={<FileDownload />}
+          label="Xuất Excel"
           onClick={() => onExport(costItems)}
-          startIcon={<FileDownload />}
-          sx={{ mr: 1 }}
-        >
-          Xuất Excel
-        </Button>
-        <Button
-          variant="contained"
+        />
+
+        <Btn
+          icon={saving ? <CircularProgress size={20} /> : <Save />}
+          label="Lưu"
           color="secondary"
-          startIcon={<Save />}
           onClick={onSave}
-          sx={{ mr: 1 }}
-        >
-          Lưu
-        </Button>
-        <Button
-          variant="contained"
-          color="primary"
+          disabled={saving}
+        />
+
+        <Btn
+          icon={<ViewColumn />}
+          label="Tùy chọn cột"
           onClick={onToggleColumns}
-          sx={{ mr: 1 }}
-        >
-          Tuỳ chọn cột
-        </Button>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={onBack}
-          startIcon={<ArrowBack />}
-        >
-          Quay lại
-        </Button>
+        />
+
+        {/* back: outlined để tách biệt */}
+        {isSmall ? (
+          <Tooltip title="Quay lại">
+            <IconButton color="primary" onClick={onBack}>
+              <ArrowBack />
+            </IconButton>
+          </Tooltip>
+        ) : (
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBack />}
+            onClick={onBack}
+          >
+            Quay lại
+          </Button>
+        )}
       </Toolbar>
     </AppBar>
   );
