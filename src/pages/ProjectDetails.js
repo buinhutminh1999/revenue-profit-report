@@ -1,56 +1,26 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-    AppBar,
-    Toolbar,
-    Typography,
-    Paper,
-    Button,
-    MenuItem,
-    Select,
-    TextField,
     Box,
     Snackbar,
     Alert,
     ThemeProvider,
     createTheme,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Grid,
-    Tooltip,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    FormControlLabel,
-    Checkbox,
-    Skeleton,
 } from "@mui/material";
-import {
-    Save,
-    Add,
-    FileUpload,
-    FileDownload,
-    ArrowBack,
-} from "@mui/icons-material";
 import * as XLSX from "xlsx";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, onSnapshot } from "firebase/firestore";
 import { db } from "../services/firebase-config";
-import { parseNumber, formatNumber } from "../utils/numberUtils";
+import { parseNumber } from "../utils/numberUtils";
 import { generateUniqueId } from "../utils/idUtils";
-import { calcAllFields, getHiddenColumnsForProject } from "../utils/calcUtils";
+import { calcAllFields } from "../utils/calcUtils";
 import { exportToExcel } from "../utils/excelUtils";
-import {
-    groupByProject,
-    overallSum,
-    sumColumnOfGroup,
-} from "../utils/groupingUtils";
-import EditableRow from "../components/EditableRow";
-import GroupHeader from "../components/GroupHeader";
+import { groupByProject } from "../utils/groupingUtils";
+import Filters from "../components/Filters";
+import ActionBar from "../components/ActionBar";
+import ColumnSelector from "../components/ColumnSelector";
+import CostTable from "../components/CostTable";
+import SummaryPanel from "../components/ui/SummaryPanel";
+
 // ---------- Default Data ----------
 export const defaultRow = {
     id: generateUniqueId(), // đảm bảo mỗi dòng luôn có id
@@ -157,6 +127,7 @@ export default function ProjectDetails() {
     const [overallRevenue, setOverallRevenue] = useState("");
     const [overallRevenueEditing, setOverallRevenueEditing] = useState(false);
     const [projectTotalAmount, setProjectTotalAmount] = useState("");
+    const [categories, setCategories] = useState([]);
 
     const columnsAll = useMemo(
         () => [
@@ -187,6 +158,17 @@ export default function ProjectDetails() {
             JSON.parse(localStorage.getItem("columnsVisibility")) ||
             columnsAll.reduce((acc, col) => ({ ...acc, [col.key]: true }), {})
     );
+
+    useEffect(() => {
+            const unsub = onSnapshot(
+              collection(db, "categories"),
+              (snap) => {
+                setCategories(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+              }
+            );
+            return () => unsub();
+          }, []);
+        
     useEffect(() => {
         localStorage.setItem(
             "columnsVisibility",
@@ -412,516 +394,69 @@ export default function ProjectDetails() {
 
     return (
         <ThemeProvider theme={modernTheme}>
-            <AppBar position="sticky" elevation={1} sx={{ mb: 2 }}>
-                <Toolbar>
-                    <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                        Chi Tiết Công Trình
-                    </Typography>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={handleAddRow}
-                        startIcon={<Add />}
-                        sx={{ mr: 1 }}
-                    >
-                        Thêm Dòng
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        component="label"
-                        startIcon={<FileUpload />}
-                        sx={{ mr: 1 }}
-                    >
-                        Upload Excel
-                        <input
-                            type="file"
-                            hidden
-                            accept=".xlsx,.xls"
-                            onChange={(e) =>
-                                handleFileUpload(
-                                    e,
-                                    setCostItems,
-                                    setLoading,
-                                    overallRevenue,
-                                    projectTotalAmount
-                                )
-                            }
-                        />
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={() => exportToExcel(costItems)}
-                        startIcon={<FileDownload />}
-                        sx={{ mr: 1 }}
-                    >
-                        Xuất Excel
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="secondary"
-                        startIcon={<Save />}
-                        onClick={handleSave}
-                        sx={{ mr: 1 }}
-                    >
-                        Lưu
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={handleOpenColumnsDialog}
-                        sx={{ mr: 1 }}
-                    >
-                        Tuỳ chọn cột
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={() => navigate(-1)}
-                        startIcon={<ArrowBack />}
-                    >
-                        Quay lại
-                    </Button>
-                </Toolbar>
-            </AppBar>
+            <ActionBar
+                onAddRow={handleAddRow}
+                onFileUpload={(e) =>
+                    handleFileUpload(
+                        e,
+                        setCostItems,
+                        setLoading,
+                        overallRevenue,
+                        projectTotalAmount
+                    )
+                }
+                onExport={(items) => exportToExcel(items)}
+                onSave={handleSave}
+                onToggleColumns={handleOpenColumnsDialog}
+                onBack={() => navigate(-1)}
+                costItems={costItems}
+                sx={{ mb: 2 }}
+            />
 
             <Box sx={{ px: { xs: 2, md: 4 }, pb: 4 }}>
-                <Paper sx={{ p: 2, mb: 3, borderRadius: 2, boxShadow: 2 }}>
-                    <Grid container spacing={2} alignItems="center">
-                        <Grid item xs={12} md={4}>
-                            <TextField
-                                fullWidth
-                                label="Tìm kiếm..."
-                                variant="outlined"
-                                size="small"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
-                        </Grid>
-                        <Grid item xs={6} md={4}>
-                            <Select
-                                fullWidth
-                                size="small"
-                                value={year}
-                                onChange={(e) => setYear(e.target.value)}
-                            >
-                                {Array.from({ length: 10 }, (_, i) => {
-                                    const y = new Date().getFullYear() - 5 + i;
-                                    return (
-                                        <MenuItem key={y} value={String(y)}>
-                                            {y}
-                                        </MenuItem>
-                                    );
-                                })}
-                            </Select>
-                        </Grid>
-                        <Grid item xs={6} md={4}>
-                            <Select
-                                fullWidth
-                                size="small"
-                                value={quarter}
-                                onChange={(e) => setQuarter(e.target.value)}
-                            >
-                                {["Q1", "Q2", "Q3", "Q4"].map((q) => (
-                                    <MenuItem key={q} value={q}>
-                                        {q}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                    </Grid>
-                </Paper>
+                <Filters
+                    search={search}
+                    onSearchChange={(e) => setSearch(e.target.value)}
+                    year={year}
+                    onYearChange={(e) => setYear(e.target.value)}
+                    quarter={quarter}
+                    onQuarterChange={(e) => setQuarter(e.target.value)}
+                />
+                <CostTable
+                    columnsAll={columnsAll}
+                    columnsVisibility={columnsVisibility}
+                    loading={loading}
+                    filtered={filtered}
+                    groupedData={groupedData}
+                    editingCell={editingCell}
+                    setEditingCell={setEditingCell}
+                    handleChangeField={handleChangeField}
+                    handleRemoveRow={handleRemoveRow}
+                    overallRevenue={overallRevenue}
+                    projectTotalAmount={projectTotalAmount}
+                    categories={categories}        // ← truyền vào đây
 
-                <TableContainer
-                    component={Paper}
-                    sx={{
-                        overflowX: "auto",
-                        maxHeight: 600,
-                        borderRadius: 2,
-                        border: "1px solid #ddd",
-                        scrollBehavior: "smooth",
-                        "&::-webkit-scrollbar": { width: "8px", height: "8px" },
-                        "&::-webkit-scrollbar-track": {
-                            background: "#f1f1f1",
-                            borderRadius: "4px",
-                        },
-                        "&::-webkit-scrollbar-thumb": {
-                            background: "#c1c1c1",
-                            borderRadius: "4px",
-                        },
-                        scrollbarWidth: "thin",
-                        scrollbarColor: "#c1c1c1 #f1f1f1",
-                    }}
-                >
-                    <Table
-                        size="small"
-                        stickyHeader
-                        sx={{
-                            width: "100%",
-                            "& thead th": {
-                                backgroundColor: "#f1f1f1",
-                                borderBottom: "1px solid #ccc",
-                            },
-                        }}
-                    >
-                        <TableHead>
-                            <TableRow>
-                                {columnsAll.map(
-                                    (col) =>
-                                        columnsVisibility[col.key] && (
-                                            <TableCell
-                                                key={col.key}
-                                                align="center"
-                                                sx={{ fontWeight: "bold" }}
-                                            >
-                                                {col.label}
-                                            </TableCell>
-                                        )
-                                )}
-                                <TableCell
-                                    align="center"
-                                    sx={{ fontWeight: "bold" }}
-                                >
-                                    Xoá
-                                </TableCell>
-                            </TableRow>
-                        </TableHead>
-                        {loading ? (
-                            <TableBody>
-                                {Array.from({ length: 5 }).map((_, i) => (
-                                    <TableRow key={`skeleton-${i}`}>
-                                        {columnsAll.map(
-                                            (col, j) =>
-                                                columnsVisibility[col.key] && (
-                                                    <TableCell
-                                                        key={`skeleton-${j}`}
-                                                        align="center"
-                                                    >
-                                                        <Skeleton variant="text" />
-                                                    </TableCell>
-                                                )
-                                        )}
-                                        <TableCell align="center">
-                                            <Skeleton variant="text" />
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        ) : (
-                            <TableBody>
-                                {filtered.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={columnsAll.length + 1}
-                                            align="center"
-                                        >
-                                            Không có dữ liệu
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    Object.entries(groupedData).map(
-                                        ([projectName, groupItems]) => (
-                                            <React.Fragment key={projectName}>
-                                                <GroupHeader
-                                                    projectName={projectName}
-                                                    colSpan={
-                                                        columnsAll.length + 1
-                                                    }
-                                                />
-                                                {groupItems.map((row) => (
-                                                    <EditableRow
-                                                        key={row.id}
-                                                        row={row}
-                                                        columnsAll={columnsAll}
-                                                        columnsVisibility={
-                                                            columnsVisibility
-                                                        }
-                                                        handleChangeField={
-                                                            handleChangeField
-                                                        }
-                                                        handleRemoveRow={
-                                                            handleRemoveRow
-                                                        }
-                                                        editingCell={
-                                                            editingCell
-                                                        }
-                                                        setEditingCell={
-                                                            setEditingCell
-                                                        }
-                                                        overallRevenue={
-                                                            overallRevenue
-                                                        }
-                                                        projectTotalAmount={
-                                                            projectTotalAmount
-                                                        }
-                                                    />
-                                                ))}
-                                                <TableRow
-                                                    sx={{
-                                                        backgroundColor:
-                                                            "#f5f5f5",
-                                                    }}
-                                                >
-                                                    <TableCell
-                                                        align="right"
-                                                        colSpan={2}
-                                                        sx={{
-                                                            fontWeight: "bold",
-                                                        }}
-                                                    >
-                                                        Tổng {projectName}
-                                                    </TableCell>
-                                                    {columnsAll
-                                                        .slice(2)
-                                                        .map((col) => {
-                                                            if (
-                                                                !columnsVisibility[
-                                                                    col.key
-                                                                ]
-                                                            )
-                                                                return (
-                                                                    <TableCell
-                                                                        key={
-                                                                            col.key
-                                                                        }
-                                                                        sx={{
-                                                                            p: 1,
-                                                                        }}
-                                                                    />
-                                                                );
-                                                            if (
-                                                                getHiddenColumnsForProject(
-                                                                    projectName
-                                                                ).includes(
-                                                                    col.key
-                                                                )
-                                                            )
-                                                                return (
-                                                                    <TableCell
-                                                                        key={
-                                                                            col.key
-                                                                        }
-                                                                        sx={{
-                                                                            p: 1,
-                                                                        }}
-                                                                    />
-                                                                );
-                                                            const val =
-                                                                sumColumnOfGroup(
-                                                                    groupItems,
-                                                                    col.key
-                                                                );
-                                                            return (
-                                                                <TableCell
-                                                                    key={
-                                                                        col.key
-                                                                    }
-                                                                    align="center"
-                                                                    sx={{
-                                                                        fontWeight:
-                                                                            "bold",
-                                                                    }}
-                                                                >
-                                                                    {formatNumber(
-                                                                        val
-                                                                    )}
-                                                                </TableCell>
-                                                            );
-                                                        })}
-                                                    <TableCell />
-                                                </TableRow>
-                                            </React.Fragment>
-                                        )
-                                    )
-                                )}
-                            </TableBody>
-                        )}
-                    </Table>
-                </TableContainer>
+                />
 
-                <Paper
-                    sx={{
-                        mt: 3,
-                        p: 3,
-                        borderRadius: 2,
-                        boxShadow: 3,
-                        backgroundColor: "#fff",
-                    }}
-                >
-                    <Typography
-                        variant="h6"
-                        gutterBottom
-                        sx={{ color: "#0288d1", mb: 2 }}
-                    >
-                        Tổng Tất Cả Công Trình
-                    </Typography>
-                    <Grid container spacing={2}>
-                        <Grid item xs={12} sm={4} md={3}>
-                            <Box
-                                sx={{
-                                    p: 2,
-                                    border: "1px solid #ccc",
-                                    borderRadius: 2,
-                                    textAlign: "center",
-                                    background: "#f7f7f7",
-                                }}
-                            >
-                                <Typography
-                                    variant="subtitle1"
-                                    sx={{ fontWeight: "bold", mb: 1 }}
-                                >
-                                    Doanh Thu Quý
-                                </Typography>
-                                {overallRevenueEditing ? (
-                                    <TextField
-                                        variant="outlined"
-                                        size="small"
-                                        value={overallRevenue}
-                                        onChange={(e) =>
-                                            setOverallRevenue(e.target.value)
-                                        }
-                                        onBlur={() =>
-                                            setOverallRevenueEditing(false)
-                                        }
-                                        autoFocus
-                                        inputProps={{
-                                            style: { textAlign: "center" },
-                                        }}
-                                        sx={{
-                                            border: "1px solid #0288d1",
-                                            borderRadius: 1,
-                                        }}
-                                    />
-                                ) : (
-                                    <Tooltip title="Double click để nhập/sửa Doanh Thu">
-                                        <Typography
-                                            variant="h6"
-                                            sx={{
-                                                cursor: "pointer",
-                                                textAlign: "center",
-                                            }}
-                                            onDoubleClick={() =>
-                                                setOverallRevenueEditing(true)
-                                            }
-                                        >
-                                            {overallRevenue
-                                                ? formatNumber(
-                                                      Number(
-                                                          parseNumber(
-                                                              overallRevenue
-                                                          )
-                                                      )
-                                                  )
-                                                : "Double click để nhập"}
-                                        </Typography>
-                                    </Tooltip>
-                                )}
-                            </Box>
-                        </Grid>
-                        <Grid item xs={12} sm={4} md={3}>
-                            <Box
-                                sx={{
-                                    p: 2,
-                                    border: "1px solid #ccc",
-                                    borderRadius: 2,
-                                    textAlign: "center",
-                                    background: "#f7f7f7",
-                                }}
-                            >
-                                <Typography
-                                    variant="subtitle1"
-                                    sx={{ fontWeight: "bold", mb: 1 }}
-                                >
-                                    Doanh Thu Hoàn Thành Dự Kiến
-                                </Typography>
-                                <Typography variant="h6">
-                                    {formatNumber(projectTotalAmount)}
-                                </Typography>
-                            </Box>
-                        </Grid>
-                        <Grid item xs={12} sm={4} md={3}>
-                            <Box
-                                sx={{
-                                    p: 2,
-                                    border: "1px solid #ccc",
-                                    borderRadius: 2,
-                                    textAlign: "center",
-                                    background: "#f7f7f7",
-                                }}
-                            >
-                                <Typography
-                                    variant="subtitle1"
-                                    sx={{ fontWeight: "bold", mb: 1 }}
-                                >
-                                    LỢI NHUẬN
-                                </Typography>
-                                <Typography variant="h6">
-                                    {formatNumber(
-                                        Number(
-                                            parseNumber(overallRevenue || "0")
-                                        ) - overallSum(groupedData, "totalCost")
-                                    )}
-                                </Typography>
-                            </Box>
-                        </Grid>
-                        {summarySumKeys.map((key) => (
-                            <Grid item xs={12} sm={4} md={3} key={key}>
-                                <Box
-                                    sx={{
-                                        p: 2,
-                                        border: "1px solid #ccc",
-                                        borderRadius: 2,
-                                        textAlign: "center",
-                                        background: "#f7f7f7",
-                                    }}
-                                >
-                                    <Typography
-                                        variant="subtitle1"
-                                        sx={{ fontWeight: "bold", mb: 1 }}
-                                    >
-                                        {columnsAll.find((c) => c.key === key)
-                                            ?.label || key}
-                                    </Typography>
-                                    <Typography variant="h6">
-                                        {formatNumber(
-                                            overallSum(groupedData, key)
-                                        )}
-                                    </Typography>
-                                </Box>
-                            </Grid>
-                        ))}
-                    </Grid>
-                </Paper>
+                <SummaryPanel
+                    overallRevenue={overallRevenue}
+                    overallRevenueEditing={overallRevenueEditing}
+                    setOverallRevenue={setOverallRevenue}
+                    setOverallRevenueEditing={setOverallRevenueEditing}
+                    projectTotalAmount={projectTotalAmount}
+                    summarySumKeys={summarySumKeys}
+                    columnsAll={columnsAll}
+                    groupedData={groupedData}
+                />
             </Box>
 
-            <Dialog
+            <ColumnSelector
+                columnsAll={columnsAll}
+                columnsVisibility={columnsVisibility}
                 open={columnsDialogOpen}
                 onClose={handleCloseColumnsDialog}
-                fullWidth
-                maxWidth="xs"
-            >
-                <DialogTitle>Ẩn/Hiện Cột</DialogTitle>
-                <DialogContent dividers>
-                    {columnsAll.map((col) => (
-                        <FormControlLabel
-                            key={col.key}
-                            control={
-                                <Checkbox
-                                    checked={columnsVisibility[col.key]}
-                                    onChange={() => handleToggleColumn(col.key)}
-                                />
-                            }
-                            label={col.label}
-                            sx={{ display: "block" }}
-                        />
-                    ))}
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseColumnsDialog}>Đóng</Button>
-                </DialogActions>
-            </Dialog>
-
+                onToggleColumn={handleToggleColumn}
+            />
             <Snackbar
                 open={snackOpen}
                 autoHideDuration={3000}
