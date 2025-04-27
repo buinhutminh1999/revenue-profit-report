@@ -1,202 +1,124 @@
-// src/components/Home.jsx
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   Box,
   Container,
-  Card,
-  CardActionArea,
-  Typography,
-  Grid,
   Alert,
   AlertTitle,
-  Paper,
-  TextField,
-  Stack,
-  Collapse,
   Button,
-  Tabs,
+  Collapse,
+  Paper,
+  Stack,
+  TextField,
+  Grid,
+  Typography,
   Tab,
-  Skeleton,
-  CircularProgress,
+  Tabs,
+  CardActionArea,
+  useTheme,
 } from "@mui/material";
-import ConstructionIcon  from "@mui/icons-material/Construction";
-import DescriptionIcon   from "@mui/icons-material/Description";
-import AssessmentIcon    from "@mui/icons-material/Assessment";
-import CategoryIcon      from "@mui/icons-material/Category";
-import SearchIcon        from "@mui/icons-material/Search";
+import SearchIcon from "@mui/icons-material/Search";
+import ConstructionIcon from "@mui/icons-material/Construction";
+import DescriptionIcon from "@mui/icons-material/Description";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import CategoryIcon from "@mui/icons-material/Category";
 
-/* --------- helpers --------- */
-const formatVND = (n) =>
-  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
-    n
-  );
+const formatVND = (v) =>
+  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(v);
 
 export default function Home() {
-  const navigate = useNavigate();
-
-  /* ----- state ----- */
-  const [showAdv, setShowAdv] = useState(
-    JSON.parse(localStorage.getItem("showAdv") || "false")
-  );
+  const theme = useTheme();
+  const [showAdv, setShowAdv] = useState(false);
   const [tab, setTab] = useState(0);
-  const [summary, setSummary] = useState(null); // null = loading
+  const [summary, setSummary] = useState(null);
 
-  /* ----- fake-fetch dashboard summary ----- */
   useEffect(() => {
     const t = setTimeout(() => {
-      setSummary({
-        totalProjects: 12,
-        totalRevenue: 1500000,
-        totalCost: 800000,
-      });
-    }, 900); // simulate api delay
+      setSummary({ totalProjects: 12, totalRevenue: 1500000, totalCost: 800000 });
+    }, 800);
     return () => clearTimeout(t);
   }, []);
 
-  /* ----- persist showAdv ----- */
-  useEffect(() => {
-    localStorage.setItem("showAdv", JSON.stringify(showAdv));
-  }, [showAdv]);
+  const kpis = [
+    { label: "Tổng Dự Án", value: summary?.totalProjects },
+    { label: "Tổng Doanh Thu", value: summary ? formatVND(summary.totalRevenue) : undefined },
+    { label: "Tổng Chi Phí", value: summary ? formatVND(summary.totalCost) : undefined },
+  ];
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        background: "linear-gradient(to bottom right,#E3F2FD,#BBDEFB)",
-        py: { xs: 4, md: 8 },
-      }}
-    >
-      <Container maxWidth="md">
-        {/* -------- Alerts -------- */}
-        <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
-          <AlertTitle>Chào mừng!</AlertTitle>
-          Hệ Thống Quản Lý Kế Hoạch giúp bạn theo dõi dự án, doanh thu & chi
-          phí dễ dàng.
-        </Alert>
-
-        <Alert severity="success" sx={{ mb: 4, borderRadius: 2 }}>
-          <Typography variant="body2">
+    <Box sx={{ minHeight: "100vh", background: "linear-gradient(180deg,#eaf4ff 0%,#f5f9ff 60%)" }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 8 } }}>
+        {/* Alerts */}
+        <Stack spacing={2} maxWidth={600} mx="auto">
+          <Alert severity="info" icon={false} sx={{ borderRadius: 2 }}>
+            <AlertTitle sx={{ fontWeight: 600 }}>Chào mừng!</AlertTitle>
+            Hệ thống giúp bạn theo dõi dự án, doanh thu & chi phí tiện lợi.
+          </Alert>
+          <Alert severity="success" icon={false} sx={{ borderRadius: 2 }}>
             <strong>Mới:</strong> Đã bổ sung tính năng quản lý chi phí dự án.
-          </Typography>
-        </Alert>
+          </Alert>
+        </Stack>
 
-        {/* -------- Tìm kiếm nâng cao -------- */}
-        <Box textAlign="center" mb={2}>
-          <Button
-            startIcon={<SearchIcon />}
-            variant="text"
-            onClick={() => setShowAdv((x) => !x)}
-          >
+        {/* Advanced search */}
+        <Box textAlign="center" mt={3} mb={1}>
+          <Button startIcon={<SearchIcon />} onClick={() => setShowAdv((p) => !p)}>
             {showAdv ? "Ẩn tìm kiếm nâng cao" : "Tìm kiếm nâng cao"}
           </Button>
         </Box>
-
         <Collapse in={showAdv} timeout="auto" unmountOnExit>
-          <Paper elevation={2} sx={{ p: 3, mb: 4, borderRadius: 2 }}>
-            <Stack spacing={2}>
-              <TextField label="Từ khóa" fullWidth />
-              <TextField label="Danh mục" fullWidth />
-              <Box textAlign="right">
-                <Button variant="contained">Tìm kiếm</Button>
-              </Box>
+          <Paper elevation={3} sx={{ p: 3, mb: 4, maxWidth: 700, mx: "auto" }}>
+            <Stack spacing={2} direction={{ xs: "column", sm: "row" }}>
+              <TextField label="Từ khoá" fullWidth size="small" />
+              <TextField label="Danh mục" fullWidth size="small" />
+              <Button variant="contained" size="large" sx={{ whiteSpace: "nowrap" }}>
+                Tìm kiếm
+              </Button>
             </Stack>
           </Paper>
         </Collapse>
 
-        {/* -------- Summary cards -------- */}
-        <Grid container spacing={3} mb={6}>
-          {[
-            {
-              title: "Tổng Dự Án",
-              value:
-                summary?.totalProjects ??
-                [<Skeleton key="sk1" variant="text" width={80} />],
-            },
-            {
-              title: "Tổng Doanh Thu",
-              value:
-                summary?.totalRevenue != null ? (
-                  formatVND(summary.totalRevenue)
-                ) : (
-                  <Skeleton variant="text" width={120} />
-                ),
-            },
-            {
-              title: "Tổng Chi Phí",
-              value:
-                summary?.totalCost != null ? (
-                  formatVND(summary.totalCost)
-                ) : (
-                  <Skeleton variant="text" width={120} />
-                ),
-            },
-          ].map((item) => (
-            <Grid item xs={12} sm={4} key={item.title}>
+        {/* KPI */}
+        <Grid container spacing={3} justifyContent="center" sx={{ mb: 6 }}>
+          {kpis.map((k) => (
+            <Grid item xs={12} sm={4} key={k.label}>
               <Paper
-                elevation={3}
+                elevation={4}
                 sx={{
-                  p: 2,
                   textAlign: "center",
-                  borderRadius: 2,
-                  minHeight: 90,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
+                  py: 3,
+                  borderRadius: 3,
+                  bgcolor: "white",
                 }}
               >
-                <Typography
-                  variant="subtitle1"
-                  fontWeight="bold"
-                  color="primary"
-                >
-                  {item.title}
+                <Typography variant="subtitle1" fontWeight={700} color="primary">
+                  {k.label}
                 </Typography>
-                <Typography variant="h6" mt={1}>
-                  {item.value}
+                <Typography variant="h5" fontWeight={600} mt={1}>
+                  {k.value ?? "…"}
                 </Typography>
               </Paper>
             </Grid>
           ))}
         </Grid>
 
-        {/* -------- Tabs -------- */}
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          centered
-          sx={{ mb: 4, bgcolor: "#fff", borderRadius: 1 }}
-          aria-label="tabs"
-        >
-          <Tab label="Quản lý dự án" id="tab-0" aria-controls="panel-0" />
-          <Tab label="Quản lý chi phí" id="tab-1" aria-controls="panel-1" />
+        {/* Tabs */}
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} centered sx={{ mb: 4, maxWidth: 500, mx: "auto" }}>
+          <Tab label="Quản lý dự án" />
+          <Tab label="Quản lý chi phí" />
         </Tabs>
 
-        {/* -------- Project Management -------- */}
+        {/* Content */}
         {tab === 0 && (
-          <Grid container spacing={4} id="panel-0" aria-labelledby="tab-0">
+          <Grid container spacing={4} justifyContent="center">
             {[
-              {
-                icon: <ConstructionIcon sx={iconSx} />,
-                text: "Kế Hoạch Thi Công",
-                to: "/construction-plan",
-              },
-              {
-                icon: <DescriptionIcon sx={iconSx} />,
-                text: "Chi Tiết Công Trình",
-                to: "/project-details/123",
-              },
-            ].map((card) => (
-              <Grid item xs={12} sm={6} key={card.to}>
-                <CardActionArea
-                  component={Link}
-                  to={card.to}
-                  sx={cardSx}
-                  focusRipple
-                >
-                  {card.icon}
-                  <Typography variant="h6" mt={1}>
-                    {card.text}
+              { icon: <ConstructionIcon sx={iconSX} />, text: "Kế Hoạch Thi Công", to: "/construction-plan" },
+              { icon: <DescriptionIcon sx={iconSX} />, text: "Chi Tiết Công Trình", to: "/project-details/123" },
+            ].map((c) => (
+              <Grid item xs={12} sm={6} md={4} key={c.to}>
+                <CardActionArea component={Link} to={c.to} sx={cardSX}>
+                  {c.icon}
+                  <Typography variant="subtitle1" fontWeight={600} mt={1}>
+                    {c.text}
                   </Typography>
                 </CardActionArea>
               </Grid>
@@ -204,36 +126,18 @@ export default function Home() {
           </Grid>
         )}
 
-        {/* -------- Cost Management -------- */}
         {tab === 1 && (
-          <Grid container spacing={4} id="panel-1" aria-labelledby="tab-1">
+          <Grid container spacing={4} justifyContent="center">
             {[
-              {
-                icon: <AssessmentIcon sx={iconSx} />,
-                text: "Quản Lý -CP",
-                to: "/allocations",
-              },
-              {
-                icon: <AssessmentIcon sx={iconSx} />,
-                text: "Chi Phí Theo Quý",
-                to: "/cost-allocation-quarter",
-              },
-              {
-                icon: <CategoryIcon sx={iconSx} />,
-                text: "Quản Trị Khoản Mục",
-                to: "/categories",
-              },
-            ].map((card) => (
-              <Grid item xs={12} sm={4} key={card.to}>
-                <CardActionArea
-                  component={Link}
-                  to={card.to}
-                  sx={cardSx}
-                  focusRipple
-                >
-                  {card.icon}
-                  <Typography variant="h6" mt={1}>
-                    {card.text}
+              { icon: <AssessmentIcon sx={iconSX} />, text: "Quản Lý - CP", to: "/allocations" },
+              { icon: <AssessmentIcon sx={iconSX} />, text: "Chi Phí Theo Quý", to: "/cost-allocation-quarter" },
+              { icon: <CategoryIcon sx={iconSX} />, text: "Quản Trị Khoản Mục", to: "/categories" },
+            ].map((c) => (
+              <Grid item xs={12} sm={6} md={4} key={c.to}>
+                <CardActionArea component={Link} to={c.to} sx={cardSX}>
+                  {c.icon}
+                  <Typography variant="subtitle1" fontWeight={600} mt={1}>
+                    {c.text}
                   </Typography>
                 </CardActionArea>
               </Grid>
@@ -241,34 +145,26 @@ export default function Home() {
           </Grid>
         )}
 
-        {/* -------- Footer -------- */}
-        <Typography
-          variant="body2"
-          color="textSecondary"
-          textAlign="center"
-          mt={6}
-          mb={2}
-        >
-          Cần hỗ trợ? Liên hệ&nbsp;
-          <strong>buinhutminh1999@gmail.com</strong>
+        <Typography variant="body2" textAlign="center" mt={8} color="text.secondary">
+          Cần hỗ trợ? Liên hệ <strong>buinhutminh1999@gmail.com</strong>
         </Typography>
       </Container>
     </Box>
   );
 }
 
-/* ---------- common sx ---------- */
-const cardSx = {
-  boxShadow: 3,
-  borderRadius: 3,
+const cardSX = {
   p: 3,
-  height: "100%",
-  transition: "0.3s",
+  borderRadius: 3,
+  bgcolor: "white",
+  boxShadow: 3,
+  transition: "all .2s",
   textAlign: "center",
-  "&:hover": { transform: "scale(1.03)", boxShadow: 6 },
+  height: "100%",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
+  "&:hover": { transform: "translateY(-4px)", boxShadow: 6 },
 };
-const iconSx = { fontSize: 48, color: "primary.main" };
+const iconSX = { fontSize: 50, color: "primary.main" };

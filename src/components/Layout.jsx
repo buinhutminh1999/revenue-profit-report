@@ -1,19 +1,19 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from './Header';
-import Breadcrumbs from './Breadcrumbs';
-import './Layout.css';
+import BreadcrumbsNav from './Breadcrumbs';
+import { Box } from '@mui/material';
 
-const Layout = () => {
+export default function Layout() {
   return (
-    <>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <Header />
-      <Breadcrumbs />
-      <div className="main-content">
-        <Outlet />
-      </div>
-    </>
-  );
-};
+      {/* Breadcrumbs nằm riêng, dễ nhìn và không lẫn trong Header */}
+      <BreadcrumbsNav />
 
-export default Layout;
+      <Box component="main" sx={{ flexGrow: 1, p: 2 }}>
+        <Outlet />
+      </Box>
+    </Box>
+  );
+}
