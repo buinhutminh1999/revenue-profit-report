@@ -1,14 +1,8 @@
 // src/pages/CostAllocationQuarter.jsx
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
-  Box,
-  Button,
-  Tooltip,
-  IconButton,
-  Skeleton,
-  Typography,
-  useTheme,
-  TextField,
+  Box, Button, Tooltip, IconButton, Skeleton,
+  Typography, useTheme, TextField
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -38,21 +32,16 @@ export default function CostAllocationQuarter() {
   const [year] = useState(currentYear);
   const [quarter] = useState("Q1");
 
-  /* --- Project data --- */
   const [projects, setProjects] = useState([]);
   const [projData, setProjData] = useState({});
   const [loading, setLoading] = useState(true);
 
-  /* --- Hàng do user thêm ngay trên trang này --- */
   const [extraRows, setExtraRows] = useState([]);
-
-  /* --- Options cho EditableSelect --- */
   const [categoryOptions, setCategoryOptions] = useState([]);
 
-  /* --- DataGrid ref để commit cell edit --- */
   const gridRef = useRef(null);
 
-  /* === Load danh sách project === */
+  /* === LOAD PROJECTS === */
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, "projects"));
@@ -61,7 +50,7 @@ export default function CostAllocationQuarter() {
     })().catch(console.error);
   }, []);
 
-  /* === Load số liệu từng project cho quý này === */
+  /* === LOAD PROJECT/QUARTER DATA === */
   useEffect(() => {
     if (!projects.length) return;
     setLoading(true);
@@ -87,7 +76,7 @@ export default function CostAllocationQuarter() {
     })().catch(console.error);
   }, [projects, year, quarter]);
 
-  /* === Load options cho categories (trong EditableSelect) === */
+  /* === LOAD CATEGORY OPTIONS === */
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, "categories"));
@@ -96,26 +85,23 @@ export default function CostAllocationQuarter() {
     })().catch(console.error);
   }, []);
 
-  /* === Filter những project được chọn (nếu có filter) === */
-  const visibleProjects = useMemo(() => projects, [projects]);
-
-  /* === Hàm tính ô cố định === */
+  /* === CALCULATE FIXED CELLS === */
   const computeCell = useCallback((key, data) => {
     if (key === "overallRevenue") return parseValue(data.overallRevenue);
-    if (key === "totalCost")       return parseValue(data.allocatedInQuarter);
+    if (key === "totalCost")      return parseValue(data.allocatedInQuarter);
     return 0;
   }, []);
 
-  /* === Xây dựng các dòng cho DataGrid === */
+  /* === BUILD ROWS === */
   const rows = useMemo(() => {
     const [head, tail] = categoriesDef;
 
     const buildFixed = (cat) => {
       const row = { id: cat.key, label: cat.label, pct: "" };
-      visibleProjects.forEach((p) => {
+      projects.forEach((p) => {
         row[p.id] = computeCell(cat.key, projData[p.id] || {});
       });
-      row.used = visibleProjects.reduce((s, p) => s + (row[p.id] || 0), 0);
+      row.used      = projects.reduce((s, p) => s + (row[p.id] || 0), 0);
       row.allocated = row.used;
       return row;
     };
@@ -123,26 +109,20 @@ export default function CostAllocationQuarter() {
     const buildExtra = (extra) => {
       const pctNum = parseFloat(extra.pct) || 0;
       const row = { id: extra.id, label: extra.label, pct: extra.pct };
-      visibleProjects.forEach((p) => {
+      projects.forEach((p) => {
         const rev = parseValue(projData[p.id]?.overallRevenue);
         row[p.id] = Math.round((rev * pctNum) / 100);
       });
-      row.used = visibleProjects.reduce((s, p) => s + row[p.id], 0);
+      row.used      = projects.reduce((s, p) => s + row[p.id], 0);
       row.allocated = 0;
       return row;
     };
 
-    // Lọc ra chỉ những extraRows đã nhập label
-    const validExtras = extraRows.filter((e) => e.label?.trim() !== "");
+    // KHÔNG lọc, để hàng mới hiện ra ngay
+    return [buildFixed(head), ...extraRows.map(buildExtra), buildFixed(tail)];
+  }, [projData, projects, extraRows, computeCell]);
 
-    return [
-      buildFixed(head),
-      ...validExtras.map(buildExtra),
-      buildFixed(tail),
-    ];
-  }, [projData, visibleProjects, extraRows, computeCell]);
-
-  /* === Cấu hình cột cho DataGrid === */
+  /* === COLUMNS === */
   const baseColumns = [
     {
       field: "label",
@@ -181,8 +161,7 @@ export default function CostAllocationQuarter() {
       ),
     },
   ];
-
-  const projectColumns = visibleProjects.map((p) => ({
+  const projectColumns = projects.map((p) => ({
     field: p.id,
     headerName: p.name,
     width: 140,
@@ -190,32 +169,16 @@ export default function CostAllocationQuarter() {
     align: "right",
     headerAlign: "right",
   }));
-
   const otherColumns = [
-    {
-      field: "used",
-      headerName: `Sử dụng ${quarter}`,
-      width: 160,
-      type: "number",
-      align: "right",
-      headerAlign: "right",
-    },
-    {
-      field: "allocated",
-      headerName: `Phân bổ ${quarter}.${year}`,
-      width: 180,
-      type: "number",
-      align: "right",
-      headerAlign: "right",
-    },
+    { field: "used", headerName: `Sử dụng ${quarter}`, width: 160, type: "number", align: "right", headerAlign: "right" },
+    { field: "allocated", headerName: `Phân bổ ${quarter}.${year}`, width: 180, type: "number", align: "right", headerAlign: "right" },
     {
       field: "actions",
       headerName: "Xóa",
       width: 70,
       sortable: false,
       renderCell: (params) =>
-        params.row.id !== "overallRevenue" &&
-        params.row.id !== "totalCost" ? (
+        params.row.id !== "overallRevenue" && params.row.id !== "totalCost" && (
           <Tooltip title="Xóa hàng">
             <IconButton
               size="small"
@@ -226,31 +189,25 @@ export default function CostAllocationQuarter() {
               <DeleteIcon fontSize="small" color="error" />
             </IconButton>
           </Tooltip>
-        ) : null,
+        ),
     },
   ];
-
   const columns = [...baseColumns, ...projectColumns, ...otherColumns];
 
-  /* === Thêm hàng mới (chỉ tạo 1 object blank để user edit) === */
+  /* === ADD NEW ROW AND FOCUS ON IT === */
   const handleAdd = () => {
-    setExtraRows((r) => [
-      ...r,
-      { id: Date.now().toString(), label: "", pct: "" },
-    ]);
+    const id = Date.now().toString();
+    setExtraRows((r) => [...r, { id, label: "", pct: "" }]);
+
+    // Hạ 1 tick event loop để DataGrid nhận rows mới rồi mới startEdit
+    setTimeout(() => {
+      const api = gridRef.current?.apiRef?.current;
+      if (api) api.startCellEditMode({ id, field: "label" });
+    });
   };
 
-  /* === Lưu extraRows xuống Firestore nếu cần === */
+  /* === SAVE (nếu bạn thật sự cần) === */
   const handleSave = () => {
-    // commit cell edit đang mở
-    const api = gridRef.current?.apiRef?.current;
-    if (api && api.state.editRows.size > 0) {
-      const id = [...api.state.editRows.keys()][0];
-      const field = Object.keys(api.state.editRows.get(id))[0];
-      api.stopCellEditMode({ id, field });
-    }
-
-    // ghi mảng extraRows
     setDoc(doc(db, "costAllocations", `${year}_${quarter}`), {
       rows: extraRows,
       updated_at: new Date().toISOString(),
@@ -264,14 +221,8 @@ export default function CostAllocationQuarter() {
 
   return (
     <Box sx={{ bgcolor: theme.palette.background.default, minHeight: "100vh" }}>
-      {/* Controls */}
       <Box sx={{ p: 2, display: "flex", gap: 1 }}>
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={handleAdd}
-        >
+        <Button size="small" variant="outlined" startIcon={<RefreshIcon />} onClick={handleAdd}>
           Thêm hàng
         </Button>
         <Button size="small" variant="contained" onClick={handleSave}>
@@ -279,7 +230,6 @@ export default function CostAllocationQuarter() {
         </Button>
       </Box>
 
-      {/* Title */}
       <Typography
         variant="h4"
         align="center"
@@ -288,12 +238,9 @@ export default function CostAllocationQuarter() {
         Chi phí phân bổ {quarter} {year}
       </Typography>
 
-      {/* Grid */}
       {loading ? (
         <Box sx={{ p: 2 }}>
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} height={48} sx={{ mb: 1 }} />
-          ))}
+          {[...Array(3)].map((_, i) => <Skeleton key={i} height={48} sx={{ mb: 1 }} />)}
         </Box>
       ) : (
         <Box sx={{ p: 2 }}>
