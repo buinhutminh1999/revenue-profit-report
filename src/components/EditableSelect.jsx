@@ -1,77 +1,75 @@
 // src/components/EditableSelect.jsx
-import React from "react";
-import { Box, Select, MenuItem } from "@mui/material";
+import React, { useState } from 'react';
+import { Box, Autocomplete, TextField } from '@mui/material';
 
 export default function EditableSelect({
   value,
   onChange,
   options = [],
-  placeholder = "— chọn —",
-  trigger = "click",        // "click" | "double"
+  placeholder = '— chọn —',
+  trigger = 'click',          // 'click' | 'double'
   sx = {},
 }) {
-  const [edit, setEdit] = React.useState(false);
+  const [edit, setEdit] = useState(false);
 
-  /* ----- sự kiện mở ----- */
-  const openOn = {
-    click:  { onClick:        () => setEdit(true) },
-    double: { onDoubleClick:  () => setEdit(true) },
-  }[trigger];
+  /* mở select */
+  const openOn =
+    trigger === 'double'
+      ? { onDoubleClick: () => setEdit(true) }
+      : { onClick: () => setEdit(true) };
 
-  /* ----- đang ở chế độ Select ----- */
+  /* ----- đang chỉnh ----- */
   if (edit) {
     return (
-      <Select
-        autoFocus
+        <Autocomplete
+        autoHighlight
+        openOnFocus
+        blurOnSelect
         size="small"
         fullWidth
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          setEdit(false);
+        disableClearable={false}          // nút xoá
+        noOptionsText="Không tìm thấy"
+        options={options}
+        value={value || null}
+        onChange={(_, v)=>{ if(v!=null) onChange(v); setEdit(false);} }
+        onBlur={()=>setEdit(false)}
+        renderInput={(params)=>
+          <TextField
+            {...params}
+            placeholder={placeholder}
+            autoFocus
+            InputProps={{
+              ...params.InputProps,
+              endAdornment: params.InputProps.endAdornment, // giữ clear icon
+            }}
+          />
+        }
+        sx={{
+          ...sx,
+          '& .MuiAutocomplete-clearIndicator': { mr: 1 },
         }}
-        onBlur={() => setEdit(false)}
-        displayEmpty
-        renderValue={(v) => v || placeholder}
-        MenuProps={{ PaperProps: { style: { maxHeight: 240 } } }}
-        sx={sx}
-      >
-        <MenuItem disabled value="">
-          {placeholder}
-        </MenuItem>
-
-        {options.map((opt) => (
-          <MenuItem key={opt} value={opt}>
-            {opt}
-          </MenuItem>
-        ))}
-
-        {/* fallback nếu value chưa có trong options */}
-        {!options.includes(value) && value && (
-          <MenuItem value={value}>{value}</MenuItem>
-        )}
-      </Select>
+      />
+      
     );
   }
 
-  /* ----- chế độ hiển thị text ----- */
+  /* ----- hiển thị tĩnh ----- */
   return (
     <Box
       {...openOn}
       sx={{
-        width: "100%",
+        width: '100%',
         minHeight: 40,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        whiteSpace: "normal",
-        wordBreak: "break-word",
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
         p: 0.5,
+        wordBreak: 'break-word',
         ...sx,
       }}
     >
-      {value || <em style={{ color: "#888" }}>{placeholder}</em>}
+      {value || <em style={{ color: '#888' }}>{placeholder}</em>}
     </Box>
   );
 }
