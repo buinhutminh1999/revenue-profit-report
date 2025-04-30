@@ -8,7 +8,13 @@ import {
     createTheme,
 } from "@mui/material";
 import * as XLSX from "xlsx";
-import { doc, getDoc, setDoc, collection, onSnapshot } from "firebase/firestore";
+import {
+    doc,
+    getDoc,
+    setDoc,
+    collection,
+    onSnapshot,
+} from "firebase/firestore";
 import { db } from "../services/firebase-config";
 import { parseNumber } from "../utils/numberUtils";
 import { generateUniqueId } from "../utils/idUtils";
@@ -160,15 +166,12 @@ export default function ProjectDetails() {
     );
 
     useEffect(() => {
-            const unsub = onSnapshot(
-              collection(db, "categories"),
-              (snap) => {
-                setCategories(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-              }
-            );
-            return () => unsub();
-          }, []);
-        
+        const unsub = onSnapshot(collection(db, "categories"), (snap) => {
+            setCategories(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        });
+        return () => unsub();
+    }, []);
+
     useEffect(() => {
         localStorage.setItem(
             "columnsVisibility",
@@ -231,17 +234,26 @@ export default function ProjectDetails() {
                     quarter
                 );
                 const docSnap = await getDoc(docRef);
-                const data = docSnap.exists() ? docSnap.data().items || [] : [];
-                data.forEach((item) => {
-                    // Nếu item không có id, tạo mới
+
+                // parse overallRevenue về number, default 0
+                const rev = docSnap.exists()
+                    ? parseNumber(docSnap.data().overallRevenue ?? 0)
+                    : 0;
+                setOverallRevenue(rev);
+
+                const items = docSnap.exists()
+                    ? docSnap.data().items || []
+                    : [];
+                items.forEach((item) => {
                     item.id = item.id || generateUniqueId();
                     item.project = (item.project || "").trim().toUpperCase();
                     item.description = (item.description || "").trim();
-                    calcAllFields(item, { overallRevenue, projectTotalAmount });
+                    calcAllFields(item, {
+                        overallRevenue: rev,
+                        projectTotalAmount,
+                    });
                 });
-                setCostItems(data);
-                if (docSnap.exists() && docSnap.data().overallRevenue)
-                    setOverallRevenue(docSnap.data().overallRevenue);
+                setCostItems(items);
             } catch (err) {
                 setError("Lỗi tải dữ liệu: " + err.message);
             } finally {
@@ -249,7 +261,7 @@ export default function ProjectDetails() {
             }
         };
         loadSavedData();
-    }, [id, year, quarter, overallRevenue, projectTotalAmount]);
+    }, [id, year, quarter, projectTotalAmount]);
 
     // Load dữ liệu dự án (ví dụ: tổng doanh thu dự kiến)
     useEffect(() => {
@@ -321,7 +333,8 @@ export default function ProjectDetails() {
                 doc(db, "projects", id, "years", year, "quarters", quarter),
                 {
                     items: costItems,
-                    overallRevenue,
+                    // ensure it's a number before saving
+                    overallRevenue: Number(overallRevenue),
                     updated_at: new Date().toISOString(),
                 }
             );
@@ -434,8 +447,7 @@ export default function ProjectDetails() {
                     handleRemoveRow={handleRemoveRow}
                     overallRevenue={overallRevenue}
                     projectTotalAmount={projectTotalAmount}
-                    categories={categories}        // ← truyền vào đây
-
+                    categories={categories} // ← truyền vào đây
                 />
 
                 <SummaryPanel

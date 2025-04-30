@@ -60,7 +60,7 @@ const getQuarterValue = r => {
   return parseValue(r.quarterManual);
 };
 
-/* ---------- bảo đảm row đủ field ---------- */
+/* ---------- ensure row has all fields ---------- */
 const normalizeRow = (row) => ({
   id     : row.id,
   name   : row.name ?? "",
@@ -75,7 +75,7 @@ const normalizeRow = (row) => ({
   treoPB         : row.treoPB        ?? "",
 });
 
-/* ---------- editable cell ---------- */
+/* ---------- editable cell component ---------- */
 function EditableCell({ value, onChange, type="text", isNumeric=false }){
   const [edit,setEdit] = useState(false);
   return edit ? (
@@ -111,7 +111,7 @@ export default function CostAllocation(){
     setSnack({open:true,msg,sev});
   },[]);
 
-  /* ---------- quý liền trước ---------- */
+  /* ---------- determine previous quarter ---------- */
   const getPrevQuarter = useCallback(()=>{
     const order=["Q1","Q2","Q3","Q4"];
     const idx=order.indexOf(quarter);
@@ -120,12 +120,13 @@ export default function CostAllocation(){
       : {year,quarter:order[idx-1]};
   },[year,quarter]);
 
-  /* ---------- copy quý trước (thủ công) ---------- */
+  /* ---------- copy data from previous quarter ---------- */
   const handleCopyPrev = useCallback(async ()=>{
     const prev=getPrevQuarter();
     const snap=await getDoc(doc(db,"costAllocations",`${prev.year}_${prev.quarter}`));
     if(!snap.exists()){
-      showSnack("Chưa có dữ liệu quý trước","warning");return;
+      showSnack("Chưa có dữ liệu quý trước","warning");
+      return;
     }
     const data  = (snap.data().mainRows||[]).map(normalizeRow);
     const fixed = fixedRows.map(f=>{
@@ -144,8 +145,6 @@ export default function CostAllocation(){
       doc(db,"costAllocations",id),
       async snap=>{
         let data = (snap.exists()?snap.data().mainRows:[]) || [];
-
-        // fallback: nếu quý hiện tại trống → load quý trước (1 lần)
         if(!snap.exists()){
           const prev=getPrevQuarter();
           const psnap=await getDoc(
@@ -153,9 +152,7 @@ export default function CostAllocation(){
           );
           if(psnap.exists()) data = psnap.data().mainRows || [];
         }
-
         data = data.map(normalizeRow);
-
         const fixed = fixedRows.map(f=>{
           const found=data.find(d=>d.id===f.id);
           return found?{...f,...found}:f;
@@ -178,7 +175,7 @@ export default function CostAllocation(){
     return()=>u();
   },[showSnack]);
 
-  /* ---------- CRUD helpers ---------- */
+  /* ---------- add new row ---------- */
   const handleAdd = () => {
     setRows(r=>[
       ...r,
@@ -191,6 +188,7 @@ export default function CostAllocation(){
     showSnack("Đã thêm hàng");
   };
 
+  /* ---------- update a cell ---------- */
   const handleChange = (id,field,val,sub)=>{
     const fixedNames=fixedRows.map(f=>f.name.trim().toLowerCase());
     setRows(p=>p.map(r=>{
@@ -206,17 +204,19 @@ export default function CostAllocation(){
     }));
   };
 
+  /* ---------- delete a row ---------- */
   const handleDel = id => {
     const r=rows.find(x=>x.id===id);
     const lc=(r?.name||"").trim().toLowerCase();
     if(r.fixed||lc==="lương tăng ca"){
-      showSnack("Không thể xóa mục này","warning");return;
+      showSnack("Không thể xóa mục này","warning");
+      return;
     }
     setRows(p=>p.filter(x=>x.id!==id));
     showSnack("Đã xóa hàng","info");
   };
 
-  /* ---------- save ---------- */
+  /* ---------- save to Firestore ---------- */
   const handleSave = async ()=>{
     try{
       await setDoc(
@@ -227,6 +227,26 @@ export default function CostAllocation(){
       showSnack("Đã lưu thành công");
     }catch(e){ showSnack(e.message,"error"); }
   };
+
+  /* ---------- compute fixed rows summary ---------- */
+  const fixedSum = useMemo(() => {
+    const items = rows.slice(0, fixedRows.length);
+    let T1 = 0, T2 = 0, T3 = 0;
+    let factory = 0, thiCong = 0, khdt = 0;
+    items.forEach(r => {
+      const t1 = parseValue(r.monthly.T1);
+      const t2 = parseValue(r.monthly.T2);
+      const t3 = parseValue(r.monthly.T3);
+      const qv = t1 + t2 + t3;
+      T1 += t1;
+      T2 += t2;
+      T3 += t3;
+      factory += Math.round(qv * parseValue(r.percentage)    / 100);
+      thiCong += Math.round(qv * parseValue(r.percentThiCong)/ 100);
+      khdt    += Math.round(qv * parseValue(r.percentKHDT)   / 100);
+    });
+    return { T1, T2, T3, Q: T1+T2+T3, factory, thiCong, khdt };
+  }, [rows]);
 
   /* ---------- render ---------- */
   return(
@@ -276,19 +296,16 @@ export default function CostAllocation(){
               }}>
                 Khoản mục
               </TableCell>
-
               {monthLabels.map(m=>(
                 <TableCell key={m} align="center"
                            sx={{bgcolor:"#1976d2",color:"#fff",px:1}}>
                   {m}
                 </TableCell>
               ))}
-
               <TableCell align="center"
                          sx={{bgcolor:"#1976d2",color:"#fff",px:1}}>
                 {quarterLabel}
               </TableCell>
-
               {[
                 "% Nhà Máy","Nhà Máy","% Thi Công","Thi Công",
                 "% KH-ĐT","KH-ĐT","Treo PB","Xóa"
@@ -302,96 +319,146 @@ export default function CostAllocation(){
           </TableHead>
 
           <TableBody>
-            {rows.map(r=>{
-              const lc   = (r.name||"").trim().toLowerCase();
+            {rows.map((r, idx) => {
+              const lc     = (r.name||"").trim().toLowerCase();
               const isRent = lc==="thuê văn phòng";
-              const qv   = getQuarterValue(r);
+              const qv     = getQuarterValue(r);
 
-              return(
-                <TableRow key={r.id}>
-                  {/* tên khoản mục */}
-                  <TableCell sx={{
-                    position:"sticky",left:0,zIndex:1,background:"#fff",px:1,
-                    whiteSpace:"normal",wordWrap:"break-word"
-                  }}>
-                    <EditableSelect
-                      value={r.name}
-                      options={categories}
-                      onChange={v=>handleChange(r.id,"name",v)}
-                      placeholder="Chọn khoản mục"
-                    />
-                  </TableCell>
-
-                  {/* tháng 1-3  hoặc ô thuê */}
-                  {isRent ? (
-                    <TableCell colSpan={3} sx={{px:1}}>
-                      <Box sx={{display:"flex",gap:1,justifyContent:"center"}}>
-                        <EditableCell value={r.thueVP} isNumeric type="number"
-                                      onChange={v=>handleChange(r.id,"thueVP",v)}/>
-                        <EditableCell value={r.thueNhaCongVu} isNumeric type="number"
-                                      onChange={v=>handleChange(r.id,"thueNhaCongVu",v)}/>
-                      </Box>
+              return (
+                <React.Fragment key={r.id}>
+                  {/* regular row */}
+                  <TableRow>
+                    <TableCell sx={{
+                      position:"sticky",left:0,zIndex:1,background:"#fff",px:1,
+                      whiteSpace:"normal",wordWrap:"break-word"
+                    }}>
+                      <EditableSelect
+                        value={r.name}
+                        options={categories}
+                        onChange={v=>handleChange(r.id,"name",v)}
+                        placeholder="Chọn khoản mục"
+                      />
                     </TableCell>
-                  ) : (
-                    ["T1","T2","T3"].map(sf=>(
-                      <TableCell key={sf} align="center" sx={{px:1}}>
-                        <EditableCell value={r.monthly[sf]} isNumeric type="number"
-                                      onChange={v=>handleChange(r.id,null,v,sf)}/>
+
+                    {isRent ? (
+                      <TableCell colSpan={3} sx={{px:1}}>
+                        <Box sx={{display:"flex",gap:1,justifyContent:"center"}}>
+                          <EditableCell value={r.thueVP} isNumeric type="number"
+                                        onChange={v=>handleChange(r.id,"thueVP",v)}/>
+                          <EditableCell value={r.thueNhaCongVu} isNumeric type="number"
+                                        onChange={v=>handleChange(r.id,"thueNhaCongVu",v)}/>
+                        </Box>
                       </TableCell>
-                    ))
-                  )}
-
-                  {/* Quý */}
-                  <TableCell align="center" sx={{px:1}}>
-                    {isRent||r.fixed
-                      ? qv.toLocaleString()
-                      : <EditableCell value={r.quarterManual} isNumeric type="number"
-                                      onChange={v=>handleChange(r.id,"quarterManual",v)}/> }
-                  </TableCell>
-
-                  {/* % & số Nhà Máy */}
-                  <TableCell align="center" sx={{px:1}}>
-                    <EditableCell value={r.percentage} isNumeric type="number"
-                                  onChange={v=>handleChange(r.id,"percentage",v)}/>
-                  </TableCell>
-                  <TableCell align="center" sx={{px:1}}>
-                    {Math.round(qv*parseValue(r.percentage)/100).toLocaleString()}
-                  </TableCell>
-
-                  {/* % & số Thi Công */}
-                  <TableCell align="center" sx={{px:1}}>
-                    <EditableCell value={r.percentThiCong} isNumeric type="number"
-                                  onChange={v=>handleChange(r.id,"percentThiCong",v)}/>
-                  </TableCell>
-                  <TableCell align="center" sx={{px:1}}>
-                    {Math.round(qv*parseValue(r.percentThiCong)/100).toLocaleString()}
-                  </TableCell>
-
-                  {/* % & số KH-ĐT */}
-                  <TableCell align="center" sx={{px:1}}>
-                    <EditableCell value={r.percentKHDT} isNumeric type="number"
-                                  onChange={v=>handleChange(r.id,"percentKHDT",v)}/>
-                  </TableCell>
-                  <TableCell align="center" sx={{px:1}}>
-                    {Math.round(qv*parseValue(r.percentKHDT)/100).toLocaleString()}
-                  </TableCell>
-
-                  {/* Treo PB */}
-                  <TableCell align="center" sx={{px:1}}>
-                    <EditableCell value={r.treoPB}
-                                  onChange={v=>handleChange(r.id,"treoPB",v)}/>
-                  </TableCell>
-
-                  {/* Xóa */}
-                  <TableCell align="center" sx={{px:1}}>
-                    {!r.fixed && lc!=="lương tăng ca" && (
-                      <Button size="small" color="error"
-                              onClick={()=>handleDel(r.id)}>
-                        <Delete fontSize="small"/>
-                      </Button>
+                    ) : (
+                      ["T1","T2","T3"].map(sf=>(
+                        <TableCell key={sf} align="center" sx={{px:1}}>
+                          <EditableCell value={r.monthly[sf]} isNumeric type="number"
+                                        onChange={v=>handleChange(r.id,null,v,sf)}/>
+                        </TableCell>
+                      ))
                     )}
-                  </TableCell>
-                </TableRow>
+
+                    <TableCell align="center" sx={{px:1}}>
+                      {isRent||r.fixed
+                        ? qv.toLocaleString()
+                        : <EditableCell value={r.quarterManual} isNumeric type="number"
+                                        onChange={v=>handleChange(r.id,"quarterManual",v)}/>}
+                    </TableCell>
+
+                    <TableCell align="center" sx={{px:1}}>
+                      <EditableCell value={r.percentage} isNumeric type="number"
+                                    onChange={v=>handleChange(r.id,"percentage",v)}/>
+                    </TableCell>
+                    <TableCell align="center" sx={{px:1}}>
+                      {Math.round(qv*parseValue(r.percentage)/100).toLocaleString()}
+                    </TableCell>
+
+                    <TableCell align="center" sx={{px:1}}>
+                      <EditableCell value={r.percentThiCong} isNumeric type="number"
+                                    onChange={v=>handleChange(r.id,"percentThiCong",v)}/>
+                    </TableCell>
+                    <TableCell align="center" sx={{px:1}}>
+                      {Math.round(qv*parseValue(r.percentThiCong)/100).toLocaleString()}
+                    </TableCell>
+
+                    <TableCell align="center" sx={{px:1}}>
+                      <EditableCell value={r.percentKHDT} isNumeric type="number"
+                                    onChange={v=>handleChange(r.id,"percentKHDT",v)}/>
+                    </TableCell>
+                    <TableCell align="center" sx={{px:1}}>
+                      {Math.round(qv*parseValue(r.percentKHDT)/100).toLocaleString()}
+                    </TableCell>
+
+                    <TableCell align="center" sx={{px:1}}>
+                      <EditableCell value={r.treoPB}
+                                    onChange={v=>handleChange(r.id,"treoPB",v)}/>
+                    </TableCell>
+
+                    <TableCell align="center" sx={{px:1}}>
+                      {!r.fixed && lc!=="lương tăng ca" && (
+                        <Button size="small" color="error"
+                                onClick={()=>handleDel(r.id)}>
+                          <Delete fontSize="small"/>
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+
+                  {/* summary row inserted right after the last fixed row */}
+                  {idx === fixedRows.length - 1 && (
+                    <TableRow sx={{
+                      background:"#f5f5f5",
+                      borderTop:"2px solid #1976d2"
+                    }}>
+                      <TableCell sx={{
+                        position:"sticky", left:0, zIndex:1,
+                        background:"#f5f5f5", fontWeight:"bold", px:1
+                      }}>
+                        Tổng chi phí lương
+                      </TableCell>
+
+                      {["T1","T2","T3"].map(sf=>(
+                        <TableCell key={sf} align="center" sx={{px:1,fontWeight:"bold"}}>
+                          {fixedSum[sf].toLocaleString()}
+                        </TableCell>
+                      ))}
+
+                      <TableCell align="center" sx={{px:1,fontWeight:"bold"}}>
+                        {fixedSum.Q.toLocaleString()}
+                      </TableCell>
+
+                      {/* % Nhà Máy */}
+                      <TableCell/>
+
+                      {/* Nhà Máy */}
+                      <TableCell align="center" sx={{px:1,fontWeight:"bold"}}>
+                        {fixedSum.factory.toLocaleString()}
+                      </TableCell>
+
+                      {/* % Thi Công */}
+                      <TableCell/>
+
+                      {/* Thi Công */}
+                      <TableCell align="center" sx={{px:1,fontWeight:"bold"}}>
+                        {fixedSum.thiCong.toLocaleString()}
+                      </TableCell>
+
+                      {/* % KH-ĐT */}
+                      <TableCell/>
+
+                      {/* KH-ĐT */}
+                      <TableCell align="center" sx={{px:1,fontWeight:"bold"}}>
+                        {fixedSum.khdt.toLocaleString()}
+                      </TableCell>
+
+                      {/* Treo PB */}
+                      <TableCell/>
+
+                      {/* Xóa */}
+                      <TableCell/>
+                    </TableRow>
+                  )}
+                </React.Fragment>
               );
             })}
           </TableBody>

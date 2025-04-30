@@ -1,10 +1,15 @@
 // src/components/SummaryPanel.jsx
-import React, { useMemo, useState } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
-  Paper, Typography, Grid, Box, TextField, Tooltip, useTheme,
+  Paper,
+  Typography,
+  Grid,
+  Box,
+  TextField,
+  Tooltip,
   Skeleton,
 } from "@mui/material";
-import { parseNumber, formatNumber } from "../../utils/numberUtils";
+import { formatNumber } from "../../utils/numberUtils";
 import { overallSum } from "../../utils/groupingUtils";
 
 /* -- Mini component cho 1 ô -- */
@@ -29,7 +34,7 @@ const MetricBox = ({ label, value, loading }) => (
 );
 
 export default function SummaryPanel({
-  overallRevenue,
+  overallRevenue,               // có thể là string hoặc number
   overallRevenueEditing,
   setOverallRevenue,
   setOverallRevenueEditing,
@@ -38,21 +43,47 @@ export default function SummaryPanel({
   columnsAll,
   groupedData,
 }) {
-  const theme = useTheme();
-  const [inputErr, setErr] = useState(false);
+  // draftRevenue luôn là chuỗi “sạch” (không dấu phẩy)
+  const [draftRevenue, setDraftRevenue] = useState(
+    String(overallRevenue ?? "")
+  );
+  const [inputErr, setInputErr] = useState(false);
 
-  /* ---- memo hoá tính toán ---- */
+  // Khi overallRevenue thay đổi (load hoặc sau commit): sync lại draft
+  useEffect(() => {
+    setDraftRevenue(String(overallRevenue ?? ""));
+    setInputErr(false);
+  }, [overallRevenue]);
+
+  // Commit khi blur hoặc Enter
+  const commitRevenue = useCallback(() => {
+    // loại bỏ mọi ký tự không phải số, dấu chấm hoặc dấu trừ
+    const raw = draftRevenue.replace(/[^\d.\-]/g, "");
+    if (raw === "" || Number.isNaN(Number(raw))) {
+      setInputErr(true);
+      return;
+    }
+    const clean = Number(raw);
+    // chỉ cập nhật nếu khác giá trị cũ
+    if (clean !== Number(overallRevenue ?? 0)) {
+      setOverallRevenue(clean);
+    }
+    setOverallRevenueEditing(false);
+  }, [draftRevenue, overallRevenue, setOverallRevenue, setOverallRevenueEditing]);
+
+  // Tính các tổng khác
   const sums = useMemo(() => {
     if (!groupedData) return {};
     const base = {};
-    summarySumKeys.forEach((k) => (base[k] = overallSum(groupedData, k)));
+    summarySumKeys.forEach((k) => {
+      base[k] = overallSum(groupedData, k);
+    });
     base.totalCost = overallSum(groupedData, "totalCost");
     return base;
   }, [groupedData, summarySumKeys]);
 
-  const revenueNum = parseNumber(overallRevenue || "0");
-  const profit =
-    Number(revenueNum) - (sums.totalCost ?? 0);
+  const revenueNum = Number(overallRevenue ?? 0);
+  const profit = revenueNum - (sums.totalCost ?? 0);
 
   return (
     <Paper sx={{ mt: 3, p: 3, borderRadius: 2, boxShadow: 3 }}>
@@ -61,7 +92,7 @@ export default function SummaryPanel({
       </Typography>
 
       <Grid container spacing={2}>
-        {/* --- Doanh thu quý (có thể chỉnh) --- */}
+        {/* --- Doanh Thu Quý (editable) --- */}
         <Grid item xs={12} sm={4} md={3}>
           <MetricBox
             label="Doanh Thu Quý"
@@ -69,26 +100,38 @@ export default function SummaryPanel({
             value={
               overallRevenueEditing ? (
                 <TextField
-                  value={overallRevenue}
+                  fullWidth
                   size="small"
+                  value={draftRevenue}
                   error={inputErr}
                   onChange={(e) => {
-                    setOverallRevenue(e.target.value);
-                    setErr(isNaN(parseNumber(e.target.value)));
+                    const v = e.target.value;
+                    setDraftRevenue(v);
+                    // kiểm tra ngay raw → số hay NaN
+                    setInputErr(
+                      Number.isNaN(
+                        Number(v.replace(/[^\d.\-]/g, ""))
+                      )
+                    );
                   }}
-                  onBlur={() => !inputErr && setOverallRevenueEditing(false)}
+                  onBlur={commitRevenue}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && commitRevenue()
+                  }
                   autoFocus
-                  inputProps={{ style: { textAlign: "center" } }}
+                  inputProps={{
+                    style: { textAlign: "center", fontWeight: 600 },
+                  }}
                 />
               ) : (
-                <Tooltip title="Double click để chỉnh sửa">
+                <Tooltip title="Double-click để chỉnh sửa">
                   <Box
                     sx={{ cursor: "pointer" }}
-                    onDoubleClick={() => setOverallRevenueEditing(true)}
+                    onDoubleClick={() =>
+                      setOverallRevenueEditing(true)
+                    }
                   >
-                    {overallRevenue
-                      ? formatNumber(Number(revenueNum))
-                      : "Double click để nhập"}
+                    {formatNumber(revenueNum)}
                   </Box>
                 </Tooltip>
               )
@@ -96,7 +139,7 @@ export default function SummaryPanel({
           />
         </Grid>
 
-        {/* --- Doanh thu dự kiến --- */}
+        {/* --- Doanh Thu Dự Kiến --- */}
         <Grid item xs={12} sm={4} md={3}>
           <MetricBox
             label="Doanh Thu Hoàn Thành Dự Kiến"
@@ -104,7 +147,7 @@ export default function SummaryPanel({
           />
         </Grid>
 
-        {/* --- Lợi nhuận --- */}
+        {/* --- Lợi Nhuận --- */}
         <Grid item xs={12} sm={4} md={3}>
           <MetricBox
             label="Lợi Nhuận"
@@ -112,7 +155,7 @@ export default function SummaryPanel({
           />
         </Grid>
 
-        {/* --- Các key khác --- */}
+        {/* --- Các chỉ số khác --- */}
         {summarySumKeys.map((key) => (
           <Grid item xs={12} sm={4} md={3} key={key}>
             <MetricBox
