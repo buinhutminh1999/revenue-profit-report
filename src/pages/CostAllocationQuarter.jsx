@@ -1,4 +1,3 @@
-// ================= CostAllocationQuarter.jsx =================
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box, Button, Tooltip, IconButton, Skeleton, Typography,
@@ -36,37 +35,43 @@ export default function CostAllocationQuarter() {
   const [projData,setProjData]= useState({});
   const [loading,setLoading]  = useState(false);
 
-  const [extraRows, setExtraRows] = useState([]);   // ✅ tên duy nhất
+  const [extraRows, setExtraRows] = useState([]);
   const [options,   setOptions]   = useState([]);
-
   const gridRef = useRef(null);
 
-  /* init & load mainRows */
+  /* load extraRows */
   useEffect(()=>{(async()=>{
-    const ref = doc(db,COL,`${year}_${quarter}`);
-    if(!(await getDoc(ref)).exists()){
-      await setDoc(ref,{mainRows:[],created_at:serverTimestamp()});
-    }
+    const ref = doc(db, COL, `${year}_${quarter}`);
     const snap = await getDoc(ref);
-    setExtraRows(snap.exists()?snap.data().mainRows||[]:[]);
+    if (!snap.exists()) {
+      await setDoc(ref,{ mainRows:[], created_at:serverTimestamp() });
+    }
+    setExtraRows(snap.exists() ? snap.data().mainRows||[] : []);
   })();},[year,quarter]);
 
-  /* load projects */
+  /* load projects list */
   useEffect(()=>{(async()=>{
     const s = await getDocs(collection(db,"projects"));
-    setProjects(s.docs.map(d=>({id:d.id,name:d.data().name})));
+    setProjects(s.docs.map(d=>({ id:d.id,name:d.data().name })));
   })();},[]);
 
-  /* load revenue & directCost */
+  /* load each project's Q1 data */
   useEffect(()=>{
-    if(!projects.length){setLoading(false);return;}
+    if (!projects.length) { setLoading(false); return; }
     setLoading(true);
     (async()=>{
-      const out={};
+      const out = {};
       await Promise.all(projects.map(async p=>{
-        const ref = doc(db,"projects",p.id,"years",String(year),"quarters",quarter);
-        const snap= await getDoc(ref);
-        out[p.id]= snap.exists()?snap.data():{};
+        const ref  = doc(db,
+          "projects", p.id,
+          "years", String(year),
+          "quarters", quarter
+        );
+        const snap = await getDoc(ref);
+        const data = snap.exists() ? snap.data() : {};
+        // ensure items is an array
+        data.items = Array.isArray(data.items) ? data.items : [];
+        out[p.id] = data;
       }));
       setProjData(out);
       setLoading(false);
@@ -75,44 +80,56 @@ export default function CostAllocationQuarter() {
 
   /* load category options */
   useEffect(()=>{(async()=>{
-    const s=await getDocs(collection(db,"categories"));
+    const s = await getDocs(collection(db,"categories"));
     setOptions(s.docs.map(d=>d.data().label||d.id).sort());
   })();},[]);
 
-  /* direct cost resolver */
-  const getDC = (pId,rowId)=>{
+  /* ---------- directCost resolver ---------- */
+  const getDC = (pId, rowId) => {
+    console.log(
+        `[getDC] doc: projects/${pId}/years/${year}/quarters/${quarter}`,
+        'extraRowId:', rowId,
+        'projData.items:', projData[pId]?.items
+      );
+    
+    // first, try directCost at root
     let raw = projData[pId]?.directCost;
-    if(raw===undefined){
-      raw = projData[pId]?.items?.find(it=>it.id===rowId)?.directCost;
+    if (raw === undefined) {
+      // fallback: find in items array by matching description to label
+      const label = extraRows.find(r=>r.id===rowId)?.label;
+      raw = projData[pId]?.items?.find(it=>it.description===label)?.directCost;
     }
     return toNum(raw);
   };
 
   /* --------------- build rows --------------- */
   const rows = useMemo(()=>{
-    const buildFixed = (cat)=>{
-      const r={id:cat.key,label:cat.label,pct:""};
+    const buildFixed = (cat) => {
+      const r = { id:cat.key, label:cat.label, pct:"" };
       projects.forEach(p=>{
-        r[p.id]        = cat.key==="overallRevenue"
-                         ? toNum(projData[p.id]?.overallRevenue) : 0;
-        r[`${p.id}_dc`] = "";    // không hiển thị DC tại hàng cố định
+        if (cat.key === "overallRevenue") {
+          r[p.id]        = toNum(projData[p.id]?.overallRevenue);
+        } else {
+          r[p.id]        = 0;
+        }
+        r[`${p.id}_dc`] = ""; // no DC on fixed rows
       });
-      r.used=projects.reduce((s,p)=>s+r[p.id],0);
-      r.allocated=r.used;
+      r.used      = projects.reduce((s,p)=>s + r[p.id], 0);
+      r.allocated = r.used;
       return r;
     };
 
-    const buildExtra = (ex)=>{
-      const pct=parseFloat(ex.pct)||0;
-      const r={id:ex.id,label:ex.label,pct:ex.pct};
+    const buildExtra = (ex) => {
+      const pct = parseFloat(ex.pct) || 0;
+      const r   = { id:ex.id, label:ex.label, pct:ex.pct };
       projects.forEach(p=>{
         const rev = toNum(projData[p.id]?.overallRevenue);
         const dc  = getDC(p.id,ex.id);
-        r[p.id]      = Math.round((rev*pct)/100 - dc);
-        r[`${p.id}_dc`] = dc;      // cột DC
+        r[`${p.id}_dc`] = dc;
+        r[p.id]         = Math.round((rev * pct)/100 - dc);
       });
-      r.used=projects.reduce((s,p)=>s+r[p.id],0);
-      r.allocated=0;
+      r.used      = projects.reduce((s,p)=>s + r[p.id], 0);
+      r.allocated = 0;
       return r;
     };
 
@@ -121,7 +138,7 @@ export default function CostAllocationQuarter() {
       ...extraRows.map(buildExtra),
       buildFixed(cats[1]),
     ];
-  },[projects,projData,extraRows]);        // getDC không đổi → không cần
+  },[projects,projData,extraRows]);
 
   /* columns */
   const baseCols=[{
@@ -130,73 +147,82 @@ export default function CostAllocationQuarter() {
       <EditableSelect
         options={options.filter(o=>!["DOANH THU","TỔNG CHI PHÍ"].includes(o.toUpperCase()))}
         value={p.value||""}
-        onChange={v=>p.api.setEditCellValue({id:p.id,field:"label",value:v},true)}
+        onChange={v=>p.api.setEditCellValue({ id:p.id, field:"label", value:v }, true)}
         sx={{width:"100%"}}
-      />)
+      />
+    )
   },{
     field:"pct",headerName:"% DT",width:100,align:"center",headerAlign:"center",editable:true,
     renderEditCell:p=>(
       <TextField autoFocus fullWidth value={p.value||""}
-        onChange={e=>p.api.setEditCellValue({id:p.id,field:"pct",value:e.target.value},true)}/>
+        onChange={e=>p.api.setEditCellValue({ id:p.id, field:"pct", value:e.target.value }, true)}
+      />
     )
   }];
 
-  /* mỗi project 2 cột: value + DC */
-  const projCols = projects.flatMap(p=>([
-    { field:p.id, headerName:p.name, width:140,type:"number",
-      align:"right",headerAlign:"right"},
-    { field:`${p.id}_dc`, headerName:`DC ${p.name}`, width:120,
-      type:"number",align:"right",headerAlign:"right",
-      cellClassName:"dcCol"}
-  ]));
+  /* project + DC columns */
+  const projCols = projects.flatMap(p=>[
+    { field:p.id, headerName:p.name, width:140, type:"number", align:"right", headerAlign:"right" },
+    { field:`${p.id}_dc`, headerName:`DC ${p.name}`, width:120, type:"number",
+      align:"right",headerAlign:"right",cellClassName:"dcCol" }
+  ]);
 
   const otherCols=[{
     field:"used",headerName:`Sử dụng ${quarter}`,width:160,type:"number",
-    align:"right",headerAlign:"right"},
-  { field:"allocated",headerName:`Phân bổ ${quarter}.${year}`,width:180,type:"number",
-    align:"right",headerAlign:"right"},
-  { field:"actions",headerName:"Xóa",width:70,sortable:false,
+    align:"right",headerAlign:"right"
+  },{
+    field:"allocated",headerName:`Phân bổ ${quarter}.${year}`,width:180,type:"number",
+    align:"right",headerAlign:"right"
+  },{
+    field:"actions",headerName:"Xóa",width:70,sortable:false,
     renderCell:p=>!isFixed(p.id)&&(
       <Tooltip title="Xóa hàng">
         <IconButton size="small"
           onClick={()=>setExtraRows(r=>r.filter(x=>x.id!==p.id))}>
           <DeleteIcon fontSize="small" color="error"/>
         </IconButton>
-      </Tooltip>)
+      </Tooltip>
+    )
   }];
 
   const columns=[...baseCols,...projCols,...otherCols];
-  const editable=p=>!isFixed(p.id);
+  const isCellEditable=p=>!isFixed(p.id);
 
-  /* row update */
-  const onUpdate=row=>{
-    if(isFixed(row.id))return row;
-    const pct=parseFloat(row.pct)||0;
-    const newR={...row};
+  /* processRowUpdate */
+  const onUpdate = row => {
+    if (isFixed(row.id)) return row;
+    const ex = extraRows.find(x=>x.id===row.id);
+    const pct = parseFloat(row.pct)||0;
+    const newRow = { ...row };
+
     projects.forEach(p=>{
-      const rev=toNum(projData[p.id]?.overallRevenue);
-      const dc =getDC(p.id,row.id);
-      newR[p.id]      = Math.round((rev*pct)/100 - dc);
-      newR[`${p.id}_dc`]=dc;
+      const rev = toNum(projData[p.id]?.overallRevenue);
+      const dc  = getDC(p.id,row.id);
+      newRow[`${p.id}_dc`] = dc;
+      newRow[p.id]         = Math.round((rev*pct)/100 - dc);
     });
-    newR.used=projects.reduce((s,p)=>s+newR[p.id],0);
-    setExtraRows(r=>r.map(x=>x.id===newR.id?{...x,label:newR.label,pct:newR.pct}:x));
-    return newR;
+    newRow.used = projects.reduce((s,p)=>s + newRow[p.id], 0);
+
+    setExtraRows(r=>r.map(x=>
+      x.id===newRow.id?{...x,label:newRow.label,pct:newRow.pct}:x
+    ));
+    return newRow;
   };
 
-  /* add & save */
-  const addRow=()=>{
-    const id=Date.now().toString();
+  /* add + save */
+  const addRow = () => {
+    const id = Date.now().toString();
     setExtraRows(r=>[...r,{id,label:"",pct:""}]);
-    setTimeout(()=>gridRef.current?.apiRef?.current
-      ?.startCellEditMode({id,field:"label"}));
+    setTimeout(()=>gridRef.current?.apiRef?.current?.startCellEditMode({ id, field:"label" }), 50);
   };
-  const save=async()=>{
-    try{
+  const save = async() => {
+    try {
       await setDoc(doc(db,COL,`${year}_${quarter}`),
-        {mainRows:extraRows,updated_at:serverTimestamp()},{merge:true});
+        { mainRows:extraRows, updated_at:serverTimestamp() },
+        { merge:true }
+      );
       alert("Đã lưu!");
-    }catch(e){console.error(e);alert(e.message);}
+    } catch(e) { console.error(e); alert(e.message); }
   };
 
   /* render */
@@ -212,7 +238,7 @@ export default function CostAllocationQuarter() {
             value={year} onChange={e=>setYear(+e.target.value)}/>
           <Select size="small" value={quarter} sx={{width:100}}
             onChange={e=>setQuarter(e.target.value)}>
-            {["Q1","Q2","Q3","Q4"].map(q=><MenuItem key={q} value={q}>{q}</MenuItem>)}
+            { ["Q1","Q2","Q3","Q4"].map(q=><MenuItem key={q} value={q}>{q}</MenuItem>) }
           </Select>
         </Box>
       </Box>
@@ -222,7 +248,7 @@ export default function CostAllocationQuarter() {
         Chi phí phân bổ {quarter} {year}
       </Typography>
 
-      {loading
+      { loading
         ? <Box sx={{p:2}}><Skeleton height={48}/></Box>
         : <Box sx={{p:2}}>
             <DataGrid
@@ -233,18 +259,19 @@ export default function CostAllocationQuarter() {
               pageSize={rows.length}
               hideFooter
               editMode="cell"
-              isCellEditable={editable}
+              isCellEditable={isCellEditable}
               processRowUpdate={onUpdate}
               experimentalFeatures={{newEditingApi:true}}
               sx={{
                 bgcolor:"white",
                 "& .MuiDataGrid-columnHeaders":{
-                  backgroundColor:alpha(theme.palette.primary.main,0.08)},
-                "& .dcCol":{color:theme.palette.secondary.main,fontStyle:"italic"}
+                  backgroundColor:alpha(theme.palette.primary.main,0.08)
+                },
+                "& .dcCol":{ color:theme.palette.secondary.main, fontStyle:"italic" }
               }}
             />
-          </Box>}
+          </Box>
+      }
     </Box>
   );
 }
-// ================= END FILE =================
