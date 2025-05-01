@@ -34,7 +34,6 @@ import React, {
     doc,
     getDoc,
     setDoc,
-    updateDoc,
     serverTimestamp,
   } from "firebase/firestore";
   import { db } from "../services/firebase-config";
@@ -42,12 +41,14 @@ import React, {
   /* ---------- constants & helpers ---------- */
   const COL_QUARTER = "costAllocationsQuarter";
   const COL_MAIN = "costAllocations";
-  const toNum = (v) => parseFloat(String(v ?? "").replace(/[^\d.\-]/g, "")) || 0;
+  const toNum = (v) =>
+    parseFloat(String(v ?? "").replace(/[^\d.\-]/g, "")) || 0;
   const cats = [
     { key: "overallRevenue", label: "DOANH THU" },
     { key: "totalCost", label: "TỔNG CHI PHÍ" },
   ];
-  const isFixed = (id) => id === "overallRevenue" || id === "totalCost";
+  const isFixed = (id) =>
+    id === "overallRevenue" || id === "totalCost";
   
   export default function CostAllocationQuarter() {
     const theme = useTheme();
@@ -61,7 +62,11 @@ import React, {
     const [options, setOptions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [snack, setSnack] = useState({ open: false, msg: "" });
+    const [snack, setSnack] = useState({
+      open: false,
+      msg: "",
+      action: null,
+    });
   
     const lastDeletedRef = useRef(null);
     const gridRef = useRef(null);
@@ -69,7 +74,7 @@ import React, {
     const [mainRows, setMainRows] = useState([]);
     const [thiCongTotal, setThiCongTotal] = useState(0);
   
-    // 1) Load mainRows & compute tổng Thi Công
+    // 1) Load mainRows & calc tổng Thi Công
     useEffect(() => {
       (async () => {
         const snap = await getDoc(doc(db, COL_MAIN, `${year}_${quarter}`));
@@ -95,36 +100,52 @@ import React, {
       })();
     }, [year, quarter]);
   
-    // 2) Load extraRows (center allocations)
+    // 2) Load extraRows (Phân bổ quý)
     useEffect(() => {
       (async () => {
         const ref = doc(db, COL_QUARTER, `${year}_${quarter}`);
         const snap = await getDoc(ref);
         if (!snap.exists()) {
-          await setDoc(ref, { mainRows: [], created_at: serverTimestamp() });
+          await setDoc(ref, {
+            mainRows: [],
+            created_at: serverTimestamp(),
+          });
         }
         setExtraRows(snap.exists() ? snap.data().mainRows || [] : []);
       })();
     }, [year, quarter]);
   
-    // 3) Load projects list
+    // 3) Load danh sách projects
     useEffect(() => {
       (async () => {
         const s = await getDocs(collection(db, "projects"));
-        setProjects(s.docs.map((d) => ({ id: d.id, name: d.data().name })));
+        setProjects(
+          s.docs.map((d) => ({ id: d.id, name: d.data().name }))
+        );
       })();
     }, []);
   
-    // 4) Load each project's quarterly data
+    // 4) Load data từng project/quý
     useEffect(() => {
-      if (!projects.length) return setLoading(false);
+      if (!projects.length) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       (async () => {
         const out = {};
         await Promise.all(
           projects.map(async (p) => {
             const snap = await getDoc(
-              doc(db, "projects", p.id, "years", String(year), "quarters", quarter)
+              doc(
+                db,
+                "projects",
+                p.id,
+                "years",
+                String(year),
+                "quarters",
+                quarter
+              )
             );
             const data = snap.exists() ? snap.data() : {};
             data.items = Array.isArray(data.items) ? data.items : [];
@@ -136,15 +157,17 @@ import React, {
       })();
     }, [projects, year, quarter]);
   
-    // 5) Load categories for the EditableSelect
+    // 5) Load categories cho EditableSelect
     useEffect(() => {
       (async () => {
         const s = await getDocs(collection(db, "categories"));
-        setOptions(s.docs.map((d) => d.data().label || d.id).sort());
+        setOptions(
+          s.docs.map((d) => d.data().label || d.id).sort()
+        );
       })();
     }, []);
   
-    // helper: get directCost for extra rows
+    // helper: directCost
     const getDC = useCallback(
       (pId, rowId) => {
         let raw = projData[pId]?.directCost;
@@ -152,7 +175,8 @@ import React, {
           const lbl = extraRows.find((r) => r.id === rowId)?.label;
           raw = projData[pId]?.items?.find(
             (it) =>
-              it.description.trim().toLowerCase() === lbl.trim().toLowerCase()
+              (it.description || "").trim().toLowerCase() ===
+              (lbl || "").trim().toLowerCase()
           )?.directCost;
         }
         return toNum(raw);
@@ -160,39 +184,52 @@ import React, {
       [projData, extraRows]
     );
   
-    // 6) Build rows for DataGrid
+    // 6) Build rows cho DataGrid
     const rows = useMemo(() => {
       const buildFixed = (cat) => {
-        const r = { id: cat.key, label: cat.label, pct: "" };
+        const r = {
+          id: cat.key,
+          label: cat.label,
+          pct: "",
+        };
         projects.forEach((p) => {
-          r[p.id] = cat.key === "overallRevenue"
-            ? toNum(projData[p.id]?.revenue)
-            : 0;
+          r[p.id] =
+            cat.key === "overallRevenue"
+              ? toNum(projData[p.id]?.overallRevenue)
+              : 0;
           r[`${p.id}_dc`] = "";
         });
-        r.used = projects.reduce((sum, p) => sum + r[p.id], 0);
+        r.used = projects.reduce((s, p) => s + r[p.id], 0);
         r.allocated = r.used;
         return r;
       };
   
       const buildExtra = (ex) => {
         const pct = parseFloat(ex.pct) || 0;
-        const r = { id: ex.id, label: ex.label, pct: ex.pct };
+        const r = {
+          id: ex.id,
+          label: ex.label,
+          pct: ex.pct,
+        };
   
+        // tính dựa trên từng project
         projects.forEach((p) => {
-          const rev = toNum(projData[p.id]?.revenue);
+          const rev = toNum(projData[p.id]?.overallRevenue);
           const dc = getDC(p.id, ex.id);
           r[`${p.id}_dc`] = dc;
           r[p.id] = Math.round((rev * pct) / 100 - dc);
         });
   
-        r.used = projects.reduce((sum, p) => sum + r[p.id], 0);
+        r.used = projects.reduce((s, p) => s + r[p.id], 0);
   
-        // compute allocated automatically from mainRows or thiCongTotal
+        // tính allocated tự động
         let main = mainRows.find((m) => m.id === ex.id);
         if (!main) {
           main = mainRows.find(
-            (m) => m.name.trim().toLowerCase() === ex.label.trim().toLowerCase()
+            (m) =>
+              (m.name || "")
+                .trim()
+                .toLowerCase() === ex.label.trim().toLowerCase()
           );
         }
         if (main) {
@@ -200,8 +237,12 @@ import React, {
             toNum(main.monthly?.T1) +
             toNum(main.monthly?.T2) +
             toNum(main.monthly?.T3);
-          r.allocated = Math.round((qv * toNum(main.percentThiCong)) / 100);
-        } else if (ex.label.trim().toLowerCase() === "+ chi phí lương") {
+          r.allocated = Math.round(
+            (qv * toNum(main.percentThiCong)) / 100
+          );
+        } else if (
+          ex.label.trim().toLowerCase() === "+ chi phí lương"
+        ) {
           r.allocated = thiCongTotal;
         } else {
           r.allocated = 0;
@@ -215,9 +256,16 @@ import React, {
         ...extraRows.map(buildExtra),
         buildFixed(cats[1]),
       ];
-    }, [projects, projData, extraRows, getDC, mainRows, thiCongTotal]);
+    }, [
+      projects,
+      projData,
+      extraRows,
+      getDC,
+      mainRows,
+      thiCongTotal,
+    ]);
   
-    // 7) Columns definition
+    // 7) Định nghĩa cột, chỉ cho edit label & pct
     const baseCols = [
       {
         field: "label",
@@ -227,7 +275,10 @@ import React, {
         renderEditCell: (p) => (
           <EditableSelect
             options={options.filter(
-              (o) => !["DOANH THU", "TỔNG CHI PHÍ"].includes(o.toUpperCase())
+              (o) =>
+                !["DOANH THU", "TỔNG CHI PHÍ"].includes(
+                  o.toUpperCase()
+                )
             )}
             value={p.value || ""}
             onChange={(v) =>
@@ -292,7 +343,7 @@ import React, {
         type: "number",
         align: "right",
         headerAlign: "right",
-        editable: false,
+        // không đặt editable → không cho sửa
       },
       {
         field: "actions",
@@ -305,39 +356,65 @@ import React, {
               <IconButton
                 size="small"
                 onClick={() => {
-                  lastDeletedRef.current = rows.find((r) => r.id === p.id);
-                  setExtraRows((r) => r.filter((x) => x.id !== p.id));
-                  setSnack({ open: true, msg: "Đã xóa" });
+                  const deleted = rows.find((r) => r.id === p.id);
+                  lastDeletedRef.current = deleted;
+                  setExtraRows((r) =>
+                    r.filter((x) => x.id !== p.id)
+                  );
+                  setSnack({
+                    open: true,
+                    msg: "Đã xóa",
+                    action: "Hoàn tác",
+                  });
                 }}
               >
-                <DeleteIcon fontSize="small" color="error" />
+                <DeleteIcon
+                  fontSize="small"
+                  color="error"
+                />
               </IconButton>
             </Tooltip>
           ),
       },
     ];
   
-    const columns = [...baseCols, ...projCols, ...otherCols];
-    const isCellEditable = (params) => !isFixed(params.id) && ["label", "pct"].includes(params.field);
+    const columns = [
+      ...baseCols,
+      ...projCols,
+      ...otherCols,
+    ];
   
+    // chỉ cho sửa khi field là label hoặc pct, và không phải hàng fixed
+    const isCellEditable = (params) =>
+      !isFixed(params.id) &&
+      ["label", "pct"].includes(params.field);
+  
+    // xử lý khi row update (chỉ label/pct)
     const processRowUpdate = (newRow) => {
       if (isFixed(newRow.id)) return newRow;
   
-      // recalc based on pct
+      // recalc dựa trên pct
       const pct = parseFloat(newRow.pct) || 0;
       projects.forEach((p) => {
-        const rev = toNum(projData[p.id]?.revenue);
+        const rev = toNum(projData[p.id]?.overallRevenue);
         const dc = getDC(p.id, newRow.id);
         newRow[`${p.id}_dc`] = dc;
         newRow[p.id] = Math.round((rev * pct) / 100 - dc);
       });
-      newRow.used = projects.reduce((sum, p) => sum + newRow[p.id], 0);
+      newRow.used = projects.reduce(
+        (s, p) => s + newRow[p.id],
+        0
+      );
   
       // recalc allocated
       let main = mainRows.find((m) => m.id === newRow.id);
       if (!main) {
         main = mainRows.find(
-          (m) => m.name.trim().toLowerCase() === newRow.label.trim().toLowerCase()
+          (m) =>
+            (m.name || "")
+              .trim()
+              .toLowerCase() ===
+            newRow.label.trim().toLowerCase()
         );
       }
       if (main) {
@@ -345,82 +422,103 @@ import React, {
           toNum(main.monthly?.T1) +
           toNum(main.monthly?.T2) +
           toNum(main.monthly?.T3);
-        newRow.allocated = Math.round((qv * toNum(main.percentThiCong)) / 100);
-      } else if (newRow.label.trim().toLowerCase() === "+ chi phí lương") {
+        newRow.allocated = Math.round(
+          (qv * toNum(main.percentThiCong)) / 100
+        );
+      } else if (
+        newRow.label.trim().toLowerCase() ===
+        "+ chi phí lương"
+      ) {
         newRow.allocated = thiCongTotal;
       } else {
         newRow.allocated = 0;
       }
   
-      // save label & pct edits into extraRows
+      // cập nhật label & pct vào extraRows
       setExtraRows((rs) =>
-        rs.map((x) => (x.id === newRow.id ? { ...x, label: newRow.label, pct: newRow.pct } : x))
+        rs.map((x) =>
+          x.id === newRow.id
+            ? { ...x, label: newRow.label, pct: newRow.pct }
+            : x
+        )
       );
   
       return newRow;
     };
   
-    // 8) Save: write central + push auto-calculated `allocated` into each project doc
-    const save = async () => {
-      setSaving(true);
-      try {
-        // A) central
-        await setDoc(
-          doc(db, COL_QUARTER, `${year}_${quarter}`),
-          { mainRows: extraRows, updated_at: serverTimestamp() },
-          { merge: true }
-        );
-  
-        // B) each project
-        await Promise.all(
-          projects.map(async (p) => {
-            const projRef = doc(db, "projects", p.id, "years", String(year), "quarters", quarter);
-            const snap = await getDoc(projRef);
-            const oldItems = snap.exists() ? snap.data().items || [] : [];
-  
-            const updatedItems = oldItems.map((it) => {
-                const row = rows.find(
-                      r =>
-                        r.id === it.id ||                                         // khớp id nếu trùng
-                        r.label.trim().toLowerCase() ===                          // hoặc khớp theo mô tả
-                          (it.description || "").trim().toLowerCase()
-                    );
-              // write the auto-computed value
-              return { ...it, allocated: String(row?.allocated ?? 0) };
-            });
-  
-            if (!snap.exists()) {
-              await setDoc(projRef, { items: updatedItems }, { merge: true });
-            } else {
-              await updateDoc(projRef, { items: updatedItems });
-            }
-          })
-        );
-  
-        setSnack({ open: true, msg: "Lưu thành công" });
-      } catch (e) {
-        console.error(e);
-        setSnack({ open: true, msg: e.message });
-      } finally {
-        setSaving(false);
+    const handleCloseSnack = (_, reason) => {
+      if (reason === "clickaway") return;
+      if (snack.action === "Hoàn tác") {
+        setExtraRows((r) => [
+          ...(r || []),
+          lastDeletedRef.current,
+        ]);
       }
+      setSnack((s) => ({ ...s, open: false }));
     };
-  
-    const handleCloseSnack = () => setSnack((s) => ({ ...s, open: false }));
   
     const addRow = () => {
       const id = Date.now().toString();
       setExtraRows((r) => [...r, { id, label: "", pct: "" }]);
       setTimeout(() => {
-        gridRef.current?.apiRef?.current?.startCellEditMode({ id, field: "label" });
+        gridRef.current?.apiRef?.current?.startCellEditMode({
+          id,
+          field: "label",
+        });
       }, 50);
     };
   
+    const save = async () => {
+      setSaving(true);
+      try {
+        await setDoc(
+          doc(db, COL_QUARTER, `${year}_${quarter}`),
+          {
+            mainRows: extraRows,
+            updated_at: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        setSnack({
+          open: true,
+          msg: "Lưu thành công",
+          action: null,
+        });
+      } catch (e) {
+        setSnack({
+          open: true,
+          msg: e.message,
+          action: null,
+        });
+      } finally {
+        setSaving(false);
+      }
+    };
+  
     return (
-      <Box sx={{ bgcolor: theme.palette.background.default, minHeight: "100vh", px: 1 }}>
+      <Box
+        sx={{
+          bgcolor: theme.palette.background.default,
+          minHeight: "100vh",
+          px: 1,
+        }}
+      >
         {/* Toolbar */}
-        <Box sx={{ p: 2, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-          <Button size="small" variant="outlined" startIcon={<RefreshIcon />} onClick={addRow}>
+        <Box
+          sx={{
+            p: 2,
+            display: "flex",
+            gap: 1,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={addRow}
+          >
             Thêm hàng
           </Button>
           <Button
@@ -428,11 +526,20 @@ import React, {
             variant="contained"
             onClick={save}
             disabled={saving}
-            startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
+            startIcon={
+              saving ? <CircularProgress size={16} /> : <SaveIcon />
+            }
           >
             {saving ? "Đang lưu..." : "Lưu"}
           </Button>
-          <Box sx={{ ml: "auto", display: "flex", gap: 1, alignItems: "center" }}>
+          <Box
+            sx={{
+              ml: "auto",
+              display: "flex",
+              gap: 1,
+              alignItems: "center",
+            }}
+          >
             <TextField
               size="small"
               label="Năm"
@@ -441,7 +548,12 @@ import React, {
               value={year}
               onChange={(e) => setYear(+e.target.value)}
             />
-            <Select size="small" value={quarter} sx={{ width: 100 }} onChange={(e) => setQuarter(e.target.value)}>
+            <Select
+              size="small"
+              value={quarter}
+              sx={{ width: 100 }}
+              onChange={(e) => setQuarter(e.target.value)}
+            >
               {["Q1", "Q2", "Q3", "Q4"].map((q) => (
                 <MenuItem key={q} value={q}>
                   {q}
@@ -457,7 +569,15 @@ import React, {
         </Box>
   
         {/* Title */}
-        <Typography variant="h4" align="center" sx={{ my: 3, fontWeight: 600, textDecoration: "underline" }}>
+        <Typography
+          variant="h4"
+          align="center"
+          sx={{
+            my: 3,
+            fontWeight: 600,
+            textDecoration: "underline",
+          }}
+        >
           Chi phí phân bổ {quarter} {year}
         </Typography>
   
@@ -473,18 +593,26 @@ import React, {
               rows={rows}
               columns={columns}
               autoHeight
+              pageSize={rows.length}
               hideFooter
               editMode="cell"
               isCellEditable={isCellEditable}
               processRowUpdate={processRowUpdate}
               experimentalFeatures={{ newEditingApi: true }}
               getRowClassName={(params) =>
-                params.row.label.trim().toLowerCase() === "+ chi phí lương" ? "special-row" : ""
+                params.row.label
+                  .trim()
+                  .toLowerCase() === "+ chi phí lương"
+                  ? "special-row"
+                  : ""
               }
               sx={{
                 bgcolor: "white",
                 "& .MuiDataGrid-columnHeaders": {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                  backgroundColor: alpha(
+                    theme.palette.primary.main,
+                    0.08
+                  ),
                 },
                 "& .special-row": { backgroundColor: "#fffbeb" },
               }}
@@ -493,8 +621,27 @@ import React, {
         )}
   
         {/* Snackbar */}
-        <Snackbar open={snack.open} autoHideDuration={3000} onClose={handleCloseSnack}>
-          <Alert onClose={handleCloseSnack} severity="success" sx={{ width: "100%" }}>
+        <Snackbar
+          open={snack.open}
+          autoHideDuration={5000}
+          onClose={handleCloseSnack}
+        >
+          <Alert
+            onClose={handleCloseSnack}
+            severity="success"
+            sx={{ width: "100%" }}
+            action={
+              snack.action ? (
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={handleCloseSnack}
+                >
+                  {snack.action}
+                </Button>
+              ) : null
+            }
+          >
             {snack.msg}
           </Alert>
         </Snackbar>
