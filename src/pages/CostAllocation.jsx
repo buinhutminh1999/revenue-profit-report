@@ -77,17 +77,19 @@ const getQuarterValue = (r) => {
 };
 
 const normalizeRow = (row) => ({
-  id: row.id,
-  name: row.name ?? "",
-  fixed: !!row.fixed,
-  monthly: { T1: "0", T2: "0", T3: "0", ...(row.monthly || {}) },
-  thueVP: row.thueVP ?? "0",
-  thueNhaCongVu: row.thueNhaCongVu ?? "0",
-  quarterManual: row.quarterManual ?? "0",
-  percentage: row.percentage ?? "0",
-  percentThiCong: row.percentThiCong ?? "0",
-  percentKHDT: row.percentKHDT ?? "0",
-});
+    id: row.id,
+    name: row.name ?? "",
+    fixed: !!row.fixed,
+    monthly: { T1: "0", T2: "0", T3: "0", ...(row.monthly || {}) },
+    thueVP: row.thueVP ?? "0",
+    thueNhaCongVu: row.thueNhaCongVu ?? "0",
+    quarterManual: row.quarterManual ?? "0",
+    percentage: row.percentage ?? "0",
+    percentThiCong: row.percentThiCong ?? "0",
+    percentKHDT: row.percentKHDT ?? "0",
+    thiCongValue: row.thiCongValue ?? 0,    // ← lấy lại giá trị đã lưu
+  });
+  
 
 /* ---------- ô editable ---------- */
 function EditableCell({ value, onChange, type = "text", isNumeric = false }) {
@@ -234,9 +236,34 @@ export default function CostAllocation() {
 
   const handleSave = async () => {
     try {
+      // Chuẩn bị dữ liệu để lưu
+      const dataToSave = rows.map((r) => {
+        const qv = getQuarterValue(r);
+        const thiCongValue = Math.round((qv * parseValue(r.percentThiCong)) / 100);
+        return {
+          // các trường hiện tại
+          id: r.id,
+          name: r.name,
+          fixed: r.fixed,
+          monthly: r.monthly,
+          thueVP: r.thueVP,
+          thueNhaCongVu: r.thueNhaCongVu,
+          quarterManual: r.quarterManual,
+          percentage: r.percentage,
+          percentThiCong: r.percentThiCong,
+          percentKHDT: r.percentKHDT,
+          // thêm trường kết quả thi công
+          thiCongValue,
+        };
+      });
+
+      // Lưu xuống Firestore
       await setDoc(
         doc(db, "costAllocations", `${year}_${quarter}`),
-        { mainRows: rows, updated_at: new Date().toISOString() },
+        {
+          mainRows: dataToSave,
+          updated_at: new Date().toISOString(),
+        },
         { merge: true }
       );
       showSnack("Đã lưu thành công");
@@ -244,6 +271,7 @@ export default function CostAllocation() {
       showSnack(e.message, "error");
     }
   };
+
 
   // simplified fixedSum với reduce
   const fixedSum = useMemo(() => {
