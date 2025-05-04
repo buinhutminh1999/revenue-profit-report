@@ -20,7 +20,7 @@ import {
 import { useTheme } from "@mui/material/styles";
 import { ArrowBack, Save, Delete, ContentCopy } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import { doc, setDoc, onSnapshot, collection, getDoc } from "firebase/firestore";
+import { doc, setDoc, onSnapshot, collection, getDoc,serverTimestamp  } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 import EditableSelect from "../components/EditableSelect";
 
@@ -233,44 +233,48 @@ export default function CostAllocation() {
     setRows((p) => p.filter((x) => x.id !== id));
     showSnack("Đã xóa hàng", "info");
   };
+const handleSave = async () => {
+  try {
+    // build your rows as before
+    const dataToSave = rows.map((r) => {
+      const qv = getQuarterValue(r);
+      const thiCongValue = Math.round((qv * parseValue(r.percentThiCong)) / 100);
+      return {
+        id:              r.id,
+        name:            r.name,
+        fixed:           r.fixed,
+        monthly:         r.monthly,
+        thueVP:          r.thueVP,
+        thueNhaCongVu:   r.thueNhaCongVu,
+        quarterManual:   r.quarterManual,
+        percentage:      r.percentage,
+        percentThiCong:  r.percentThiCong,
+        percentKHDT:     r.percentKHDT,
+        thiCongValue,                      // ← per‐row thiCongValue
+      };
+    });
 
-  const handleSave = async () => {
-    try {
-      // Chuẩn bị dữ liệu để lưu
-      const dataToSave = rows.map((r) => {
-        const qv = getQuarterValue(r);
-        const thiCongValue = Math.round((qv * parseValue(r.percentThiCong)) / 100);
-        return {
-          // các trường hiện tại
-          id: r.id,
-          name: r.name,
-          fixed: r.fixed,
-          monthly: r.monthly,
-          thueVP: r.thueVP,
-          thueNhaCongVu: r.thueNhaCongVu,
-          quarterManual: r.quarterManual,
-          percentage: r.percentage,
-          percentThiCong: r.percentThiCong,
-          percentKHDT: r.percentKHDT,
-          // thêm trường kết quả thi công
-          thiCongValue,
-        };
-      });
+    // sum thiCongValue for *only* the fixed rows
+    const totalThiCongFixed = dataToSave
+      .filter((r) => r.fixed)
+      .reduce((sum, r) => sum + r.thiCongValue, 0);
 
-      // Lưu xuống Firestore
-      await setDoc(
-        doc(db, "costAllocations", `${year}_${quarter}`),
-        {
-          mainRows: dataToSave,
-          updated_at: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-      showSnack("Đã lưu thành công");
-    } catch (e) {
-      showSnack(e.message, "error");
-    }
-  };
+    // write them all to Firestore in one shot
+    await setDoc(
+      doc(db, "costAllocations", `${year}_${quarter}`),
+      {
+        mainRows:          dataToSave,
+        totalThiCongFixed,               // ← your top‐level sum field
+        updated_at:        serverTimestamp(),
+      },
+      { merge: true }                   // merge:true preserves any other fields
+    );
+
+    showSnack("Đã lưu thành công");
+  } catch (e) {
+    showSnack(e.message, "error");
+  }
+};
 
 
   // simplified fixedSum với reduce
