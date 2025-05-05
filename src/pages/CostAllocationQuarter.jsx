@@ -33,6 +33,8 @@ import React, {
     getDoc,
     setDoc,
     serverTimestamp,
+    onSnapshot,
+    updateDoc,
   } from "firebase/firestore";
   import { db } from "../services/firebase-config";
   
@@ -44,6 +46,8 @@ import React, {
     { key: "overallRevenue", label: "DOANH THU" },
     { key: "totalCost", label: "TỔNG CHI PHÍ" },
   ];
+  const salaryRowId = "salary-cost";
+
   const isFixed = (id) => id === "overallRevenue" || id === "totalCost";
   function getNextQuarter(year, quarter) {
     const idx = quarters.indexOf(quarter);
@@ -53,59 +57,142 @@ import React, {
       quarter: quarters[nextIdx],
     };
   }
-  async function cascadeUpdateAfterSave(startYear, startQuarter) {
-    // Lấy cumCurrent của quý vừa lưu
+/**
+ * Sau khi lưu Q hiện tại, hàm này sẽ:
+ *  • Lấy cumCurrent của tất cả khoản mục (trừ fixed) ở Q hiện tại
+ *  • Lan truyền (cascade) sang các quý còn lại trong cùng năm
+ *    – nếu quý sau CHƯA có document ⇒ tự khởi tạo document rỗng
+ *    – tính lại carryOver, cumCurrent, cumQuarterOnly
+ */
+async function cascadeUpdateAfterSave(startYear, startQuarter) {
+    // —— ❶ Lấy cumCurrent của quý vừa lưu ————————————
     const srcSnap = await getDoc(
       doc(db, COL_QUARTER, `${startYear}_${startQuarter}`)
     );
     if (!srcSnap.exists()) return;
   
-    // Map id → cumCurrent từ quý trước
-    const prevCum = {};
+    const prevCum = {};           // id → cumCurrent
     (srcSnap.data().mainRows || []).forEach(r => {
       if (!r.fixed) prevCum[r.id] = toNum(r.cumCurrent);
     });
   
-    // Lặp qua các quý còn lại trong cùng năm
+    // —— ❷ Duyệt 3 quý còn lại trong năm ————————————
     let { year: y, quarter: q } = getNextQuarter(startYear, startQuarter);
+  
     for (let step = 0; step < 3 && y === startYear; step++) {
       const key = `${y}_${q}`;
-      const snap = await getDoc(doc(db, COL_QUARTER, key));
-      if (!snap.exists()) break;           // dừng nếu quý này chưa khởi tạo
+      const docRef = doc(db, COL_QUARTER, key);
   
+      // ➊ Lấy snap (tạo mới nếu chưa tồn tại)
+      let snap = await getDoc(docRef);
+      if (!snap.exists()) {
+        await setDoc(docRef, {
+          mainRows   : [],          // khởi tạo rỗng
+          created_at : serverTimestamp()
+        });
+        snap = await getDoc(docRef);
+      }
+  
+      // ➋ Tính lại các dòng
       const rows = (snap.data().mainRows || []).map(r => {
-        if (r.fixed) return r;
+        if (r.fixed) return r;      // skip fixed
+  
         const carry = prevCum[r.id] ?? 0;
         const used  = toNum(r.used);
         const alloc = toNum(r.allocated ?? r.thiCongValue);
+  
         return {
           ...r,
-          carryOver:      carry,
-          cumCurrent:     used - alloc + carry,
-          cumQuarterOnly: used - alloc,
+          carryOver      : carry,
+          cumCurrent     : used - alloc + carry,
+          cumQuarterOnly : used - alloc
         };
       });
   
-      // ghi đè document quý sau
+      // ➌ Ghi đè document quý sau
       await setDoc(
-        doc(db, COL_QUARTER, key),
+        docRef,
         { mainRows: rows, updated_at: serverTimestamp() },
         { merge: true }
       );
   
-      // chuẩn bị cho quý kế tiếp
-      prevCum.length = 0;
+      // ➍ Chuẩn bị prevCum cho vòng tiếp theo
+      Object.keys(prevCum).forEach(k => delete prevCum[k]);   // xoá key cũ
       rows.forEach(r => { if (!r.fixed) prevCum[r.id] = toNum(r.cumCurrent); });
   
+      // ➎ Tiếp sang quý kế
       ({ year: y, quarter: q } = getNextQuarter(y, q));
     }
   }
-    
-  const toNum = (v) => {
-    const s = String(v ?? "").replace(/[^\d.-]/g, "");
-    const n = parseFloat(s);
-    return isNaN(n) ? 0 : n;
+  
+ /**
+ +  * Chuẩn hoá & parse chuỗi số (copy từ Excel, có thể lẫn space/nbspace,
+ +  * dấu chấm phẩy/thập phân) → Number đã được Math.round().
+ +  *
+ +  *  • Giữ lại duy nhất dấu tách thập phân (dấu cuối cùng trong chuỗi ‘,’ hoặc ‘.’)
+ +  *  • Loại bỏ mọi ký tự phân tách còn lại, kể cả NBSP.
+ +  *  • Trả về 0 nếu parseFloat thất bại.
+ +  */
+ const toNum = (v) => {
+    if (v == null) return 0;
+  
+    let s = String(v).replace(/\u00A0/g, " ").trim();
+  
+    // ①   Xử lý số âm kiểu "(1,234)"  
+    let sign = 1;
+    if (/^\(.*\)$/.test(s)) {
+      sign = -1;
+      s = s.slice(1, -1);
+    }
+  
+    // ② Giữ lại dấu thập phân cuối cùng
+    const lastComma = s.lastIndexOf(",");
+    const lastDot   = s.lastIndexOf(".");
+    const decPos    = Math.max(lastComma, lastDot);
+  
+    let intPart = s;
+    let decPart = "";
+    if (decPos > -1) {
+      intPart = s.slice(0, decPos);
+      decPart = s.slice(decPos + 1);
+    }
+  
+    // ③ Loại bỏ mọi dấu phân tách trong phần nguyên
+    intPart = intPart.replace(/[.,\s]/g, "");
+  
+    // ④ Ghép lại và parse
+    const normalized = decPart ? `${intPart}.${decPart}` : intPart;
+    const n = parseFloat(normalized);
+    return Number.isFinite(n) ? Math.round(sign * n) : 0;
   };
+  
+
+/** normalize chung cho cả key lookup và directCostMap */
+const normalize = (s = "") =>
+    s
+      .toLowerCase()
+      .normalize("NFD")               // tách dấu
+      .replace(/[\u0300-\u036f]/g, "") // bỏ dấu
+      .replace(/[^a-z0-9+]/g, " ")     // giữ chữ, số, dấu +
+      .replace(/\s+/g, " ")            // gộp khoảng trắng
+      .trim();
+  
+  /** ----------------------------------------------------------
+ *  Lấy directCost nằm trong mảng items của document quarter
+ *  -------------------------------------------------------- */
+  function pickDirectCostMap(qDoc = {}) {
+    const map = {};
+    (qDoc.items || []).forEach((it) => {
+      const cost = toNum(it.directCost ?? it.chiPhiTrucTiep ?? it.total ?? 0);
+      if (!cost) return;
+  
+      const raw = it.description ?? it.label ?? it.name ?? "";
+      const key = normalize(raw);
+      map[key] = (map[key] || 0) + cost;
+    });
+    return map;
+  }
+  
   
   function getPrevQuarter(year, quarter) {
     const idx = quarters.indexOf(quarter);
@@ -149,145 +236,152 @@ import React, {
   }
   
   function useQuarterMainData(col, key) {
-    const [mainRows, setMainRows] = useState([]);
-    useEffect(() => {
-      let m = true;
-      getDoc(doc(db, col, key)).then((snap) => {
-        if (!m) return;
+    const [mainRows, setMainRows] = React.useState([]);
+  
+    React.useEffect(() => {
+      // Nếu key rỗng thì bỏ qua
+      if (!key) return;
+  
+      // Tạo reference đến document
+      const ref = doc(db, col, key);
+  
+      // Lắng nghe realtime
+      const unsubscribe = onSnapshot(ref, (snap) => {
         const data = snap.exists() ? snap.data() : {};
+  
+        // Firestore có thể lưu mainRows dưới dạng mảng, hoặc map: {id: {...}}
         const rows = Array.isArray(data.mainRows)
           ? data.mainRows
           : Object.values(data).filter((v) => v && v.id);
+  
         setMainRows(rows);
       });
-      return () => {
-        m = false;
-      };
+  
+      // Clean‑up khi unmount or khi col/key thay đổi
+      return () => unsubscribe();
     }, [col, key]);
+  
     return mainRows;
   }
   
-  function usePrevQuarterData(year, quarter) {
+  function usePrevQuarterData(year, quarter, mainRows) {
     const [extraRows, setExtraRows] = useState([]);
   
     useEffect(() => {
       let mounted = true;
-  
       (async () => {
-        // 1) Lấy tổng chi phí thi công cố định từ collection costAllocations
-        const fixedDocRef = doc(db, "costAllocations", `${year}_${quarter}`);
-        const fixedSnap = await getDoc(fixedDocRef);
-        const totalThiCongFixed = fixedSnap.exists()
-          ? fixedSnap.data().totalThiCongFixed ?? 0
-          : 0;
-        console.log("[usePrevQuarterData] totalThiCongFixed=", totalThiCongFixed);
+        /* --- 1. Lấy tổng lương cố định --- */
+        const fixedSnap = await getDoc(doc(db, "costAllocations", `${year}_${quarter}`));
+        const totalThiCongFixed = fixedSnap.exists() ? fixedSnap.data().totalThiCongFixed ?? 0 : 0;
   
-        // 2) Helper để thêm hàng "+ Chi phí lương" với allocated = totalThiCongFixed
+        /* --- 2. helper chèn / update dòng “+ Chi phí lương” --- */
         const salaryRowId = "salary-cost";
         const ensureSalaryRow = (rows) => {
-          // nếu đã có rồi thì chỉ cập nhật allocated
           const idx = rows.findIndex((r) => r.id === salaryRowId);
           if (idx >= 0) {
-            const updated = [...rows];
-            updated[idx] = {
-              ...updated[idx],
-              allocated: totalThiCongFixed,
-            };
-            return updated;
+            rows[idx] = { ...rows[idx], allocated: totalThiCongFixed };
+            return rows;
           }
-          // ngược lại tạo mới
-          const salaryRow = {
-            id: salaryRowId,
-            label: "+ Chi phí lương",
-            pct: 0,
-            carryOver: 0,
-            used: 0,
-            allocated: totalThiCongFixed,
-            cumCurrent: 0,
-            cumQuarterOnly: 0,
-            fixed: false,
-          };
-          return [salaryRow, ...rows];
+          return [
+            {
+              id: salaryRowId,
+              label: "+ Chi phí lương",
+              pct: 0,
+              carryOver: 0,
+              used: 0,
+              allocated: totalThiCongFixed,
+              cumCurrent: 0,
+              cumQuarterOnly: 0,
+              fixed: false,
+            },
+            ...rows,
+          ];
         };
   
-        // 3) Build map carryOver từ quý trước
-        const { year: prevYear, quarter: prevQuarter } = getPrevQuarter(year, quarter);
-        const prevKey = `${prevYear}_${prevQuarter}`;
-        const prevSnap = await getDoc(doc(db, COL_QUARTER, prevKey));
+        /* --- 3. Chuẩn bị carryOver của quý trước --- */
+        const { year: py, quarter: pq } = getPrevQuarter(year, quarter);
+        const prevSnap = await getDoc(doc(db, COL_QUARTER, `${py}_${pq}`));
         const prevRows = prevSnap.exists() ? prevSnap.data().mainRows || [] : [];
-        const prevCumMap = {};
-        const prevLabelMap = {};
+        const prevCum = {};
+        const prevCumByLabel = {};
         prevRows
           .filter((r) => !r.fixed)
           .forEach((r) => {
-            const cum = toNum(r.cumCurrent);
-            const label = (r.label ?? r.name ?? "").trim().toLowerCase();
-            prevCumMap[r.id] = cum;
-            prevLabelMap[label] = cum;
+            const v = toNum(r.cumCurrent);
+            prevCum[r.id] = v;
+            prevCumByLabel[(r.label ?? r.name ?? "").trim().toLowerCase()] = v;
           });
   
-        // 4) Kiểm tra xem document quý hiện tại đã tồn tại chưa
+        /* --- 4. Lấy / tạo document quý hiện tại --- */
         const currRef = doc(db, COL_QUARTER, `${year}_${quarter}`);
         const currSnap = await getDoc(currRef);
   
+        /* → Tập khoản mục mới nhất (để diff) */
+        const latestMain = (mainRows ?? []).filter((r) => !r.fixed);
+        const latestIds  = new Set(latestMain.map((r) => r.id));
+  
         let baseRows;
         if (currSnap.exists()) {
-          // load dữ liệu đã có, bỏ fixed rows
-          baseRows = (currSnap.data().mainRows || []).filter((r) => !r.fixed);
-          baseRows = baseRows.map((r) => ({
-            id: r.id,
-            label: r.label ?? r.name ?? "",
-            pct: r.pct ?? r.percentThiCong ?? 0,
-            carryOver: toNum(r.carryOver),
-            used: toNum(r.used),
-            allocated: toNum(r.allocated ?? r.thiCongValue ?? 0),
-            cumCurrent: toNum(r.cumCurrent),
-            cumQuarterOnly: toNum(r.cumQuarterOnly),
-          }));
+          // 4.a. Load, CHỈ giữ những rows còn tồn tại trong latestMain
+          baseRows = (currSnap.data().mainRows || [])
+            .filter((r) => !r.fixed && latestIds.has(r.id))
+            .map((r) => ({
+              id: r.id,
+              label: r.label ?? r.name ?? "",
+              pct: r.pct ?? r.percentThiCong ?? 0,
+              carryOver: toNum(r.carryOver),
+              used: toNum(r.used),
+              allocated: toNum(r.allocated ?? r.thiCongValue ?? 0),
+              cumCurrent: toNum(r.cumCurrent),
+              cumQuarterOnly: toNum(r.cumQuarterOnly),
+            }));
+  
+          // 4.b. Thêm bất kỳ khoản mục mới nào chưa có
+          latestMain.forEach((r) => {
+            if (!baseRows.some((b) => b.id === r.id)) {
+              const carry = prevCum[r.id] ?? prevCumByLabel[(r.label ?? r.name ?? "").trim().toLowerCase()] ?? 0;
+              const used  = toNum(r.used);
+              const alloc = toNum(r.thiCongValue);
+              baseRows.push({
+                id: r.id,
+                label: r.label ?? r.name ?? "",
+                pct: 0,
+                carryOver: carry,
+                used,
+                allocated: alloc,
+                cumCurrent: used - alloc + carry,
+                cumQuarterOnly: used - alloc,
+              });
+            }
+          });
         } else {
-          // lần đầu khởi tạo từ mainRows của costAllocations
-          const mainSnap = await getDoc(doc(db, COL_MAIN, `${year}_${quarter}`));
-          const rowsRaw = mainSnap.exists()
-            ? Array.isArray(mainSnap.data().mainRows)
-              ? mainSnap.data().mainRows.filter((r) => !r.fixed)
-              : Object.values(mainSnap.data()).filter((v) => v && v.id && !v.fixed)
-            : [];
-          baseRows = rowsRaw.map((r) => {
-            const usedVal = toNum(r.used);
-            const allocVal = toNum(r.thiCongValue);
-            const keyLabel = (r.label ?? r.name ?? "").trim().toLowerCase();
-            const carry = prevCumMap[r.id] ?? prevLabelMap[keyLabel] ?? 0;
+          // 4.c. Lần đầu khởi tạo – như trước
+          baseRows = latestMain.map((r) => {
+            const carry = prevCum[r.id] ?? prevCumByLabel[(r.label ?? r.name ?? "").trim().toLowerCase()] ?? 0;
+            const used  = toNum(r.used);
+            const alloc = toNum(r.thiCongValue);
             return {
               id: r.id,
               label: r.label ?? r.name ?? "",
               pct: 0,
               carryOver: carry,
-              used: usedVal,
-              allocated: allocVal,
-              cumCurrent: usedVal - allocVal + carry,
-              cumQuarterOnly: usedVal - allocVal,
+              used,
+              allocated: alloc,
+              cumCurrent: used - alloc + carry,
+              cumQuarterOnly: used - alloc,
             };
           });
-          // lưu lần đầu
-          await setDoc(
-            currRef,
-            { mainRows: baseRows, created_at: serverTimestamp() },
-            { merge: true }
-          );
         }
   
-        // 5) Inject hàng "+ Chi phí lương"
-        const withSalary = ensureSalaryRow(baseRows);
+        /* --- 5. Chèn “+ Chi phí lương” & lưu lại (nếu diff) --- */
+        const finalRows = ensureSalaryRow(baseRows);
+        await setDoc(currRef, { mainRows: finalRows, updated_at: serverTimestamp() }, { merge: true });
   
-        if (mounted) {
-          setExtraRows(withSalary);
-        }
+        if (mounted) setExtraRows(finalRows);
       })();
   
-      return () => {
-        mounted = false;
-      };
-    }, [year, quarter]);
+      return () => (mounted = false);
+    }, [year, quarter, mainRows]);
   
     return [extraRows, setExtraRows];
   }
@@ -295,47 +389,35 @@ import React, {
   
   function useProjectData(projects, year, quarter) {
     const [projData, setProjData] = useState({});
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading]  = useState(true);
+  
     useEffect(() => {
       if (!projects.length) return;
-      setLoading(true);
-      let m = true;
-      Promise.all(
-        projects.map((p) =>
-          getDoc(
-            doc(
-              db,
-              "projects",
-              p.id,
-              "years",
-              String(year),
-              "quarters",
-              quarter
-            )
-          ).then((snap) => ({
-            id: p.id,
-            data: snap.exists() ? snap.data() : { items: [], overallRevenue: 0 },
-          }))
+  
+      // ➊  tạo 1 listener cho từng project‑quarter
+      const unsubscribes = projects.map(p =>
+        onSnapshot(
+          doc(db, "projects", p.id, "years", String(year), "quarters", quarter),
+          snap => {
+            setProjData(prev => ({
+              ...prev,
+              [p.id]: {
+                overallRevenue : toNum(snap.data()?.overallRevenue),
+                directCostMap  : pickDirectCostMap(snap.data() || {})
+              }
+            }));
+            setLoading(false);
+          }
         )
-      )
-        .then((res) => {
-          if (!m) return;
-          const out = {};
-          res.forEach(({ id, data }) => {
-            out[id] = {
-              items: Array.isArray(data.items) ? data.items : [],
-              overallRevenue: data.overallRevenue ?? 0,
-            };
-          });
-          setProjData(out);
-        })
-        .finally(() => m && setLoading(false));
-      return () => {
-        m = false;
-      };
+      );
+  
+      // ➋  cleanup khi unmount / deps đổi
+      return () => unsubscribes.forEach(u => u());
     }, [projects, year, quarter]);
+  
     return { projData, loading };
   }
+  
   
   /* ---------- main component ---------- */
   export default function CostAllocationQuarter() {
@@ -345,7 +427,7 @@ import React, {
     const projects = useProjects();
     const options = useCategories();
     const mainRows = useQuarterMainData(COL_MAIN, `${year}_${quarter}`);
-    const [extraRows, setExtraRows] = usePrevQuarterData(year, quarter);
+    const [extraRows, setExtraRows] = usePrevQuarterData(year, quarter, mainRows);
     const { projData, loading } = useProjectData(projects, year, quarter);
   
     const [saving, setSaving] = useState(false);
@@ -353,8 +435,14 @@ import React, {
     const lastDeletedRef = useRef(null);
     const gridRef = useRef(null);
   
-    const getDC = useCallback((pId, rowId) => 0, []);
-  
+
+    const getDC = useCallback(
+        (pId, rowLabel) =>
+          rowLabel === "+ Chi phí lương" ? 0 : toNum(projData[pId]?.directCostMap?.[normalize(rowLabel)]),
+        [projData]
+      );
+      
+    
     // build rows for DataGrid
     const rows = useMemo(() => {
       const head = cats.map((cat) => {
@@ -372,8 +460,8 @@ import React, {
       const salaryRowId = "salary-cost";
 
       const body = extraRows.map((ex) => {
-        const pct = parseFloat(ex.pct) || 0;
-        const carryOver = toNum(ex.carryOver);
+        const pct       = ex.id === salaryRowId ? 0 : parseFloat(ex.pct) || 0;
+        const carryOver = ex.id === salaryRowId ? 0 : toNum(ex.carryOver);
         const main =
           mainRows.find((m) => m.id === ex.id) ||
           mainRows.find(
@@ -390,7 +478,7 @@ import React, {
                 const r = { id: ex.id, label: ex.label, pct, carryOver };
         projects.forEach((p) => {
           const revQ = toNum(projData[p.id]?.overallRevenue);
-          const dc = getDC(p.id, ex.id);
+          const dc = getDC(p.id, ex.label);
           r[p.id] = Math.round((revQ * pct) / 100 - dc);
         });
         r.used = projects.reduce((s, p) => s + (r[p.id] || 0), 0);
@@ -539,47 +627,63 @@ import React, {
       return [...baseCols, ...projCols, ...otherCols];
     }, [projects, options, extraRows, year, quarter]);
   
-    const isCellEditable = useCallback(
-      (params) =>
-        !isFixed(params.id) && ["label", "pct", "carryOver"].includes(params.field),
-      []
-    );
-  
-    const processRowUpdate = useCallback(
-      (newRow) => {
-        const pct = parseFloat(newRow.pct) || 0;
-        newRow.pct = pct;
-        newRow.carryOver = toNum(newRow.carryOver);
-  
-        projects.forEach((p) => {
-          const revQ = toNum(projData[p.id]?.overallRevenue);
-          const dc = getDC(p.id, newRow.id);
-          newRow[p.id] = Math.round((revQ * pct) / 100 - dc);
-        });
-  
-        newRow.used = projects.reduce((s, p) => s + (newRow[p.id] || 0), 0);
-  
-        const main =
-          mainRows.find((m) => m.id === newRow.id) ||
-          mainRows.find(
-            (m) =>
-              ((m.label ?? m.name) || "")
-                .trim()
-                .toLowerCase() === newRow.label.trim().toLowerCase()
-          ) ||
-          {};
-  
-        newRow.allocated = toNum(main.allocated ?? main.thiCongValue ?? 0);
-        newRow.cumCurrent = newRow.used - newRow.allocated + newRow.carryOver;
-        newRow.cumQuarterOnly = newRow.used - newRow.allocated;
-  
-        setExtraRows((rs) =>
-          rs.map((x) => (x.id === newRow.id ? { ...x, ...newRow } : x))
-        );
-        return newRow;
-      },
-      [projects, projData, mainRows, getDC]
-    );
+    const isCellEditable = useCallback((params) => {
+        if (params.id === salaryRowId) {
+          // CHỈ cho phép chỉnh %DT và carryOver
+          return ["pct", "carryOver"].includes(params.field);
+        }
+        // các hàng khác
+        return !isFixed(params.id) &&
+               ["label", "pct", "carryOver"].includes(params.field);
+      }, []);
+      
+      const processRowUpdate = useCallback(
+        (newRow, oldRow) => {
+          /* ── ❶ Nếu là hàng lương ─────────────────────────── */
+          if (newRow.id === salaryRowId) {
+            // Giữ nguyên allocated (lấy lại từ oldRow hoặc extraRows)
+            newRow.allocated = oldRow?.allocated ?? toNum(newRow.allocated);
+      
+            // vẫn cho người dùng chỉnh pct & carryOver
+            const pct       = parseFloat(newRow.pct) || 0;
+            newRow.pct       = pct;
+            newRow.carryOver = toNum(newRow.carryOver);
+      
+          } else {
+            /* ── ❷ Hàng thường – logic cũ ───────────────────── */
+            const pct = parseFloat(newRow.pct) || 0;
+            newRow.pct       = pct;
+            newRow.carryOver = toNum(newRow.carryOver);
+      
+            const main =
+              mainRows.find((m) => m.id === newRow.id) ||
+              mainRows.find(
+                (m) =>
+                  ((m.label ?? m.name) || "").trim().toLowerCase() ===
+                  newRow.label.trim().toLowerCase()
+              ) || {};
+      
+            newRow.allocated = toNum(main.allocated ?? main.thiCongValue ?? 0);
+          }
+      
+          /* ── ❸ Tính lại used, cumCurrent… (dùng chung) ───── */
+          projects.forEach((p) => {
+            const revQ = toNum(projData[p.id]?.overallRevenue);
+            const dc   = getDC(p.id, newRow.label);
+            newRow[p.id] = Math.round((revQ * (newRow.pct || 0)) / 100 - dc);
+          });
+      
+          newRow.used          = projects.reduce((s, p) => s + (newRow[p.id] || 0), 0);
+          newRow.cumCurrent     = newRow.used - newRow.allocated + newRow.carryOver;
+          newRow.cumQuarterOnly = newRow.used - newRow.allocated;
+      
+          setExtraRows((rs) => rs.map((r) => (r.id === newRow.id ? { ...r, ...newRow } : r)));
+          return newRow;
+        },
+        [projects, projData, mainRows, getDC]
+      );
+      
+      
   
     const handleCloseSnack = (e, reason) => {
       if (reason === "clickaway") return;
@@ -599,28 +703,115 @@ import React, {
         gridRef.current?.apiRef?.current.startCellEditMode({ id, field: "label" });
       }, 50);
     };
-  
-    const handleSave = async () => {
+  // ngay trong component CostAllocationQuarter …
+
+// ngay trong component CostAllocationQuarter …
+// --- bên trong component CostAllocationQuarter ---
+const handleSave = async () => {
+    try {
       setSaving(true);
-      const dataToSave = extraRows.map((r) => ({
-        id: r.id,
-        label: r.label,
-        pct: r.pct,
+  
+      /* -------------------------------------------------
+       * 1. Re‑compute lại giá trị của từng hàng
+       *    (dùng projData mới nhất – đã realtime)
+       * ------------------------------------------------*/
+      const recomputedRows = extraRows.map(r => {
+        const pct       = parseFloat(r.pct) || 0;
+        const carryOver = toNum(r.carryOver);
+  
+        // tính cho từng project
+        projects.forEach(p => {
+          const revQ = toNum(projData[p.id]?.overallRevenue);
+          const dc   = getDC(p.id, r.label);          // directCost động
+          r[p.id]    = Math.round(revQ * pct / 100 - dc);
+        });
+  
+        const used = projects.reduce((s, p) => s + (r[p.id] || 0), 0);
+  
+        return {
+          ...r,
+          used,
+          cumCurrent    : used - r.allocated + carryOver,
+          cumQuarterOnly: used - r.allocated
+        };
+      });
+  
+      /* -------------------------------------------------
+       * 2. Ghi lên collection costAllocationsQuarter
+       * ------------------------------------------------*/
+      const dataToSave = recomputedRows.map(r => ({
+        id            : r.id,
+        label         : r.label,
+        pct           : r.pct,
         percentThiCong: String(r.pct),
-        carryOver: r.carryOver,
-        used: r.used,
-        allocated: r.allocated,
-        cumCurrent: r.cumCurrent,
-        cumQuarterOnly: r.cumQuarterOnly,
+        carryOver     : r.carryOver,
+        used          : r.used,
+        allocated     : r.allocated,
+        cumCurrent    : r.cumCurrent,
+        cumQuarterOnly: r.cumQuarterOnly
       }));
+  
       await setDoc(
         doc(db, COL_QUARTER, `${year}_${quarter}`),
         { mainRows: dataToSave, updated_at: serverTimestamp() },
         { merge: true }
       );
+  
+      /* -------------------------------------------------
+       * 3. Tạo directMap  ➜ update items detail
+       * ------------------------------------------------*/
+      const directMap = {};                 // directMap[projId][normLabel] = allocated
+      recomputedRows.forEach(r => {
+        const keyNorm = normalize(r.label);
+        projects.forEach(p => {
+          directMap[p.id] = directMap[p.id] || {};
+          directMap[p.id][keyNorm] = r[p.id] || 0;
+        });
+      });
+  
+      // 3) Với mỗi project, update toàn bộ items
+await Promise.all(
+    projects.map(async (p) => {
+      const detailRef = doc(
+        db, "projects", p.id,
+        "years", String(year),
+        "quarters", quarter
+      );
+      const snap = await getDoc(detailRef);
+      if (!snap.exists()) return;
+  
+      const items = Array.isArray(snap.data().items) ? snap.data().items : [];
+      const map4Proj = directMap[p.id] || {};
+  
+      const newItems = items.map(it => {
+        const key = normalize(it.description ?? it.label ?? it.name);
+  
+        const alloc = Object.prototype.hasOwnProperty.call(map4Proj, key)
+          ? map4Proj[key]   // Có trong bảng phân bổ
+          : 0;              // Không có → 0
+  
+        return { ...it, allocated: alloc, thiCongValue: alloc };
+      });
+  
+      await updateDoc(detailRef, { items: newItems });
+    })
+  );
+  
+      /* -------------------------------------------------
+       * 4. Cascade các quý sau (nếu đã khởi tạo)
+       * ------------------------------------------------*/
       await cascadeUpdateAfterSave(year, quarter);
+  
+      setSnack({ open: true, msg: "Đã lưu & cập nhật phân bổ dự án 🎉", action: null });
+    } catch (err) {
+      console.error(err);
+      setSnack({ open: true, msg: "Lỗi khi lưu!", action: null });
+    } finally {
       setSaving(false);
-    };
+    }
+  };
+  
+  
   
     return (
       <Box sx={{ bgcolor: theme.palette.background.default, minHeight: "100vh", px: 1 }}>
