@@ -16,6 +16,7 @@ import Office from './pages/Office';
 import CategoryConfig from './pages/CategoryConfig';
 import NotFound from './components/NotFound';
 import LoginPage from './components/LoginPage.jsx';   // <-- page mới
+import ProjectsList from './pages/ProjectsList.jsx';
 
 // auth
 const auth = getAuth();
@@ -77,18 +78,20 @@ export default function App() {
 
 // tách ra để giữ Layout và các route con
 function LayoutRoutes() {
-  return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route index element={<Home />} />
-        <Route path="construction-plan" element={<ConstructionPlan />} />
-        <Route path="project-details/:id" element={<ProjectDetails />} />
-        <Route path="allocations" element={<CostAllocation />} />
-        <Route path="cost-allocation-quarter" element={<CostAllocationQuarter />} />
-        <Route path="office" element={<Office />} />
-        <Route path="categories" element={<CategoryConfig />} />
-        <Route path="*" element={<NotFound />} />
-      </Route>
-    </Routes>
-  );
-}
+    return (
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="construction-plan" element={<ConstructionPlan />} />
+          <Route path="project-details/:id" element={<ProjectDetails />} />
+          <Route path="allocations" element={<CostAllocation />} />
+          <Route path="cost-allocation-quarter" element={<CostAllocationQuarter />} />
+          <Route path="office" element={<Office />} />
+          <Route path="categories" element={<CategoryConfig />} />
+          <Route path="project-manager" element={<ProjectsList />} /> {/* ✅ dòng mới */}
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    );
+  }
+  
