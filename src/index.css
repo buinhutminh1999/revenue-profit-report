@@ -1,0 +1,12 @@
+/* index.css hoặc global.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {            /* luôn dính sát mép màn hình */
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #e6f3ff;         /* nền xanh nhạt phủ toàn bộ */
+}
+#nprogress .bar { background: #ffb300; height:2px; }
