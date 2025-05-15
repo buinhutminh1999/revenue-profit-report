@@ -88,6 +88,8 @@ const normalizeRow = (row) => ({
     percentThiCong: row.percentThiCong ?? "0",
     percentKHDT: row.percentKHDT ?? "0",
     thiCongValue: row.thiCongValue ?? 0,    // ← lấy lại giá trị đã lưu
+      nhaMayValue:  row.nhaMayValue  ?? 0,    // ← thêm mapping cho Nhà máy
+  khdtValue:    row.khdtValue    ?? 0,    // ← thêm mapping cho KH-ĐT
   });
   
 
@@ -157,10 +159,18 @@ export default function CostAllocation() {
       return;
     }
     const data = (snap.data().mainRows || []).map(normalizeRow);
-    const fixed = fixedRows.map((f) => {
-      const found = data.find((d) => d.id === f.id);
-      return found ? { ...f, ...found } : f;
-    });
+  const fixed = fixedRows.map(f => {
+  const found = data.find(d => d.id === f.id);
+  if (!found) return f;
+  return {
+    ...f,
+    ...found,          // sẽ lấy được name, monthly, percentage, percentThiCong, percentKHDT
+    thiCongValue: found.thiCongValue,  // per-row thiCong
+    nhaMayValue:  found.nhaMayValue,   // per-row nhaMay
+    khdtValue:    found.khdtValue,     // per-row khdt
+  };
+});
+
     const dyn = data.filter((d) => !fixedRows.some((f) => f.id === d.id));
     setRows([...fixed, ...dyn]);
     showSnack(`Đã copy từ ${prev.quarter} ${prev.year}`);

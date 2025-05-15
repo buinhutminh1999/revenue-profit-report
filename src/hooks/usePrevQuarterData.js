@@ -5,42 +5,48 @@ import { toNum } from "../utils/numberUtils";
 import { getPrevQuarter } from "../utils/quarterHelpers";
 
 export const COL_QUARTER = "costAllocationsQuarter";
-export const salaryRowId  = "salary-cost";
+export const salaryRowId = "salary-cost";
 
 /**
- * @param {number} year 
- * @param {string} quarter 
- * @param {Array} mainRows    // dữ liệu chính từ hook useQuarterMainData
- * @param {string} typeFilter // "Thi công" | "Nhà máy" | "KH-ĐT"
+ * @param {number} year
+ * @param {string} quarter
+ * @param {Array}  mainRows    dữ liệu chính từ hook useQuarterMainData
+ * @param {string} typeFilter  "Thi công" | "Nhà máy" | "KH-ĐT"
  */
 export function usePrevQuarterData(year, quarter, mainRows, typeFilter) {
   const [extraRows, setExtraRows] = useState([]);
+
+  // map typeFilter ⇒ đúng field value trong mainRows
+  const valKeyMap = {
+    "Thi công": "thiCongValue",
+    "Nhà máy":  "nhaMayValue",
+    "KH-ĐT":    "khdtValue",
+  };
+  const valKey = valKeyMap[typeFilter];
 
   useEffect(() => {
     let mounted = true;
 
     (async () => {
-      // 1️⃣ Lấy document costAllocations để đọc 3 tổng cố định
+      // 1️⃣ đọc tổng fixed cho từng type
       const fxSnap = await getDoc(
         doc(db, "costAllocations", `${year}_${quarter}`)
       );
-      const data = fxSnap.exists() ? fxSnap.data() : {};
-
-      // 2️⃣ Chuyển về số và gom vào object theo type
+      const dataFX = fxSnap.exists() ? fxSnap.data() : {};
       const totals = {
-        "Thi công": toNum(data.totalThiCongFixed  ?? 0),
-        "Nhà máy":  toNum(data.totalNhaMayFixed   ?? 0),
-        "KH-ĐT":    toNum(data.totalKhdtFixed     ?? 0),
+        "Thi công": toNum(dataFX.totalThiCongFixed  ?? 0),
+        "Nhà máy":  toNum(dataFX.totalNhaMayFixed   ?? 0),
+        "KH-ĐT":    toNum(dataFX.totalKhdtFixed     ?? 0),
       };
       const totalFixed = totals[typeFilter] || 0;
 
-      // 3️⃣ Lấy các dòng đã lưu của quý hiện tại (nếu có)
+      // 2️⃣ đọc saved mainRows của quý hiện tại
       const curSnap = await getDoc(
         doc(db, COL_QUARTER, `${year}_${quarter}`)
       );
       const saved = curSnap.exists() ? curSnap.data().mainRows || [] : [];
 
-      // 4️⃣ Lấy carry-over và overrun từ quý trước
+      // 3️⃣ lấy carry-over & overrun từ quý trước
       const { year: py, quarter: pq } = getPrevQuarter(year, quarter);
       const prevSnap = await getDoc(
         doc(db, COL_QUARTER, `${py}_${pq}`)
@@ -53,14 +59,12 @@ export function usePrevQuarterData(year, quarter, mainRows, typeFilter) {
         if (r.fixed) return;
         const key = (r.label ?? r.name ?? "").trim().toLowerCase();
         prevCarry[r.id] = prevCarry[key] = toNum(r.cumCurrent);
-
         if (r.overrun && Object.keys(r.overrun).length) {
           prevOver[r.id] = prevOver[key] = {};
           Object.entries(r.overrun).forEach(([pid, val]) => {
             prevOver[r.id][pid] = prevOver[key][pid] = toNum(val);
           });
         } else {
-          // fallback: lấy trực tiếp giá trị cột project
           const projVals = {};
           Object.entries(r).forEach(([k, v]) => {
             if ([
@@ -74,46 +78,51 @@ export function usePrevQuarterData(year, quarter, mainRows, typeFilter) {
         }
       });
 
-      // 5️⃣ Ghép với mainRows để tạo baseRows
+      // 4️⃣ build baseRows từ mainRows (chưa có salary)
       const latest    = (mainRows || []).filter(r => !r.fixed);
       const latestIds = new Set(latest.map(r => r.id));
-
       const makeBase = src => {
         const key   = (src.label ?? src.name ?? "").trim().toLowerCase();
         const carry = prevCarry[src.id] ?? prevCarry[key] ?? 0;
         const used  = toNum(src.used);
-        // chú ý: ở đây src.thiCongValue luôn là giá trị phân bổ gốc
-        const alloc = toNum(src.thiCongValue);
-
+        const alloc = toNum(src[valKey] ?? 0);
         return {
-          id             : src.id,
-          label          : src.label ?? src.name ?? "",
-          pct            : 0,
-          carryOver      : carry,
+          id: src.id,
+          label: src.label ?? src.name ?? "",
+          pct: 0,
+          carryOver: carry,
           used,
-          allocated      : alloc,
-          cumCurrent     : used - alloc + carry,
-          cumQuarterOnly : used - alloc,
-          prevOver       : prevOver[src.id] || prevOver[key] || {},
+          allocated: alloc,
+          cumCurrent: used - alloc + carry,
+          cumQuarterOnly: used - alloc,
+          prevOver: prevOver[src.id] || prevOver[key] || {},
         };
       };
 
       let baseRows;
       if (curSnap.exists()) {
-        // 5a. tái sử dụng saved rồi patch lại prevOver
+        // 4a. reuse saved rows, nhưng allocated lấy từ saved.byType[typeFilter].value
         baseRows = saved
           .filter(r => !r.fixed && latestIds.has(r.id))
-          .map(r => ({
-            ...makeBase(r),
-            pct           : r.pct ?? toNum(r.percentThiCong) ?? 0,
-            carryOver     : toNum(r.carryOver),
-            used          : toNum(r.used),
-            allocated     : toNum(r.allocated ?? r.thiCongValue ?? 0),
-            cumCurrent    : toNum(r.cumCurrent),
-            cumQuarterOnly: toNum(r.cumQuarterOnly),
-            fixed         : false,
-          }));
-        // thêm những dòng mới
+          .map(r => {
+            const b = makeBase(r);
+            const typeData = r.byType?.[typeFilter] || {};
+            return {
+              ...b,
+              pct:            toNum(typeData.pct)            || b.pct,
+              carryOver:      toNum(typeData.carryOver)      || b.carryOver,
+              used:           toNum(typeData.used)           || b.used,
+              allocated:      toNum(
+                                typeData.value               // ★ ưu tiên value
+                                ?? typeData.allocated        // ★ fallback allocated cũ
+                                ?? b.allocated               // ★ fallback từ makeBase
+                              ),
+              cumQuarterOnly: toNum(typeData.cumQuarterOnly) || b.cumQuarterOnly,
+              cumCurrent:     toNum(typeData.cumCurrent)     || b.cumCurrent,
+              fixed:          false,
+            };
+          });
+        // 4b. thêm các hàng mới từ mainRows nếu có
         latest.forEach(r => {
           if (!baseRows.some(b => b.id === r.id)) {
             baseRows.push(makeBase(r));
@@ -124,21 +133,20 @@ export function usePrevQuarterData(year, quarter, mainRows, typeFilter) {
         baseRows = latest.map(makeBase);
       }
 
-      // 6️⃣ Chèn dòng + Chi phí lương lên đầu, dùng totalFixed tuỳ type
+      // 5️⃣ chèn dòng + Chi phí lương lên đầu
       const savedSalary = saved.find(r => r.id === salaryRowId);
       const rowsNoSalary = baseRows.filter(r => r.id !== salaryRowId);
-
       const salaryRow = {
-        id             : salaryRowId,
-        label          : "+ Chi phí lương",
-        pct            : savedSalary?.pct       ?? 0,
-        carryOver      : savedSalary?.carryOver ?? 0,
-        used           : 0,
-        allocated      : totalFixed,
-        cumCurrent     : 0,
-        cumQuarterOnly : 0,
-        prevOver       : {},   // lương không có prevOver
-        fixed          : false,
+        id: salaryRowId,
+        label: "+ Chi phí lương",
+        pct:            toNum(savedSalary?.pct)       || 0,
+        carryOver:      toNum(savedSalary?.carryOver) || 0,
+        used:           0,
+        allocated:      totalFixed,
+        cumCurrent:     0,
+        cumQuarterOnly: 0,
+        prevOver:       {},
+        fixed:          false,
       };
 
       if (mounted) {
