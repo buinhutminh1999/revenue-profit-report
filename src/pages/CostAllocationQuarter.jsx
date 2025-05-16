@@ -130,85 +130,79 @@ export default function CostAllocationQuarter() {
                 : toNum(projData[pId]?.directCostMap?.[normalize(rowLabel)]),
         [projData]
     );
+    const prevOverMapById = useMemo(() => {
+  return new Map(extraRows.map((e) => [e.id, e.prevOver || {}]));
+}, [extraRows]);
+
     /*--------------------------------------------------------------
     +   | Helper: tính lại toàn bộ chỉ số của 1 row (khi gõ %DT/Carry) |
     +   --------------------------------------------------------------*/
     /*--------------------------------------------------------------
     | Helper: tính lại toàn bộ chỉ số của 1 row (khi gõ %DT/Carry) |
     --------------------------------------------------------------*/
-    const recomputeRow = useCallback(
-        (draftRow) => {
-            // 0️⃣ Lấy prevOver từ extraRows
-            const prevOverMap =
-                extraRows.find((e) => e.id === draftRow.id)?.prevOver || {};
+   const recomputeRow = useCallback(
+    (draftRow) => {
+        // 0️⃣ Ưu tiên prevOver được truyền vào draftRow, fallback từ map
+        const prevOver = draftRow.prevOver || prevOverMapById.get(draftRow.id) || {};
 
-            // 1️⃣ parse pct + carryOver
-            const pctVal = parseFloat(draftRow.pct) || 0;
-            const carryVal = toNum(
-                String(draftRow.carryOver).replace(",", ".")
-            );
+        // 1️⃣ Parse %DT và carryOver
+        const pctVal = parseFloat(draftRow.pct) || 0;
+        const carryVal = toNum(String(draftRow.carryOver).replace(",", "."));
 
-            // 2️⃣ tính needCurr (phần của quý này)
-            const needCurr = {};
+        // 2️⃣ Tính needCurr = (Doanh thu * %DT) - directCost
+        const needCurr = {};
+        visibleProjects.forEach((p) => {
+            const rev = toNum(projData[p.id]?.overallRevenue);
+            const dc = getDC(p.id, draftRow.label);
+            needCurr[p.id] = Math.round((rev * pctVal) / 100 - dc);
+        });
+
+        // 3️⃣ Tính fullNeed = needCurr + prevOver
+        const fullNeed = {};
+        visibleProjects.forEach((p) => {
+            fullNeed[p.id] = Math.max(0, needCurr[p.id] + (prevOver[p.id] || 0));
+        });
+
+        // 4️⃣ Lấy quota (allocated)
+        const orig = mainRows.find((m) => m.id === draftRow.id);
+        const alloc = toNum(
+            draftRow.allocated ?? orig?.[valKey] ?? 0
+        );
+
+        // 5️⃣ Nếu fullNeed > quota → scale về quota
+        let totalFull = visibleProjects.reduce(
+            (sum, p) => sum + fullNeed[p.id],
+            0
+        );
+        if (totalFull > alloc && alloc > 0) {
             visibleProjects.forEach((p) => {
-                const rev = toNum(projData[p.id]?.overallRevenue);
-                const dc = getDC(p.id, draftRow.label);
-                needCurr[p.id] = Math.round((rev * pctVal) / 100 - dc);
+                fullNeed[p.id] = Math.round((fullNeed[p.id] / totalFull) * alloc);
             });
+            totalFull = alloc;
+        }
 
-            // 3️⃣ fullNeed = needCurr + prevOver
-            const fullNeed = {};
-            visibleProjects.forEach((p) => {
-                fullNeed[p.id] = Math.max(
-                    0,
-                    needCurr[p.id] + (prevOverMap[p.id] || 0)
-                );
-            });
+        // 6️⃣ Gán giá trị vào draftRow để hiển thị
+        visibleProjects.forEach((p) => {
+            draftRow[p.id] = fullNeed[p.id];
+        });
 
-            // 4️⃣ **Lấy quota gốc**: ưu tiên draftRow.allocated (nếu đã override),
-            //    fallback về giá trị gốc orig[valKey]
-            const orig = mainRows.find((m) => m.id === draftRow.id);
-            const alloc = toNum(
-                draftRow.allocated ?? // giá override từ saved.byType.value
-                    orig?.[valKey] ?? // nếu chưa override thì dùng mainRows[valKey]
-                    0
-            );
+        // 7️⃣ Tính lại các cột tổng
+        draftRow.used = totalFull;
+        draftRow.cumQuarterOnly = totalFull - alloc;
+        draftRow.cumCurrent = draftRow.cumQuarterOnly + carryVal;
 
-            // 5️⃣ nếu tổng fullNeed > alloc → scale fullNeed về alloc
-            let totalFull = visibleProjects.reduce(
-                (sum, p) => sum + fullNeed[p.id],
-                0
-            );
-            if (totalFull > alloc && alloc > 0) {
-                visibleProjects.forEach((p) => {
-                    fullNeed[p.id] = Math.round(
-                        (fullNeed[p.id] / totalFull) * alloc
-                    );
-                });
-                totalFull = alloc;
-            }
+        return draftRow;
+    },
+    [
+        visibleProjects,
+        projData,
+        getDC,
+        mainRows,
+        valKey,
+        prevOverMapById
+    ]
+);
 
-            // 6️⃣ gán fullNeed vào draftRow để DataGrid preview
-            visibleProjects.forEach((p) => {
-                draftRow[p.id] = fullNeed[p.id];
-            });
-
-            // 7️⃣ recompute các cột tổng
-            draftRow.used = totalFull;
-            draftRow.cumQuarterOnly = totalFull - alloc;
-            draftRow.cumCurrent = draftRow.cumQuarterOnly + carryVal;
-
-            return draftRow;
-        },
-        [
-            visibleProjects,
-            projData,
-            getDC,
-            extraRows,
-            mainRows, // <-- giữ mainRows để tìm orig
-            valKey, // <-- giữ valKey để lấy đúng trường thiCongValue/nhaMayValue/khdtValue
-        ]
-    );
 
     /******************************************************************
      * 2. processRowUpdate – tính needCurr, totalNeed và set prevIncluded
@@ -224,42 +218,56 @@ export default function CostAllocationQuarter() {
      *   ▸ nhưng ô dự án trên UI sẽ hiển thị  fullNeed = needCurr + prevOver
      *   ▸ khi vượt quota → scale needCurr, KHÔNG cắt prevOver
      * -----------------------------------------------------------------*/
-    const processRowUpdate = useCallback(
-        (newRow, oldRow) => {
-            // 1️⃣ Chuẩn hoá input
-            const pctVal = parseFloat(newRow.pct) || 0;
-            const carryVal = toNum(newRow.carryOver) || 0;
+const processRowUpdate = useCallback(
+  (newRow, oldRow) => {
+    // 1️⃣ Chuẩn hoá input
+    const pctVal   = parseFloat(newRow.pct) || 0;
+    const carryVal = toNum(newRow.carryOver) || 0;
 
-            // 2️⃣ Tạo draftRow dựa trên oldRow + giá trị mới
-            const draftRow = {
-                ...oldRow,
-                pct: pctVal,
-                carryOver: carryVal,
-            };
+    // 2️⃣ Lấy prevOver từ map (không dùng oldRow.prevOver)
+    const prevOver = prevOverMapById.get(newRow.id) || {};
 
-            // 3️⃣ Gọi recomputeRow để tái tính fullNeed, used, cumQuarterOnly, cumCurrent…
-            const updatedRow = recomputeRow(draftRow);
+    // 3️⃣ Tạo draftRow, giữ nguyên prevIncluded cũ
+    const draftRow = {
+      ...oldRow,
+      pct:         pctVal,
+      carryOver:   carryVal,
+      prevOver,
+      prevIncluded: oldRow.prevIncluded,  // ← giữ lại flag đã cộng trước đó
+    };
 
-            // 4️⃣ Đánh dấu dirty cell để bật nút Lưu
-            setDirtyCells((ds) => {
-                const next = new Set(ds);
-                if (newRow.pct !== oldRow.pct) next.add(`${newRow.id}-pct`);
-                if (newRow.carryOver !== oldRow.carryOver)
-                    next.add(`${newRow.id}-carryOver`);
-                return next;
-            });
+    // 4️⃣ Tính toán lại fullNeed, used, cum…, dựa trên draftRow
+    const updatedRow = recomputeRow(draftRow);
 
-            // 5️⃣ Cập nhật extraRows để Grid preview ngay
-            setExtraRows((rows) =>
-                rows.map((r) =>
-                    r.id === updatedRow.id ? { ...r, ...updatedRow } : r
-                )
-            );
+    // 5️⃣ Đánh dấu cell đã thay đổi để bật nút Lưu
+    setDirtyCells((ds) => {
+      const next = new Set(ds);
+      if (newRow.pct !== oldRow.pct) next.add(`${newRow.id}-pct`);
+      if (newRow.carryOver !== oldRow.carryOver)
+        next.add(`${newRow.id}-carryOver`);
+      return next;
+    });
 
-            return updatedRow;
-        },
-        [recomputeRow, setExtraRows, setDirtyCells]
+    // 6️⃣ Cập nhật extraRows: gán lại prevOver và giữ prevIncluded vừa tính
+    setExtraRows((rows) =>
+      rows.map((r) =>
+        r.id === updatedRow.id
+          ? {
+              ...r,
+              ...updatedRow,
+              prevOver,
+              prevIncluded: updatedRow.prevIncluded, // ← dùng flag mới
+            }
+          : r
+      )
     );
+
+    return updatedRow;
+  },
+  [recomputeRow, setExtraRows, setDirtyCells, prevOverMapById]
+);
+
+
     const [fixedTotals, setFixedTotals] = useState({
         "Thi công": 0,
         "Nhà máy": 0,
@@ -329,6 +337,7 @@ export default function CostAllocationQuarter() {
                         ),
                         cumCurrent: toNum(typeData.cumCurrent ?? r.cumCurrent),
                         prevOver: typeData.overrun || {},
+                        prevIncluded: saved.prevIncluded ?? false,
                         byType: saved.byType || {},
                     };
 
@@ -463,43 +472,47 @@ export default function CostAllocationQuarter() {
 
 
     /* 👉 NEW: rowsWithPrev = rows + prevOver từ extraRows */
-    const rowsWithPrev = useMemo(() => {
-        return rows.map((r) => {
-            const src = extraRows.find((e) => e.id === r.id);
-            return src && src.prevOver ? { ...r, prevOver: src.prevOver } : r;
-        });
-    }, [rows, extraRows]);
+   const rowsWithPrev = useMemo(() => {
+  return rows.map((r) => {
+    const src = extraRows.find((e) => e.id === r.id);
+    return src
+      ? { ...r, prevOver: src.prevOver, prevIncluded: src.prevIncluded }
+      : r;
+  });
+}, [rows, extraRows]);
+
 
     /* 🔹 Gắn giá trị prevOver vào cell dự án để hiển thị ngay */
     /******************************************************************
      * 1. rowsInit – add prevOver đúng 1 lần duy nhất cho ô dự án
      ******************************************************************/
     // 🔹 rowsInit – chỉ add prevOver khi used > allocated
-    const rowsInit = useMemo(() => {
-        return rowsWithPrev.map((r) => {
-            const out = { ...r };
-            const hasPrev = out.prevIncluded === true;
+const rowsInit = useMemo(() => {
+  return rowsWithPrev.map((r) => {
+    const out = { ...r };
+    const hasPrev = out.prevIncluded === true;
 
-            // Chỉ carry-over nếu used > allocated
-            if (out.used > out.allocated && !hasPrev) {
-                visibleProjects.forEach((p) => {
-                    const prev = out.prevOver?.[p.id] || 0;
-                    out[p.id] = (out[p.id] || 0) + prev;
-                });
-                out.prevIncluded = true;
-            }
+    // Chỉ cộng prevOver khi cần (used > allocated) và chưa cộng lần nào
+    if (!hasPrev && out.prevOver && out.used > out.allocated) {
+      visibleProjects.forEach((p) => {
+        const prev = out.prevOver[p.id] || 0;
+        out[p.id] = (out[p.id] || 0) + prev;
+      });
+      out.prevIncluded = true;
+    }
 
-            // Tính lại tổng sau khi (có thể) cộng carry-over
-            const total = visibleProjects.reduce(
-                (s, p) => s + (out[p.id] || 0),
-                0
-            );
-            out.used = total;
-            out.cumQuarterOnly = total - out.allocated;
-            out.cumCurrent = out.cumQuarterOnly + out.carryOver;
-            return out;
-        });
-    }, [rowsWithPrev, visibleProjects]);
+    // Tính lại tổng sau khi (có thể) cộng carry-over
+    const total = visibleProjects.reduce(
+      (sum, p) => sum + (out[p.id] || 0),
+      0
+    );
+    out.used           = total;
+    out.cumQuarterOnly = total - out.allocated;
+    out.cumCurrent     = out.cumQuarterOnly + out.carryOver;
+
+    return out;
+  });
+}, [rowsWithPrev, visibleProjects]);
 
     /* 🔹 Tạo rowsWithSplit – giữ logic split quota như cũ */
     const rowsWithSplit = useMemo(() => {
@@ -538,35 +551,20 @@ export default function CostAllocationQuarter() {
 
     const columns = useMemo(() => {
         const base = [
-            {
-                field: "label",
-                headerName: "Khoản mục",
-                flex: 1,
-                minWidth: 150,
-                editable: true,
-                renderEditCell: (p) => (
-                    <EditableSelect
-                        options={options.filter(
-                            (o) =>
-                                !cats
-                                    .map((c) => c.label)
-                                    .includes(o.toUpperCase())
-                        )}
-                        value={p.value || ""}
-                        onChange={(v) => {
-                            p.api.setEditCellValue(
-                                { id: p.id, field: "label", value: v },
-                                true
-                            );
-                            setDirtyCells((s) =>
-                                new Set(s).add(`${p.id}-label`)
-                            );
-                        }}
-                        sx={{ width: "100%" }}
-                    />
-                ),
-                pinned: "left",
-            },
+           {
+    field: "label",
+    headerName: "Khoản mục",
+    flex: 1,
+    minWidth: 150,
+    editable: false, // ← Không cho chỉnh sửa
+    renderCell: (params) => (
+        <Tooltip title={params.value}>
+            <span>{params.value}</span>
+        </Tooltip>
+    ),
+    pinned: "left",
+},
+
             {
                 field: "pct",
                 headerName: "% DT",
@@ -692,156 +690,151 @@ export default function CostAllocationQuarter() {
     /** Lưu cả bảng – tính lại fullNeed + carryOver trước khi push Firestore */
     // trong component CostAllocationQuarter:
 
+// Updated handleSave: compute detailed overrun and carryOver = cumCurrent for next quarter
 const handleSave = async () => {
-    try {
-        setSaving(true);
+  try {
+    setSaving(true);
 
-        // 1️⃣ Chuẩn bị dataToSave từ extraRows
-        const dataToSave = extraRows
-            .filter((r) => {
-                const lbl = (r.label || "").trim().toUpperCase();
-                return lbl !== "DOANH THU" && lbl !== "TỔNG CHI PHÍ";
-            })
-            .map((r) => {
-                let overrun = {};
-                if (r.used > r.allocated) {
-                    const prevOver = extraRows.find((e) => e.id === r.id)?.prevOver || {};
-                    overrun = visibleProjects.reduce((o, p) => {
-                        const fullNeed = r[p.id] ?? 0;
-                        const prev = prevOver[p.id] ?? 0;
-                        const needCurr = fullNeed - prev;
-                        o[p.id] = needCurr > 0 ? needCurr : 0;
-                        return o;
-                    }, {});
-                }
+    // 1️⃣ Chuẩn bị dataToSave từ extraRows
+    const dataToSave = extraRows
+      .filter((r) => {
+        const lbl = (r.label || "").trim().toUpperCase();
+        return lbl !== "DOANH THU" && lbl !== "TỔNG CHI PHÍ";
+      })
+      .map((r) => {
+        // Tính overrun chi tiết: chỉ tính phần vượt của quý hiện tại
+        const overrun = {};
+        for (const p of visibleProjects) {
+          const rev = toNum(projData[p.id]?.overallRevenue);
+          const dc = getDC(p.id, r.label);
+          const needCurr = Math.round((rev * (r.pct || 0)) / 100 - dc);
+          const scaled = r[p.id] ?? 0;
+          overrun[p.id] = Math.max(0, needCurr - scaled); // Không cộng prevOver
+        }
 
-                const rawTypeData = {
-                    pct: r.pct ?? 0,
-                    value: r[valKey] ?? 0,
-                    used: r.used ?? 0,
-                    allocated: r.allocated ?? 0,
-                    carryOver: r.carryOver ?? 0,
-                    cumQuarterOnly: r.cumQuarterOnly ?? 0,
-                    cumCurrent: r.cumCurrent ?? 0,
-                    overrun,
-                };
-
-                const typeData = Object.fromEntries(
-                    Object.entries(rawTypeData).filter(([, v]) => v !== undefined)
-                );
-
-                const prevByType =
-                    typeof r.byType === "object" && r.byType !== null ? r.byType : {};
-
-                const row = {
-                    id: r.id,
-                    label: r.label,
-                    byType: {
-                        ...prevByType,
-                        [typeFilter]: typeData,
-                    },
-                };
-
-                visibleProjects.forEach((p) => {
-                    row[p.id] = r[p.id] ?? 0;
-                });
-
-                return row;
-            });
-
-        // 2️⃣ Ghi vào quý hiện tại
-        await setDoc(
-            doc(db, COL_QUARTER, `${year}_${quarter}`),
-            {
-                mainRows: dataToSave,
-                updated_at: serverTimestamp(),
-            },
-            { merge: true }
+        // Đóng gói vào byType
+        const rawTypeData = {
+          pct: r.pct ?? 0,
+          value: r[valKey] ?? 0,
+          used: r.used ?? 0,
+          allocated: r.allocated ?? 0,
+          carryOver: r.carryOver ?? 0,
+          cumQuarterOnly: r.cumQuarterOnly ?? 0,
+          cumCurrent: r.cumCurrent ?? 0,
+          overrun,
+        };
+        const typeData = Object.fromEntries(
+          Object.entries(rawTypeData).filter(([, v]) => v != null)
         );
 
-        // 3️⃣ Đồng bộ xuống projects
-        const directMap = {};
-        dataToSave.forEach((r) => {
-            const key = normalize(r.label);
-            visibleProjects.forEach((p) => {
-                directMap[p.id] ??= {};
-                directMap[p.id][key] = r[p.id];
-            });
+        // Tạo object row để save
+        const row = {
+          id: r.id,
+          label: r.label,
+          byType: { ...(r.byType || {}), [typeFilter]: typeData },
+          prevIncluded: true,
+        };
+        for (const p of visibleProjects) {
+          row[p.id] = r[p.id] ?? 0;
+        }
+        return row;
+      });
+
+    // 2️⃣ Ghi lên quý hiện tại
+    await setDoc(
+      doc(db, COL_QUARTER, `${year}_${quarter}`),
+      { mainRows: dataToSave, updated_at: serverTimestamp() },
+      { merge: true }
+    );
+
+    // 3️⃣ Đồng bộ xuống projects/.../quarters/...
+    const directMap = {};
+    for (const r of dataToSave) {
+      const key = normalize(r.label);
+      for (const p of visibleProjects) {
+        directMap[p.id] ??= {};
+        directMap[p.id][key] = r[p.id];
+      }
+    }
+    await Promise.all(
+      visibleProjects.map(async (p) => {
+        const ref = doc(db, "projects", p.id, "years", String(year), "quarters", quarter);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return;
+        const items = Array.isArray(snap.data().items) ? snap.data().items : [];
+        const newItems = items.map((it) => {
+          const k = normalize(it.description ?? it.label ?? it.name);
+          const alloc = directMap[p.id][k] ?? 0;
+          return { ...it, allocated: alloc, [valKey]: alloc };
         });
+        await updateDoc(ref, { items: newItems });
+      })
+    );
 
-        await Promise.all(
-            visibleProjects.map(async (p) => {
-                const ref = doc(db, "projects", p.id, "years", String(year), "quarters", quarter);
-                const snap = await getDoc(ref);
-                if (!snap.exists()) return;
-                const items = Array.isArray(snap.data().items) ? snap.data().items : [];
-                const newItems = items.map((it) => {
-                    const k = normalize(it.description ?? it.label ?? it.name);
-                    const alloc = directMap[p.id][k] ?? 0;
-                    return { ...it, allocated: alloc, [valKey]: alloc };
-                });
-                await updateDoc(ref, { items: newItems });
-            })
-        );
+    // 4️⃣ Cascade update nếu có
+    await cascadeUpdateAfterSave(year, quarter);
 
-        // 4️⃣ Cascade update nếu có
-        await cascadeUpdateAfterSave(year, quarter);
+    // 5️⃣ Ghi overrun chi tiết + carryOver = cumCurrent cho quý sau
+    const { year: nextY, quarter: nextQ } = getNextQuarter(year, quarter);
+    const nextRef = doc(db, COL_QUARTER, `${nextY}_${nextQ}`);
+    const nextSnap = await getDoc(nextRef);
+    const nextData = nextSnap.exists() ? nextSnap.data() : {};
+    const nextRows = Array.isArray(nextData.mainRows) ? [...nextData.mainRows] : [];
 
-        // 5️⃣ Ghi carryOver cho quý sau = cumCurrent của quý hiện tại (lấy từ extraRows gốc)
-        const { year: nextY, quarter: nextQ } = getNextQuarter(year, quarter);
-        const nextRef = doc(db, COL_QUARTER, `${nextY}_${nextQ}`);
-        const nextSnap = await getDoc(nextRef);
-        const nextData = nextSnap.exists() ? nextSnap.data() : {};
-        const nextRows = Array.isArray(nextData.mainRows) ? [...nextData.mainRows] : [];
-rowsWithSplit.forEach((r) => {
-    const baseId = r.id.split("__")[0];
-    const label = r.label;
-    const cumCurrent = r.cumCurrent ?? 0;
+    for (const r of rowsWithSplit) {
+      const baseId = r.id.split("__")[0];
 
-    console.log(`→ Ghi carryOver ${baseId} =`, cumCurrent);
+      // Tính overrun chi tiết cho quý sau, không cộng prevOver
+      const overrun = {};
+      for (const p of visibleProjects) {
+        const rev = toNum(projData[p.id]?.overallRevenue);
+        const dc = getDC(p.id, r.label);
+        const needCurr = Math.round((rev * (r.pct || 0)) / 100 - dc);
+        const scaled = r[p.id] ?? 0;
+        overrun[p.id] = Math.max(0, needCurr - scaled); // Không cộng prevOver
+      }
 
-    const existing = nextRows.find((x) => x.id === baseId);
-    if (existing) {
-        existing.byType ??= {};
-        existing.byType[typeFilter] ??= {};
-        existing.byType[typeFilter].carryOver = cumCurrent;
-    } else {
+      // Sử dụng cumCurrent cho carryOver quý sau
+      const carryNext = r.cumCurrent ?? 0;
+
+      const idx = nextRows.findIndex((x) => x.id === baseId);
+      if (idx >= 0) {
+        nextRows[idx].byType ??= {};
+        nextRows[idx].byType[typeFilter] ??= {};
+        nextRows[idx].byType[typeFilter].overrun = overrun;
+        nextRows[idx].byType[typeFilter].carryOver = carryNext;
+      } else {
         nextRows.push({
-            id: baseId,
-            label,
-            byType: {
-                [typeFilter]: {
-                    carryOver: cumCurrent,
-                },
-            },
+          id: baseId,
+          label: r.label,
+          byType: {
+            [typeFilter]: { overrun, carryOver: carryNext },
+          },
         });
+      }
     }
-});
 
-        await setDoc(
-            nextRef,
-            {
-                mainRows: nextRows,
-                updated_at: serverTimestamp(),
-            },
-            { merge: true }
-        );
+    await setDoc(
+      nextRef,
+      { mainRows: nextRows, updated_at: serverTimestamp() },
+      { merge: true }
+    );
 
-        console.log("✅ Đã cập nhật carryOver quý sau");
+    console.log("✅ Đã cập nhật overrun chi tiết & carryOver (cumCurrent) quý sau");
 
-        // 6️⃣ Thông báo
-        setSnack({ open: true, msg: "Đã lưu & cập nhật phân bổ dự án 🎉" });
-        setDirtyCells(new Set());
-        setShowSaved(true);
-    } catch (err) {
-        console.error("❌ Lỗi khi lưu:", err);
-        setSnack({ open: true, msg: "Lỗi khi lưu!" });
-    } finally {
-        setSaving(false);
-    }
+    // 6️⃣ Thông báo & reset state
+    setSnack({ open: true, msg: "Đã lưu & cập nhật phân bổ dự án 🎉" });
+    setDirtyCells(new Set());
+    setShowSaved(true);
+  } catch (err) {
+    console.error("❌ Lỗi khi lưu:", err);
+    setSnack({ open: true, msg: "Lỗi khi lưu!" });
+  } finally {
+    setSaving(false);
+  }
 };
 
-    return (
+  return (
         <Container maxWidth="xl" sx={{ py: 3 }}>
             {/* Toolbar */}
             <Paper
