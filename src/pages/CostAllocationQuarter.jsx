@@ -147,15 +147,16 @@ export default function CostAllocationQuarter() {
 
             const totalNeed = visibleProjects.reduce((sum, p) => sum + needCurr[p.id], 0);
             const orig = mainRows.find((m) => m.id === draftRow.id);
-            const alloc = toNum(draftRow.allocated ?? orig?.[valKey] ?? 0);
+            const allocated = toNum(draftRow.allocated ?? orig?.[valKey] ?? 0);
+            const allocatedForCalc = allocated - carryVal;
 
             let scaledNeed = { ...needCurr };
-            let doScale = totalNeed > alloc && alloc > 0;
+            let doScale = totalNeed > allocatedForCalc && allocatedForCalc > 0;
 
             // Nếu scale, chỉ phân bổ theo quota
             if (doScale) {
                 visibleProjects.forEach((p) => {
-                    scaledNeed[p.id] = Math.round((needCurr[p.id] / totalNeed) * alloc);
+                    scaledNeed[p.id] = Math.round((needCurr[p.id] / totalNeed) * allocatedForCalc);
                 });
             }
 
@@ -166,24 +167,19 @@ export default function CostAllocationQuarter() {
             }, 0);
 
             // Chỉ cộng prevOver khi không scale (tức là tổng cộng vẫn <= quota)
-            const shouldAddPrev = !doScale && usedIfAdd <= alloc;
+            const shouldAddPrev = !doScale && usedIfAdd <= allocatedForCalc;
 
             visibleProjects.forEach((p) => {
                 const prev = prevOver[p.id] || 0;
                 draftRow[p.id] = scaledNeed[p.id] + (shouldAddPrev ? prev : 0);
             });
 
-            if (shouldAddPrev && Object.keys(prevOver).length > 0) {
-                draftRow.prevIncluded = true;
-            } else {
-                draftRow.prevIncluded = false;
-            }
-
+            draftRow.prevIncluded = shouldAddPrev && Object.keys(prevOver).length > 0;
             draftRow.usedRaw = visibleProjects.reduce((sum, p) => sum + needCurr[p.id], 0);
 
             const used = visibleProjects.reduce((sum, p) => sum + (draftRow[p.id] || 0), 0);
             draftRow.used = used;
-            draftRow.cumQuarterOnly = used - alloc;
+            draftRow.cumQuarterOnly = used - allocatedForCalc;
             draftRow.cumCurrent = draftRow.cumQuarterOnly + carryVal;
 
             return draftRow;
@@ -285,8 +281,8 @@ export default function CostAllocationQuarter() {
                                 ? fixedTotals[typeFilter]
                                 : toNum(
                                       typeData.value ??
-                                          typeData.allocated ??
-                                          r.allocated
+                                      typeData.allocated ??
+                                      r.allocated
                                   ),
                         carryOver: toNum(typeData.carryOver ?? r.carryOver),
                         used: toNum(typeData.used ?? r.used),
@@ -352,8 +348,8 @@ export default function CostAllocationQuarter() {
             const typeData = r.byType?.[typeFilter] ?? {};
             const allocated = toNum(
                 typeData.value ??
-                    typeData.allocated ??
-                    getOriginalVal(uniqueId)
+                typeData.allocated ??
+                getOriginalVal(uniqueId)
             );
             const used = toNum(typeData.used ?? 0);
             const matched = extraRows.find((x) => x.id === uniqueId);
@@ -405,20 +401,21 @@ export default function CostAllocationQuarter() {
         return rowsWithPrev.map((r) => recomputeRow({ ...r }));
     }, [rowsWithPrev, recomputeRow]);
 
+    // ==== CHỈNH CHUẨN: Scale/Quota đều dùng allocatedForCalc ====
     const rowsWithSplit = useMemo(() => {
         return rowsInit.map((r) => {
             if ((r.label || "").trim().toUpperCase() === "DOANH THU") {
                 return r;
             }
-            if (r.used > r.allocated) {
+            const allocatedForCalc = r.allocated - (r.carryOver || 0);
+            if (r.used > allocatedForCalc) {
                 const total = r.used;
-                const alloc = r.allocated;
                 const newRow = { ...r };
                 visibleProjects.forEach((p) => {
-                    newRow[p.id] = Math.round((r[p.id] / total) * alloc);
+                    newRow[p.id] = Math.round((r[p.id] / total) * allocatedForCalc);
                 });
-                newRow.cumQuarterOnly = total - alloc;
-                newRow.cumCurrent = newRow.cumQuarterOnly + newRow.carryOver;
+                newRow.cumQuarterOnly = total - allocatedForCalc;
+                newRow.cumCurrent = newRow.cumQuarterOnly + (r.carryOver || 0);
                 return newRow;
             }
             return r;
@@ -564,184 +561,183 @@ export default function CostAllocationQuarter() {
     };
 
     // Helper: lấy overrun từ tất cả các quý trước
-  // Lấy overrun của quý trước gần nhất thôi!
-const getOverrunOfPrevQuarter = async (baseId) => {
-    const prev = getPrevQuarter(year, quarter);
-    if (!prev) return {};
-    const ref = doc(db, COL_QUARTER, `${prev.year}_${prev.quarter}`);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return {};
-    const data = snap.data();
-    const row = data.mainRows?.find((r) => r.id === baseId);
-    const over = row?.byType?.[typeFilter]?.overrun || {};
-    return over;
-};
+    // Lấy overrun của quý trước gần nhất thôi!
+    const getOverrunOfPrevQuarter = async (baseId) => {
+        const prev = getPrevQuarter(year, quarter);
+        if (!prev) return {};
+        const ref = doc(db, COL_QUARTER, `${prev.year}_${prev.quarter}`);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return {};
+        const data = snap.data();
+        const row = data.mainRows?.find((r) => r.id === baseId);
+        const over = row?.byType?.[typeFilter]?.overrun || {};
+        return over;
+    };
 
     // LUÔN LẤY rowsInit ĐỂ LƯU (chính là số đang HIỂN THỊ trên UI)
-const handleSave = async () => {
-    try {
-        setSaving(true);
+    const handleSave = async () => {
+        try {
+            setSaving(true);
 
-        // LẤY DỮ LIỆU GỐC TRONG FIRESTORE ĐỂ GIỮ LẠI byType các loại cũ
-        const docRef = doc(db, COL_QUARTER, `${year}_${quarter}`);
-        const snapshot = await getDoc(docRef);
-        const prevMainRows = snapshot.exists() ? snapshot.data().mainRows || [] : [];
+            // LẤY DỮ LIỆU GỐC TRONG FIRESTORE ĐỂ GIỮ LẠI byType các loại cũ
+            const docRef = doc(db, COL_QUARTER, `${year}_${quarter}`);
+            const snapshot = await getDoc(docRef);
+            const prevMainRows = snapshot.exists() ? snapshot.data().mainRows || [] : [];
 
-        const dataToSave = [];
+            const dataToSave = [];
 
-        for (const r of rowsInit) {
-            const lbl = (r.label || "").trim().toUpperCase();
-            if (lbl === "DOANH THU" || lbl === "TỔNG CHI PHÍ") continue;
-            const baseId = r.id.split("__")[0];
-
-            // --- Tính overrun cho từng project ---
-            const overrun = {};
-            for (const p of visibleProjects) {
-                const rev = toNum(projData[p.id]?.overallRevenue);
-                const dc = getDC(p.id, r.label);
-                const need = Math.round((rev * (r.pct || 0)) / 100 - dc);
-                const shown = r[p.id] ?? 0;
-                overrun[p.id] = Math.max(0, need - shown);
-            }
-
-            // --- Lấy prevOverrun các quý trước (lấy 1 quý trước gần nhất, nếu muốn cộng dồn thì dùng hàm khác) ---
-            const prev = await getOverrunOfPrevQuarter(baseId);
-            const fullNeed = {};
-            for (const p of visibleProjects) {
-                fullNeed[p.id] = (prev[p.id] || 0) + overrun[p.id];
-            }
-
-            // --- LẤY byType cũ từ Firestore ---
-            const old = prevMainRows.find(x => x.id === baseId);
-            const oldByType = old?.byType || {};
-
-            // --- Dữ liệu của type hiện tại ---
-            const rawTypeData = {
-                pct: r.pct ?? 0,
-                value: r[valKey] ?? 0,
-                used: r.used ?? 0,
-                allocated: r.allocated ?? 0,
-                carryOver: r.carryOver ?? 0,
-                cumQuarterOnly: r.cumQuarterOnly ?? 0,
-                cumCurrent: r.cumCurrent ?? 0,
-                overrun: fullNeed,
-            };
-            const typeData = Object.fromEntries(
-                Object.entries(rawTypeData).filter(([, v]) => v != null)
-            );
-
-            // --- GHÉP GIỮ LẠI byType CŨ ---
-            const row = {
-                id: baseId,
-                label: r.label,
-                byType: { ...oldByType, [typeFilter]: typeData },
-                prevIncluded: true,
-            };
-            for (const p of visibleProjects) {
-                row[p.id] = r[p.id] ?? 0;
-            }
-            dataToSave.push(row);
-        }
-
-        // ==== LƯU DỮ LIỆU QUÝ HIỆN TẠI (và merge giữ lại byType các loại) ====
-        await setDoc(
-            docRef,
-            { mainRows: dataToSave, updated_at: serverTimestamp() },
-            { merge: true }
-        );
-
-        // --- Lưu sang quý sau (chỉ cần update phần byType[typeFilter] quý sau thôi) ---
-        const { year: nextY, quarter: nextQ } = getNextQuarter(year, quarter);
-        const nextRef = doc(db, COL_QUARTER, `${nextY}_${nextQ}`);
-        const nextSnap = await getDoc(nextRef);
-        const nextData = nextSnap.exists() ? nextSnap.data() : {};
-        const nextRows = Array.isArray(nextData.mainRows) ? [...nextData.mainRows] : [];
-
-        for (const r of rowsInit) {
-            const baseId = r.id.split("__")[0];
-            const overrun = {};
-            for (const p of visibleProjects) {
-                const rev = toNum(projData[p.id]?.overallRevenue);
-                const dc = getDC(p.id, r.label);
-                const need = Math.round((rev * (r.pct || 0)) / 100 - dc);
-                const shown = r[p.id] ?? 0;
-                overrun[p.id] = Math.max(0, need - shown);
-            }
-            const prev = await getOverrunOfPrevQuarter(baseId);
-            const fullNeed = {};
-            for (const p of visibleProjects) {
-                fullNeed[p.id] = (prev[p.id] || 0) + overrun[p.id];
-            }
-            const carryNext = r.cumCurrent ?? 0;
-
-            // --- GHÉP GIỮ LẠI byType CŨ quý sau ---
-            const oldNext = nextRows.find(x => x.id === baseId);
-            const oldByTypeNext = oldNext?.byType || {};
-
-            const idx = nextRows.findIndex((x) => x.id === baseId);
-            if (idx >= 0) {
-                nextRows[idx].byType = { ...oldByTypeNext, [typeFilter]: { overrun: fullNeed, carryOver: carryNext } };
-            } else {
-                nextRows.push({
-                    id: baseId,
-                    label: r.label,
-                    byType: { ...oldByTypeNext, [typeFilter]: { overrun: fullNeed, carryOver: carryNext } },
-                });
-            }
-        }
-
-        await setDoc(
-            nextRef,
-            { mainRows: nextRows, updated_at: serverTimestamp() },
-            { merge: true }
-        );
-
-        // === CẬP NHẬT p[id] sang items[].allocated của từng project ===
-        for (const p of visibleProjects) {
-            const projectQuarterRef = doc(
-                db,
-                "projects",
-                p.id,
-                "years",
-                String(year),
-                "quarters",
-                quarter
-            );
-            // Lấy items hiện có
-            const projectQuarterSnap = await getDoc(projectQuarterRef);
-            const projectQuarterData = projectQuarterSnap.exists() ? projectQuarterSnap.data() : {};
-            const items = Array.isArray(projectQuarterData.items) ? [...projectQuarterData.items] : [];
-
-            // Cập nhật từng item theo id hoặc description
             for (const r of rowsInit) {
                 const lbl = (r.label || "").trim().toUpperCase();
                 if (lbl === "DOANH THU" || lbl === "TỔNG CHI PHÍ") continue;
-                const itemIdx = items.findIndex(
-                    item => item.id === r.id || (item.description && item.description.trim() === r.label.trim())
-                );
-                if (itemIdx >= 0) {
-                    items[itemIdx].allocated = String(r[p.id] ?? 0);
+                const baseId = r.id.split("__")[0];
+
+                // --- Tính overrun cho từng project ---
+                const overrun = {};
+                for (const p of visibleProjects) {
+                    const rev = toNum(projData[p.id]?.overallRevenue);
+                    const dc = getDC(p.id, r.label);
+                    const need = Math.round((rev * (r.pct || 0)) / 100 - dc);
+                    const shown = r[p.id] ?? 0;
+                    overrun[p.id] = Math.max(0, need - shown);
                 }
+
+                // --- Lấy prevOverrun các quý trước (lấy 1 quý trước gần nhất, nếu muốn cộng dồn thì dùng hàm khác) ---
+                const prev = await getOverrunOfPrevQuarter(baseId);
+                const fullNeed = {};
+                for (const p of visibleProjects) {
+                    fullNeed[p.id] = (prev[p.id] || 0) + overrun[p.id];
+                }
+
+                // --- LẤY byType cũ từ Firestore ---
+                const old = prevMainRows.find(x => x.id === baseId);
+                const oldByType = old?.byType || {};
+
+                // --- Dữ liệu của type hiện tại ---
+                const rawTypeData = {
+                    pct: r.pct ?? 0,
+                    value: r[valKey] ?? 0,
+                    used: r.used ?? 0,
+                    allocated: r.allocated ?? 0,
+                    carryOver: r.carryOver ?? 0,
+                    cumQuarterOnly: r.cumQuarterOnly ?? 0,
+                    cumCurrent: r.cumCurrent ?? 0,
+                    overrun: fullNeed,
+                };
+                const typeData = Object.fromEntries(
+                    Object.entries(rawTypeData).filter(([, v]) => v != null)
+                );
+
+                // --- GHÉP GIỮ LẠI byType CŨ ---
+                const row = {
+                    id: baseId,
+                    label: r.label,
+                    byType: { ...oldByType, [typeFilter]: typeData },
+                    prevIncluded: true,
+                };
+                for (const p of visibleProjects) {
+                    row[p.id] = r[p.id] ?? 0;
+                }
+                dataToSave.push(row);
             }
-            // Ghi lại
+
+            // ==== LƯU DỮ LIỆU QUÝ HIỆN TẠI (và merge giữ lại byType các loại) ====
             await setDoc(
-                projectQuarterRef,
-                { items },
+                docRef,
+                { mainRows: dataToSave, updated_at: serverTimestamp() },
                 { merge: true }
             );
+
+            // --- Lưu sang quý sau (chỉ cần update phần byType[typeFilter] quý sau thôi) ---
+            const { year: nextY, quarter: nextQ } = getNextQuarter(year, quarter);
+            const nextRef = doc(db, COL_QUARTER, `${nextY}_${nextQ}`);
+            const nextSnap = await getDoc(nextRef);
+            const nextData = nextSnap.exists() ? nextSnap.data() : {};
+            const nextRows = Array.isArray(nextData.mainRows) ? [...nextData.mainRows] : [];
+
+            for (const r of rowsInit) {
+                const baseId = r.id.split("__")[0];
+                const overrun = {};
+                for (const p of visibleProjects) {
+                    const rev = toNum(projData[p.id]?.overallRevenue);
+                    const dc = getDC(p.id, r.label);
+                    const need = Math.round((rev * (r.pct || 0)) / 100 - dc);
+                    const shown = r[p.id] ?? 0;
+                    overrun[p.id] = Math.max(0, need - shown);
+                }
+                const prev = await getOverrunOfPrevQuarter(baseId);
+                const fullNeed = {};
+                for (const p of visibleProjects) {
+                    fullNeed[p.id] = (prev[p.id] || 0) + overrun[p.id];
+                }
+                const carryNext = r.cumCurrent ?? 0;
+
+                // --- GHÉP GIỮ LẠI byType CŨ quý sau ---
+                const oldNext = nextRows.find(x => x.id === baseId);
+                const oldByTypeNext = oldNext?.byType || {};
+
+                const idx = nextRows.findIndex((x) => x.id === baseId);
+                if (idx >= 0) {
+                    nextRows[idx].byType = { ...oldByTypeNext, [typeFilter]: { overrun: fullNeed, carryOver: carryNext } };
+                } else {
+                    nextRows.push({
+                        id: baseId,
+                        label: r.label,
+                        byType: { ...oldByTypeNext, [typeFilter]: { overrun: fullNeed, carryOver: carryNext } },
+                    });
+                }
+            }
+
+            await setDoc(
+                nextRef,
+                { mainRows: nextRows, updated_at: serverTimestamp() },
+                { merge: true }
+            );
+
+            // === CẬP NHẬT p[id] sang items[].allocated của từng project ===
+            for (const p of visibleProjects) {
+                const projectQuarterRef = doc(
+                    db,
+                    "projects",
+                    p.id,
+                    "years",
+                    String(year),
+                    "quarters",
+                    quarter
+                );
+                // Lấy items hiện có
+                const projectQuarterSnap = await getDoc(projectQuarterRef);
+                const projectQuarterData = projectQuarterSnap.exists() ? projectQuarterSnap.data() : {};
+                const items = Array.isArray(projectQuarterData.items) ? [...projectQuarterData.items] : [];
+
+                // Cập nhật từng item theo id hoặc description
+                for (const r of rowsInit) {
+                    const lbl = (r.label || "").trim().toUpperCase();
+                    if (lbl === "DOANH THU" || lbl === "TỔNG CHI PHÍ") continue;
+                    const itemIdx = items.findIndex(
+                        item => item.id === r.id || (item.description && item.description.trim() === r.label.trim())
+                    );
+                    if (itemIdx >= 0) {
+                        items[itemIdx].allocated = String(r[p.id] ?? 0);
+                    }
+                }
+                // Ghi lại
+                await setDoc(
+                    projectQuarterRef,
+                    { items },
+                    { merge: true }
+                );
+            }
+
+            setSnack({ open: true, msg: "Đã lưu & cập nhật phân bổ dự án 🎉" });
+            setDirtyCells(new Set());
+            setShowSaved(true);
+        } catch (err) {
+            console.error("❌ Lỗi khi lưu:", err);
+            setSnack({ open: true, msg: "Lỗi khi lưu!" });
+        } finally {
+            setSaving(false);
         }
-
-        setSnack({ open: true, msg: "Đã lưu & cập nhật phân bổ dự án 🎉" });
-        setDirtyCells(new Set());
-        setShowSaved(true);
-    } catch (err) {
-        console.error("❌ Lỗi khi lưu:", err);
-        setSnack({ open: true, msg: "Lỗi khi lưu!" });
-    } finally {
-        setSaving(false);
-    }
-};
-
+    };
 
     useEffect(() => {
         const onKeyDown = (e) => {
