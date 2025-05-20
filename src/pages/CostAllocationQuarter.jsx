@@ -574,6 +574,15 @@ export default function CostAllocationQuarter() {
                     />
                 ),
             },
+             {
+                field: "cumQuarterOnly",
+                headerName: `Vượt ${quarter}`,
+                flex: 0.8,
+                minWidth: 100,
+                type: "number",
+                align: "right",
+                renderCell: (params) => formatNumber(params.value),
+            },
             {
                 field: "cumCurrent",
                 headerName: `Vượt lũy kế ${quarter}`,
@@ -584,15 +593,7 @@ export default function CostAllocationQuarter() {
                 renderCell: (params) => formatNumber(params.value),
                 cellClassName: (p) => (p.value < 0 ? "negative-cell" : ""),
             },
-            {
-                field: "cumQuarterOnly",
-                headerName: `Vượt ${quarter}`,
-                flex: 0.8,
-                minWidth: 100,
-                type: "number",
-                align: "right",
-                renderCell: (params) => formatNumber(params.value),
-            },
+           
         ];
         return [...base, ...projCols, ...other];
     }, [visibleProjects, options, year, quarter, getDC, isXs]);
