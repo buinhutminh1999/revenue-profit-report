@@ -33,7 +33,8 @@ const fixedRows = [
   { id: "fixed-nha-may", name: "Nhà Máy" },
   { id: "fixed-phong-cung-ung", name: "Phòng Cung Ứng" },
   { id: "fixed-luong-tang-ca", name: "LƯƠNG TĂNG CA" },
-  { id: "fixed-luong-sale", name: "Lương Sale" },
+  { id: "fixed-kh-dt", name: "LƯƠNG KH-ĐT" },
+
 ].map((r) => ({
   ...r,
   fixed: true,

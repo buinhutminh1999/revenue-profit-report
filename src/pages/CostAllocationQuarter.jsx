@@ -133,19 +133,28 @@ export default function CostAllocationQuarter() {
             const label = (draftRow.label || "").trim().toUpperCase();
             if (label === "DOANH THU") return draftRow;
 
-            const prevOver = draftRow.prevOver || prevOverMapById.get(draftRow.id) || {};
+            const prevOver =
+                draftRow.prevOver || prevOverMapById.get(draftRow.id) || {};
             const pctVal = parseFloat(draftRow.pct) || 0;
-            const carryVal = toNum(String(draftRow.carryOver).replace(",", "."));
+            const carryVal = toNum(
+                String(draftRow.carryOver).replace(",", ".")
+            );
 
             // Tính nhu cầu từng dự án
             const needCurr = {};
             visibleProjects.forEach((p) => {
                 const rev = toNum(projData[p.id]?.overallRevenue);
                 const dc = getDC(p.id, draftRow.label);
-                needCurr[p.id] = Math.max(0, Math.round((rev * pctVal) / 100 - dc));
+                needCurr[p.id] = Math.max(
+                    0,
+                    Math.round((rev * pctVal) / 100 - dc)
+                );
             });
 
-            const totalNeed = visibleProjects.reduce((sum, p) => sum + needCurr[p.id], 0);
+            const totalNeed = visibleProjects.reduce(
+                (sum, p) => sum + needCurr[p.id],
+                0
+            );
             const orig = mainRows.find((m) => m.id === draftRow.id);
             const allocated = toNum(draftRow.allocated ?? orig?.[valKey] ?? 0);
             const allocatedForCalc = allocated - carryVal;
@@ -156,7 +165,9 @@ export default function CostAllocationQuarter() {
             // Nếu scale, chỉ phân bổ theo quota
             if (doScale) {
                 visibleProjects.forEach((p) => {
-                    scaledNeed[p.id] = Math.round((needCurr[p.id] / totalNeed) * allocatedForCalc);
+                    scaledNeed[p.id] = Math.round(
+                        (needCurr[p.id] / totalNeed) * allocatedForCalc
+                    );
                 });
             }
 
@@ -174,13 +185,20 @@ export default function CostAllocationQuarter() {
                 draftRow[p.id] = scaledNeed[p.id] + (shouldAddPrev ? prev : 0);
             });
 
-            draftRow.prevIncluded = shouldAddPrev && Object.keys(prevOver).length > 0;
-            draftRow.usedRaw = visibleProjects.reduce((sum, p) => sum + needCurr[p.id], 0);
+            draftRow.prevIncluded =
+                shouldAddPrev && Object.keys(prevOver).length > 0;
+            draftRow.usedRaw = visibleProjects.reduce(
+                (sum, p) => sum + needCurr[p.id],
+                0
+            );
 
-            const used = visibleProjects.reduce((sum, p) => sum + (draftRow[p.id] || 0), 0);
+            const used = visibleProjects.reduce(
+                (sum, p) => sum + (draftRow[p.id] || 0),
+                0
+            );
             draftRow.used = used;
-            draftRow.cumQuarterOnly = used - allocatedForCalc;
-            draftRow.cumCurrent = draftRow.cumQuarterOnly + carryVal;
+            draftRow.cumQuarterOnly = used - allocated;
+            draftRow.cumCurrent = used - allocated + carryVal;
 
             return draftRow;
         },
@@ -281,8 +299,8 @@ export default function CostAllocationQuarter() {
                                 ? fixedTotals[typeFilter]
                                 : toNum(
                                       typeData.value ??
-                                      typeData.allocated ??
-                                      r.allocated
+                                          typeData.allocated ??
+                                          r.allocated
                                   ),
                         carryOver: toNum(typeData.carryOver ?? r.carryOver),
                         used: toNum(typeData.used ?? r.used),
@@ -347,9 +365,7 @@ export default function CostAllocationQuarter() {
                 seen[baseId] > 1 ? `${baseId}__${seen[baseId]}` : baseId;
             const typeData = r.byType?.[typeFilter] ?? {};
             const allocated = toNum(
-                typeData.value ??
-                typeData.allocated ??
-                getOriginalVal(uniqueId)
+                typeData.value ?? typeData.allocated ?? getOriginalVal(uniqueId)
             );
             const used = toNum(typeData.used ?? 0);
             const matched = extraRows.find((x) => x.id === uniqueId);
@@ -391,7 +407,11 @@ export default function CostAllocationQuarter() {
         return rows.map((r) => {
             const src = extraRows.find((e) => e.id === r.id);
             return src
-                ? { ...r, prevOver: src.prevOver, prevIncluded: src.prevIncluded }
+                ? {
+                      ...r,
+                      prevOver: src.prevOver,
+                      prevIncluded: src.prevIncluded,
+                  }
                 : r;
         });
     }, [rows, extraRows]);
@@ -402,25 +422,50 @@ export default function CostAllocationQuarter() {
     }, [rowsWithPrev, recomputeRow]);
 
     // ==== CHỈNH CHUẨN: Scale/Quota đều dùng allocatedForCalc ====
+    // đối với
     const rowsWithSplit = useMemo(() => {
-        return rowsInit.map((r) => {
-            if ((r.label || "").trim().toUpperCase() === "DOANH THU") {
-                return r;
-            }
-            const allocatedForCalc = r.allocated - (r.carryOver || 0);
-            if (r.used > allocatedForCalc) {
-                const total = r.used;
-                const newRow = { ...r };
-                visibleProjects.forEach((p) => {
-                    newRow[p.id] = Math.round((r[p.id] / total) * allocatedForCalc);
-                });
-                newRow.cumQuarterOnly = total - allocatedForCalc;
-                newRow.cumCurrent = newRow.cumQuarterOnly + (r.carryOver || 0);
-                return newRow;
-            }
+    return rowsInit.map((r) => {
+        if ((r.label || "").trim().toUpperCase() === "DOANH THU") {
             return r;
-        });
-    }, [rowsInit, visibleProjects, dirtyCells]);
+        }
+        // Chuẩn hóa quota thực tế của quý này:
+        const carryForCalc = r.carryOver > 0 ? r.carryOver : 0;
+        const allocatedForCalc = r.allocated + carryForCalc;
+
+        let usedAfterScale = 0;
+        let newRow = { ...r };
+
+        let isScaled = false;
+
+        if (r.used > allocatedForCalc) {
+            isScaled = true;
+            const total = r.used;
+            visibleProjects.forEach((p) => {
+                newRow[p.id] = Math.round(
+                    (r[p.id] / total) * allocatedForCalc
+                );
+            });
+            usedAfterScale = visibleProjects.reduce(
+                (sum, p) => sum + (newRow[p.id] || 0),
+                0
+            );
+        } else {
+            visibleProjects.forEach((p) => {
+                newRow[p.id] = r[p.id] || 0;
+            });
+            usedAfterScale = r.used;
+        }
+
+        newRow.used = usedAfterScale;
+
+        // CHUẨN hóa lại cumQuarterOnly và cumCurrent:
+        newRow.cumQuarterOnly = usedAfterScale - allocatedForCalc;
+        r.cumCurrent = usedAfterScale - allocatedForCalc; // nếu muốn đồng bộ logic (tùy bạn, có thể để lại như r.cumCurrent cũng được)
+
+        return newRow;
+    });
+}, [rowsInit, visibleProjects, dirtyCells]);
+
 
     const columnVisibilityModel = useMemo(() => {
         if (!isXs) return {};
@@ -477,7 +522,9 @@ export default function CostAllocationQuarter() {
                 field: "allocated",
                 headerName: `Phân bổ ${quarter}.${year}`,
                 renderHeader: () => (
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
                         <Typography variant="body2">
                             {`Phân bổ ${quarter}.${year}`}
                         </Typography>
@@ -495,7 +542,9 @@ export default function CostAllocationQuarter() {
             },
             {
                 field: "carryOver",
-                headerName: `Vượt lũy kế ${getPrevQuarter(year, quarter).quarter}`,
+                headerName: `Vượt lũy kế ${
+                    getPrevQuarter(year, quarter).quarter
+                }`,
                 flex: 0.8,
                 minWidth: 120,
                 editable: (p) => !isFixed(p.id),
@@ -582,7 +631,9 @@ export default function CostAllocationQuarter() {
             // LẤY DỮ LIỆU GỐC TRONG FIRESTORE ĐỂ GIỮ LẠI byType các loại cũ
             const docRef = doc(db, COL_QUARTER, `${year}_${quarter}`);
             const snapshot = await getDoc(docRef);
-            const prevMainRows = snapshot.exists() ? snapshot.data().mainRows || [] : [];
+            const prevMainRows = snapshot.exists()
+                ? snapshot.data().mainRows || []
+                : [];
 
             const dataToSave = [];
 
@@ -609,7 +660,7 @@ export default function CostAllocationQuarter() {
                 }
 
                 // --- LẤY byType cũ từ Firestore ---
-                const old = prevMainRows.find(x => x.id === baseId);
+                const old = prevMainRows.find((x) => x.id === baseId);
                 const oldByType = old?.byType || {};
 
                 // --- Dữ liệu của type hiện tại ---
@@ -648,11 +699,16 @@ export default function CostAllocationQuarter() {
             );
 
             // --- Lưu sang quý sau (chỉ cần update phần byType[typeFilter] quý sau thôi) ---
-            const { year: nextY, quarter: nextQ } = getNextQuarter(year, quarter);
+            const { year: nextY, quarter: nextQ } = getNextQuarter(
+                year,
+                quarter
+            );
             const nextRef = doc(db, COL_QUARTER, `${nextY}_${nextQ}`);
             const nextSnap = await getDoc(nextRef);
             const nextData = nextSnap.exists() ? nextSnap.data() : {};
-            const nextRows = Array.isArray(nextData.mainRows) ? [...nextData.mainRows] : [];
+            const nextRows = Array.isArray(nextData.mainRows)
+                ? [...nextData.mainRows]
+                : [];
 
             for (const r of rowsInit) {
                 const baseId = r.id.split("__")[0];
@@ -672,17 +728,29 @@ export default function CostAllocationQuarter() {
                 const carryNext = r.cumCurrent ?? 0;
 
                 // --- GHÉP GIỮ LẠI byType CŨ quý sau ---
-                const oldNext = nextRows.find(x => x.id === baseId);
+                const oldNext = nextRows.find((x) => x.id === baseId);
                 const oldByTypeNext = oldNext?.byType || {};
 
                 const idx = nextRows.findIndex((x) => x.id === baseId);
                 if (idx >= 0) {
-                    nextRows[idx].byType = { ...oldByTypeNext, [typeFilter]: { overrun: fullNeed, carryOver: carryNext } };
+                    nextRows[idx].byType = {
+                        ...oldByTypeNext,
+                        [typeFilter]: {
+                            overrun: fullNeed,
+                            carryOver: carryNext,
+                        },
+                    };
                 } else {
                     nextRows.push({
                         id: baseId,
                         label: r.label,
-                        byType: { ...oldByTypeNext, [typeFilter]: { overrun: fullNeed, carryOver: carryNext } },
+                        byType: {
+                            ...oldByTypeNext,
+                            [typeFilter]: {
+                                overrun: fullNeed,
+                                carryOver: carryNext,
+                            },
+                        },
                     });
                 }
             }
@@ -706,26 +774,29 @@ export default function CostAllocationQuarter() {
                 );
                 // Lấy items hiện có
                 const projectQuarterSnap = await getDoc(projectQuarterRef);
-                const projectQuarterData = projectQuarterSnap.exists() ? projectQuarterSnap.data() : {};
-                const items = Array.isArray(projectQuarterData.items) ? [...projectQuarterData.items] : [];
+                const projectQuarterData = projectQuarterSnap.exists()
+                    ? projectQuarterSnap.data()
+                    : {};
+                const items = Array.isArray(projectQuarterData.items)
+                    ? [...projectQuarterData.items]
+                    : [];
 
                 // Cập nhật từng item theo id hoặc description
                 for (const r of rowsInit) {
                     const lbl = (r.label || "").trim().toUpperCase();
                     if (lbl === "DOANH THU" || lbl === "TỔNG CHI PHÍ") continue;
                     const itemIdx = items.findIndex(
-                        item => item.id === r.id || (item.description && item.description.trim() === r.label.trim())
+                        (item) =>
+                            item.id === r.id ||
+                            (item.description &&
+                                item.description.trim() === r.label.trim())
                     );
                     if (itemIdx >= 0) {
                         items[itemIdx].allocated = String(r[p.id] ?? 0);
                     }
                 }
                 // Ghi lại
-                await setDoc(
-                    projectQuarterRef,
-                    { items },
-                    { merge: true }
-                );
+                await setDoc(projectQuarterRef, { items }, { merge: true });
             }
 
             setSnack({ open: true, msg: "Đã lưu & cập nhật phân bổ dự án 🎉" });
