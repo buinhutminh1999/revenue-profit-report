@@ -197,7 +197,13 @@ export default function CostAllocationQuarter() {
                 0
             );
             draftRow.used = used;
-            draftRow.cumQuarterOnly = used - allocated;
+            if (Math.abs(used - allocatedForCalc) < 2) {
+                // Nếu đã scale xong, tổng used = quota thực tế (sai số nhỏ <=1 do round)
+                draftRow.cumQuarterOnly = 0;
+            } else {
+                draftRow.cumQuarterOnly = used - allocated;
+            }
+
             draftRow.cumCurrent = used - allocated + carryVal;
 
             return draftRow;
@@ -422,50 +428,27 @@ export default function CostAllocationQuarter() {
     }, [rowsWithPrev, recomputeRow]);
 
     // ==== CHỈNH CHUẨN: Scale/Quota đều dùng allocatedForCalc ====
-    // đối với
     const rowsWithSplit = useMemo(() => {
-    return rowsInit.map((r) => {
-        if ((r.label || "").trim().toUpperCase() === "DOANH THU") {
+        return rowsInit.map((r) => {
+            if ((r.label || "").trim().toUpperCase() === "DOANH THU") {
+                return r;
+            }
+            const allocatedForCalc = r.allocated - (r.carryOver || 0);
+            if (r.used > allocatedForCalc) {
+                const total = r.used;
+                const newRow = { ...r };
+                visibleProjects.forEach((p) => {
+                    newRow[p.id] = Math.round(
+                        (r[p.id] / total) * allocatedForCalc
+                    );
+                });
+                newRow.cumQuarterOnly = total - allocatedForCalc;
+                newRow.cumCurrent = newRow.cumQuarterOnly + (r.carryOver || 0);
+                return newRow;
+            }
             return r;
-        }
-        // Chuẩn hóa quota thực tế của quý này:
-        const carryForCalc = r.carryOver > 0 ? r.carryOver : 0;
-        const allocatedForCalc = r.allocated + carryForCalc;
-
-        let usedAfterScale = 0;
-        let newRow = { ...r };
-
-        let isScaled = false;
-
-        if (r.used > allocatedForCalc) {
-            isScaled = true;
-            const total = r.used;
-            visibleProjects.forEach((p) => {
-                newRow[p.id] = Math.round(
-                    (r[p.id] / total) * allocatedForCalc
-                );
-            });
-            usedAfterScale = visibleProjects.reduce(
-                (sum, p) => sum + (newRow[p.id] || 0),
-                0
-            );
-        } else {
-            visibleProjects.forEach((p) => {
-                newRow[p.id] = r[p.id] || 0;
-            });
-            usedAfterScale = r.used;
-        }
-
-        newRow.used = usedAfterScale;
-
-        // CHUẨN hóa lại cumQuarterOnly và cumCurrent:
-        newRow.cumQuarterOnly = usedAfterScale - allocatedForCalc;
-        r.cumCurrent = usedAfterScale - allocatedForCalc; // nếu muốn đồng bộ logic (tùy bạn, có thể để lại như r.cumCurrent cũng được)
-
-        return newRow;
-    });
-}, [rowsInit, visibleProjects, dirtyCells]);
-
+        });
+    }, [rowsInit, visibleProjects, dirtyCells]);
 
     const columnVisibilityModel = useMemo(() => {
         if (!isXs) return {};
@@ -574,7 +557,8 @@ export default function CostAllocationQuarter() {
                     />
                 ),
             },
-             {
+
+            {
                 field: "cumQuarterOnly",
                 headerName: `Vượt ${quarter}`,
                 flex: 0.8,
@@ -593,7 +577,6 @@ export default function CostAllocationQuarter() {
                 renderCell: (params) => formatNumber(params.value),
                 cellClassName: (p) => (p.value < 0 ? "negative-cell" : ""),
             },
-           
         ];
         return [...base, ...projCols, ...other];
     }, [visibleProjects, options, year, quarter, getDC, isXs]);

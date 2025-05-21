@@ -141,6 +141,8 @@ export default function Home() {
               { icon: <AssessmentIcon sx={iconSX} />, text: "Quản Lý - CP", to: "/allocations" },
               { icon: <AssessmentIcon sx={iconSX} />, text: "Chi Phí Theo Quý", to: "/cost-allocation-quarter" },
               { icon: <CategoryIcon sx={iconSX} />, text: "Quản Trị Khoản Mục", to: "/categories" },
+              { icon: <AssessmentIcon sx={iconSX} />, text: "Báo Cáo Lợi Nhuận", to: "/profit-report-quarter" }, // ✅ dòng thêm mới
+
             ].map((c) => (
               <Grid item xs={12} sm={6} md={4} key={c.to}>
                 <CardActionArea component={Link} to={c.to} sx={cardSX}>

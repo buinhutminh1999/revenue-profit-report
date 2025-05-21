@@ -349,6 +349,74 @@ export default function ProjectDetails() {
             setLoading(false);
         }
     };
+const handleSaveNextQuarter = async () => {
+    if (!validateData(costItems)) {
+        setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
+        return;
+    }
+
+    setLoading(true);
+    try {
+        const quarters = ["Q1", "Q2", "Q3", "Q4"];
+        const currIndex = quarters.indexOf(quarter);
+        const isLastQuarter = currIndex === 3;
+        const nextQuarter = isLastQuarter ? "Q1" : quarters[currIndex + 1];
+        const nextYear = isLastQuarter ? String(Number(year) + 1) : year;
+
+        // Lưu dữ liệu hiện tại
+        await setDoc(
+            doc(db, "projects", id, "years", year, "quarters", quarter),
+            {
+                items: costItems,
+                overallRevenue: Number(overallRevenue),
+                updated_at: new Date().toISOString(),
+            }
+        );
+
+        // Logic chuyển số dư sang quý sau
+        const isOddQuarter = (currIndex % 2 === 0); // Q1/Q3 là lẻ, Q2/Q4 là chẵn
+
+        const nextItems = costItems.map((item) => {
+            if (isOddQuarter) {
+                // Q1/Q3: chuyển inventory -> tonKhoUngKH, debt -> noPhaiTraCK
+                 return {
+                    ...defaultRow,
+                    id: generateUniqueId(),
+                    project: item.project,
+                    description: item.description,
+                    inventory: item.tonKhoUngKH || "0", // tonKhoUngKH hiện tại -> inventory quý sau
+                    debt: item.noPhaiTraCK || "0",      // noPhaiTraCK hiện tại -> debt quý sau
+                };
+            
+            } else {
+                   return {
+                    ...defaultRow,
+                    id: generateUniqueId(),
+                    project: item.project,
+                    description: item.description,
+                    tonKhoUngKH: item.inventory || "0", // inventory hiện tại -> tonKhoUngKH quý sau
+                    noPhaiTraCK: item.debt || "0",      // debt hiện tại -> noPhaiTraCK quý sau
+                };
+            }
+        });
+
+        await setDoc(
+            doc(db, "projects", id, "years", nextYear, "quarters", nextQuarter),
+            {
+                items: nextItems,
+                overallRevenue: 0,
+                created_at: new Date().toISOString(),
+            }
+        );
+
+        setSnackOpen(true);
+        alert(`Đã lưu và tạo dữ liệu cho ${nextQuarter} / ${nextYear}`);
+    } catch (err) {
+        setError("Lỗi khi lưu & chuyển quý: " + err.message);
+    } finally {
+        setLoading(false);
+    }
+};
 
     const handleAddRow = useCallback(
         () =>
@@ -424,13 +492,15 @@ export default function ProjectDetails() {
                 }
                 onExport={(items) => exportToExcel(items)}
                 onSave={handleSave}
+                  onSaveNextQuarter={handleSaveNextQuarter}
+
                 onToggleColumns={handleOpenColumnsDialog}
                 onBack={() => navigate(-1)}
                 costItems={costItems}
                 sx={{ mb: 2 }}
             />
 
-            <Box sx={{ px: { xs: 2, md: 4 }, pb: 4 }}>
+            <Box x={{ width: '100%', overflowX: 'auto' }}>
                 <Filters
                     search={search}
                     onSearchChange={(e) => setSearch(e.target.value)}

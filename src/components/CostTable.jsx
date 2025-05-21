@@ -1,4 +1,3 @@
-// src/components/CostTable.jsx
 import React from "react";
 import {
     TableContainer,
@@ -9,6 +8,7 @@ import {
     TableCell,
     TableBody,
     Skeleton,
+    Box,
 } from "@mui/material";
 import EditableRow from "./EditableRow";
 import GroupHeader from "./GroupHeader";
@@ -28,89 +28,76 @@ export default function CostTable({
     handleRemoveRow,
     overallRevenue,
     projectTotalAmount,
-    categories
+    categories,
 }) {
     return (
-        <TableContainer
-            component={Paper}
-            sx={{
-                overflowX: "auto",
-                maxHeight: 600,
-                borderRadius: 2,
-                border: "1px solid #ddd",
-                scrollBehavior: "smooth",
-                "&::-webkit-scrollbar": { width: "8px", height: "8px" },
-                "&::-webkit-scrollbar-track": {
-                    background: "#f1f1f1",
-                    borderRadius: "4px",
-                },
-                "&::-webkit-scrollbar-thumb": {
-                    background: "#c1c1c1",
-                    borderRadius: "4px",
-                },
-                scrollbarWidth: "thin",
-                scrollbarColor: "#c1c1c1 #f1f1f1",
-            }}
-        >
-            <Table
-                size="small"
-                stickyHeader
+        <Box sx={{ width: "100%", overflowX: "auto" }}>
+            <TableContainer
+                component={Paper}
                 sx={{
-                    width: "100%",
-                    "& thead th": {
-                        backgroundColor: "#f1f1f1",
-                        borderBottom: "1px solid #ccc",
+                    minWidth: 1000,
+                    borderRadius: 2,
+                    border: "1px solid #e0e0e0",
+                    maxHeight: 600,
+                    bgcolor: "#fff",
+                    "&::-webkit-scrollbar": { height: "8px" },
+                    "&::-webkit-scrollbar-thumb": {
+                        backgroundColor: "#c1c1c1",
+                        borderRadius: "4px",
                     },
+                    scrollbarColor: "#c1c1c1 #f1f1f1",
+                    scrollbarWidth: "thin",
                 }}
             >
-                <TableHead>
-                    <TableRow>
-                        {columnsAll.map(
-                            (col) =>
-                                columnsVisibility[col.key] && (
-                                    <TableCell
-                                        key={col.key}
-                                        align="center"
-                                        sx={{ fontWeight: "bold" }}
-                                    >
-                                        {col.label}
+                <Table
+                    size="small"
+                    stickyHeader
+                    sx={{
+                        width: "100%",
+                        "& thead th": {
+                            backgroundColor: "#f9f9f9",
+                            borderBottom: "1px solid #ddd",
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                            textAlign: "center",
+                            fontSize: "0.85rem",
+                        },
+                    }}
+                >
+                    <TableHead>
+                        <TableRow>
+                            {columnsAll.map(
+                                (col) =>
+                                    columnsVisibility[col.key] && (
+                                        <TableCell key={col.key}>
+                                            {col.label}
+                                        </TableCell>
+                                    )
+                            )}
+                            <TableCell>Xoá</TableCell>
+                        </TableRow>
+                    </TableHead>
+
+                    <TableBody>
+                        {loading ? (
+                            Array.from({ length: 5 }).map((_, i) => (
+                                <TableRow key={`skeleton-${i}`}>
+                                    {columnsAll.map(
+                                        (col, j) =>
+                                            columnsVisibility[col.key] && (
+                                                <TableCell key={j} align="center">
+                                                    <Skeleton variant="text" />
+                                                </TableCell>
+                                            )
+                                    )}
+                                    <TableCell align="center">
+                                        <Skeleton variant="text" />
                                     </TableCell>
-                                )
-                        )}
-                        <TableCell align="center" sx={{ fontWeight: "bold" }}>
-                            Xoá
-                        </TableCell>
-                    </TableRow>
-                </TableHead>
-                {loading ? (
-                    <TableBody>
-                        {Array.from({ length: 5 }).map((_, i) => (
-                            <TableRow key={`skeleton-${i}`}>
-                                {columnsAll.map(
-                                    (col, j) =>
-                                        columnsVisibility[col.key] && (
-                                            <TableCell
-                                                key={`skeleton-${j}`}
-                                                align="center"
-                                            >
-                                                <Skeleton variant="text" />
-                                            </TableCell>
-                                        )
-                                )}
-                                <TableCell align="center">
-                                    <Skeleton variant="text" />
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                ) : (
-                    <TableBody>
-                        {filtered.length === 0 ? (
+                                </TableRow>
+                            ))
+                        ) : filtered.length === 0 ? (
                             <TableRow>
-                                <TableCell
-                                    colSpan={columnsAll.length + 1}
-                                    align="center"
-                                >
+                                <TableCell colSpan={columnsAll.length + 1} align="center">
                                     Không có dữ liệu
                                 </TableCell>
                             </TableRow>
@@ -122,77 +109,47 @@ export default function CostTable({
                                             projectName={projectName}
                                             colSpan={columnsAll.length + 1}
                                         />
+
                                         {groupItems.map((row) => (
                                             <EditableRow
                                                 key={row.id}
                                                 row={row}
                                                 columnsAll={columnsAll}
-                                                columnsVisibility={
-                                                    columnsVisibility
-                                                }
-                                                handleChangeField={
-                                                    handleChangeField
-                                                }
-                                                handleRemoveRow={
-                                                    handleRemoveRow
-                                                }
+                                                columnsVisibility={columnsVisibility}
+                                                handleChangeField={handleChangeField}
+                                                handleRemoveRow={handleRemoveRow}
                                                 editingCell={editingCell}
                                                 setEditingCell={setEditingCell}
                                                 overallRevenue={overallRevenue}
-                                                projectTotalAmount={
-                                                    projectTotalAmount
-                                                }
+                                                projectTotalAmount={projectTotalAmount}
                                                 categories={categories}
                                             />
                                         ))}
-                                        <TableRow
-                                            sx={{
-                                                backgroundColor: "#f5f5f5",
-                                            }}
-                                        >
+
+                                        <TableRow sx={{ bgcolor: "#fafafa" }}>
                                             <TableCell
                                                 align="right"
                                                 colSpan={2}
-                                                sx={{
-                                                    fontWeight: "bold",
-                                                }}
+                                                sx={{ fontWeight: 600 }}
                                             >
                                                 Tổng {projectName}
                                             </TableCell>
+
                                             {columnsAll.slice(2).map((col) => {
-                                                if (!columnsVisibility[col.key])
-                                                    return (
-                                                        <TableCell
-                                                            key={col.key}
-                                                            sx={{
-                                                                p: 1,
-                                                            }}
-                                                        />
-                                                    );
+                                                if (!columnsVisibility[col.key]) {
+                                                    return <TableCell key={col.key} />;
+                                                }
                                                 if (
-                                                    getHiddenColumnsForProject(
-                                                        projectName
-                                                    ).includes(col.key)
-                                                )
-                                                    return (
-                                                        <TableCell
-                                                            key={col.key}
-                                                            sx={{
-                                                                p: 1,
-                                                            }}
-                                                        />
-                                                    );
-                                                const val = sumColumnOfGroup(
-                                                    groupItems,
-                                                    col.key
-                                                );
+                                                    getHiddenColumnsForProject(projectName).includes(col.key)
+                                                ) {
+                                                    return <TableCell key={col.key} />;
+                                                }
+                                                const val = sumColumnOfGroup(groupItems, col.key);
                                                 return (
                                                     <TableCell
                                                         key={col.key}
                                                         align="center"
-                                                        sx={{
-                                                            fontWeight: "bold",
-                                                        }}
+                                                        sx={{ fontWeight: 600 }}
                                                     >
                                                         {formatNumber(val)}
                                                     </TableCell>
@@ -205,8 +162,8 @@ export default function CostTable({
                             )
                         )}
                     </TableBody>
-                )}
-            </Table>
-        </TableContainer>
+                </Table>
+            </TableContainer>
+        </Box>
     );
 }

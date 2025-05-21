@@ -17,6 +17,7 @@ import CategoryConfig from './pages/CategoryConfig';
 import NotFound from './components/NotFound';
 import LoginPage from './components/LoginPage.jsx';   // <-- page mới
 import ProjectsList from './pages/ProjectsList.jsx';
+import ProfitReportQuarter from './pages/ProfitReportQuarter.jsx';
 
 // auth
 const auth = getAuth();
@@ -82,6 +83,8 @@ function LayoutRoutes() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Home />} />
+          <Route path="profit-report-quarter" element={<ProfitReportQuarter />} />
+
           <Route path="construction-plan" element={<ConstructionPlan />} />
           <Route path="project-details/:id" element={<ProjectDetails />} />
           <Route path="allocations" element={<CostAllocation />} />
