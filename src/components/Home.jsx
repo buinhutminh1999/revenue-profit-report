@@ -119,7 +119,6 @@ export default function Home() {
           <Grid container spacing={4} justifyContent="center">
             {[
               { icon: <ConstructionIcon sx={iconSX} />, text: "Kế Hoạch Thi Công", to: "/construction-plan" },
-              { icon: <DescriptionIcon sx={iconSX} />, text: "Chi Tiết Công Trình", to: "/project-details/123" },
               { icon: <BuildCircleIcon sx={iconSX} />, text: "Quản Lý Công Trình", to: "/project-manager" },
             ].map((c) => (
               <Grid item xs={12} sm={6} md={4} key={c.to}>

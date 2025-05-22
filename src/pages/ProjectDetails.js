@@ -151,14 +151,7 @@ export default function ProjectDetails() {
             },
             { key: "carryoverEnd", label: "Cuối Kỳ", editable: false },
             { key: "tonKhoUngKH", label: "Tồn Kho/Ứng KH", editable: true },
-            {
-                key: "noPhaiTraCK",
-                label: "Nợ Phải Trả CK",
-                editable: (row) => {
-                    const proj = (row.project || "").toUpperCase();
-                    return proj.includes("-VT") || proj.includes("-NC");
-                },
-            },
+            {key: "noPhaiTraCK",label: "Nợ Phải Trả CK",editable: false,},
             { key: "totalCost", label: "Tổng Chi Phí", editable: false },
             { key: "revenue", label: "Doanh Thu", editable: true },
             { key: "hskh", label: "HSKH", editable: true },
@@ -248,17 +241,20 @@ export default function ProjectDetails() {
                     : 0;
                 setOverallRevenue(rev);
 
-                const items = docSnap.exists()
-                    ? docSnap.data().items || []
-                    : [];
-                items.forEach((item) => {
-                    item.id = item.id || generateUniqueId();
-                    item.project = (item.project || "").trim().toUpperCase();
-                    item.description = (item.description || "").trim();
-                    calcAllFields(item, {
+                const items = (
+                    docSnap.exists() ? docSnap.data().items || [] : []
+                ).map((item) => {
+                    const newItem = { ...item };
+                    newItem.id = newItem.id || generateUniqueId();
+                    newItem.project = (newItem.project || "")
+                        .trim()
+                        .toUpperCase();
+                    newItem.description = (newItem.description || "").trim();
+                    calcAllFields(newItem, {
                         overallRevenue: rev,
                         projectTotalAmount,
                     });
+                    return newItem;
                 });
                 setCostItems(items);
             } catch (err) {
@@ -300,29 +296,35 @@ export default function ProjectDetails() {
 
     // Cập nhật trường dựa trên id (không sử dụng index)
     const handleChangeField = useCallback(
-        (id, field, val) => {
-            setCostItems((prev) =>
-                prev.map((row) => {
-                    if (row.id === id) {
-                        const newVal = ["project", "description"].includes(
-                            field
-                        )
-                            ? val
-                            : parseNumber(val.trim() === "" ? "0" : val);
-                        const newRow = { ...row, [field]: newVal };
-                        calcAllFields(newRow, {
-                            isUserEditingNoPhaiTraCK: field === "noPhaiTraCK",
-                            overallRevenue,
-                            projectTotalAmount,
-                        });
-                        return newRow;
+    (id, field, val) => {
+        setCostItems((prev) =>
+            prev.map((row) => {
+                if (row.id === id) {
+                    // Sửa chỗ này:
+                    // Nếu là số thì vẫn parseNumber, riêng noPhaiTraCK ép về chuỗi
+                    let newVal;
+                    if (field === "project" || field === "description") {
+                        newVal = val;
+                    } else if (field === "noPhaiTraCK") {
+                        newVal = String(val); // ép về chuỗi
+                    } else {
+                        newVal = parseNumber(val.trim() === "" ? "0" : val);
                     }
-                    return row;
-                })
-            );
-        },
-        [overallRevenue, projectTotalAmount]
-    );
+                    const newRow = { ...row, [field]: newVal };
+                    calcAllFields(newRow, {
+                        isUserEditingNoPhaiTraCK: field === "noPhaiTraCK",
+                        overallRevenue,
+                        projectTotalAmount,
+                    });
+                    return newRow;
+                }
+                return row;
+            })
+        );
+    },
+    [overallRevenue, projectTotalAmount]
+);
+
 
     const handleRemoveRow = useCallback(
         (id) => setCostItems((prev) => prev.filter((row) => row.id !== id)),
@@ -381,13 +383,12 @@ export default function ProjectDetails() {
             const nextItems = costItems.map((item) => ({
                 ...defaultRow,
                 id: generateUniqueId(),
+                hskh: item.hskh,
                 project: item.project,
                 description: item.description,
                 inventory: item.tonKhoUngKH || "0", // inventory quý sau = tonKhoUngKH quý này
                 debt: item.noPhaiTraCK || "0", // debt quý sau = noPhaiTraCK quý này
-                tonKhoUngKH: 0,
-                noPhaiTraCK: 0,
-                // Các trường khác giữ mặc định hoặc reset tùy ý
+                carryover: item.carryoverEnd || '0'
             }));
 
             await setDoc(
