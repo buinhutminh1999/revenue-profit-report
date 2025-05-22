@@ -2,18 +2,21 @@
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import {
   AppBar, Toolbar, Box, IconButton, InputBase, Tooltip, Container, alpha,
-  Modal, Slide, Menu, MenuItem, Divider, useTheme
+  Modal, Slide, Menu, MenuItem, Divider, useTheme, Avatar, Typography, Drawer, List, ListItem, ListItemText, ListItemIcon
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
-import AccountCircle from '@mui/icons-material/AccountCircle';
+import AppsIcon from '@mui/icons-material/Apps';
+import SettingsIcon from '@mui/icons-material/Settings';
+import LogoutIcon from '@mui/icons-material/Logout';
 import { ColorModeContext } from '../ThemeContext';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { useAuth } from '../App';
+import { FolderOpen, BarChart2, LayoutDashboard } from 'lucide-react';
 
-/* ---------- styled ---------- */
 const Logo = styled('img')(({ theme }) => ({
   height: theme.spacing(6),
   cursor: 'pointer',
@@ -42,54 +45,53 @@ const StyledInput = styled(InputBase)(({ theme }) => ({
 export default function Header() {
   const theme = useTheme();
   const colorMode = useContext(ColorModeContext);
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const [searchOpen,  setSearchOpen]  = useState(false);
-  const [mobileSearch,setMobileSearch]= useState(false);
-  const [anchorUser,  setAnchorUser]  = useState(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileSearch, setMobileSearch] = useState(false);
+  const [anchorUser, setAnchorUser] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const searchRef = useRef(null);
 
-  /* desktop: focus input */
   useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
 
-  /* Ctrl/Cmd + K mở search */
   useHotkeys('ctrl+k, cmd+k', (e) => {
     e.preventDefault();
     window.innerWidth < 600 ? setMobileSearch(true) : setSearchOpen(o => !o);
   });
 
-  /* handlers */
-  const openUser   = (e) => setAnchorUser(e.currentTarget);
-  const closeUser  = () => setAnchorUser(null);
+  const openUser = (e) => setAnchorUser(e.currentTarget);
+  const closeUser = () => setAnchorUser(null);
   const toggleDark = () => colorMode.toggleColorMode();
+
+  const appModules = [
+    { icon: <LayoutDashboard size={20} />, text: 'Trang chính', to: '/' },
+    { icon: <FolderOpen size={20} />, text: 'Công trình', to: '/project-manager' },
+    { icon: <BarChart2 size={20} />, text: 'Báo cáo', to: '/profit-report-quarter' },
+  ];
 
   return (
     <>
       <AppBar
         position="static"
         elevation={4}
-        sx={{
-          backdropFilter: 'blur(6px)',
-          backgroundColor: alpha(theme.palette.primary.main, 0.78),
-        }}
+        sx={{ backdropFilter: 'blur(6px)', backgroundColor: alpha(theme.palette.primary.main, 0.85) }}
       >
         <Container maxWidth="lg">
           <Toolbar disableGutters sx={{ justifyContent: 'space-between', py: 1 }}>
-            {/* Logo (click -> home) */}
             <Link to="/">
               <Tooltip title="Trang chủ">
                 <Logo src="https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png" alt="Logo" />
               </Tooltip>
             </Link>
 
-            {/* flexible spacer */}
             <Box sx={{ flexGrow: 1 }} />
 
-            {/* Search + toggles */}
-            <Box sx={{ display:'flex', alignItems:'center' }}>
-              {/* desktop search */}
-              <SearchWrapper sx={{ display:{ xs:'none', sm:'flex' } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <SearchWrapper sx={{ display: { xs: 'none', sm: 'flex' } }}>
                 <Tooltip title="Tìm kiếm (Ctrl/Cmd + K)">
-                  <IconButton color="inherit" onClick={() => setSearchOpen(o=>!o)}>
+                  <IconButton color="inherit" onClick={() => setSearchOpen(o => !o)}>
                     <SearchIcon />
                   </IconButton>
                 </Tooltip>
@@ -100,47 +102,83 @@ export default function Header() {
                 />
               </SearchWrapper>
 
-              {/* mobile search icon */}
-              <IconButton
-                sx={{ display:{ xs:'inline-flex', sm:'none' } }}
-                color="inherit"
-                onClick={() => setMobileSearch(true)}
-              >
+              <IconButton sx={{ display: { xs: 'inline-flex', sm: 'none' } }} color="inherit" onClick={() => setMobileSearch(true)}>
                 <SearchIcon />
               </IconButton>
 
-              {/* dark-mode */}
-              <Tooltip title="Chế độ sáng/tối">
-                <IconButton color="inherit" sx={{ ml:1 }} onClick={toggleDark}>
-                  {theme.palette.mode==='dark' ? <Brightness7Icon/> : <Brightness4Icon/>}
+              <Tooltip title="Chuyển chế độ sáng/tối">
+                <IconButton color="inherit" onClick={toggleDark}>
+                  {theme.palette.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
                 </IconButton>
               </Tooltip>
 
-              {/* user menu */}
-              <Tooltip title="Tài khoản">
-                <IconButton color="inherit" onClick={openUser}><AccountCircle/></IconButton>
+              <Tooltip title="Mở menu ứng dụng">
+                <IconButton color="inherit" onClick={() => setDrawerOpen(true)}>
+                  <AppsIcon />
+                </IconButton>
               </Tooltip>
-              <Menu anchorEl={anchorUser} open={Boolean(anchorUser)} onClose={closeUser}>
-                <MenuItem onClick={closeUser}>Cài đặt</MenuItem>
-                <Divider/>
-                <MenuItem onClick={closeUser}>Đăng xuất</MenuItem>
+
+              <Tooltip title="Tài khoản">
+                <IconButton color="inherit" onClick={openUser}>
+                  <Avatar sx={{ width: 32, height: 32 }} src={user?.photoURL} alt={user?.displayName} />
+                </IconButton>
+              </Tooltip>
+              <Menu
+                anchorEl={anchorUser}
+                open={Boolean(anchorUser)}
+                onClose={closeUser}
+                PaperProps={{
+                  sx: {
+                    backdropFilter: 'blur(8px)',
+                    backgroundColor: alpha(theme.palette.background.paper, 0.8),
+                    borderRadius: 2,
+                  },
+                }}
+              >
+                <MenuItem disabled>
+                  <Typography variant="body2">
+                    {user?.displayName || 'Người dùng'}
+                  </Typography>
+                </MenuItem>
+                <Divider />
+                <MenuItem onClick={() => { closeUser(); navigate('/settings'); }}>
+                  <SettingsIcon fontSize="small" sx={{ mr: 1 }} /> Cài đặt
+                </MenuItem>
+                <MenuItem onClick={() => { closeUser(); alert('Đăng xuất...'); }}>
+                  <LogoutIcon fontSize="small" sx={{ mr: 1 }} /> Đăng xuất
+                </MenuItem>
               </Menu>
             </Box>
           </Toolbar>
         </Container>
       </AppBar>
 
-      {/* Mobile search overlay */}
+      <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+        <Box sx={{ width: 260, pt: 2 }} role="presentation">
+          <Typography variant="subtitle1" fontWeight={600} textAlign="center" mb={2}>
+            Ứng dụng
+          </Typography>
+          <List>
+            {appModules.map((item) => (
+              <ListItem button key={item.text} onClick={() => { navigate(item.to); setDrawerOpen(false); }}>
+                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.text} />
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+      </Drawer>
+
       <Modal open={mobileSearch} onClose={() => setMobileSearch(false)}>
         <Slide direction="down" in={mobileSearch} mountOnEnter unmountOnExit>
           <Box sx={{
-            position:'fixed', top:0, left:0, right:0,
-            bgcolor:'background.paper', px:2, py:1.5, boxShadow:4,
-            display:'flex', alignItems:'center',
-            zIndex:(t)=>t.zIndex.modal+1
+            position: 'fixed', top: 0, left: 0, right: 0,
+            bgcolor: 'background.paper', px: 2, py: 1.5, boxShadow: 4,
+            display: 'flex', alignItems: 'center',
+            zIndex: (t) => t.zIndex.modal + 1
           }}>
-            <SearchIcon sx={{ mr:1 }}/>
-            <InputBase fullWidth placeholder="Tìm kiếm…" inputProps={{ 'aria-label':'search' }}/>
+            <SearchIcon sx={{ mr: 1 }} />
+            <InputBase fullWidth placeholder="Tìm kiếm…" inputProps={{ 'aria-label': 'search' }} />
           </Box>
         </Slide>
       </Modal>

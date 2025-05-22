@@ -48,6 +48,7 @@ export const defaultRow = {
 
 export const handleFileUpload = (
     e,
+    costItems,
     setCostItems,
     setLoading,
     overallRevenue,
@@ -56,36 +57,79 @@ export const handleFileUpload = (
     const file = e.target.files[0];
     if (!file) return;
     setLoading(true);
+
+    // CHỈ KHAI BÁO excelToField MỘT LẦN Ở ĐÂU!
+    const excelToField = {
+        "Tồn ĐK": "inventory",
+        "Nợ Phải Trả ĐK": "debt",
+        "Chi Phí Trực Tiếp": "directCost",
+        "Phân Bổ": "allocated",
+        "Chuyển Tiếp ĐK": "carryover",
+        "Trừ Quỹ": "carryoverMinus",
+        "Cuối Kỳ": "carryoverEnd",
+        "Tồn Kho/Ứng KH": "tonKhoUngKH",
+        "Nợ Phải Trả CK": "noPhaiTraCK",
+        "Tổng Chi Phí": "totalCost",
+        "Doanh Thu": "revenue",
+        "HSKH": "hskh"
+    };
+
     const reader = new FileReader();
     reader.onload = (evt) => {
         try {
-            const sheets = XLSX.read(evt.target.result, {
-                type: "array",
-            }).Sheets;
+            const sheets = XLSX.read(evt.target.result, { type: "array" }).Sheets;
             const firstSheet = sheets[Object.keys(sheets)[0]];
-            const data = XLSX.utils.sheet_to_json(firstSheet).map((row) => {
+            const dataFromFile = XLSX.utils.sheet_to_json(firstSheet);
+
+            // Tạo map key: "project-description" cho dữ liệu mới
+            const newDataMap = {};
+            for (const row of dataFromFile) {
+                const key = `${(row["Công Trình"] || "").trim().toUpperCase()}|||${(row["Khoản Mục Chi Phí"] || "").trim()}`;
+                newDataMap[key] = row;
+            }
+
+            // Merge từng trường, chỉ update trường nào có trong file Excel
+            const merged = costItems.map((oldRow) => {
+                const key = `${oldRow.project}|||${oldRow.description}`;
+                const excelRow = newDataMap[key];
+                if (!excelRow) return oldRow;
+
+                let newRow = { ...oldRow };
+                for (const excelKey in excelToField) {
+                    if (excelRow.hasOwnProperty(excelKey)) {
+                        newRow[excelToField[excelKey]] = String(excelRow[excelKey] ?? oldRow[excelToField[excelKey]]);
+                    }
+                }
+                calcAllFields(newRow, { overallRevenue, projectTotalAmount });
+                return newRow;
+            });
+
+            // Thêm mới những dòng có trong file mà chưa có trong costItems cũ
+            const added = dataFromFile.filter((row) => {
+                const key = `${(row["Công Trình"] || "").trim().toUpperCase()}|||${(row["Khoản Mục Chi Phí"] || "").trim()}`;
+                return !costItems.some(
+                    (oldRow) =>
+                        oldRow.project === (row["Công Trình"] || "").trim().toUpperCase() &&
+                        oldRow.description === (row["Khoản Mục Chi Phí"] || "").trim()
+                );
+            }).map((row) => {
                 const newItem = {
                     ...defaultRow,
-                    id: generateUniqueId(), // gán id mới khi import
+                    id: generateUniqueId(),
                     project: (row["Công Trình"] || "").trim().toUpperCase(),
                     description: (row["Khoản Mục Chi Phí"] || "").trim(),
-                    inventory: String(row["Tồn ĐK"] || "0").trim(),
-                    debt: String(row["Nợ Phải Trả ĐK"] || "0").trim(),
-                    directCost: String(row["Chi Phí Trực Tiếp"] || "0").trim(),
-                    allocated: String(row["Phân Bổ"] || "0").trim(),
-                    carryover: String(row["Chuyển Tiếp ĐK"] || "0").trim(),
-                    carryoverMinus: String(row["Trừ Quỹ"] || "0").trim(),
-                    carryoverEnd: String(row["Cuối Kỳ"] || "0").trim(),
-                    tonKhoUngKH: String(row["Tồn Kho/Ứng KH"] || "0").trim(),
-                    noPhaiTraCK: String(row["Nợ Phải Trả CK"] || "0").trim(),
-                    totalCost: String(row["Tổng Chi Phí"] || "0").trim(),
-                    revenue: String(row["Doanh Thu"] || "0").trim(),
-                    hskh: String(row["HSKH"] || "0").trim(),
                 };
+                // Chỉ set các field có value trong excel
+                for (const excelKey in excelToField) {
+                    if (row.hasOwnProperty(excelKey)) {
+                        newItem[excelToField[excelKey]] = String(row[excelKey]);
+                    }
+                }
                 calcAllFields(newItem, { overallRevenue, projectTotalAmount });
                 return newItem;
             });
-            setCostItems(data);
+
+            setCostItems([...merged, ...added]);
         } catch (err) {
             console.error(err);
         } finally {
@@ -94,6 +138,7 @@ export const handleFileUpload = (
     };
     reader.readAsArrayBuffer(file);
 };
+
 
 // ---------- Validation ----------
 const numericFields = [
@@ -483,6 +528,7 @@ export default function ProjectDetails() {
                 onFileUpload={(e) =>
                     handleFileUpload(
                         e,
+                        costItems,
                         setCostItems,
                         setLoading,
                         overallRevenue,
