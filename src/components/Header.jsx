@@ -1,4 +1,3 @@
-// src/components/ui/Header.jsx
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import {
   AppBar, Toolbar, Box, IconButton, InputBase, Tooltip, Container, alpha,
@@ -123,6 +122,7 @@ export default function Header() {
                   <Avatar sx={{ width: 32, height: 32 }} src={user?.photoURL} alt={user?.displayName} />
                 </IconButton>
               </Tooltip>
+
               <Menu
                 anchorEl={anchorUser}
                 open={Boolean(anchorUser)}
@@ -141,10 +141,20 @@ export default function Header() {
                   </Typography>
                 </MenuItem>
                 <Divider />
+                <MenuItem onClick={() => { closeUser(); navigate('/user'); }}>
+                  <Avatar sx={{ width: 20, height: 20, mr: 1 }} /> Hồ sơ cá nhân
+                </MenuItem>
                 <MenuItem onClick={() => { closeUser(); navigate('/settings'); }}>
                   <SettingsIcon fontSize="small" sx={{ mr: 1 }} /> Cài đặt
                 </MenuItem>
-                <MenuItem onClick={() => { closeUser(); alert('Đăng xuất...'); }}>
+                <MenuItem
+                  onClick={async () => {
+                    closeUser();
+                    const { signOut, getAuth } = await import('firebase/auth');
+                    await signOut(getAuth());
+                    navigate('/login');
+                  }}
+                >
                   <LogoutIcon fontSize="small" sx={{ mr: 1 }} /> Đăng xuất
                 </MenuItem>
               </Menu>

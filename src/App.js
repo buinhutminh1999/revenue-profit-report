@@ -1,4 +1,3 @@
-// ✅ App.js (tối ưu NProgress và định tuyến)
 import React, { useEffect, useState, createContext, useContext, Suspense } from 'react';
 import {
   BrowserRouter,
@@ -11,6 +10,9 @@ import {
 import NProgress from 'nprogress';
 import 'nprogress/nprogress.css';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import {
+  getFirestore, doc, getDoc, setDoc, serverTimestamp
+} from 'firebase/firestore';
 import {
   Box,
   CircularProgress,
@@ -33,17 +35,21 @@ import NotFound from './components/NotFound';
 import LoginPage from './components/LoginPage';
 import ProjectsList from './pages/ProjectsList';
 import ProfitReportQuarter from './pages/ProfitReportQuarter';
+import UserProfile from './pages/UserProfile';
+import RequireRole from './components/auth/RequireRole';
+import AdminUserManager from './components/AdminUserManager';
 
-// ✅ Cấu hình NProgress tối ưu
+const auth = getAuth();
+const db = getFirestore();
+
+const AuthContext = createContext(null);
+export const useAuth = () => useContext(AuthContext);
+
 NProgress.configure({
   showSpinner: false,
   trickleSpeed: 200,
   minimum: 0.08,
 });
-
-const auth = getAuth();
-const AuthContext = createContext(null);
-export const useAuth = () => useContext(AuthContext);
 
 function RouterProgressWrapper({ children }) {
   const navType = useNavigationType();
@@ -52,8 +58,7 @@ function RouterProgressWrapper({ children }) {
   useEffect(() => {
     const timer = setTimeout(() => {
       NProgress.start();
-    }, 100); // tránh nhấp nháy khi load quá nhanh
-
+    }, 100);
     return () => {
       clearTimeout(timer);
       NProgress.done();
@@ -64,12 +69,28 @@ function RouterProgressWrapper({ children }) {
 }
 
 export default function App() {
-  const [user, setUser] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        const ref = doc(db, "users", u.uid);
+        const snap = await getDoc(ref);
+
+        if (!snap.exists()) {
+          await setDoc(ref, {
+            displayName: u.email.split('@')[0],
+            role: 'user',
+            createdAt: serverTimestamp(),
+          });
+          setUserInfo({ ...u, role: 'user' });
+        } else {
+          setUserInfo({ ...u, ...snap.data() });
+        }
+      } else {
+        setUserInfo(null);
+      }
       setAuthLoading(false);
     });
     return () => unsub();
@@ -104,7 +125,7 @@ export default function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ user }}>
+    <AuthContext.Provider value={{ user: userInfo, userInfo }}>
       <CustomThemeProvider>
         <BrowserRouter>
           <RouterProgressWrapper>
@@ -112,11 +133,11 @@ export default function App() {
               <Routes>
                 <Route
                   path="/login"
-                  element={user ? <Navigate to="/" replace /> : <LoginPage />}
+                  element={userInfo ? <Navigate to="/" replace /> : <LoginPage />}
                 />
                 <Route
                   path="/*"
-                  element={user ? <LayoutRoutes /> : <Navigate to="/login" replace />}
+                  element={userInfo ? <LayoutRoutes /> : <Navigate to="/login" replace />}
                 />
               </Routes>
             </Suspense>
@@ -132,13 +153,40 @@ function LayoutRoutes() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<Home />} />
+        <Route path="user" element={<UserProfile />} />
         <Route path="profit-report-quarter" element={<ProfitReportQuarter />} />
         <Route path="construction-plan" element={<ConstructionPlan />} />
         <Route path="project-details/:id" element={<ProjectDetails />} />
         <Route path="allocations" element={<CostAllocation />} />
-        <Route path="cost-allocation-quarter" element={<CostAllocationQuarter />} />
+        
+        <Route
+          path="cost-allocation-quarter"
+          element={
+            <RequireRole allowedRoles={['admin', 'manager']}>
+              <CostAllocationQuarter />
+            </RequireRole>
+          }
+        />
+
+        <Route
+          path="categories"
+          element={
+            <RequireRole allowedRoles={['admin']}>
+              <CategoryConfig />
+            </RequireRole>
+          }
+        />
+
+        <Route
+          path="admin/users"
+          element={
+            <RequireRole allowedRoles={['admin']}>
+              <AdminUserManager />
+            </RequireRole>
+          }
+        />
+
         <Route path="office" element={<Office />} />
-        <Route path="categories" element={<CategoryConfig />} />
         <Route path="project-manager" element={<ProjectsList />} />
         <Route path="*" element={<NotFound />} />
       </Route>
