@@ -9,4 +9,15 @@ html, body, #root {            /* luôn dính sát mép màn hình */
   height: 100%;
   background: #e6f3ff;         /* nền xanh nhạt phủ toàn bộ */
 }
-#nprogress .bar { background: #ffb300; height:2px; }
+/* ✅ Tuỳ chỉnh giao diện NProgress */
+#nprogress .bar {
+  background: #1976d2; /* màu xanh MUI */
+  height: 3px;
+}
+#nprogress .peg {
+  box-shadow: 0 0 10px #1976d2, 0 0 5px #1976d2;
+}
+#nprogress .spinner {
+  display: none;
+}
+

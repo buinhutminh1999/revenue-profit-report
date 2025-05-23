@@ -1,4 +1,4 @@
-// src/components/SummaryPanel.jsx
+// ✅ SummaryPanel.jsx (tối ưu UI/UX cho dashboard tổng hợp)
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Paper,
@@ -8,11 +8,12 @@ import {
   TextField,
   Tooltip,
   Skeleton,
+  useMediaQuery,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { formatNumber } from "../../utils/numberUtils";
 import { overallSum } from "../../utils/groupingUtils";
 
-/* -- Mini component cho 1 ô -- */
 const MetricBox = ({ label, value, loading }) => (
   <Box
     sx={{
@@ -21,20 +22,24 @@ const MetricBox = ({ label, value, loading }) => (
       borderColor: "divider",
       borderRadius: 2,
       textAlign: "center",
-      bgcolor: "grey.50",
+      bgcolor: "background.default",
+      height: 90,
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
     }}
   >
-    <Typography variant="subtitle2" fontWeight="bold" mb={1}>
+    <Typography variant="subtitle2" fontWeight={600} fontSize={14} noWrap>
       {label}
     </Typography>
-    <Typography variant="h6">
+    <Typography variant="h6" fontWeight={700} color="text.primary">
       {loading ? <Skeleton width={80} /> : value}
     </Typography>
   </Box>
 );
 
 export default function SummaryPanel({
-  overallRevenue,               // có thể là string hoặc number
+  overallRevenue,
   overallRevenueEditing,
   setOverallRevenue,
   setOverallRevenueEditing,
@@ -43,35 +48,29 @@ export default function SummaryPanel({
   columnsAll,
   groupedData,
 }) {
-  // draftRevenue luôn là chuỗi “sạch” (không dấu phẩy)
-  const [draftRevenue, setDraftRevenue] = useState(
-    String(overallRevenue ?? "")
-  );
+  const theme = useTheme();
+  const isXs = useMediaQuery(theme.breakpoints.down("sm"));
+  const [draftRevenue, setDraftRevenue] = useState(String(overallRevenue ?? ""));
   const [inputErr, setInputErr] = useState(false);
 
-  // Khi overallRevenue thay đổi (load hoặc sau commit): sync lại draft
   useEffect(() => {
     setDraftRevenue(String(overallRevenue ?? ""));
     setInputErr(false);
   }, [overallRevenue]);
 
-  // Commit khi blur hoặc Enter
   const commitRevenue = useCallback(() => {
-    // loại bỏ mọi ký tự không phải số, dấu chấm hoặc dấu trừ
     const raw = draftRevenue.replace(/[^\d.\-]/g, "");
     if (raw === "" || Number.isNaN(Number(raw))) {
       setInputErr(true);
       return;
     }
     const clean = Number(raw);
-    // chỉ cập nhật nếu khác giá trị cũ
     if (clean !== Number(overallRevenue ?? 0)) {
       setOverallRevenue(clean);
     }
     setOverallRevenueEditing(false);
   }, [draftRevenue, overallRevenue, setOverallRevenue, setOverallRevenueEditing]);
 
-  // Tính các tổng khác
   const sums = useMemo(() => {
     if (!groupedData) return {};
     const base = {};
@@ -86,14 +85,12 @@ export default function SummaryPanel({
   const profit = revenueNum - (sums.totalCost ?? 0);
 
   return (
-    <Paper sx={{ mt: 3, p: 3, borderRadius: 2, boxShadow: 3 }}>
-      <Typography variant="h6" mb={2} color="primary">
+    <Paper sx={{ mt: 3, p: 3, borderRadius: 2, boxShadow: 2 }}>
+      <Typography variant="h6" mb={2} color="primary" fontWeight={600}>
         Tổng Tất Cả Công Trình
       </Typography>
-
       <Grid container spacing={2}>
-        {/* --- Doanh Thu Quý (editable) --- */}
-        <Grid item xs={12} sm={4} md={3}>
+        <Grid item xs={12} sm={6} md={4} lg={3}>
           <MetricBox
             label="Doanh Thu Quý"
             loading={false}
@@ -107,29 +104,20 @@ export default function SummaryPanel({
                   onChange={(e) => {
                     const v = e.target.value;
                     setDraftRevenue(v);
-                    // kiểm tra ngay raw → số hay NaN
-                    setInputErr(
-                      Number.isNaN(
-                        Number(v.replace(/[^\d.\-]/g, ""))
-                      )
-                    );
+                    setInputErr(Number.isNaN(Number(v.replace(/[^\d.\-]/g, ""))));
                   }}
                   onBlur={commitRevenue}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && commitRevenue()
-                  }
+                  onKeyDown={(e) => e.key === "Enter" && commitRevenue()}
                   autoFocus
                   inputProps={{
                     style: { textAlign: "center", fontWeight: 600 },
                   }}
                 />
               ) : (
-                <Tooltip title="Double-click để chỉnh sửa">
+                <Tooltip title="Nhấp đôi để chỉnh sửa">
                   <Box
                     sx={{ cursor: "pointer" }}
-                    onDoubleClick={() =>
-                      setOverallRevenueEditing(true)
-                    }
+                    onDoubleClick={() => setOverallRevenueEditing(true)}
                   >
                     {formatNumber(revenueNum)}
                   </Box>
@@ -139,25 +127,22 @@ export default function SummaryPanel({
           />
         </Grid>
 
-        {/* --- Doanh Thu Dự Kiến --- */}
-        <Grid item xs={12} sm={4} md={3}>
+        <Grid item xs={12} sm={6} md={4} lg={3}>
           <MetricBox
             label="Doanh Thu Hoàn Thành Dự Kiến"
             value={formatNumber(projectTotalAmount)}
           />
         </Grid>
 
-        {/* --- Lợi Nhuận --- */}
-        <Grid item xs={12} sm={4} md={3}>
+        <Grid item xs={12} sm={6} md={4} lg={3}>
           <MetricBox
             label="Lợi Nhuận"
             value={formatNumber(profit)}
           />
         </Grid>
 
-        {/* --- Các chỉ số khác --- */}
         {summarySumKeys.map((key) => (
-          <Grid item xs={12} sm={4} md={3} key={key}>
+          <Grid item xs={12} sm={6} md={4} lg={3} key={key}>
             <MetricBox
               label={columnsAll.find((c) => c.key === key)?.label || key}
               value={formatNumber(sums[key] ?? 0)}

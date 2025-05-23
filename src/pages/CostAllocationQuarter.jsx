@@ -93,14 +93,6 @@ export default function CostAllocationQuarter() {
 
     const options = useCategories();
     const mainRows = useQuarterMainData(COL_MAIN, `${year}_${quarter}`);
-    useEffect(() => {
-        if (mainRows.length >= 2) {
-            console.log(
-                "mainrow",
-                JSON.stringify(mainRows.slice(0, 2), null, 2)
-            );
-        }
-    }, [mainRows]);
 
     const [extraRows, setExtraRows] = usePrevQuarterData(
         year,
@@ -787,7 +779,6 @@ export default function CostAllocationQuarter() {
             setDirtyCells(new Set());
             setShowSaved(true);
         } catch (err) {
-            console.error("❌ Lỗi khi lưu:", err);
             setSnack({ open: true, msg: "Lỗi khi lưu!" });
         } finally {
             setSaving(false);
@@ -907,7 +898,10 @@ export default function CostAllocationQuarter() {
                         ref={gridRef}
                         rows={rowsWithSplit}
                         columns={columns}
-                        autoHeight
+                        autoHeight={false}
+                        pageSize={20}
+                        rowsPerPageOptions={[20, 50, 100]}
+                        pagination
                         hideFooter
                         editMode="cell"
                         isCellEditable={isCellEditable}

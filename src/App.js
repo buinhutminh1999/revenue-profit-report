@@ -1,6 +1,13 @@
-// App.js
+// ✅ App.js (tối ưu NProgress và định tuyến)
 import React, { useEffect, useState, createContext, useContext, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigationType, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigationType,
+  useLocation
+} from 'react-router-dom';
 import NProgress from 'nprogress';
 import 'nprogress/nprogress.css';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
@@ -11,7 +18,7 @@ import {
   LinearProgress
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import logo from './assets/logo.png'; // 👉 thay đúng đường dẫn logo của bạn
+import logo from './assets/logo.png';
 
 import CustomThemeProvider from './ThemeContext';
 import Layout from './components/Layout';
@@ -27,6 +34,13 @@ import LoginPage from './components/LoginPage';
 import ProjectsList from './pages/ProjectsList';
 import ProfitReportQuarter from './pages/ProfitReportQuarter';
 
+// ✅ Cấu hình NProgress tối ưu
+NProgress.configure({
+  showSpinner: false,
+  trickleSpeed: 200,
+  minimum: 0.08,
+});
+
 const auth = getAuth();
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -36,8 +50,12 @@ function RouterProgressWrapper({ children }) {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    NProgress.start();
+    const timer = setTimeout(() => {
+      NProgress.start();
+    }, 100); // tránh nhấp nháy khi load quá nhanh
+
     return () => {
+      clearTimeout(timer);
       NProgress.done();
     };
   }, [navType, pathname]);
@@ -75,11 +93,7 @@ export default function App() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6 }}
-          style={{
-            width: 100,
-            borderRadius: 12,
-            marginBottom: 24,
-          }}
+          style={{ width: 100, borderRadius: 12, marginBottom: 24 }}
         />
         <CircularProgress color="primary" />
         <Typography mt={2} color="text.secondary">
@@ -98,15 +112,11 @@ export default function App() {
               <Routes>
                 <Route
                   path="/login"
-                  element={
-                    user ? <Navigate to="/" replace /> : <LoginPage />
-                  }
+                  element={user ? <Navigate to="/" replace /> : <LoginPage />}
                 />
                 <Route
                   path="/*"
-                  element={
-                    user ? <LayoutRoutes /> : <Navigate to="/login" replace />
-                  }
+                  element={user ? <LayoutRoutes /> : <Navigate to="/login" replace />}
                 />
               </Routes>
             </Suspense>
