@@ -442,14 +442,6 @@ export default function CostAllocationQuarter() {
         });
     }, [rowsInit, visibleProjects, dirtyCells]);
 
-    const columnVisibilityModel = useMemo(() => {
-        if (!isXs) return {};
-        const hideFields = visibleProjects
-            .map((p) => p.id)
-            .concat(["cumQuarterOnly"]);
-        return hideFields.reduce((acc, f) => ({ ...acc, [f]: false }), {});
-    }, [visibleProjects, isXs]);
-
     const columns = useMemo(() => {
         const base = [
             {
@@ -573,6 +565,29 @@ export default function CostAllocationQuarter() {
         return [...base, ...projCols, ...other];
     }, [visibleProjects, options, year, quarter, getDC, isXs]);
 
+    const totalCumQuarterOnly = rowsWithSplit
+        .filter(
+            (r) =>
+                (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
+                (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
+        )
+        .reduce((sum, r) => sum + (toNum(r.cumQuarterOnly) || 0), 0);
+
+  const rowsWithTotal = rowsWithSplit.map(r => {
+  if ((r.label || "").trim().toUpperCase() === "TỔNG CHI PHÍ") {
+    return { ...r, cumQuarterOnly: totalCumQuarterOnly, isTotal: true };
+  }
+  return r;
+});
+
+    const columnVisibilityModel = useMemo(() => {
+        if (!isXs) return {};
+        const hideFields = visibleProjects
+            .map((p) => p.id)
+            .concat(["cumQuarterOnly"]);
+        return hideFields.reduce((acc, f) => ({ ...acc, [f]: false }), {});
+    }, [visibleProjects, isXs]);
+
     const isCellEditable = useCallback(
         ({ id, field }) =>
             id === salaryRowId
@@ -601,189 +616,213 @@ export default function CostAllocationQuarter() {
 
     // LUÔN LẤY rowsInit ĐỂ LƯU (chính là số đang HIỂN THỊ trên UI)
     const handleSave = async () => {
-        try {
-            setSaving(true);
+    try {
+        setSaving(true);
 
-            // LẤY DỮ LIỆU GỐC TRONG FIRESTORE ĐỂ GIỮ LẠI byType các loại cũ
-            const docRef = doc(db, COL_QUARTER, `${year}_${quarter}`);
-            const snapshot = await getDoc(docRef);
-            const prevMainRows = snapshot.exists()
-                ? snapshot.data().mainRows || []
-                : [];
+        // LẤY DỮ LIỆU GỐC TRONG FIRESTORE ĐỂ GIỮ LẠI byType các loại cũ
+        const docRef = doc(db, COL_QUARTER, `${year}_${quarter}`);
+        const snapshot = await getDoc(docRef);
+        const prevMainRows = snapshot.exists()
+            ? snapshot.data().mainRows || []
+            : [];
 
-            const dataToSave = [];
+        const dataToSave = [];
 
-            for (const r of rowsInit) {
-                const lbl = (r.label || "").trim().toUpperCase();
-                if (lbl === "DOANH THU" || lbl === "TỔNG CHI PHÍ") continue;
-                const baseId = r.id.split("__")[0];
+        for (const r of rowsInit) {
+            const lbl = (r.label || "").trim().toUpperCase();
+            if (lbl === "DOANH THU" || lbl === "TỔNG CHI PHÍ") continue;
+            const baseId = r.id.split("__")[0];
 
-                // --- Tính overrun cho từng project ---
-                const overrun = {};
-                for (const p of visibleProjects) {
-                    const rev = toNum(projData[p.id]?.overallRevenue);
-                    const dc = getDC(p.id, r.label);
-                    const need = Math.round((rev * (r.pct || 0)) / 100 - dc);
-                    const shown = r[p.id] ?? 0;
-                    overrun[p.id] = Math.max(0, need - shown);
-                }
-
-                // --- Lấy prevOverrun các quý trước (lấy 1 quý trước gần nhất, nếu muốn cộng dồn thì dùng hàm khác) ---
-                const prev = await getOverrunOfPrevQuarter(baseId);
-                const fullNeed = {};
-                for (const p of visibleProjects) {
-                    fullNeed[p.id] = (prev[p.id] || 0) + overrun[p.id];
-                }
-
-                // --- LẤY byType cũ từ Firestore ---
-                const old = prevMainRows.find((x) => x.id === baseId);
-                const oldByType = old?.byType || {};
-
-                // --- Dữ liệu của type hiện tại ---
-                const rawTypeData = {
-                    pct: r.pct ?? 0,
-                    value: r[valKey] ?? 0,
-                    used: r.used ?? 0,
-                    allocated: r.allocated ?? 0,
-                    carryOver: r.carryOver ?? 0,
-                    cumQuarterOnly: r.cumQuarterOnly ?? 0,
-                    cumCurrent: r.cumCurrent ?? 0,
-                    overrun: fullNeed,
-                };
-                const typeData = Object.fromEntries(
-                    Object.entries(rawTypeData).filter(([, v]) => v != null)
-                );
-
-                // --- GHÉP GIỮ LẠI byType CŨ ---
-                const row = {
-                    id: baseId,
-                    label: r.label,
-                    byType: { ...oldByType, [typeFilter]: typeData },
-                    prevIncluded: true,
-                };
-                for (const p of visibleProjects) {
-                    row[p.id] = r[p.id] ?? 0;
-                }
-                dataToSave.push(row);
+            // --- Tính overrun cho từng project ---
+            const overrun = {};
+            for (const p of visibleProjects) {
+                const rev = toNum(projData[p.id]?.overallRevenue);
+                const dc = getDC(p.id, r.label);
+                const need = Math.round((rev * (r.pct || 0)) / 100 - dc);
+                const shown = r[p.id] ?? 0;
+                overrun[p.id] = Math.max(0, need - shown);
             }
 
-            // ==== LƯU DỮ LIỆU QUÝ HIỆN TẠI (và merge giữ lại byType các loại) ====
+            // --- Lấy prevOverrun các quý trước (lấy 1 quý trước gần nhất, nếu muốn cộng dồn thì dùng hàm khác) ---
+            const prev = await getOverrunOfPrevQuarter(baseId);
+            const fullNeed = {};
+            for (const p of visibleProjects) {
+                fullNeed[p.id] = (prev[p.id] || 0) + overrun[p.id];
+            }
+
+            // --- LẤY byType cũ từ Firestore ---
+            const old = prevMainRows.find((x) => x.id === baseId);
+            const oldByType = old?.byType || {};
+
+            // --- Dữ liệu của type hiện tại ---
+            const rawTypeData = {
+                pct: r.pct ?? 0,
+                value: r[valKey] ?? 0,
+                used: r.used ?? 0,
+                allocated: r.allocated ?? 0,
+                carryOver: r.carryOver ?? 0,
+                cumQuarterOnly: r.cumQuarterOnly ?? 0,
+                cumCurrent: r.cumCurrent ?? 0,
+                overrun: fullNeed,
+            };
+            const typeData = Object.fromEntries(
+                Object.entries(rawTypeData).filter(([, v]) => v != null)
+            );
+
+            // --- GHÉP GIỮ LẠI byType CŨ ---
+            const row = {
+                id: baseId,
+                label: r.label,
+                byType: { ...oldByType, [typeFilter]: typeData },
+                prevIncluded: true,
+            };
+            for (const p of visibleProjects) {
+                row[p.id] = r[p.id] ?? 0;
+            }
+            dataToSave.push(row);
+        }
+
+        // 1. TÍNH TỔNG VƯỢT QUÝ THEO TYPE
+        const totalCumQuarterOnly = rowsInit
+            .filter(r =>
+                (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
+                (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
+            )
+            .reduce((sum, r) => sum + (toNum(r.cumQuarterOnly) || 0), 0);
+
+        // 2. LƯU mainRows trước
+        await setDoc(
+            docRef,
+            { mainRows: dataToSave, updated_at: serverTimestamp() },
+            { merge: true }
+        );
+
+        // 3. LƯU TỔNG cumQuarterOnly THEO TYPE
+        const totalFieldMap = {
+            "Thi công": "totalThiCongCumQuarterOnly",
+            "Nhà máy": "totalNhaMayCumQuarterOnly",
+            "KH-ĐT": "totalKhdtCumQuarterOnly",
+        };
+        const totalField = totalFieldMap[typeFilter];
+        if (totalField) {
             await setDoc(
                 docRef,
-                { mainRows: dataToSave, updated_at: serverTimestamp() },
+                { [totalField]: totalCumQuarterOnly, updated_at: serverTimestamp() },
                 { merge: true }
             );
+        }
 
-            // --- Lưu sang quý sau (chỉ cần update phần byType[typeFilter] quý sau thôi) ---
-            const { year: nextY, quarter: nextQ } = getNextQuarter(
-                year,
-                quarter
-            );
-            const nextRef = doc(db, COL_QUARTER, `${nextY}_${nextQ}`);
-            const nextSnap = await getDoc(nextRef);
-            const nextData = nextSnap.exists() ? nextSnap.data() : {};
-            const nextRows = Array.isArray(nextData.mainRows)
-                ? [...nextData.mainRows]
-                : [];
+        // --- Lưu sang quý sau (chỉ cần update phần byType[typeFilter] quý sau thôi) ---
+        const { year: nextY, quarter: nextQ } = getNextQuarter(
+            year,
+            quarter
+        );
+        const nextRef = doc(db, COL_QUARTER, `${nextY}_${nextQ}`);
+        const nextSnap = await getDoc(nextRef);
+        const nextData = nextSnap.exists() ? nextSnap.data() : {};
+        const nextRows = Array.isArray(nextData.mainRows)
+            ? [...nextData.mainRows]
+            : [];
 
-            for (const r of rowsInit) {
-                const baseId = r.id.split("__")[0];
-                const overrun = {};
-                for (const p of visibleProjects) {
-                    const rev = toNum(projData[p.id]?.overallRevenue);
-                    const dc = getDC(p.id, r.label);
-                    const need = Math.round((rev * (r.pct || 0)) / 100 - dc);
-                    const shown = r[p.id] ?? 0;
-                    overrun[p.id] = Math.max(0, need - shown);
-                }
-                const prev = await getOverrunOfPrevQuarter(baseId);
-                const fullNeed = {};
-                for (const p of visibleProjects) {
-                    fullNeed[p.id] = (prev[p.id] || 0) + overrun[p.id];
-                }
-                const carryNext = r.cumCurrent ?? 0;
+        for (const r of rowsInit) {
+            const baseId = r.id.split("__")[0];
+            const overrun = {};
+            for (const p of visibleProjects) {
+                const rev = toNum(projData[p.id]?.overallRevenue);
+                const dc = getDC(p.id, r.label);
+                const need = Math.round((rev * (r.pct || 0)) / 100 - dc);
+                const shown = r[p.id] ?? 0;
+                overrun[p.id] = Math.max(0, need - shown);
+            }
+            const prev = await getOverrunOfPrevQuarter(baseId);
+            const fullNeed = {};
+            for (const p of visibleProjects) {
+                fullNeed[p.id] = (prev[p.id] || 0) + overrun[p.id];
+            }
+            const carryNext = r.cumCurrent ?? 0;
 
-                // --- GHÉP GIỮ LẠI byType CŨ quý sau ---
-                const oldNext = nextRows.find((x) => x.id === baseId);
-                const oldByTypeNext = oldNext?.byType || {};
+            // --- GHÉP GIỮ LẠI byType CŨ quý sau ---
+            const oldNext = nextRows.find((x) => x.id === baseId);
+            const oldByTypeNext = oldNext?.byType || {};
 
-                const idx = nextRows.findIndex((x) => x.id === baseId);
-                if (idx >= 0) {
-                    nextRows[idx].byType = {
+            const idx = nextRows.findIndex((x) => x.id === baseId);
+            if (idx >= 0) {
+                nextRows[idx].byType = {
+                    ...oldByTypeNext,
+                    [typeFilter]: {
+                        overrun: fullNeed,
+                        carryOver: carryNext,
+                    },
+                };
+            } else {
+                nextRows.push({
+                    id: baseId,
+                    label: r.label,
+                    byType: {
                         ...oldByTypeNext,
                         [typeFilter]: {
                             overrun: fullNeed,
                             carryOver: carryNext,
                         },
-                    };
-                } else {
-                    nextRows.push({
-                        id: baseId,
-                        label: r.label,
-                        byType: {
-                            ...oldByTypeNext,
-                            [typeFilter]: {
-                                overrun: fullNeed,
-                                carryOver: carryNext,
-                            },
-                        },
-                    });
-                }
+                    },
+                });
             }
-
-            await setDoc(
-                nextRef,
-                { mainRows: nextRows, updated_at: serverTimestamp() },
-                { merge: true }
-            );
-
-            // === CẬP NHẬT p[id] sang items[].allocated của từng project ===
-            for (const p of visibleProjects) {
-                const projectQuarterRef = doc(
-                    db,
-                    "projects",
-                    p.id,
-                    "years",
-                    String(year),
-                    "quarters",
-                    quarter
-                );
-                // Lấy items hiện có
-                const projectQuarterSnap = await getDoc(projectQuarterRef);
-                const projectQuarterData = projectQuarterSnap.exists()
-                    ? projectQuarterSnap.data()
-                    : {};
-                const items = Array.isArray(projectQuarterData.items)
-                    ? [...projectQuarterData.items]
-                    : [];
-
-                // Cập nhật từng item theo id hoặc description
-                for (const r of rowsInit) {
-                    const lbl = (r.label || "").trim().toUpperCase();
-                    if (lbl === "DOANH THU" || lbl === "TỔNG CHI PHÍ") continue;
-                    const itemIdx = items.findIndex(
-                        (item) =>
-                            item.id === r.id ||
-                            (item.description &&
-                                item.description.trim() === r.label.trim())
-                    );
-                    if (itemIdx >= 0) {
-                        items[itemIdx].allocated = String(r[p.id] ?? 0);
-                    }
-                }
-                // Ghi lại
-                await setDoc(projectQuarterRef, { items }, { merge: true });
-            }
-
-            setSnack({ open: true, msg: "Đã lưu & cập nhật phân bổ dự án 🎉" });
-            setDirtyCells(new Set());
-            setShowSaved(true);
-        } catch (err) {
-            setSnack({ open: true, msg: "Lỗi khi lưu!" });
-        } finally {
-            setSaving(false);
         }
-    };
+
+        await setDoc(
+            nextRef,
+            { mainRows: nextRows, updated_at: serverTimestamp() },
+            { merge: true }
+        );
+
+        // === CẬP NHẬT p[id] sang items[].allocated của từng project ===
+        for (const p of visibleProjects) {
+            const projectQuarterRef = doc(
+                db,
+                "projects",
+                p.id,
+                "years",
+                String(year),
+                "quarters",
+                quarter
+            );
+            // Lấy items hiện có
+            const projectQuarterSnap = await getDoc(projectQuarterRef);
+            const projectQuarterData = projectQuarterSnap.exists()
+                ? projectQuarterSnap.data()
+                : {};
+            const items = Array.isArray(projectQuarterData.items)
+                ? [...projectQuarterData.items]
+                : [];
+
+            // Cập nhật từng item theo id hoặc description
+            for (const r of rowsInit) {
+                const lbl = (r.label || "").trim().toUpperCase();
+                if (lbl === "DOANH THU" || lbl === "TỔNG CHI PHÍ") continue;
+                const itemIdx = items.findIndex(
+                    (item) =>
+                        item.id === r.id ||
+                        (item.description &&
+                            item.description.trim() === r.label.trim())
+                );
+                if (itemIdx >= 0) {
+                    items[itemIdx].allocated = String(r[p.id] ?? 0);
+                }
+            }
+            // Ghi lại
+            await setDoc(projectQuarterRef, { items }, { merge: true });
+        }
+
+        setSnack({ open: true, msg: "Đã lưu & cập nhật phân bổ dự án 🎉" });
+        setDirtyCells(new Set());
+        setShowSaved(true);
+    } catch (err) {
+        setSnack({ open: true, msg: "Lỗi khi lưu!" });
+    } finally {
+        setSaving(false);
+    }
+};
+
 
     useEffect(() => {
         const onKeyDown = (e) => {
@@ -896,7 +935,7 @@ export default function CostAllocationQuarter() {
                 ) : (
                     <DataGrid
                         ref={gridRef}
-                        rows={rowsWithSplit}
+                        rows={rowsWithTotal}
                         columns={columns}
                         autoHeight={false}
                         pageSize={20}
@@ -917,6 +956,9 @@ export default function CostAllocationQuarter() {
                         }}
                         loading={loading || saving}
                         columnVisibilityModel={columnVisibilityModel}
+                        getRowClassName={(params) =>
+                            params.row.isTotal ? "total-row" : ""
+                        }
                         sx={{
                             bgcolor: "white",
                             "& .MuiDataGrid-columnHeaders": {
@@ -949,6 +991,13 @@ export default function CostAllocationQuarter() {
                                     0.3
                                 ),
                                 fontWeight: 600,
+                            },
+                            "& .total-row": {
+                                fontWeight: 700,
+                                background: alpha(
+                                    theme.palette.success.light,
+                                    0.13
+                                ),
                             },
                         }}
                     />

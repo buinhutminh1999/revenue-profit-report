@@ -5,7 +5,6 @@ import {
   Box,
   Container,
   Alert,
-  AlertTitle,
   Button,
   Collapse,
   Paper,
@@ -21,7 +20,6 @@ import {
   Chip,
   useMediaQuery,
   Fade,
-  IconButton,
 } from "@mui/material";
 import Autocomplete from "@mui/material/Autocomplete";
 import SearchIcon from "@mui/icons-material/Search";
@@ -154,6 +152,7 @@ export default function Home() {
               { icon: <AssessmentIcon sx={iconSX} />, text: "Chi Phí Theo Quý", to: "/cost-allocation-quarter", desc: "Theo dõi phân bổ quý" },
               { icon: <CategoryIcon sx={iconSX} />, text: "Quản Trị Khoản Mục", to: "/categories", desc: "Cấu hình khoản mục" },
               { icon: <AssessmentIcon sx={iconSX} />, text: "Báo Cáo Lợi Nhuận", to: "/profit-report-quarter", desc: "Phân tích doanh thu - chi phí" },
+              { icon: <AssessmentIcon sx={iconSX} />, text: "Tăng Giảm Lợi Nhuận", to: "/profit-change", desc: "Phát sinh ảnh hưởng lợi nhuận" },
             ].map((c, index) => (
               <Grid item xs={12} sm={6} md={4} key={c.to}>
                 <motion.div

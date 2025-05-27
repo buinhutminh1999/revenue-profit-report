@@ -38,6 +38,7 @@ import ProfitReportQuarter from './pages/ProfitReportQuarter';
 import UserProfile from './pages/UserProfile';
 import RequireRole from './components/auth/RequireRole';
 import AdminUserManager from './components/AdminUserManager';
+import ProfitChange from './pages/ProfitChange';
 
 const auth = getAuth();
 const db = getFirestore();
@@ -153,6 +154,7 @@ function LayoutRoutes() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<Home />} />
+        <Route path="profit-change" element={<ProfitChange />} />
         <Route path="user" element={<UserProfile />} />
         <Route path="profit-report-quarter" element={<ProfitReportQuarter />} />
         <Route path="construction-plan" element={<ConstructionPlan />} />
