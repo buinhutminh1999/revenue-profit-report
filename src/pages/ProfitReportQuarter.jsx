@@ -4,8 +4,10 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
+    CircularProgress,
 } from "@mui/material";
-
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import {
     Box,
     Typography,
@@ -44,6 +46,7 @@ export default function ProfitReportQuarter() {
         name: "",
         type: "",
     });
+    const [loading, setLoading] = useState(false); // thêm state này
 
     // Đổi nhãn cột "CP VƯỢT QUÝ <hiện tại>"
     const cpVuotLabel = `CP VƯỢT QUÝ ${selectedQuarter} ${selectedYear}`;
@@ -178,529 +181,635 @@ export default function ProfitReportQuarter() {
         }
         return rows;
     };
+    // Hàm tổng hợp lại dòng I.3. CÔNG TRÌNH CÔNG TY CĐT dựa vào các dòng con bên dưới
+    const updateGroupI3 = (rows) => {
+        const idxI3 = rows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "I.3. CÔNG TRÌNH CÔNG TY CĐT"
+        );
+        if (idxI3 === -1) return rows;
+        let i = idxI3 + 1;
+        const childRows = [];
+        while (
+            i < rows.length &&
+            !(rows[i].name && rows[i].name.match(/^[IVX]+\./))
+        ) {
+            childRows.push(rows[i]);
+            i++;
+        }
+        const revenue = childRows.reduce((s, r) => s + toNum(r.revenue), 0);
+        const cost = childRows.reduce((s, r) => s + toNum(r.cost), 0);
+        const profit = revenue - cost;
+        const percent = revenue ? (profit / revenue) * 100 : null;
+        const newRows = [...rows];
+        newRows[idxI3] = {
+            ...newRows[idxI3],
+            revenue,
+            cost,
+            profit,
+            percent,
+        };
+        return newRows;
+    };
 
-    // ==== useEffect chính ====
-useEffect(() => {
-    const fetchData = async () => {
-        // 1. Lấy toàn bộ dự án và tính doanh thu, chi phí, lợi nhuận từng dự án
-        const projectsSnapshot = await getDocs(collection(db, "projects"));
-        const projects = await Promise.all(
-            projectsSnapshot.docs.map(async (d) => {
-                const data = d.data();
-                let revenue = 0, cost = 0;
-                try {
-                    const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
-                    const qSnap = await getDoc(doc(db, qPath));
-                    if (qSnap.exists()) {
-                        revenue = toNum(qSnap.data().overallRevenue);
-                        if (Array.isArray(qSnap.data().items)) {
-                            cost = qSnap.data().items.reduce(
-                                (sum, item) => sum + toNum(item.totalCost), 0
-                            );
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true); // <-- set loading khi bắt đầu fetch
+
+            // 1. Lấy toàn bộ dự án và tính doanh thu, chi phí, lợi nhuận từng dự án
+            const projectsSnapshot = await getDocs(collection(db, "projects"));
+            const projects = await Promise.all(
+                projectsSnapshot.docs.map(async (d) => {
+                    const data = d.data();
+                    let revenue = 0,
+                        cost = 0;
+                    try {
+                        const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
+                        const qSnap = await getDoc(doc(db, qPath));
+                        if (qSnap.exists()) {
+                            revenue = toNum(qSnap.data().overallRevenue);
+                            if (Array.isArray(qSnap.data().items)) {
+                                cost = qSnap
+                                    .data()
+                                    .items.reduce(
+                                        (sum, item) =>
+                                            sum + toNum(item.totalCost),
+                                        0
+                                    );
+                            }
                         }
-                    }
-                } catch {}
+                    } catch {}
+                    const profit = revenue - cost;
+                    const percent = revenue ? (profit / revenue) * 100 : null;
+                    return {
+                        projectId: d.id,
+                        name: data.name,
+                        revenue,
+                        cost,
+                        profit,
+                        percent,
+                        costOverQuarter: null,
+                        target: null,
+                        note: "",
+                        suggest: "",
+                        type: data.type || "",
+                        editable: true,
+                    };
+                })
+            );
+
+            // 2. Nhóm dự án theo loại để sum
+            const groupBy = (arr, cond) => arr.filter(cond);
+            const sumGroup = (group) => {
+                const revenue = group.reduce((s, r) => s + toNum(r.revenue), 0);
+                const cost = group.reduce((s, r) => s + toNum(r.cost), 0);
                 const profit = revenue - cost;
                 const percent = revenue ? (profit / revenue) * 100 : null;
-                return {
-                    projectId: d.id,
-                    name: data.name,
-                    revenue,
-                    cost,
-                    profit,
-                    percent,
+                return { revenue, cost, profit, percent };
+            };
+
+            const groupI1 = groupBy(
+                projects,
+                (r) =>
+                    (r.type === "Thi cong" || r.type === "Thi công") &&
+                    (r.revenue !== 0 || r.cost !== 0) &&
+                    !(r.name || "").toUpperCase().includes("KÈ")
+            );
+            const groupI2 = groupBy(projects, (r) =>
+                (r.name || "").toUpperCase().includes("KÈ")
+            );
+            const groupI3 = groupBy(projects, (r) => r.type === "CĐT");
+            const groupII = groupBy(projects, (r) => r.type === "Nhà máy");
+            const others = projects.filter(
+                (r) =>
+                    ![...groupI1, ...groupI2, ...groupI3, ...groupII].includes(
+                        r
+                    )
+            );
+
+            const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
+
+            // 3. Lấy dữ liệu Firestore đã lưu
+            const saved = await getDoc(
+                doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`)
+            );
+
+            if (
+                saved.exists() &&
+                Array.isArray(saved.data().rows) &&
+                saved.data().rows.length > 0
+            ) {
+                let updatedRows = [...saved.data().rows];
+
+                // === MERGE LẠI SỐ LIỆU MỚI NHẤT TỪ projects VÀO NHÓM I.1 ===
+                groupI1.forEach((p) => {
+                    const idx = updatedRows.findIndex(
+                        (r) => (r.name || "").trim() === (p.name || "").trim()
+                    );
+                    if (idx !== -1) {
+                        updatedRows[idx] = {
+                            ...updatedRows[idx],
+                            revenue: p.revenue,
+                            cost: p.cost,
+                            profit: p.profit,
+                            percent: p.percent,
+                        };
+                    }
+                });
+
+                // --- Bổ sung công trình mới cho nhóm I.1. Dân Dụng + Giao Thông ---
+                const idxI1 = updatedRows.findIndex(
+                    (r) =>
+                        (r.name || "").trim().toUpperCase() ===
+                        "I.1. DÂN DỤNG + GIAO THÔNG"
+                );
+                // Tìm các công trình hiện có phía dưới nhóm này
+                let i = idxI1 + 1;
+                let existedNames = [];
+                while (
+                    i < updatedRows.length &&
+                    !(
+                        updatedRows[i].name &&
+                        updatedRows[i].name.match(/^[IVX]+\./)
+                    )
+                ) {
+                    existedNames.push((updatedRows[i].name || "").trim());
+                    i++;
+                }
+                // Tìm công trình mới chưa có
+                const newProjects = groupI1.filter(
+                    (p) => !existedNames.includes((p.name || "").trim())
+                );
+                if (newProjects.length > 0 && idxI1 !== -1) {
+                    updatedRows.splice(idxI1 + 1, 0, ...newProjects);
+                }
+
+                setRows(updatedRows);
+                    setLoading(false); // <<< THÊM DÒNG NÀY
+
+                return;
+            }
+
+            // 4. Build lại defaultRows (không đổi phần này)
+            let defaultRows = [
+                {
+                    name: "I. XÂY DỰNG",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
                     costOverQuarter: null,
-                    target: null,
-                    note: "",
-                    suggest: "",
-                    type: data.type || "",
+                },
+                { name: "I.1. Dân Dụng + Giao Thông", ...sumGroup(groupI1) },
+                ...groupI1,
+                { name: "I.2. KÈ", ...sumGroup(groupI2) },
+                ...groupI2,
+                { name: "I.3. CÔNG TRÌNH CÔNG TY CĐT", ...sumGroup(groupI3) },
+                {
+                    name: "II. SẢN XUẤT",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                },
+                {
+                    name: "II.1. SẢN XUẤT",
+                    ...sumGroup(groupII),
+                    costOverQuarter: null,
                     editable: true,
-                };
-            })
-        );
+                },
+                ...groupII,
+                {
+                    name: "II.2. DT + LN ĐƯỢC CHIA TỪ LDX",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                },
+                {
+                    name: "LỢI NHUẬN LIÊN DOANH (LDX)",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "GIẢM LN LDX",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                },
+                {
+                    name: "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "III. ĐẦU TƯ",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    costOverQuarter: null,
+                    editable: true,
+                },
+                {
+                    name: "DOANH THU BLX Q3 N2024 - D21",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "TỔNG",
+                    ...sumGroup([
+                        ...groupI1,
+                        ...groupI2,
+                        ...groupI3,
+                        ...groupII,
+                        ...others,
+                    ]),
+                },
+                {
+                    name: `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`,
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                },
+                {
+                    name: "V. GIẢM LỢI NHUẬN",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: false,
+                },
+                {
+                    name: "VI. THU NHẬP KHÁC",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: false,
+                },
+                {
+                    name: `VII. KHTSCĐ NĂM ${selectedYear}`,
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "VIII. GIẢM LÃI ĐT DỰ ÁN",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: finalProfitRowName,
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                },
+                {
+                    name: `+ Vượt CP BPXN do ko đạt DT ${selectedQuarter}`,
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                },
+                {
+                    name: `+ Vượt CP BPSX do ko đạt DT ${selectedQuarter}`,
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                },
+                {
+                    name: `+ Vượt CP BPĐT do ko có DT ${selectedQuarter} (lãi + thuê vp)`,
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                },
+                {
+                    name: "+ Chi phí đã trả trước",
+                    revenue: 0,
+                    cost: 0,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+            ];
 
-        // 2. Nhóm dự án theo loại để sum
-        const groupBy = (arr, cond) => arr.filter(cond);
-        const sumGroup = (group) => {
-            const revenue = group.reduce((s, r) => s + toNum(r.revenue), 0);
-            const cost = group.reduce((s, r) => s + toNum(r.cost), 0);
-            const profit = revenue - cost;
-            const percent = revenue ? (profit / revenue) * 100 : null;
-            return { revenue, cost, profit, percent };
-        };
+            // 5. Lấy chi phí vượt quý hiện tại
+            let cpVuotCurr = 0;
+            try {
+                const currDocSnap = await getDoc(
+                    doc(
+                        db,
+                        "costAllocationsQuarter",
+                        `${selectedYear}_${selectedQuarter}`
+                    )
+                );
+                if (currDocSnap.exists()) {
+                    cpVuotCurr = toNum(
+                        currDocSnap.data().totalThiCongCumQuarterOnly
+                    );
+                }
+            } catch {
+                cpVuotCurr = 0;
+            }
+            const idxXD = defaultRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+            );
+            if (idxXD !== -1)
+                defaultRows[idxXD].costOverQuarter = cpVuotCurr || 0;
 
-        const groupI1 = groupBy(
-            projects,
-            (r) =>
-                (r.type === "Thi cong" || r.type === "Thi công") &&
-                (r.revenue !== 0 || r.cost !== 0) &&
-                !(r.name || "").toUpperCase().includes("KÈ")
-        );
-        const groupI2 = groupBy(projects, (r) =>
-            (r.name || "").toUpperCase().includes("KÈ")
-        );
-        const groupI3 = groupBy(projects, (r) => r.type === "CĐT");
-        const groupII = groupBy(projects, (r) => r.type === "Nhà máy");
-        const others = projects.filter(
-            (r) =>
-                ![...groupI1, ...groupI2, ...groupI3, ...groupII].includes(r)
-        );
+            // 6. Lấy lợi nhuận vượt BPXN
+            let bpVotProfit = 0;
+            try {
+                const overDoc = await getDoc(
+                    doc(
+                        db,
+                        "costAllocationsQuarter",
+                        `${selectedYear}_${selectedQuarter}`
+                    )
+                );
+                if (overDoc.exists()) {
+                    bpVotProfit = toNum(
+                        overDoc.data().totalThiCongCumQuarterOnly
+                    );
+                }
+            } catch {
+                bpVotProfit = 0;
+            }
+            const idxBPXN = defaultRows.findIndex((r) =>
+                (r.name || "")
+                    .trim()
+                    .toUpperCase()
+                    .startsWith("+ VƯỢT CP BPXN DO KO ĐẠT DT")
+            );
+            if (idxBPXN !== -1) {
+                defaultRows[idxBPXN].profit = bpVotProfit;
+            }
 
-        const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
+            // 7. Lấy lợi nhuận vượt BPSX
+            let bpBPSXProfit = 0;
+            try {
+                const overDoc = await getDoc(
+                    doc(
+                        db,
+                        "costAllocationsQuarter",
+                        `${selectedYear}_${selectedQuarter}`
+                    )
+                );
+                if (overDoc.exists()) {
+                    bpBPSXProfit = toNum(
+                        overDoc.data().totalNhaMayCumQuarterOnly
+                    );
+                }
+            } catch {
+                bpBPSXProfit = 0;
+            }
+            const idxBPSX = defaultRows.findIndex((r) =>
+                (r.name || "")
+                    .trim()
+                    .toUpperCase()
+                    .startsWith("+ VƯỢT CP BPSX DO KO ĐẠT DT")
+            );
+            if (idxBPSX !== -1) {
+                defaultRows[idxBPSX].profit = bpBPSXProfit;
+            }
 
-        // 3. Lấy dữ liệu Firestore đã lưu
-        const saved = await getDoc(
-            doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`)
-        );
+            // 8. Lấy lợi nhuận vượt BPĐT (KHDT - luôn lấy Q1)
+            let khdtProfit = 0;
+            try {
+                const khdtDoc = await getDoc(
+                    doc(db, "costAllocationsQuarter", `${selectedYear}_Q1`)
+                );
+                if (khdtDoc.exists()) {
+                    khdtProfit = toNum(khdtDoc.data().totalKhdtCumQuarterOnly);
+                }
+            } catch {
+                khdtProfit = 0;
+            }
+            const idxBPDT = defaultRows.findIndex((r) =>
+                (r.name || "")
+                    .trim()
+                    .toUpperCase()
+                    .startsWith("+ VƯỢT CP BPĐT DO KO CÓ DT")
+            );
+            if (idxBPDT !== -1) {
+                defaultRows[idxBPDT].profit = khdtProfit;
+            }
 
-        if (
-            saved.exists() &&
-            Array.isArray(saved.data().rows) &&
-            saved.data().rows.length > 0
-        ) {
-            let updatedRows = [...saved.data().rows];
-            // --- Bổ sung công trình mới cho nhóm I.1. Dân Dụng + Giao Thông ---
+            // 9. Lấy giá trị giảm lợi nhuận & thu nhập khác
+            let totalDecreaseProfit = 0;
+            let totalIncreaseProfit = 0;
+            try {
+                const profitChangesDoc = await getDoc(
+                    doc(
+                        db,
+                        "profitChanges",
+                        `${selectedYear}_${selectedQuarter}`
+                    )
+                );
+                if (profitChangesDoc.exists()) {
+                    totalDecreaseProfit = toNum(
+                        profitChangesDoc.data().totalDecreaseProfit
+                    );
+                    totalIncreaseProfit = toNum(
+                        profitChangesDoc.data().totalIncreaseProfit
+                    );
+                }
+            } catch {}
+
+            const idxV = defaultRows.findIndex(
+                (r) =>
+                    (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
+            );
+            if (idxV !== -1) defaultRows[idxV].profit = totalDecreaseProfit;
+
+            const idxVI = defaultRows.findIndex(
+                (r) =>
+                    (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
+            );
+            if (idxVI !== -1) defaultRows[idxVI].profit = totalIncreaseProfit;
+
+            // 10. Cập nhật các dòng nhóm (LDX, Sà Lan, Thu nhập khác, Đầu tư)
+            let updatedRows = updateLDXRow(defaultRows);
+            updatedRows = updateSalanRow(updatedRows);
+            updatedRows = updateThuNhapKhacRow(updatedRows);
+            updatedRows = updateDauTuRow(updatedRows);
+            updatedRows = updateGroupI3(updatedRows); // <--- DÒNG MỚI
+
+            // 11. Bổ sung tính lại các dòng nhóm/tổng hợp
+            const idxI = updatedRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+            );
             const idxI1 = updatedRows.findIndex(
                 (r) =>
                     (r.name || "").trim().toUpperCase() ===
                     "I.1. DÂN DỤNG + GIAO THÔNG"
             );
-            // Tìm các công trình hiện có phía dưới nhóm này
-            let i = idxI1 + 1;
-            let existedNames = [];
-            while (
-                i < updatedRows.length &&
-                !(
-                    updatedRows[i].name &&
-                    updatedRows[i].name.match(/^[IVX]+\./)
-                )
-            ) {
-                existedNames.push((updatedRows[i].name || "").trim());
-                i++;
-            }
-            // Tìm công trình mới chưa có
-            const newProjects = groupI1.filter(
-                (p) => !existedNames.includes((p.name || "").trim())
+            const idxI2 = updatedRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
             );
-            if (newProjects.length > 0 && idxI1 !== -1) {
-                updatedRows.splice(idxI1 + 1, 0, ...newProjects);
+            if (idxI !== -1 && idxI1 !== -1 && idxI2 !== -1) {
+                const rev =
+                    toNum(updatedRows[idxI1].revenue) +
+                    toNum(updatedRows[idxI2].revenue);
+                const cost =
+                    toNum(updatedRows[idxI1].cost) +
+                    toNum(updatedRows[idxI2].cost);
+                const profit = rev - cost;
+                updatedRows[idxI].revenue = rev;
+                updatedRows[idxI].cost = cost;
+                updatedRows[idxI].profit = profit;
+                const target = toNum(updatedRows[idxI].target);
+                const percent = target !== 0 ? (profit / target) * 100 : null;
+                updatedRows[idxI].percent = percent;
+            }
+
+            // 12. Tính lại TỔNG
+            const isNotTotal = (r) =>
+                (r.name || "").trim().toUpperCase() !== "TỔNG" &&
+                typeof r.revenue === "number" &&
+                typeof r.cost === "number";
+            const sum = updatedRows.filter(isNotTotal);
+            const revenue = sum.reduce((t, r) => t + toNum(r.revenue), 0);
+            const cost = sum.reduce((t, r) => t + toNum(r.cost), 0);
+            const profit = revenue - cost;
+            const percent = revenue ? (profit / revenue) * 100 : null;
+
+            const idxTotal = updatedRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
+            );
+            if (idxTotal !== -1) {
+                updatedRows[idxTotal] = {
+                    ...updatedRows[idxTotal],
+                    revenue,
+                    cost,
+                    profit,
+                    percent,
+                };
+            }
+
+            // 13. IV. LỢI NHUẬN ... = profit của TỔNG
+            const idxIV = updatedRows.findIndex(
+                (r) =>
+                    (r.name || "").trim().toUpperCase() ===
+                    `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
+            );
+            if (idxIV !== -1 && idxTotal !== -1) {
+                updatedRows[idxIV] = {
+                    ...updatedRows[idxIV],
+                    revenue: 0,
+                    cost: 0,
+                    profit: toNum(updatedRows[idxTotal].profit),
+                    percent: null,
+                };
+            }
+
+            // 14. LỢI NHUẬN SAU GIẢM TRỪ = công thức đặc biệt
+            const idxLNFinal = updatedRows.findIndex(
+                (r) =>
+                    (r.name || "").trim().toUpperCase() ===
+                    finalProfitRowName.trim().toUpperCase()
+            );
+            const idxVII = updatedRows.findIndex(
+                (r) =>
+                    (r.name || "").trim().toUpperCase() ===
+                    `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
+            );
+            const idxVIII = updatedRows.findIndex(
+                (r) =>
+                    (r.name || "").trim().toUpperCase() ===
+                    "VIII. GIẢM LÃI ĐT DỰ ÁN"
+            );
+            if (
+                idxLNFinal !== -1 &&
+                idxIV !== -1 &&
+                idxV !== -1 &&
+                idxVI !== -1 &&
+                idxVII !== -1 &&
+                idxVIII !== -1
+            ) {
+                updatedRows[idxLNFinal] = {
+                    ...updatedRows[idxLNFinal],
+                    revenue: 0,
+                    cost: 0,
+                    profit:
+                        toNum(updatedRows[idxIV].profit) -
+                        toNum(updatedRows[idxV].profit) +
+                        toNum(updatedRows[idxVI].profit) -
+                        toNum(updatedRows[idxVII].profit) -
+                        toNum(updatedRows[idxVIII].profit),
+                    percent: null,
+                };
             }
 
             setRows(updatedRows);
-            return;
-        }
+            setLoading(false); // <-- set loading khi bắt đầu fetch
+        };
 
-        // 4. Build lại defaultRows
-        let defaultRows = [
-            {
-                name: "I. XÂY DỰNG",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                costOverQuarter: null,
-            },
-            { name: "I.1. Dân Dụng + Giao Thông", ...sumGroup(groupI1) },
-            ...groupI1,
-            { name: "I.2. KÈ", ...sumGroup(groupI2) },
-            ...groupI2,
-            { name: "I.3. CÔNG TRÌNH CÔNG TY CĐT", ...sumGroup(groupI3) },
-            {
-                name: "II. SẢN XUẤT",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-            },
-            {
-                name: "II.1. SẢN XUẤT",
-                ...sumGroup(groupII),
-                costOverQuarter: null,
-                editable: true,
-            },
-            ...groupII,
-            {
-                name: "II.2. DT + LN ĐƯỢC CHIA TỪ LDX",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-            },
-            {
-                name: "LỢI NHUẬN LIÊN DOANH (LDX)",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: true,
-            },
-            {
-                name: "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: true,
-            },
-            {
-                name: "GIẢM LN LDX",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: true,
-            },
-            {
-                name: "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-            },
-            {
-                name: "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: true,
-            },
-            {
-                name: "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: true,
-            },
-            {
-                name: "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: true,
-            },
-            {
-                name: "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: true,
-            },
-            {
-                name: "III. ĐẦU TƯ",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                costOverQuarter: null,
-                editable: true,
-            },
-            {
-                name: "DOANH THU BLX Q3 N2024 - D21",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: true,
-            },
-            {
-                name: "TỔNG",
-                ...sumGroup([
-                    ...groupI1,
-                    ...groupI2,
-                    ...groupI3,
-                    ...groupII,
-                    ...others,
-                ]),
-            },
-            {
-                name: `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`,
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-            },
-            {
-                name: "V. GIẢM LỢI NHUẬN",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: false,
-            },
-            {
-                name: "VI. THU NHẬP KHÁC",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: false,
-            },
-            {
-                name: `VII. KHTSCĐ NĂM ${selectedYear}`,
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: true,
-            },
-            {
-                name: "VIII. GIẢM LÃI ĐT DỰ ÁN",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: true,
-            },
-            {
-                name: finalProfitRowName,
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-            },
-            {
-                name: `+ Vượt CP BPXN do ko đạt DT ${selectedQuarter}`,
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-            },
-            {
-                name: `+ Vượt CP BPSX do ko đạt DT ${selectedQuarter}`,
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-            },
-            {
-                name: `+ Vượt CP BPĐT do ko có DT ${selectedQuarter} (lãi + thuê vp)`,
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-            },
-            {
-                name: "+ Chi phí đã trả trước",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                editable: true,
-            },
-        ];
+        fetchData();
 
-        // 5. Lấy chi phí vượt quý hiện tại
-        let cpVuotCurr = 0;
-        try {
-            const currDocSnap = await getDoc(
-                doc(db, "costAllocationsQuarter", `${selectedYear}_${selectedQuarter}`)
-            );
-            if (currDocSnap.exists()) {
-                cpVuotCurr = toNum(currDocSnap.data().totalThiCongCumQuarterOnly);
-            }
-        } catch {
-            cpVuotCurr = 0;
-        }
-        const idxXD = defaultRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
-        );
-        if (idxXD !== -1)
-            defaultRows[idxXD].costOverQuarter = cpVuotCurr || 0;
-
-        // 6. Lấy lợi nhuận vượt BPXN
-        let bpVotProfit = 0;
-        try {
-            const overDoc = await getDoc(
-                doc(db, "costAllocationsQuarter", `${selectedYear}_${selectedQuarter}`)
-            );
-            if (overDoc.exists()) {
-                bpVotProfit = toNum(overDoc.data().totalThiCongCumQuarterOnly);
-            }
-        } catch {
-            bpVotProfit = 0;
-        }
-        const idxBPXN = defaultRows.findIndex((r) =>
-            (r.name || "").trim().toUpperCase().startsWith("+ VƯỢT CP BPXN DO KO ĐẠT DT")
-        );
-        if (idxBPXN !== -1) {
-            defaultRows[idxBPXN].profit = bpVotProfit;
-        }
-
-        // 7. Lấy lợi nhuận vượt BPSX
-        let bpBPSXProfit = 0;
-        try {
-            const overDoc = await getDoc(
-                doc(db, "costAllocationsQuarter", `${selectedYear}_${selectedQuarter}`)
-            );
-            if (overDoc.exists()) {
-                bpBPSXProfit = toNum(overDoc.data().totalNhaMayCumQuarterOnly);
-            }
-        } catch {
-            bpBPSXProfit = 0;
-        }
-        const idxBPSX = defaultRows.findIndex((r) =>
-            (r.name || "").trim().toUpperCase().startsWith("+ VƯỢT CP BPSX DO KO ĐẠT DT")
-        );
-        if (idxBPSX !== -1) {
-            defaultRows[idxBPSX].profit = bpBPSXProfit;
-        }
-
-        // 8. Lấy lợi nhuận vượt BPĐT (KHDT - luôn lấy Q1)
-        let khdtProfit = 0;
-        try {
-            const khdtDoc = await getDoc(
-                doc(db, "costAllocationsQuarter", `${selectedYear}_Q1`)
-            );
-            if (khdtDoc.exists()) {
-                khdtProfit = toNum(khdtDoc.data().totalKhdtCumQuarterOnly);
-            }
-        } catch {
-            khdtProfit = 0;
-        }
-        const idxBPDT = defaultRows.findIndex((r) =>
-            (r.name || "").trim().toUpperCase().startsWith("+ VƯỢT CP BPĐT DO KO CÓ DT")
-        );
-        if (idxBPDT !== -1) {
-            defaultRows[idxBPDT].profit = khdtProfit;
-        }
-
-        // 9. Lấy giá trị giảm lợi nhuận & thu nhập khác
-        let totalDecreaseProfit = 0;
-        let totalIncreaseProfit = 0;
-        try {
-            const profitChangesDoc = await getDoc(
-                doc(db, "profitChanges", `${selectedYear}_${selectedQuarter}`)
-            );
-            if (profitChangesDoc.exists()) {
-                totalDecreaseProfit = toNum(profitChangesDoc.data().totalDecreaseProfit);
-                totalIncreaseProfit = toNum(profitChangesDoc.data().totalIncreaseProfit);
-            }
-        } catch {}
-
-        const idxV = defaultRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
-        );
-        if (idxV !== -1) defaultRows[idxV].profit = totalDecreaseProfit;
-
-        const idxVI = defaultRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
-        );
-        if (idxVI !== -1) defaultRows[idxVI].profit = totalIncreaseProfit;
-
-        // 10. Cập nhật các dòng nhóm (LDX, Sà Lan, Thu nhập khác, Đầu tư)
-        let updatedRows = updateLDXRow(defaultRows);
-        updatedRows = updateSalanRow(updatedRows);
-        updatedRows = updateThuNhapKhacRow(updatedRows);
-        updatedRows = updateDauTuRow(updatedRows);
-
-        // 11. Bổ sung tính lại các dòng nhóm/tổng hợp
-        const idxI = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
-        );
-        const idxI1 = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I.1. DÂN DỤNG + GIAO THÔNG"
-        );
-        const idxI2 = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
-        );
-        if (idxI !== -1 && idxI1 !== -1 && idxI2 !== -1) {
-            const rev = toNum(updatedRows[idxI1].revenue) + toNum(updatedRows[idxI2].revenue);
-            const cost = toNum(updatedRows[idxI1].cost) + toNum(updatedRows[idxI2].cost);
-            const profit = rev - cost;
-            updatedRows[idxI].revenue = rev;
-            updatedRows[idxI].cost = cost;
-            updatedRows[idxI].profit = profit;
-            const target = toNum(updatedRows[idxI].target);
-            const percent = target !== 0 ? (profit / target) * 100 : null;
-            updatedRows[idxI].percent = percent;
-        }
-
-        // 12. Tính lại TỔNG
-        const isNotTotal = (r) =>
-            (r.name || "").trim().toUpperCase() !== "TỔNG" &&
-            typeof r.revenue === "number" &&
-            typeof r.cost === "number";
-        const sum = updatedRows.filter(isNotTotal);
-        const revenue = sum.reduce((t, r) => t + toNum(r.revenue), 0);
-        const cost = sum.reduce((t, r) => t + toNum(r.cost), 0);
-        const profit = revenue - cost;
-        const percent = revenue ? (profit / revenue) * 100 : null;
-
-        const idxTotal = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
-        );
-        if (idxTotal !== -1) {
-            updatedRows[idxTotal] = {
-                ...updatedRows[idxTotal],
-                revenue,
-                cost,
-                profit,
-                percent,
-            };
-        }
-
-        // 13. IV. LỢI NHUẬN ... = profit của TỔNG
-        const idxIV = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() ===
-                `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
-        );
-        if (idxIV !== -1 && idxTotal !== -1) {
-            updatedRows[idxIV] = {
-                ...updatedRows[idxIV],
-                revenue: 0,
-                cost: 0,
-                profit: toNum(updatedRows[idxTotal].profit),
-                percent: null,
-            };
-        }
-
-        // 14. LỢI NHUẬN SAU GIẢM TRỪ = công thức đặc biệt
-        const idxLNFinal = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() ===
-                finalProfitRowName.trim().toUpperCase()
-        );
-        const idxVII = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() ===
-                `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
-        );
-        const idxVIII = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() ===
-                "VIII. GIẢM LÃI ĐT DỰ ÁN"
-        );
-        if (
-            idxLNFinal !== -1 &&
-            idxIV !== -1 &&
-            idxV !== -1 &&
-            idxVI !== -1 &&
-            idxVII !== -1 &&
-            idxVIII !== -1
-        ) {
-            updatedRows[idxLNFinal] = {
-                ...updatedRows[idxLNFinal],
-                revenue: 0,
-                cost: 0,
-                profit:
-                    toNum(updatedRows[idxIV].profit) -
-                    toNum(updatedRows[idxV].profit) +
-                    toNum(updatedRows[idxVI].profit) -
-                    toNum(updatedRows[idxVII].profit) -
-                    toNum(updatedRows[idxVIII].profit),
-                percent: null,
-            };
-        }
-
-        setRows(updatedRows);
-    };
-
-    fetchData();
-
-    // eslint-disable-next-line
-}, [selectedYear, selectedQuarter]);
-
+        // eslint-disable-next-line
+    }, [selectedYear, selectedQuarter]);
 
     const handleSave = async (rowsToSave) => {
         const rowsData = Array.isArray(rowsToSave) ? rowsToSave : rows;
@@ -789,6 +898,7 @@ useEffect(() => {
         updatedRows = updateSalanRow(updatedRows);
         updatedRows = updateThuNhapKhacRow(updatedRows);
         updatedRows = updateDauTuRow(updatedRows);
+        updatedRows = updateGroupI3(updatedRows); // <--- DÒNG MỚI
 
         // === TÍNH LẠI DÒNG "I. XÂY DỰNG" ===
         const idxI = updatedRows.findIndex(
@@ -1050,282 +1160,284 @@ useEffect(() => {
             handleSave(rowsCopy); // truyền rows mới vào hàm lưu
         }, 200);
     };
+    const handleExportExcel = () => {
+        if (!rows || rows.length === 0) return;
 
-    return (
-        <Box sx={{ minHeight: "100vh", bgcolor: "#f7faff", py: 4 }}>
-            <Paper elevation={3} sx={{ p: 4 }}>
-                <Box
-                    sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 2,
-                        flexWrap: "wrap",
-                        gap: 2,
-                    }}
-                >
-                    <Typography variant="h5" fontWeight={600}>
-                        Báo cáo quý: {selectedQuarter}.{selectedYear}
-                    </Typography>
-                    <Stack direction="row" spacing={2} flexWrap="wrap">
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            startIcon={<SaveIcon />}
-                            onClick={() => handleSave()}
-                            sx={{ borderRadius: 2 }}
-                        >
-                            Lưu dữ liệu
-                        </Button>
+        // Tạo mảng dữ liệu xuất cho Excel, có thể chỉ chọn các trường cần thiết
+        const exportData = rows.map((r) => ({
+            "CÔNG TRÌNH": r.name,
+            "DOANH THU": r.revenue,
+            "CHI PHÍ ĐÃ CHI": r.cost,
+            "LỢI NHUẬN": r.profit,
+            "%LN QUÍ": r.percent,
+            "CP VƯỢT QUÝ": r.costOverQuarter,
+            "CHỈ TIÊU": r.target,
+            "THUẬN LỢI / KHÓ KHĂN": r.note,
+            "ĐỀ XUẤT": r.suggest,
+        }));
 
-                        <FormControl size="small" sx={{ minWidth: 120 }}>
-                            <InputLabel>Chọn quý</InputLabel>
-                            <Select
-                                value={selectedQuarter}
-                                label="Chọn quý"
-                                onChange={(e) =>
-                                    setSelectedQuarter(e.target.value)
-                                }
-                            >
-                                {["Q1", "Q2", "Q3", "Q4"].map((q) => (
-                                    <MenuItem key={q} value={q}>
-                                        {q}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <TextField
-                            size="small"
-                            label="Năm"
-                            type="number"
-                            value={selectedYear}
-                            onChange={(e) =>
-                                setSelectedYear(Number(e.target.value))
-                            }
-                            sx={{ minWidth: 100 }}
-                        />
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    checked={tvMode}
-                                    onChange={() => setTvMode(!tvMode)}
-                                />
-                            }
-                            label="TV Mode"
-                        />
-                        <Button
-                            variant="outlined"
-                            color="success"
-                            onClick={() => setAddModal(true)}
-                            sx={{ borderRadius: 2 }}
-                        >
-                            + Thêm Công Trình
-                        </Button>
-                    </Stack>
-                </Box>
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Báo cáo quý");
 
-                <TableContainer>
-                    <Table>
-                        <TableHead sx={{ bgcolor: "#e3f2fd" }}>
-                            <TableRow>
-                                {[
-                                    "CÔNG TRÌNH",
-                                    "DOANH THU",
-                                    "CHI PHÍ ĐÃ CHI",
-                                    "LỢI NHUẬN",
-                                    "% LN",
-                                    cpVuotLabel,
-                                    "CHỈ TIÊU",
-                                    "THUẬN LỢI / KHÓ KHĂN",
-                                    "ĐỀ XUẤT",
-                                ].map((label, i) => (
-                                    <TableCell
-                                        key={i}
-                                        align={i > 0 ? "right" : "left"}
-                                        sx={cellStyle}
-                                    >
-                                        <strong>{label}</strong>
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {rows.map((r, idx) => (
-                                <TableRow
-                                    key={idx}
-                                    sx={{
-                                        bgcolor: r.name?.includes("TỔNG")
-                                            ? "#e8f5e9"
-                                            : r.name?.match(/^[IVX]+\./)
-                                            ? "#fffde7"
-                                            : "inherit",
-                                    }}
-                                >
-                                    <TableCell
-                                        sx={{
-                                            ...cellStyle,
-                                            fontWeight: r.name?.includes("TỔNG")
-                                                ? 800
-                                                : r.name?.match(/^[IVX]+\./)
-                                                ? 700
-                                                : "normal",
-                                            textDecoration: r.name?.match(
-                                                /^[IVX]+\./
-                                            )
-                                                ? "underline"
-                                                : "none",
-                                        }}
-                                    >
-                                        {r.name}
-                                    </TableCell>
-                                    {renderEditableCell(r, idx, "revenue")}
-                                    {renderEditableCell(r, idx, "cost")}
-                                    {renderEditableCell(r, idx, "profit")}
-                                    {renderEditableCell(
-                                        r,
-                                        idx,
-                                        "percent",
-                                        "center"
-                                    )}
-                                    {renderEditableCell(
-                                        r,
-                                        idx,
-                                        "costOverQuarter"
-                                    )}
-                                    {renderEditableCell(r, idx, "target")}
-                                    {renderEditableCell(
-                                        r,
-                                        idx,
-                                        "note",
-                                        "center"
-                                    )}
-                                    {renderEditableCell(
-                                        r,
-                                        idx,
-                                        "suggest",
-                                        "center"
-                                    )}
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            </Paper>
+        // Tạo file buffer và download
+        const excelBuffer = XLSX.write(workbook, {
+            bookType: "xlsx",
+            type: "array",
+        });
 
-            <Dialog open={addModal} onClose={() => setAddModal(false)}>
-                <DialogTitle sx={{ fontWeight: "bold" }}>
-                    Thêm Công Trình Mới
-                </DialogTitle>
-                <DialogContent sx={{ minWidth: 400, pt: 2 }}>
-                    <Stack spacing={2}>
-                        <FormControl fullWidth size="small">
-                            <InputLabel>Nhóm</InputLabel>
-                            <Select
-                                label="Nhóm"
-                                value={addProject.group}
-                                onChange={(e) =>
-                                    setAddProject((p) => ({
-                                        ...p,
-                                        group: e.target.value,
-                                    }))
-                                }
-                            >
-                                {[
-                                    "I.1. Dân Dụng + Giao Thông",
-                                    "I.2. KÈ",
-                                    "I.3. CÔNG TRÌNH CÔNG TY CĐT",
-                                    "III. ĐẦU TƯ",
-                                ].map((g) => (
-                                    <MenuItem key={g} value={g}>
-                                        {g}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <TextField
-                            fullWidth
-                            size="small"
-                            label="Tên công trình"
-                            value={addProject.name}
-                            onChange={(e) =>
-                                setAddProject((p) => ({
-                                    ...p,
-                                    name: e.target.value,
-                                }))
-                            }
-                        />
-                    </Stack>
-                </DialogContent>
-                <DialogActions sx={{ pr: 3, pb: 2 }}>
-                    <Button onClick={() => setAddModal(false)}>Huỷ</Button>
-                    <Button
-                        variant="contained"
-                        onClick={() => {
-                            if (!addProject.name.trim()) return;
-                            let insertIndex = -1;
-                            let groupLabel = addProject.group
-                                .trim()
-                                .toUpperCase();
-                            let rowsCopy = [...rows];
+        const dateStr = new Date()
+            .toLocaleDateString("vi-VN")
+            .replaceAll("/", "-");
+        saveAs(
+            new Blob([excelBuffer], { type: "application/octet-stream" }),
+            `BaoCaoLoiNhuan_${selectedQuarter}_${selectedYear}_${dateStr}.xlsx`
+        );
+    };
 
-                            const idxGroup = rowsCopy.findIndex(
-                                (r) =>
-                                    (r.name || "").trim().toUpperCase() ===
-                                    groupLabel
-                            );
-                            if (idxGroup !== -1) {
-                                insertIndex = idxGroup + 1;
-                                while (
-                                    insertIndex < rowsCopy.length &&
-                                    !(
-                                        rowsCopy[insertIndex].name &&
-                                        rowsCopy[insertIndex].name.match(
-                                            /^[IVX]+\./
-                                        )
-                                    ) &&
-                                    ![
-                                        "I. XÂY DỰNG",
-                                        "II. SẢN XUẤT",
-                                        "TỔNG",
-                                    ].includes(
-                                        (
-                                            rowsCopy[insertIndex].name || ""
-                                        ).toUpperCase()
-                                    )
-                                ) {
-                                    insertIndex++;
-                                }
-                            } else {
-                                insertIndex = rowsCopy.length - 1;
-                            }
-
-                            rowsCopy.splice(insertIndex, 0, {
-                                name: addProject.name,
-                                type: "", // type để rỗng hoặc có thể tự động hóa nếu muốn, hiện không nhập từ dialog
-                                revenue: 0,
-                                cost: 0,
-                                profit: 0,
-                                percent: null,
-                                costOverQuarter: null,
-                                target: null,
-                                note: "",
-                                suggest: "",
-                                editable: true,
-                            });
-
-                            setRows(rowsCopy);
-                            setAddModal(false);
-                            setAddProject({
-                                group: "I.1. Dân Dụng + Giao Thông",
-                                name: "",
-                                type: "",
-                            });
-                        }}
-                        disabled={!addProject.name.trim()}
-                    >
-                        Thêm
-                    </Button>
-                </DialogActions>
-            </Dialog>
+   return (
+    <Box sx={{ minHeight: "100vh", bgcolor: "#f7faff", py: 4 }}>
+      {loading && (
+        <Box
+          sx={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            bgcolor: "rgba(255,255,255,0.6)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1300
+          }}
+        >
+          <CircularProgress size={64} color="primary" />
         </Box>
-    );
+      )}
+
+      <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            mb: 2,
+            flexWrap: "wrap",
+            gap: 2
+          }}
+        >
+          <Typography variant="h5" fontWeight={700} color="primary">
+            Báo cáo quý: {selectedQuarter}.{selectedYear}
+          </Typography>
+          <Stack direction="row" spacing={2} flexWrap="wrap">
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<SaveIcon />}
+              onClick={handleSave}
+              sx={{ borderRadius: 2 }}
+            >
+              Lưu dữ liệu
+            </Button>
+            <Button
+              variant="outlined"
+              color="info"
+              onClick={handleExportExcel}
+              sx={{ borderRadius: 2 }}
+            >
+              Xuất Excel
+            </Button>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Chọn quý</InputLabel>
+              <Select
+                value={selectedQuarter}
+                label="Chọn quý"
+                onChange={(e) => setSelectedQuarter(e.target.value)}
+              >
+                {"Q1 Q2 Q3 Q4".split(" ").map((q) => (
+                  <MenuItem key={q} value={q}>
+                    {q}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              size="small"
+              label="Năm"
+              type="number"
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              sx={{ minWidth: 100 }}
+            />
+            <FormControlLabel
+              control={
+                <Switch checked={tvMode} onChange={() => setTvMode(!tvMode)} />
+              }
+              label="TV Mode"
+            />
+            <Button
+              variant="outlined"
+              color="success"
+              onClick={() => setAddModal(true)}
+              sx={{ borderRadius: 2 }}
+            >
+              + Thêm Công Trình
+            </Button>
+          </Stack>
+        </Box>
+
+        <Box sx={{ overflowX: "auto" }}>
+          <TableContainer>
+            <Table>
+              <TableHead sx={{ bgcolor: "#e3f2fd" }}>
+                <TableRow>
+                  {["CÔNG TRÌNH", "DOANH THU", "CHI PHÍ ĐÃ CHI", "LỢI NHUẬN", "% LN QUÍ", cpVuotLabel, "CHỈ TIÊU", "THUẬN LỢI / KHÓ KHĂN", "ĐỀ XUẤT"].map((label, i) => (
+                    <TableCell
+                      key={i}
+                      align={i > 0 ? "right" : "left"}
+                      sx={cellStyle}
+                    >
+                      <strong>{label}</strong>
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {rows.map((r, idx) => (
+                  <TableRow
+                    key={idx}
+                    sx={{
+                      bgcolor: r.name?.includes("TỔNG")
+                        ? "#e8f5e9"
+                        : r.name?.match(/^[IVX]+\./)
+                        ? "#fffde7"
+                        : idx % 2 === 0
+                        ? "white"
+                        : "#f9f9f9"
+                    }}
+                  >
+                    <TableCell
+                      sx={{
+                        ...cellStyle,
+                        fontWeight: r.name?.includes("TỔNG")
+                          ? 800
+                          : r.name?.match(/^[IVX]+\./)
+                          ? 700
+                          : "normal",
+                        textDecoration: r.name?.match(/^[IVX]+\./)
+                          ? "underline"
+                          : "none"
+                      }}
+                    >
+                      {r.name?.match(/^[IVX]+\./) ? "▶ " : ""}
+                      {r.name}
+                    </TableCell>
+                    {renderEditableCell(r, idx, "revenue")}
+                    {renderEditableCell(r, idx, "cost")}
+                    {renderEditableCell(r, idx, "profit")}
+                    {renderEditableCell(r, idx, "percent", "center")}
+                    {renderEditableCell(r, idx, "costOverQuarter")}
+                    {renderEditableCell(r, idx, "target")}
+                    {renderEditableCell(r, idx, "note", "center")}
+                    {renderEditableCell(r, idx, "suggest", "center")}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      </Paper>
+
+      <Dialog open={addModal} onClose={() => setAddModal(false)}>
+        <DialogTitle sx={{ fontWeight: "bold" }}>Thêm Công Trình Mới</DialogTitle>
+        <DialogContent sx={{ minWidth: 400, pt: 2 }}>
+          <Stack spacing={2}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Nhóm</InputLabel>
+              <Select
+                label="Nhóm"
+                value={addProject.group}
+                onChange={(e) =>
+                  setAddProject((p) => ({ ...p, group: e.target.value }))
+                }
+              >
+                {["I.1. Dân Dụng + Giao Thông", "I.2. KÈ", "I.3. CÔNG TRÌNH CÔNG TY CĐT", "III. ĐẦU TƯ"].map((g) => (
+                  <MenuItem key={g} value={g}>
+                    {g}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              size="small"
+              label="Tên công trình"
+              value={addProject.name}
+              onChange={(e) =>
+                setAddProject((p) => ({ ...p, name: e.target.value }))
+              }
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ pr: 3, pb: 2 }}>
+          <Button onClick={() => setAddModal(false)}>Huỷ</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (!addProject.name.trim()) return;
+              let insertIndex = -1;
+              let groupLabel = addProject.group.trim().toUpperCase();
+              let rowsCopy = [...rows];
+
+              const idxGroup = rowsCopy.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === groupLabel
+              );
+              if (idxGroup !== -1) {
+                insertIndex = idxGroup + 1;
+                while (
+                  insertIndex < rowsCopy.length &&
+                  !(
+                    rowsCopy[insertIndex].name &&
+                    rowsCopy[insertIndex].name.match(/^[IVX]+\./)
+                  ) &&
+                  !["I. XÂY DỰNG", "II. SẢN XUẤT", "TỔNG"].includes(
+                    (rowsCopy[insertIndex].name || "").toUpperCase()
+                  )
+                ) {
+                  insertIndex++;
+                }
+              } else {
+                insertIndex = rowsCopy.length - 1;
+              }
+
+              rowsCopy.splice(insertIndex, 0, {
+                name: addProject.name,
+                type: "",
+                revenue: 0,
+                cost: 0,
+                profit: 0,
+                percent: null,
+                costOverQuarter: null,
+                target: null,
+                note: "",
+                suggest: "",
+                editable: true
+              });
+
+              setRows(rowsCopy);
+              setAddModal(false);
+              setAddProject({
+                group: "I.1. Dân Dụng + Giao Thông",
+                name: "",
+                type: ""
+              });
+            }}
+            disabled={!addProject.name.trim()}
+          >
+            Thêm
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
 }
