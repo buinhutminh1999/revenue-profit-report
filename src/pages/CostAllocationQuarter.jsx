@@ -708,7 +708,7 @@ export default function CostAllocationQuarter() {
         }
 
         // 1. TÍNH TỔNG VƯỢT QUÝ THEO TYPE
-        const totalCumQuarterOnly = rowsInit
+        const totalCumQuarterOnly = rowsWithTotal
             .filter(r =>
                 (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
                 (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
@@ -728,7 +728,12 @@ export default function CostAllocationQuarter() {
             "Nhà máy": "totalNhaMayCumQuarterOnly",
             "KH-ĐT": "totalKhdtCumQuarterOnly",
         };
-        const totalField = totalFieldMap[typeFilter];
+
+console.log("typeFilter khi lưu:", JSON.stringify(typeFilter), "| length:", typeFilter.length);
+console.log("totalFieldMap keys:", Object.keys(totalFieldMap));
+       const totalField = totalFieldMap[typeFilter.trim()];
+        console.log("totalField resolved:", totalField);
+console.log("totalCumQuarterOnly:", totalCumQuarterOnly);
         if (totalField) {
             await setDoc(
                 docRef,
@@ -847,7 +852,6 @@ export default function CostAllocationQuarter() {
         setSaving(false);
     }
 };
-
 
     useEffect(() => {
         const onKeyDown = (e) => {
