@@ -133,6 +133,54 @@ export default function ProfitReportQuarter() {
         }
         return rows;
     };
+    const updateDTLNLDXRow = (inputRows) => {
+        const rows = [...inputRows];
+        const idxMain = rows.findIndex((r) =>
+            (r.name || "").toUpperCase().includes("DT + LN ĐƯỢC CHIA TỪ LDX")
+        );
+        // Lấy các dòng chi tiết liên quan bên dưới
+        const idxLDX = rows.findIndex((r) =>
+            (r.name || "").toUpperCase().includes("LIÊN DOANH (LDX)")
+        );
+        const idxLDXPT = rows.findIndex((r) =>
+            (r.name || "")
+                .toUpperCase()
+                .includes("PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)")
+        );
+        const idxGiam = rows.findIndex((r) =>
+            (r.name || "").toUpperCase().includes("GIẢM LN LDX")
+        );
+        if (idxMain !== -1) {
+            // Tính tổng các dòng liên quan
+            let revenue = 0,
+                cost = 0,
+                profit = 0;
+            if (idxLDX !== -1) {
+                revenue += toNum(rows[idxLDX].revenue);
+                cost += toNum(rows[idxLDX].cost);
+                profit += toNum(rows[idxLDX].profit);
+            }
+            if (idxLDXPT !== -1) {
+                revenue += toNum(rows[idxLDXPT].revenue);
+                cost += toNum(rows[idxLDXPT].cost);
+                profit += toNum(rows[idxLDXPT].profit);
+            }
+            if (idxGiam !== -1) {
+                revenue -= toNum(rows[idxGiam].revenue);
+                cost -= toNum(rows[idxGiam].cost);
+                profit -= toNum(rows[idxGiam].profit);
+            }
+            const percent = revenue !== 0 ? (profit / revenue) * 100 : null;
+            rows[idxMain] = {
+                ...rows[idxMain],
+                revenue,
+                cost,
+                profit,
+                percent,
+            };
+        }
+        return rows;
+    };
 
     const updateThuNhapKhacRow = (inputRows) => {
         const rows = [...inputRows];
@@ -346,7 +394,7 @@ export default function ProfitReportQuarter() {
                 }
 
                 setRows(updatedRows);
-                    setLoading(false); // <<< THÊM DÒNG NÀY
+                setLoading(false); // <<< THÊM DÒNG NÀY
 
                 return;
             }
@@ -368,8 +416,8 @@ export default function ProfitReportQuarter() {
                 { name: "I.3. CÔNG TRÌNH CÔNG TY CĐT", ...sumGroup(groupI3) },
                 {
                     name: "II. SẢN XUẤT",
-                    revenue: 0,
-                    cost: 0,
+                    revenue: null,
+                    cost: null,
                     profit: 0,
                     percent: null,
                 },
@@ -691,10 +739,46 @@ export default function ProfitReportQuarter() {
 
             // 10. Cập nhật các dòng nhóm (LDX, Sà Lan, Thu nhập khác, Đầu tư)
             let updatedRows = updateLDXRow(defaultRows);
+            updatedRows = updateDTLNLDXRow(updatedRows); // <-- thêm dòng này!
+
             updatedRows = updateSalanRow(updatedRows);
             updatedRows = updateThuNhapKhacRow(updatedRows);
             updatedRows = updateDauTuRow(updatedRows);
             updatedRows = updateGroupI3(updatedRows); // <--- DÒNG MỚI
+            // ==== CHỈ SUM CỘT LỢI NHUẬN CHO II. SẢN XUẤT ====
+            const idxII = updatedRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
+            );
+            const idxII1 = updatedRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
+            );
+            const idxII2 = updatedRows.findIndex(
+                (r) =>
+                    (r.name || "").trim().toUpperCase() ===
+                    "II.2. DT + LN ĐƯỢC CHIA TỪ LDX"
+            );
+            const idxII3 = updatedRows.findIndex(
+                (r) =>
+                    (r.name || "").trim().toUpperCase() ===
+                    "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)"
+            );
+
+            if (
+                idxII !== -1 &&
+                idxII1 !== -1 &&
+                idxII2 !== -1 &&
+                idxII3 !== -1
+            ) {
+                const profit =
+                    toNum(updatedRows[idxII1].profit) +
+                    toNum(updatedRows[idxII2].profit) +
+                    toNum(updatedRows[idxII3].profit);
+
+                updatedRows[idxII] = {
+                    ...updatedRows[idxII],
+                    profit,
+                };
+            }
 
             // 11. Bổ sung tính lại các dòng nhóm/tổng hợp
             const idxI = updatedRows.findIndex(
@@ -733,20 +817,21 @@ export default function ProfitReportQuarter() {
             const revenue = sum.reduce((t, r) => t + toNum(r.revenue), 0);
             const cost = sum.reduce((t, r) => t + toNum(r.cost), 0);
             const profit = revenue - cost;
-            const percent = revenue ? (profit / revenue) * 100 : null;
 
-            const idxTotal = updatedRows.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
-            );
-            if (idxTotal !== -1) {
-                updatedRows[idxTotal] = {
-                    ...updatedRows[idxTotal],
-                    revenue,
-                    cost,
-                    profit,
-                    percent,
-                };
-            }
+         const idxTotal = updatedRows.findIndex(
+  (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
+);
+if (idxTotal !== -1) {
+    updatedRows[idxTotal] = {
+        ...updatedRows[idxTotal],
+        revenue: revenue === 0 ? null : revenue,
+        cost: cost === 0 ? null : cost,
+        profit: profit === 0 ? null : profit,
+        percent: null, // luôn là null để hiển thị "–"
+    };
+}
+
+
 
             // 13. IV. LỢI NHUẬN ... = profit của TỔNG
             const idxIV = updatedRows.findIndex(
@@ -895,10 +980,44 @@ export default function ProfitReportQuarter() {
 
         // --- TÍNH LẠI CÁC DÒNG GROUP TỔNG HỢP VÀ LỢI NHUẬN FINAL ---
         let updatedRows = updateLDXRow(newRows);
+        updatedRows = updateDTLNLDXRow(updatedRows); // <-- thêm dòng này!
+
         updatedRows = updateSalanRow(updatedRows);
         updatedRows = updateThuNhapKhacRow(updatedRows);
         updatedRows = updateDauTuRow(updatedRows);
         updatedRows = updateGroupI3(updatedRows); // <--- DÒNG MỚI
+        // === TÍNH LẠI DÒNG II. SẢN XUẤT ===
+        const idxII = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
+        );
+        const idxII1 = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
+        );
+        const idxII2 = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "II.2. DT + LN ĐƯỢC CHIA TỪ LDX"
+        );
+        const idxII3 = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)"
+        );
+
+        if (idxII !== -1 && idxII1 !== -1 && idxII2 !== -1 && idxII3 !== -1) {
+            const profit =
+                toNum(updatedRows[idxII1].profit) +
+                toNum(updatedRows[idxII2].profit) +
+                toNum(updatedRows[idxII3].profit);
+
+            updatedRows[idxII] = {
+                ...updatedRows[idxII],
+                revenue,
+                cost: cost === 0 ? null : cost,
+                profit: profit === 0 ? null : profit,
+                percent,
+            };
+        }
 
         // === TÍNH LẠI DÒNG "I. XÂY DỰNG" ===
         const idxI = updatedRows.findIndex(
@@ -909,9 +1028,15 @@ export default function ProfitReportQuarter() {
                 (r.name || "").trim().toUpperCase() ===
                 "I.1. DÂN DỤNG + GIAO THÔNG"
         );
-        const idxI2 = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
-        );
+       const idxI2 = updatedRows.findIndex(
+    (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
+);
+if (idxI2 !== -1) {
+    updatedRows[idxI2] = {
+        ...updatedRows[idxI2],
+        percent: null, // Luôn là null để hiển thị dấu –
+    };
+}
         if (idxI !== -1 && idxI1 !== -1 && idxI2 !== -1) {
             const rev =
                 toNum(updatedRows[idxI1].revenue) +
@@ -1195,249 +1320,316 @@ export default function ProfitReportQuarter() {
         );
     };
 
-   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "#f7faff", py: 4 }}>
-      {loading && (
-        <Box
-          sx={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            bgcolor: "rgba(255,255,255,0.6)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 1300
-          }}
-        >
-          <CircularProgress size={64} color="primary" />
-        </Box>
-      )}
-
-      <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            mb: 2,
-            flexWrap: "wrap",
-            gap: 2
-          }}
-        >
-          <Typography variant="h5" fontWeight={700} color="primary">
-            Báo cáo quý: {selectedQuarter}.{selectedYear}
-          </Typography>
-          <Stack direction="row" spacing={2} flexWrap="wrap">
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<SaveIcon />}
-              onClick={handleSave}
-              sx={{ borderRadius: 2 }}
-            >
-              Lưu dữ liệu
-            </Button>
-            <Button
-              variant="outlined"
-              color="info"
-              onClick={handleExportExcel}
-              sx={{ borderRadius: 2 }}
-            >
-              Xuất Excel
-            </Button>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Chọn quý</InputLabel>
-              <Select
-                value={selectedQuarter}
-                label="Chọn quý"
-                onChange={(e) => setSelectedQuarter(e.target.value)}
-              >
-                {"Q1 Q2 Q3 Q4".split(" ").map((q) => (
-                  <MenuItem key={q} value={q}>
-                    {q}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              size="small"
-              label="Năm"
-              type="number"
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              sx={{ minWidth: 100 }}
-            />
-            <FormControlLabel
-              control={
-                <Switch checked={tvMode} onChange={() => setTvMode(!tvMode)} />
-              }
-              label="TV Mode"
-            />
-            <Button
-              variant="outlined"
-              color="success"
-              onClick={() => setAddModal(true)}
-              sx={{ borderRadius: 2 }}
-            >
-              + Thêm Công Trình
-            </Button>
-          </Stack>
-        </Box>
-
-        <Box sx={{ overflowX: "auto" }}>
-          <TableContainer>
-            <Table>
-              <TableHead sx={{ bgcolor: "#e3f2fd" }}>
-                <TableRow>
-                  {["CÔNG TRÌNH", "DOANH THU", "CHI PHÍ ĐÃ CHI", "LỢI NHUẬN", "% LN QUÍ", cpVuotLabel, "CHỈ TIÊU", "THUẬN LỢI / KHÓ KHĂN", "ĐỀ XUẤT"].map((label, i) => (
-                    <TableCell
-                      key={i}
-                      align={i > 0 ? "right" : "left"}
-                      sx={cellStyle}
-                    >
-                      <strong>{label}</strong>
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {rows.map((r, idx) => (
-                  <TableRow
-                    key={idx}
+    return (
+        <Box sx={{ minHeight: "100vh", bgcolor: "#f7faff", py: 4 }}>
+            {loading && (
+                <Box
                     sx={{
-                      bgcolor: r.name?.includes("TỔNG")
-                        ? "#e8f5e9"
-                        : r.name?.match(/^[IVX]+\./)
-                        ? "#fffde7"
-                        : idx % 2 === 0
-                        ? "white"
-                        : "#f9f9f9"
+                        position: "fixed",
+                        top: 0,
+                        left: 0,
+                        width: "100vw",
+                        height: "100vh",
+                        bgcolor: "rgba(255,255,255,0.6)",
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        zIndex: 1300,
                     }}
-                  >
-                    <TableCell
-                      sx={{
-                        ...cellStyle,
-                        fontWeight: r.name?.includes("TỔNG")
-                          ? 800
-                          : r.name?.match(/^[IVX]+\./)
-                          ? 700
-                          : "normal",
-                        textDecoration: r.name?.match(/^[IVX]+\./)
-                          ? "underline"
-                          : "none"
-                      }}
+                >
+                    <CircularProgress size={64} color="primary" />
+                </Box>
+            )}
+
+            <Paper elevation={3} sx={{ p: 4, borderRadius: 3 }}>
+                <Box
+                    sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        mb: 2,
+                        flexWrap: "wrap",
+                        gap: 2,
+                    }}
+                >
+                    <Typography variant="h5" fontWeight={700} color="primary">
+                        Báo cáo quý: {selectedQuarter}.{selectedYear}
+                    </Typography>
+                    <Stack direction="row" spacing={2} flexWrap="wrap">
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            startIcon={<SaveIcon />}
+                            onClick={handleSave}
+                            sx={{ borderRadius: 2 }}
+                        >
+                            Lưu dữ liệu
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            color="info"
+                            onClick={handleExportExcel}
+                            sx={{ borderRadius: 2 }}
+                        >
+                            Xuất Excel
+                        </Button>
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <InputLabel>Chọn quý</InputLabel>
+                            <Select
+                                value={selectedQuarter}
+                                label="Chọn quý"
+                                onChange={(e) =>
+                                    setSelectedQuarter(e.target.value)
+                                }
+                            >
+                                {"Q1 Q2 Q3 Q4".split(" ").map((q) => (
+                                    <MenuItem key={q} value={q}>
+                                        {q}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <TextField
+                            size="small"
+                            label="Năm"
+                            type="number"
+                            value={selectedYear}
+                            onChange={(e) =>
+                                setSelectedYear(Number(e.target.value))
+                            }
+                            sx={{ minWidth: 100 }}
+                        />
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={tvMode}
+                                    onChange={() => setTvMode(!tvMode)}
+                                />
+                            }
+                            label="TV Mode"
+                        />
+                        <Button
+                            variant="outlined"
+                            color="success"
+                            onClick={() => setAddModal(true)}
+                            sx={{ borderRadius: 2 }}
+                        >
+                            + Thêm Công Trình
+                        </Button>
+                    </Stack>
+                </Box>
+
+                <Box sx={{ overflowX: "auto" }}>
+                    <TableContainer>
+                        <Table>
+                            <TableHead sx={{ bgcolor: "#e3f2fd" }}>
+                                <TableRow>
+                                    {[
+                                        "CÔNG TRÌNH",
+                                        "DOANH THU",
+                                        "CHI PHÍ ĐÃ CHI",
+                                        "LỢI NHUẬN",
+                                        "% LN QUÍ",
+                                        cpVuotLabel,
+                                        "CHỈ TIÊU",
+                                        "THUẬN LỢI / KHÓ KHĂN",
+                                        "ĐỀ XUẤT",
+                                    ].map((label, i) => (
+                                        <TableCell
+                                            key={i}
+                                            align={i > 0 ? "right" : "left"}
+                                            sx={cellStyle}
+                                        >
+                                            <strong>{label}</strong>
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {rows.map((r, idx) => (
+                                    <TableRow
+                                        key={idx}
+                                        sx={{
+                                            bgcolor: r.name?.includes("TỔNG")
+                                                ? "#e8f5e9"
+                                                : r.name?.match(/^[IVX]+\./)
+                                                ? "#fffde7"
+                                                : idx % 2 === 0
+                                                ? "white"
+                                                : "#f9f9f9",
+                                        }}
+                                    >
+                                        <TableCell
+                                            sx={{
+                                                ...cellStyle,
+                                                fontWeight: r.name?.includes(
+                                                    "TỔNG"
+                                                )
+                                                    ? 800
+                                                    : r.name?.match(/^[IVX]+\./)
+                                                    ? 700
+                                                    : "normal",
+                                                textDecoration: r.name?.match(
+                                                    /^[IVX]+\./
+                                                )
+                                                    ? "underline"
+                                                    : "none",
+                                            }}
+                                        >
+                                            {r.name?.match(/^[IVX]+\./)
+                                                ? "▶ "
+                                                : ""}
+                                            {r.name}
+                                        </TableCell>
+                                        {renderEditableCell(r, idx, "revenue")}
+                                        {renderEditableCell(r, idx, "cost")}
+                                        {renderEditableCell(r, idx, "profit")}
+                                        {renderEditableCell(
+                                            r,
+                                            idx,
+                                            "percent",
+                                            "center"
+                                        )}
+                                        {renderEditableCell(
+                                            r,
+                                            idx,
+                                            "costOverQuarter"
+                                        )}
+                                        {renderEditableCell(r, idx, "target")}
+                                        {renderEditableCell(
+                                            r,
+                                            idx,
+                                            "note",
+                                            "center"
+                                        )}
+                                        {renderEditableCell(
+                                            r,
+                                            idx,
+                                            "suggest",
+                                            "center"
+                                        )}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </Box>
+            </Paper>
+
+            <Dialog open={addModal} onClose={() => setAddModal(false)}>
+                <DialogTitle sx={{ fontWeight: "bold" }}>
+                    Thêm Công Trình Mới
+                </DialogTitle>
+                <DialogContent sx={{ minWidth: 400, pt: 2 }}>
+                    <Stack spacing={2}>
+                        <FormControl fullWidth size="small">
+                            <InputLabel>Nhóm</InputLabel>
+                            <Select
+                                label="Nhóm"
+                                value={addProject.group}
+                                onChange={(e) =>
+                                    setAddProject((p) => ({
+                                        ...p,
+                                        group: e.target.value,
+                                    }))
+                                }
+                            >
+                                {[
+                                    "I.1. Dân Dụng + Giao Thông",
+                                    "I.2. KÈ",
+                                    "I.3. CÔNG TRÌNH CÔNG TY CĐT",
+                                    "III. ĐẦU TƯ",
+                                ].map((g) => (
+                                    <MenuItem key={g} value={g}>
+                                        {g}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <TextField
+                            fullWidth
+                            size="small"
+                            label="Tên công trình"
+                            value={addProject.name}
+                            onChange={(e) =>
+                                setAddProject((p) => ({
+                                    ...p,
+                                    name: e.target.value,
+                                }))
+                            }
+                        />
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ pr: 3, pb: 2 }}>
+                    <Button onClick={() => setAddModal(false)}>Huỷ</Button>
+                    <Button
+                        variant="contained"
+                        onClick={() => {
+                            if (!addProject.name.trim()) return;
+                            let insertIndex = -1;
+                            let groupLabel = addProject.group
+                                .trim()
+                                .toUpperCase();
+                            let rowsCopy = [...rows];
+
+                            const idxGroup = rowsCopy.findIndex(
+                                (r) =>
+                                    (r.name || "").trim().toUpperCase() ===
+                                    groupLabel
+                            );
+                            if (idxGroup !== -1) {
+                                insertIndex = idxGroup + 1;
+                                while (
+                                    insertIndex < rowsCopy.length &&
+                                    !(
+                                        rowsCopy[insertIndex].name &&
+                                        rowsCopy[insertIndex].name.match(
+                                            /^[IVX]+\./
+                                        )
+                                    ) &&
+                                    ![
+                                        "I. XÂY DỰNG",
+                                        "II. SẢN XUẤT",
+                                        "TỔNG",
+                                    ].includes(
+                                        (
+                                            rowsCopy[insertIndex].name || ""
+                                        ).toUpperCase()
+                                    )
+                                ) {
+                                    insertIndex++;
+                                }
+                            } else {
+                                insertIndex = rowsCopy.length - 1;
+                            }
+
+                            rowsCopy.splice(insertIndex, 0, {
+                                name: addProject.name,
+                                type: "",
+                                revenue: 0,
+                                cost: 0,
+                                profit: 0,
+                                percent: null,
+                                costOverQuarter: null,
+                                target: null,
+                                note: "",
+                                suggest: "",
+                                editable: true,
+                            });
+
+                            setRows(rowsCopy);
+                            setAddModal(false);
+                            setAddProject({
+                                group: "I.1. Dân Dụng + Giao Thông",
+                                name: "",
+                                type: "",
+                            });
+                        }}
+                        disabled={!addProject.name.trim()}
                     >
-                      {r.name?.match(/^[IVX]+\./) ? "▶ " : ""}
-                      {r.name}
-                    </TableCell>
-                    {renderEditableCell(r, idx, "revenue")}
-                    {renderEditableCell(r, idx, "cost")}
-                    {renderEditableCell(r, idx, "profit")}
-                    {renderEditableCell(r, idx, "percent", "center")}
-                    {renderEditableCell(r, idx, "costOverQuarter")}
-                    {renderEditableCell(r, idx, "target")}
-                    {renderEditableCell(r, idx, "note", "center")}
-                    {renderEditableCell(r, idx, "suggest", "center")}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                        Thêm
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
-      </Paper>
-
-      <Dialog open={addModal} onClose={() => setAddModal(false)}>
-        <DialogTitle sx={{ fontWeight: "bold" }}>Thêm Công Trình Mới</DialogTitle>
-        <DialogContent sx={{ minWidth: 400, pt: 2 }}>
-          <Stack spacing={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Nhóm</InputLabel>
-              <Select
-                label="Nhóm"
-                value={addProject.group}
-                onChange={(e) =>
-                  setAddProject((p) => ({ ...p, group: e.target.value }))
-                }
-              >
-                {["I.1. Dân Dụng + Giao Thông", "I.2. KÈ", "I.3. CÔNG TRÌNH CÔNG TY CĐT", "III. ĐẦU TƯ"].map((g) => (
-                  <MenuItem key={g} value={g}>
-                    {g}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              fullWidth
-              size="small"
-              label="Tên công trình"
-              value={addProject.name}
-              onChange={(e) =>
-                setAddProject((p) => ({ ...p, name: e.target.value }))
-              }
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ pr: 3, pb: 2 }}>
-          <Button onClick={() => setAddModal(false)}>Huỷ</Button>
-          <Button
-            variant="contained"
-            onClick={() => {
-              if (!addProject.name.trim()) return;
-              let insertIndex = -1;
-              let groupLabel = addProject.group.trim().toUpperCase();
-              let rowsCopy = [...rows];
-
-              const idxGroup = rowsCopy.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === groupLabel
-              );
-              if (idxGroup !== -1) {
-                insertIndex = idxGroup + 1;
-                while (
-                  insertIndex < rowsCopy.length &&
-                  !(
-                    rowsCopy[insertIndex].name &&
-                    rowsCopy[insertIndex].name.match(/^[IVX]+\./)
-                  ) &&
-                  !["I. XÂY DỰNG", "II. SẢN XUẤT", "TỔNG"].includes(
-                    (rowsCopy[insertIndex].name || "").toUpperCase()
-                  )
-                ) {
-                  insertIndex++;
-                }
-              } else {
-                insertIndex = rowsCopy.length - 1;
-              }
-
-              rowsCopy.splice(insertIndex, 0, {
-                name: addProject.name,
-                type: "",
-                revenue: 0,
-                cost: 0,
-                profit: 0,
-                percent: null,
-                costOverQuarter: null,
-                target: null,
-                note: "",
-                suggest: "",
-                editable: true
-              });
-
-              setRows(rowsCopy);
-              setAddModal(false);
-              setAddProject({
-                group: "I.1. Dân Dụng + Giao Thông",
-                name: "",
-                type: ""
-              });
-            }}
-            disabled={!addProject.name.trim()}
-          >
-            Thêm
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
-  );
+    );
 }
