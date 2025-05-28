@@ -78,19 +78,48 @@ export default function CostAllocationQuarter() {
     const [lastUpdated, setLastUpdated] = useState(null);
 
     const projects = useProjects(typeFilter);
-    const visibleProjects = useMemo(() => {
-        const compQ = toComparableQuarter(`${year}_${quarter}`);
-        const filtered = projects.filter(
-            (p) => !p.closedFrom || compQ < toComparableQuarter(p.closedFrom)
-        );
-        const seen = new Set();
-        return filtered.filter((p) => {
-            if (seen.has(p.id)) return false;
-            seen.add(p.id);
-            return true;
-        });
-    }, [projects, year, quarter]);
+    const baseProjects = useMemo(() => {
+    const compQ = toComparableQuarter(`${year}_${quarter}`);
+    return projects.filter((p) => {
+        if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom)) return false;
+        return true;
+    });
+}, [projects, year, quarter]);
 
+
+    const { projData, loading } = useProjectData(
+        baseProjects,
+        year,
+        quarter
+    );
+       const visibleProjects = useMemo(() => {
+    const compQ = toComparableQuarter(`${year}_${quarter}`);
+    const filtered = projects.filter((p) => {
+        // Chỉ lấy dự án đang mở, chưa closed
+        if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom)) return false;
+
+        // Chỉ lấy dự án đã có dữ liệu quý/năm hiện tại
+        const qData = projData?.[p.id];
+        // Phải có revenue hoặc cost > 0 mới cho hiện (cost có thể nằm trong qData.items)
+        let hasData = false;
+        if (qData) {
+            if (toNum(qData.overallRevenue) > 0) hasData = true;
+            if (
+                Array.isArray(qData.items) &&
+                qData.items.some((item) => toNum(item.totalCost) > 0)
+            ) hasData = true;
+        }
+        return hasData;
+    });
+
+    // Lọc trùng id
+    const seen = new Set();
+    return filtered.filter((p) => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+    });
+}, [projects, year, quarter, projData]);
     const options = useCategories();
     const mainRows = useQuarterMainData(COL_MAIN, `${year}_${quarter}`);
 
@@ -100,11 +129,7 @@ export default function CostAllocationQuarter() {
         mainRows,
         typeFilter
     );
-    const { projData, loading } = useProjectData(
-        visibleProjects,
-        year,
-        quarter
-    );
+
 
     const gridRef = useRef(null);
 
