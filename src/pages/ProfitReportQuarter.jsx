@@ -411,7 +411,7 @@ export default function ProfitReportQuarter() {
                 },
                 { name: "I.1. Dân Dụng + Giao Thông", ...sumGroup(groupI1) },
                 ...groupI1,
-                { name: "I.2. KÈ", ...sumGroup(groupI2) },
+                { name: "I.2. KÈ", ...sumGroup(groupI2), percent: null },
                 ...groupI2,
                 { name: "I.3. CÔNG TRÌNH CÔNG TY CĐT", ...sumGroup(groupI3) },
                 {
@@ -488,7 +488,6 @@ export default function ProfitReportQuarter() {
                     cost: 0,
                     profit: 0,
                     percent: null,
-                    editable: true,
                 },
                 {
                     name: "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
@@ -505,7 +504,6 @@ export default function ProfitReportQuarter() {
                     profit: 0,
                     percent: null,
                     costOverQuarter: null,
-                    editable: true,
                 },
                 {
                     name: "DOANH THU BLX Q3 N2024 - D21",
@@ -809,29 +807,59 @@ export default function ProfitReportQuarter() {
             }
 
             // 12. Tính lại TỔNG
-            const isNotTotal = (r) =>
-                (r.name || "").trim().toUpperCase() !== "TỔNG" &&
-                typeof r.revenue === "number" &&
-                typeof r.cost === "number";
-            const sum = updatedRows.filter(isNotTotal);
-            const revenue = sum.reduce((t, r) => t + toNum(r.revenue), 0);
-            const cost = sum.reduce((t, r) => t + toNum(r.cost), 0);
-            const profit = revenue - cost;
+            const idxTotal = updatedRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
+            );
+            const idxIXD = updatedRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+            );
+            const idxI2KE = updatedRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
+            );
+            const idxI3CDT = updatedRows.findIndex(
+                (r) =>
+                    (r.name || "").trim().toUpperCase() ===
+                    "I.3. CÔNG TRÌNH CÔNG TY CĐT"
+            );
+            const idxIISX = updatedRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
+            );
+            const idxIIIDT = updatedRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "III. ĐẦU TƯ"
+            );
 
-         const idxTotal = updatedRows.findIndex(
-  (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
-);
-if (idxTotal !== -1) {
-    updatedRows[idxTotal] = {
-        ...updatedRows[idxTotal],
-        revenue: revenue === 0 ? null : revenue,
-        cost: cost === 0 ? null : cost,
-        profit: profit === 0 ? null : profit,
-        percent: null, // luôn là null để hiển thị "–"
-    };
-}
+            if (
+                idxTotal !== -1 &&
+                idxIXD !== -1 &&
+                idxI2KE !== -1 &&
+                idxI3CDT !== -1 &&
+                idxIISX !== -1 &&
+                idxIIIDT !== -1
+            ) {
+                const doanhThu =
+                    toNum(updatedRows[idxIXD]?.revenue) +
+                    toNum(updatedRows[idxI2KE]?.revenue) +
+                    toNum(updatedRows[idxI3CDT]?.revenue) +
+                    toNum(updatedRows[idxIISX]?.revenue) +
+                    toNum(updatedRows[idxIIIDT]?.revenue);
 
+                const chiPhi =
+                    toNum(updatedRows[idxIXD]?.cost) +
+                    toNum(updatedRows[idxI2KE]?.cost) +
+                    toNum(updatedRows[idxI3CDT]?.cost) +
+                    toNum(updatedRows[idxIISX]?.cost) +
+                    toNum(updatedRows[idxIIIDT]?.cost);
 
+                const loiNhuan = doanhThu - chiPhi;
+
+                updatedRows[idxTotal] = {
+                    ...updatedRows[idxTotal],
+                    revenue: doanhThu === 0 ? null : doanhThu,
+                    cost: chiPhi === 0 ? null : chiPhi,
+                    profit: loiNhuan === 0 ? null : loiNhuan,
+                    percent: null,
+                };
+            }
 
             // 13. IV. LỢI NHUẬN ... = profit của TỔNG
             const idxIV = updatedRows.findIndex(
@@ -908,236 +936,296 @@ if (idxTotal !== -1) {
         // Có thể thêm toast/success
     };
 
-    const format = (v, field = "") => {
-        if (v === null || v === undefined) return "–";
-        if (typeof v === "number")
-            return field === "percent" ? `${v.toFixed(2)}%` : formatNumber(v);
-        return v;
-    };
+  const rowsHideRevenueCost = [
+    `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase(),
+    "V. GIẢM LỢI NHUẬN",
+    "VI. THU NHẬP KHÁC",
+    `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase(),
+    "VIII. GIẢM LÃI ĐT DỰ ÁN",
+    `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase(),
+    `+ VƯỢT CP BPXN DO KO ĐẠT DT ${selectedQuarter}`.toUpperCase(),
+    `+ VƯỢT CP BPSX DO KO ĐẠT DT ${selectedQuarter}`.toUpperCase(),
+    `+ VƯỢT CP BPĐT DO KO CÓ DT ${selectedQuarter} (LÃI + THUÊ VP)`.toUpperCase(),
+    "+ CHI PHÍ ĐÃ TRẢ TRƯỚC",
+];
 
-    const handleCellChange = (e, idx, field) => {
-        const rawValue = e.target.value;
-        let newValue;
-        if (["note", "suggest"].includes(field)) {
-            newValue = rawValue;
-        } else {
-            newValue = toNum(rawValue);
-        }
+const format = (v, field = "", row = {}) => {
+    // Nếu là dòng đặc biệt và cột doanh thu hoặc chi phí đã chi => luôn là "–"
+    if (
+        ["revenue", "cost"].includes(field) &&
+        rowsHideRevenueCost.includes((row.name || "").trim().toUpperCase())
+    ) {
+        return "–";
+    }
+    if (v === null || v === undefined) return "–";
+    if (typeof v === "number")
+        return field === "percent" ? `${v.toFixed(2)}%` : formatNumber(v);
+    return v;
+};
 
-        if (
-            ["revenue", "cost"].includes(field) &&
-            typeof newValue === "number" &&
-            newValue < 0
-        ) {
-            return;
-        }
 
-        let newRows = [...rows];
-        newRows[idx][field] = newValue;
+   const handleCellChange = (e, idx, field) => {
+    const rawValue = e.target.value;
+    let newValue;
+    if (["note", "suggest"].includes(field)) {
+        newValue = rawValue;
+    } else {
+        newValue = toNum(rawValue);
+    }
 
-        const name = (newRows[idx].name || "").trim().toUpperCase();
-        const isSpecialLDX = [
-            "LỢI NHUẬN LIÊN DOANH (LDX)",
-            "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
-            "GIẢM LN LDX",
-        ].includes(name);
+    if (
+        ["revenue", "cost"].includes(field) &&
+        typeof newValue === "number" &&
+        newValue < 0
+    ) {
+        return;
+    }
 
-        const isSpecialSalan = [
-            "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
-            "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
-        ].includes(name);
+    let newRows = [...rows];
+    newRows[idx][field] = newValue;
 
-        if (
-            ["revenue", "cost"].includes(field) &&
-            !isSpecialLDX &&
-            !isSpecialSalan
-        ) {
-            const rev = toNum(newRows[idx].revenue);
-            const cost = toNum(newRows[idx].cost);
-            const profit = rev - cost;
-            const percent = rev !== 0 ? (profit / rev) * 100 : null;
-            newRows[idx].profit = profit;
-            newRows[idx].percent = percent;
-        }
+    const name = (newRows[idx].name || "").trim().toUpperCase();
+    const isSpecialLDX = [
+        "LỢI NHUẬN LIÊN DOANH (LDX)",
+        "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
+        "GIẢM LN LDX",
+    ].includes(name);
 
-        if (["profit", "revenue", "cost"].includes(field) && isSpecialLDX) {
-            const rev = toNum(newRows[idx].revenue);
-            const cost = toNum(newRows[idx].cost);
-            const profit = newRows[idx].profit ?? rev - cost;
-            const percent = rev !== 0 ? (profit / rev) * 100 : null;
-            newRows[idx].profit = profit;
-            newRows[idx].percent = percent;
-        }
+    const isSpecialSalan = [
+        "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
+        "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
+    ].includes(name);
 
-        if (["profit", "revenue", "cost"].includes(field) && isSpecialSalan) {
-            const rev = toNum(newRows[idx].revenue);
-            const cost = toNum(newRows[idx].cost);
-            const profit = newRows[idx].profit ?? rev - cost;
-            const percent = rev !== 0 ? (profit / rev) * 100 : null;
-            newRows[idx].profit = profit;
-            newRows[idx].percent = percent;
-        }
+    if (
+        ["revenue", "cost"].includes(field) &&
+        !isSpecialLDX &&
+        !isSpecialSalan
+    ) {
+        const rev = toNum(newRows[idx].revenue);
+        const cost = toNum(newRows[idx].cost);
+        const profit = rev - cost;
+        const percent = rev !== 0 ? (profit / rev) * 100 : null;
+        newRows[idx].profit = profit;
+        newRows[idx].percent = percent;
+    }
 
-        // --- TÍNH LẠI CÁC DÒNG GROUP TỔNG HỢP VÀ LỢI NHUẬN FINAL ---
-        let updatedRows = updateLDXRow(newRows);
-        updatedRows = updateDTLNLDXRow(updatedRows); // <-- thêm dòng này!
+    if (["profit", "revenue", "cost"].includes(field) && isSpecialLDX) {
+        const rev = toNum(newRows[idx].revenue);
+        const cost = toNum(newRows[idx].cost);
+        const profit = newRows[idx].profit ?? rev - cost;
+        const percent = rev !== 0 ? (profit / rev) * 100 : null;
+        newRows[idx].profit = profit;
+        newRows[idx].percent = percent;
+    }
 
-        updatedRows = updateSalanRow(updatedRows);
-        updatedRows = updateThuNhapKhacRow(updatedRows);
-        updatedRows = updateDauTuRow(updatedRows);
-        updatedRows = updateGroupI3(updatedRows); // <--- DÒNG MỚI
-        // === TÍNH LẠI DÒNG II. SẢN XUẤT ===
-        const idxII = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
-        );
-        const idxII1 = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
-        );
-        const idxII2 = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "II.2. DT + LN ĐƯỢC CHIA TỪ LDX"
-        );
-        const idxII3 = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)"
-        );
+    if (["profit", "revenue", "cost"].includes(field) && isSpecialSalan) {
+        const rev = toNum(newRows[idx].revenue);
+        const cost = toNum(newRows[idx].cost);
+        const profit = newRows[idx].profit ?? rev - cost;
+        const percent = rev !== 0 ? (profit / rev) * 100 : null;
+        newRows[idx].profit = profit;
+        newRows[idx].percent = percent;
+    }
 
-        if (idxII !== -1 && idxII1 !== -1 && idxII2 !== -1 && idxII3 !== -1) {
-            const profit =
-                toNum(updatedRows[idxII1].profit) +
-                toNum(updatedRows[idxII2].profit) +
-                toNum(updatedRows[idxII3].profit);
+    // --- TÍNH LẠI CÁC DÒNG GROUP TỔNG HỢP VÀ LỢI NHUẬN FINAL ---
+    let updatedRows = updateLDXRow(newRows);
+    updatedRows = updateDTLNLDXRow(updatedRows);
+    updatedRows = updateSalanRow(updatedRows);
+    updatedRows = updateThuNhapKhacRow(updatedRows);
+    updatedRows = updateDauTuRow(updatedRows);
+    updatedRows = updateGroupI3(updatedRows);
 
-            updatedRows[idxII] = {
-                ...updatedRows[idxII],
-                revenue,
-                cost: cost === 0 ? null : cost,
-                profit: profit === 0 ? null : profit,
-                percent,
-            };
-        }
+    // === TÍNH LẠI DÒNG II. SẢN XUẤT ===
+    const idxII = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
+    );
+    const idxII1 = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
+    );
+    const idxII2 = updatedRows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            "II.2. DT + LN ĐƯỢC CHIA TỪ LDX"
+    );
+    const idxII3 = updatedRows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)"
+    );
 
-        // === TÍNH LẠI DÒNG "I. XÂY DỰNG" ===
-        const idxI = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
-        );
-        const idxI1 = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "I.1. DÂN DỤNG + GIAO THÔNG"
-        );
-       const idxI2 = updatedRows.findIndex(
-    (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
-);
-if (idxI2 !== -1) {
-    updatedRows[idxI2] = {
-        ...updatedRows[idxI2],
-        percent: null, // Luôn là null để hiển thị dấu –
-    };
-}
-        if (idxI !== -1 && idxI1 !== -1 && idxI2 !== -1) {
-            const rev =
-                toNum(updatedRows[idxI1].revenue) +
-                toNum(updatedRows[idxI2].revenue);
-            const cost =
-                toNum(updatedRows[idxI1].cost) + toNum(updatedRows[idxI2].cost);
-            const profit = rev - cost;
-            updatedRows[idxI].revenue = rev;
-            updatedRows[idxI].cost = cost;
-            updatedRows[idxI].profit = profit;
-            // % LN = LỢI NHUẬN / CHỈ TIÊU * 100
-            const target = toNum(updatedRows[idxI].target);
-            updatedRows[idxI].percent =
-                target !== 0 ? (profit / target) * 100 : null;
-        }
-
-        // === TÍNH LẠI DÒNG TỔNG, IV, FINAL LN ===
-        const isNotTotal = (r) =>
-            (r.name || "").trim().toUpperCase() !== "TỔNG" &&
-            typeof r.revenue === "number" &&
-            typeof r.cost === "number";
-        const sum = updatedRows.filter(isNotTotal);
-        const revenue = sum.reduce((t, r) => t + toNum(r.revenue), 0);
-        const cost = sum.reduce((t, r) => t + toNum(r.cost), 0);
-        const profit = revenue - cost;
+    if (idxII !== -1 && idxII1 !== -1 && idxII2 !== -1 && idxII3 !== -1) {
+        const revenue =
+            toNum(updatedRows[idxII1].revenue) +
+            toNum(updatedRows[idxII2].revenue) +
+            toNum(updatedRows[idxII3].revenue);
+        const cost =
+            toNum(updatedRows[idxII1].cost) +
+            toNum(updatedRows[idxII2].cost) +
+            toNum(updatedRows[idxII3].cost);
+        const profit =
+            toNum(updatedRows[idxII1].profit) +
+            toNum(updatedRows[idxII2].profit) +
+            toNum(updatedRows[idxII3].profit);
         const percent = revenue ? (profit / revenue) * 100 : null;
 
-        const idxTotal = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
-        );
-        if (idxTotal !== -1) {
-            updatedRows[idxTotal] = {
-                ...updatedRows[idxTotal],
-                revenue,
-                cost,
-                profit,
-                percent,
-            };
-        }
+        updatedRows[idxII] = {
+            ...updatedRows[idxII],
+            revenue,
+            cost: cost === 0 ? null : cost,
+            profit: profit === 0 ? null : profit,
+            percent,
+        };
+    }
 
-        const idxIV = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
-        );
-        if (idxIV !== -1 && idxTotal !== -1) {
-            updatedRows[idxIV] = {
-                ...updatedRows[idxIV],
-                revenue: 0,
-                cost: 0,
-                profit: toNum(updatedRows[idxTotal].profit),
-                percent: null,
-            };
-        }
+    // === TÍNH LẠI DÒNG "I. XÂY DỰNG" ===
+    const idxI = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+    );
+    const idxI1 = updatedRows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            "I.1. DÂN DỤNG + GIAO THÔNG"
+    );
+    const idxI2 = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
+    );
+    if (idxI2 !== -1) {
+        updatedRows[idxI2] = {
+            ...updatedRows[idxI2],
+            percent: null, // Luôn là null để hiển thị dấu –
+        };
+    }
+    if (idxI !== -1 && idxI1 !== -1 && idxI2 !== -1) {
+        const rev =
+            toNum(updatedRows[idxI1].revenue) +
+            toNum(updatedRows[idxI2].revenue);
+        const cost =
+            toNum(updatedRows[idxI1].cost) + toNum(updatedRows[idxI2].cost);
+        const profit = rev - cost;
+        updatedRows[idxI].revenue = rev;
+        updatedRows[idxI].cost = cost;
+        updatedRows[idxI].profit = profit;
+        // % LN = LỢI NHUẬN / CHỈ TIÊU * 100
+        const target = toNum(updatedRows[idxI].target);
+        updatedRows[idxI].percent =
+            target !== 0 ? (profit / target) * 100 : null;
+    }
 
-        // Tính lại LỢI NHUẬN SAU GIẢM TRỪ
-        const idxV = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
-        );
-        const idxVI = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
-        );
-        const idxVII = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
-        );
-        const idxVIII = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "VIII. GIẢM LÃI ĐT DỰ ÁN"
-        );
-        const idxLNFinal = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase()
-        );
-        if (
-            idxLNFinal !== -1 &&
-            idxIV !== -1 &&
-            idxV !== -1 &&
-            idxVI !== -1 &&
-            idxVII !== -1 &&
-            idxVIII !== -1
-        ) {
-            updatedRows[idxLNFinal] = {
-                ...updatedRows[idxLNFinal],
-                revenue: 0,
-                cost: 0,
-                profit:
-                    toNum(updatedRows[idxIV].profit) -
-                    toNum(updatedRows[idxV].profit) +
-                    toNum(updatedRows[idxVI].profit) -
-                    toNum(updatedRows[idxVII].profit) -
-                    toNum(updatedRows[idxVIII].profit),
-                percent: null,
-            };
-        }
+    // === TÍNH LẠI DÒNG TỔNG, IV, FINAL LN ===
+    const idxTotal = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
+    );
+    const idxIXD = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+    );
+    const idxI2KE = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
+    );
+    const idxI3CDT = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "I.3. CÔNG TRÌNH CÔNG TY CĐT"
+    );
+    const idxIISX = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
+    );
+    const idxIIIDT = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "III. ĐẦU TƯ"
+    );
 
-        setRows([...updatedRows]);
-    };
+    if (
+        idxTotal !== -1 &&
+        idxIXD !== -1 &&
+        idxI2KE !== -1 &&
+        idxI3CDT !== -1 &&
+        idxIISX !== -1 &&
+        idxIIIDT !== -1
+    ) {
+        const doanhThu =
+            toNum(updatedRows[idxIXD]?.revenue) +
+            toNum(updatedRows[idxI2KE]?.revenue) +
+            toNum(updatedRows[idxI3CDT]?.revenue) +
+            toNum(updatedRows[idxIISX]?.revenue) +
+            toNum(updatedRows[idxIIIDT]?.revenue);
+
+        const chiPhi =
+            toNum(updatedRows[idxIXD]?.cost) +
+            toNum(updatedRows[idxI2KE]?.cost) +
+            toNum(updatedRows[idxI3CDT]?.cost) +
+            toNum(updatedRows[idxIISX]?.cost) +
+            toNum(updatedRows[idxIIIDT]?.cost);
+
+        const loiNhuan = doanhThu - chiPhi;
+
+        updatedRows[idxTotal] = {
+            ...updatedRows[idxTotal],
+            revenue: doanhThu === 0 ? null : doanhThu,
+            cost: chiPhi === 0 ? null : chiPhi,
+            profit: loiNhuan === 0 ? null : loiNhuan,
+            percent: null,
+        };
+    }
+
+    const idxIV = updatedRows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
+    );
+    if (idxIV !== -1 && idxTotal !== -1) {
+        updatedRows[idxIV] = {
+            ...updatedRows[idxIV],
+            revenue: 0,
+            cost: 0,
+            profit: toNum(updatedRows[idxTotal].profit),
+            percent: null,
+        };
+    }
+
+    // Tính lại LỢI NHUẬN SAU GIẢM TRỪ
+    const idxV = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
+    );
+    const idxVI = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
+    );
+    const idxVII = updatedRows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
+    );
+    const idxVIII = updatedRows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            "VIII. GIẢM LÃI ĐT DỰ ÁN"
+    );
+    const idxLNFinal = updatedRows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase()
+    );
+    if (
+        idxLNFinal !== -1 &&
+        idxIV !== -1 &&
+        idxV !== -1 &&
+        idxVI !== -1 &&
+        idxVII !== -1 &&
+        idxVIII !== -1
+    ) {
+        updatedRows[idxLNFinal] = {
+            ...updatedRows[idxLNFinal],
+            revenue: 0,
+            cost: 0,
+            profit:
+                toNum(updatedRows[idxIV].profit) -
+                toNum(updatedRows[idxV].profit) +
+                toNum(updatedRows[idxVI].profit) -
+                toNum(updatedRows[idxVII].profit) -
+                toNum(updatedRows[idxVIII].profit),
+            percent: null,
+        };
+    }
+
+    setRows([...updatedRows]);
+};
+
 
     const renderEditableCell = (r, idx, field, align = "right") => {
         const isEditing =
@@ -1226,7 +1314,7 @@ if (idxI2 !== -1) {
                 ) : field === "suggest" && value ? (
                     <Chip label={format(value)} color="warning" size="small" />
                 ) : (
-                    format(value, field)
+                    format(value, field,r)
                 )}
             </TableCell>
         );
