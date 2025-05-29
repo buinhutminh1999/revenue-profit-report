@@ -59,9 +59,16 @@ const colorByType = {
   'Thi công': '#fbc02d',
   'Nhà máy': '#66bb6a',
   'KH-ĐT': '#42a5f5',
+  'LDX': '#ab47bc',
+  'Sà Lan': '#29b6f6',
 };
-
-const iconByType = (type) => type === 'Thi công' ? '🏗️' : type === 'Nhà máy' ? '🏭' : '🧮';
+const iconByType = (type) =>
+  type === 'Thi công' ? '🏗️' :
+  type === 'Nhà máy' ? '🏭' :
+  type === 'KH-ĐT' ? '🧮' :
+  type === 'LDX' ? '🤝' :
+  type === 'Sà Lan' ? '🚢' :
+  '🏢';
 
 export default function ConstructionPlan() {
   const navigate = useNavigate();
@@ -230,9 +237,10 @@ export default function ConstructionPlan() {
                 onChange={(e) => setProject((prev) => ({ ...prev, type: e.target.value }))}
                 fullWidth
               >
-                {['Thi công', 'Nhà máy', 'KH-ĐT'].map((opt) => (
-                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                ))}
+                {['Thi công', 'Nhà máy', 'KH-ĐT', 'LDX', 'Sà Lan'].map((opt) => (
+  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+))}
+
               </TextField>
             </Stack>
           </DialogContent>
