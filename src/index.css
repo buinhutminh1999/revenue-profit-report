@@ -1,18 +1,21 @@
-/* index.css hoặc global.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {            /* luôn dính sát mép màn hình */
+html, body, #root {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #e6f3ff;         /* nền xanh nhạt phủ toàn bộ */
+  background: #e6f3ff;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
-/* ✅ Tuỳ chỉnh giao diện NProgress */
+
 #nprogress .bar {
-  background: #1976d2; /* màu xanh MUI */
+  background: #1976d2;
   height: 3px;
+  border-radius: 2px;
 }
 #nprogress .peg {
   box-shadow: 0 0 10px #1976d2, 0 0 5px #1976d2;
@@ -20,4 +23,3 @@ html, body, #root {            /* luôn dính sát mép màn hình */
 #nprogress .spinner {
   display: none;
 }
-

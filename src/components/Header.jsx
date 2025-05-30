@@ -36,7 +36,7 @@ const SearchWrapper = styled('div')(({ theme }) => ({
 
 const StyledInput = styled(InputBase)(({ theme }) => ({
   color: 'inherit',
-  transition: theme.transitions.create('width'),
+  transition: 'width 0.3s ease',
   width: 0,
   '&.open': { width: '20ch', padding: theme.spacing(1, 2) },
 }));
@@ -74,11 +74,17 @@ export default function Header() {
     <>
       <AppBar
         position="static"
-        elevation={4}
-        sx={{ backdropFilter: 'blur(6px)', backgroundColor: alpha(theme.palette.primary.main, 0.85) }}
+        elevation={6}
+        sx={{
+          backdropFilter: 'blur(8px)',
+          backgroundColor: theme.palette.mode === 'light'
+            ? 'rgba(255, 255, 255, 0.9)'
+            : alpha(theme.palette.background.paper, 0.85),
+          color: theme.palette.text.primary,
+        }}
       >
         <Container maxWidth="lg">
-          <Toolbar disableGutters sx={{ justifyContent: 'space-between', py: 1 }}>
+          <Toolbar disableGutters sx={{ justifyContent: 'space-between', py: 1.5 }}>
             <Link to="/">
               <Tooltip title="Trang chủ">
                 <Logo src="https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png" alt="Logo" />
@@ -119,7 +125,11 @@ export default function Header() {
 
               <Tooltip title="Tài khoản">
                 <IconButton color="inherit" onClick={openUser}>
-                  <Avatar sx={{ width: 32, height: 32 }} src={user?.photoURL} alt={user?.displayName} />
+                  <Avatar
+                    sx={{ width: 32, height: 32, bgcolor: 'primary.main', color: 'white' }}
+                    src={user?.photoURL}
+                    alt={user?.displayName}
+                  />
                 </IconButton>
               </Tooltip>
 
@@ -170,7 +180,16 @@ export default function Header() {
           </Typography>
           <List>
             {appModules.map((item) => (
-              <ListItem button key={item.text} onClick={() => { navigate(item.to); setDrawerOpen(false); }}>
+              <ListItem
+                button
+                key={item.text}
+                onClick={() => { navigate(item.to); setDrawerOpen(false); }}
+                sx={{
+                  '&:hover': {
+                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                  },
+                }}
+              >
                 <ListItemIcon>{item.icon}</ListItemIcon>
                 <ListItemText primary={item.text} />
               </ListItem>
