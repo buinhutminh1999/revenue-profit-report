@@ -1710,15 +1710,117 @@ export default function ProfitReportQuarter() {
                 </Box>
             </Paper>
 
-            <Dialog open={addModal} onClose={() => setAddModal(false)}>
-                <DialogTitle sx={{ fontWeight: "bold" }}>
-                    Thêm Công Trình Mới
-                </DialogTitle>
-                <DialogContent sx={{ width: { xs: "90vw", sm: 400 }, pt: 2 }}>
-                    {/* giữ nguyên phần nhập công trình */}
-                </DialogContent>
-                {/* giữ nguyên DialogActions */}
-            </Dialog>
+           <Dialog open={addModal} onClose={() => setAddModal(false)}>
+            <DialogTitle sx={{ fontWeight: "bold" }}>
+                Thêm Công Trình Mới
+            </DialogTitle>
+            <DialogContent sx={{ minWidth: 400, pt: 2 }}>
+                <Stack spacing={2}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel>Nhóm</InputLabel>
+                        <Select
+                            label="Nhóm"
+                            value={addProject.group}
+                            onChange={(e) =>
+                                setAddProject((p) => ({
+                                    ...p,
+                                    group: e.target.value,
+                                }))
+                            }
+                        >
+                            {[
+                                "I.1. Dân Dụng + Giao Thông",
+                                "I.2. KÈ",
+                                "I.3. CÔNG TRÌNH CÔNG TY CĐT",
+                                "III. ĐẦU TƯ",
+                            ].map((g) => (
+                                <MenuItem key={g} value={g}>
+                                    {g}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                    <TextField
+                        fullWidth
+                        size="small"
+                        label="Tên công trình"
+                        value={addProject.name}
+                        onChange={(e) =>
+                            setAddProject((p) => ({
+                                ...p,
+                                name: e.target.value,
+                            }))
+                        }
+                    />
+                </Stack>
+            </DialogContent>
+            <DialogActions sx={{ pr: 3, pb: 2 }}>
+                <Button onClick={() => setAddModal(false)}>Huỷ</Button>
+                <Button
+                    variant="contained"
+                    onClick={() => {
+                        if (!addProject.name.trim()) return;
+                        let insertIndex = -1;
+                        let groupLabel = addProject.group
+                            .trim()
+                            .toUpperCase();
+                        let rowsCopy = [...rows];
+
+                        const idxGroup = rowsCopy.findIndex(
+                            (r) =>
+                                (r.name || "").trim().toUpperCase() ===
+                                groupLabel
+                        );
+                        if (idxGroup !== -1) {
+                            insertIndex = idxGroup + 1;
+                            while (
+                                insertIndex < rowsCopy.length &&
+                                !(
+                                    rowsCopy[insertIndex].name &&
+                                    rowsCopy[insertIndex].name.match(/^[IVX]+\./)
+                                ) &&
+                                ![
+                                    "I. XÂY DỰNG",
+                                    "II. SẢN XUẤT",
+                                    "TỔNG",
+                                ].includes(
+                                    (rowsCopy[insertIndex].name || "").toUpperCase()
+                                )
+                            ) {
+                                insertIndex++;
+                            }
+                        } else {
+                            insertIndex = rowsCopy.length - 1;
+                        }
+
+                        rowsCopy.splice(insertIndex, 0, {
+                            name: addProject.name,
+                            type: "",
+                            revenue: 0,
+                            cost: 0,
+                            profit: 0,
+                            percent: null,
+                            costOverQuarter: null,
+                            target: null,
+                            note: "",
+                            suggest: "",
+                            editable: true,
+                        });
+
+                        setRows(rowsCopy);
+                        setAddModal(false);
+                        setAddProject({
+                            group: "I.1. Dân Dụng + Giao Thông",
+                            name: "",
+                            type: "",
+                        });
+                    }}
+                    disabled={!addProject.name.trim()}
+                >
+                    Thêm
+                </Button>
+            </DialogActions>
+        </Dialog>
         </Box>
     );
 }
