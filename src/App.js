@@ -39,6 +39,8 @@ import UserProfile from './pages/UserProfile';
 import RequireRole from './components/auth/RequireRole';
 import AdminUserManager from './components/AdminUserManager';
 import ProfitChange from './pages/ProfitChange';
+import AdminDashboard from './pages/AdminDashboard';
+import ProfitReportYear from './pages/ProfitReportYear';
 
 const auth = getAuth();
 const db = getFirestore();
@@ -156,6 +158,7 @@ function LayoutRoutes() {
         <Route index element={<Home />} />
         <Route path="profit-change" element={<ProfitChange />} />
         <Route path="user" element={<UserProfile />} />
+        <Route path="profit-report-year" element={<ProfitReportYear />} />
         <Route path="profit-report-quarter" element={<ProfitReportQuarter />} />
         <Route path="construction-plan" element={<ConstructionPlan />} />
         <Route path="project-details/:id" element={<ProjectDetails />} />
@@ -183,11 +186,20 @@ function LayoutRoutes() {
           path="admin/users"
           element={
             <RequireRole allowedRoles={['admin']}>
+                
               <AdminUserManager />
             </RequireRole>
           }
         />
-
+ <Route
+          path="admin"
+          element={
+            <RequireRole allowedRoles={['admin']}>
+                
+              <AdminDashboard />
+            </RequireRole>
+          }
+        />
         <Route path="office" element={<Office />} />
         <Route path="project-manager" element={<ProjectsList />} />
         <Route path="*" element={<NotFound />} />

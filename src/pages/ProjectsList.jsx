@@ -1,5 +1,3 @@
-// src/pages/ProjectsList.jsx
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -18,11 +16,13 @@ import {
   Popover,
   Button,
   Skeleton,
+  Stack,
 } from '@mui/material';
 import HomeIcon from '@mui/icons-material/Home';
 import FolderIcon from '@mui/icons-material/Folder';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingIcon from '@mui/icons-material/Pending';
+import SearchIcon from '@mui/icons-material/Search';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase-config';
 
@@ -32,13 +32,14 @@ export default function ProjectsList() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Popover state
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedProj, setSelectedProj] = useState(null);
   const [selQuarter, setSelQuarter] = useState(quarters[0]);
   const [selYear, setSelYear] = useState(new Date().getFullYear());
 
-  // 1. Lấy danh sách công trình
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -54,35 +55,30 @@ export default function ProjectsList() {
     })();
   }, []);
 
-  // 2. Khi click toggle để đóng/mở công trình
   const onToggleClick = (event, proj) => {
-    event.preventDefault();          // Ngăn không cho ListItemButton điều hướng ngay
+    event.preventDefault();
     setSelectedProj(proj);
     setSelQuarter(quarters[0]);
     setSelYear(new Date().getFullYear());
     setAnchorEl(event.currentTarget);
   };
 
-  // 3. Đóng popover
   const handleClosePopover = () => {
     setAnchorEl(null);
     setSelectedProj(null);
   };
 
-  // 4. Xác nhận đóng/mở công trình
   const handleConfirmClose = async () => {
     if (!selectedProj) return;
     const closedFrom = `${selYear}_${selQuarter}`;
     const ref = doc(db, 'projects', selectedProj.id);
     const newStatus = !selectedProj.isClosed;
 
-    // Cập nhật lên Firestore
     await updateDoc(ref, {
       isClosed: newStatus,
       closedFrom: newStatus ? closedFrom : null,
     });
 
-    // Cập nhật local state để UI phản ánh ngay
     setProjects(ps =>
       ps.map(p =>
         p.id === selectedProj.id
@@ -97,8 +93,18 @@ export default function ProjectsList() {
   const open = Boolean(anchorEl);
   const popId = open ? 'close-popover' : undefined;
 
+  // Lọc theo tìm kiếm + trạng thái
+  const filteredProjects = projects.filter(p => {
+    const matchSearch = p.name?.toLowerCase().includes(searchText.toLowerCase());
+    const matchStatus =
+      filterStatus === 'all' ||
+      (filterStatus === 'active' && !p.isClosed) ||
+      (filterStatus === 'closed' && p.isClosed);
+    return matchSearch && matchStatus;
+  });
+
   return (
-    <Box sx={{ maxWidth: 900, mx: 'auto', mt: 4, mb: 6 }}>
+    <Box sx={{ maxWidth: 960, mx: 'auto', mt: 4, mb: 6, px: 2 }}>
       {/* Breadcrumbs */}
       <Breadcrumbs sx={{ mb: 2 }} aria-label="breadcrumb">
         <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
@@ -114,30 +120,49 @@ export default function ProjectsList() {
         Danh sách công trình
       </Typography>
 
-      {/* Loading skeleton */}
+      {/* Bộ lọc */}
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
+        <TextField
+          size="small"
+          placeholder="🔍 Tìm kiếm công trình..."
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1 }} /> }}
+          sx={{ width: { xs: '100%', sm: 300 } }}
+        />
+        <TextField
+          size="small"
+          select
+          label="Lọc trạng thái"
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value)}
+          sx={{ width: { xs: '100%', sm: 180 } }}
+        >
+          <MenuItem value="all">Tất cả</MenuItem>
+          <MenuItem value="active">Đang hoạt động</MenuItem>
+          <MenuItem value="closed">Đã đóng</MenuItem>
+        </TextField>
+      </Stack>
+
+      {/* Danh sách */}
       {loading ? (
         [...Array(5)].map((_, i) => (
-          <Skeleton
-            key={i}
-            variant="rectangular"
-            height={60}
-            sx={{ mb: 1, borderRadius: 2 }}
-          />
+          <Skeleton key={i} variant="rectangular" height={60} sx={{ mb: 1, borderRadius: 2 }} />
         ))
       ) : (
         <Paper>
           <List>
-            {projects.map(p => (
+            {filteredProjects.map(p => (
               <ListItemButton
                 key={p.id}
                 component={Link}
                 to={`/projects/${p.id}`}
                 sx={{
                   textDecoration: p.isClosed ? 'line-through' : 'none',
-                  opacity: p.isClosed ? 0.6 : 1,
+                  opacity: p.isClosed ? 0.5 : 1,
+                  borderBottom: '1px solid #eee',
                 }}
               >
-                {/* 5. Icon trạng thái */}
                 <ListItemIcon>
                   {p.isClosed ? (
                     <CheckCircleIcon color="error" />
@@ -146,7 +171,6 @@ export default function ProjectsList() {
                   )}
                 </ListItemIcon>
 
-                {/* 6. Tên + doanh thu + nhãn trạng thái */}
                 <ListItemText
                   primary={p.name}
                   secondary={
@@ -162,14 +186,13 @@ export default function ProjectsList() {
                         fontWeight={500}
                       >
                         {p.isClosed
-                          ? `Đã đóng từ: ${p.closedFrom?.replace('_', ' ')}`
+                          ? `Đã đóng từ: ${p.closedFrom?.replace('_', ' ') ?? ''}`
                           : 'Đang hoạt động'}
                       </Typography>
                     </>
                   }
                 />
 
-                {/* 7. Switch chỉ mở popover */}
                 <Switch
                   edge="end"
                   checked={!!p.isClosed}
@@ -181,7 +204,7 @@ export default function ProjectsList() {
         </Paper>
       )}
 
-      {/* 8. Popover chọn quý/năm để đóng hoặc mở */}
+      {/* Popover chọn quý/năm */}
       <Popover
         id={popId}
         open={open}

@@ -4,9 +4,11 @@ import {
   Link as MUILink,
   Typography,
   useTheme,
-  Box
+  Box,
+  Tooltip,
 } from '@mui/material';
 import { Link, useLocation } from 'react-router-dom';
+import HomeIcon from '@mui/icons-material/Home';
 
 // Map từ URL segment sang nhãn đẹp
 const labelMap = {
@@ -37,7 +39,11 @@ export default function BreadcrumbsNav() {
       <MUIBreadcrumbs
         aria-label="breadcrumb"
         separator="›"
-        sx={{ fontSize: '0.9rem' }}
+        sx={{
+          fontSize: '0.9rem',
+          '& .MuiTypography-root': { fontWeight: 600 },
+          '& a': { fontWeight: 500, display: 'flex', alignItems: 'center', gap: 0.5 },
+        }}
       >
         {/* Trang chủ luôn có */}
         <MUILink
@@ -45,8 +51,8 @@ export default function BreadcrumbsNav() {
           to="/"
           underline="hover"
           color="inherit"
-          fontWeight={500}
         >
+          <HomeIcon fontSize="small" />
           Trang chủ
         </MUILink>
 
@@ -56,25 +62,25 @@ export default function BreadcrumbsNav() {
           const isLast = i === segments.length - 1;
           const label =
             labelMap[seg] ||
-            seg
-              .replace(/-/g, ' ')
-              .replace(/\b\w/g, (ch) => ch.toUpperCase());
+            decodeURIComponent(
+              seg.replace(/-/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+            );
 
           return isLast ? (
-            <Typography key={to} color="text.primary" fontWeight={600}>
-              {label}
-            </Typography>
+            <Tooltip title={label} key={to}>
+              <Typography color="text.primary">{label}</Typography>
+            </Tooltip>
           ) : (
-            <MUILink
-              key={to}
-              component={Link}
-              to={to}
-              underline="hover"
-              color="inherit"
-              fontWeight={500}
-            >
-              {label}
-            </MUILink>
+            <Tooltip title={label} key={to}>
+              <MUILink
+                component={Link}
+                to={to}
+                underline="hover"
+                color="inherit"
+              >
+                {label}
+              </MUILink>
+            </Tooltip>
           );
         })}
       </MUIBreadcrumbs>

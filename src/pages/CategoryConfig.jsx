@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Box,
-  Toolbar,
   IconButton,
   TextField,
   Dialog,
@@ -17,7 +16,6 @@ import {
   Snackbar,
   Button,
 } from "@mui/material";
-import { alpha } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -55,6 +53,8 @@ export default function CategoryConfig() {
   const [newCategoryLabel, setNewCategoryLabel] = useState("");
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const fileRef = useRef(null);
+
+  const normalizeLabel = (str) => str.trim().toLowerCase().replace(/\s+/g, " ");
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "categories"), (snap) => {
@@ -101,7 +101,7 @@ export default function CategoryConfig() {
 
   const handleAdd = async () => {
     if (!newCategoryLabel.trim()) return;
-    if (categories.some((c) => c.label === newCategoryLabel.trim())) {
+    if (categories.some((c) => normalizeLabel(c.label) === normalizeLabel(newCategoryLabel))) {
       setSnackbar({ open: true, message: 'Khoản mục đã tồn tại!', severity: 'warning' });
       return;
     }
@@ -114,6 +114,13 @@ export default function CategoryConfig() {
   const handleUpdate = async () => {
     const newLabel = editRow.label.trim();
     if (!newLabel) return;
+    const duplicate = categories.find(
+      (c) => c.id !== editRow.id && normalizeLabel(c.label) === normalizeLabel(newLabel)
+    );
+    if (duplicate) {
+      setSnackbar({ open: true, message: "Tên khoản mục đã tồn tại!", severity: "warning" });
+      return;
+    }
     await updateDoc(doc(db, "categories", editRow.id), { label: newLabel });
     setEditRow(null);
     setSnackbar({ open: true, message: 'Cập nhật thành công.', severity: 'success' });
@@ -137,7 +144,7 @@ export default function CategoryConfig() {
       rowsX.forEach((r) => {
         const rawKey = (r[0] ?? "").toString().trim();
         const rawLabel = (r[1] ?? r[0] ?? "").toString().trim();
-        if (!rawLabel || categories.some((c) => c.label === rawLabel)) return;
+        if (!rawLabel || categories.some((c) => normalizeLabel(c.label) === normalizeLabel(rawLabel))) return;
         const key = rawKey || String(nextKey++);
         batch.set(doc(collection(db, "categories")), { key, label: rawLabel });
       });

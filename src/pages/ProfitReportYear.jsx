@@ -36,7 +36,6 @@ import { toNum, formatNumber } from "../utils/numberUtils";
 
 export default function ProfitReportQuarter() {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-    const [selectedQuarter, setSelectedQuarter] = useState("Q1");
     const [rows, setRows] = useState([]);
     const [tvMode, setTvMode] = useState(true);
     const [editingCell, setEditingCell] = useState({ idx: -1, field: "" });
@@ -49,7 +48,7 @@ export default function ProfitReportQuarter() {
     const [loading, setLoading] = useState(false); // thêm state này
 
     // Đổi nhãn cột "CP VƯỢT QUÝ <hiện tại>"
-    const cpVuotLabel = `CP VƯỢT QUÝ ${selectedQuarter} ${selectedYear}`;
+    const cpVuotLabel = `CP VƯỢT QUÝ ${selectedYear}`;
 
     const cellStyle = {
         minWidth: 120,
@@ -270,11 +269,7 @@ export default function ProfitReportQuarter() {
             const getCostOverQuarter = async (fieldName) => {
                 try {
                     const snap = await getDoc(
-                        doc(
-                            db,
-                            "costAllocationsQuarter",
-                            `${selectedYear}_${selectedQuarter}`
-                        )
+                        doc(db, "costAllocationsQuarter", `${selectedYear}`)
                     );
                     if (snap.exists()) {
                         return toNum(snap.data()[fieldName]);
@@ -291,7 +286,7 @@ export default function ProfitReportQuarter() {
                     let revenue = 0,
                         cost = 0;
                     try {
-                        const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
+                        const qPath = `projects/${d.id}/years/${selectedYear}/quarters`;
                         const qSnap = await getDoc(doc(db, qPath));
                         if (qSnap.exists()) {
                             revenue = toNum(qSnap.data().overallRevenue);
@@ -354,11 +349,11 @@ export default function ProfitReportQuarter() {
                     )
             );
 
-            const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
+            const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedYear}`;
 
             // 3. Lấy dữ liệu Firestore đã lưu
             const saved = await getDoc(
-                doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`)
+                doc(db, "profitReports", `${selectedYear}`)
             );
             if (
                 saved.exists() &&
@@ -552,7 +547,7 @@ export default function ProfitReportQuarter() {
                     ]),
                 },
                 {
-                    name: `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`,
+                    name: `IV. LỢI NHUẬN ${selectedYear}`,
                     revenue: 0,
                     cost: 0,
                     profit: 0,
@@ -598,21 +593,21 @@ export default function ProfitReportQuarter() {
                     percent: null,
                 },
                 {
-                    name: `+ Vượt CP BPXN do ko đạt DT ${selectedQuarter}`,
+                    name: `+ Vượt CP BPXN do ko đạt DT`,
                     revenue: 0,
                     cost: 0,
                     profit: 0,
                     percent: null,
                 },
                 {
-                    name: `+ Vượt CP BPSX do ko đạt DT ${selectedQuarter}`,
+                    name: `+ Vượt CP BPSX do ko đạt DT`,
                     revenue: 0,
                     cost: 0,
                     profit: 0,
                     percent: null,
                 },
                 {
-                    name: `+ Vượt CP BPĐT do ko có DT ${selectedQuarter} (lãi + thuê vp)`,
+                    name: `+ Vượt CP BPĐT do ko có DT (lãi + thuê vp)`,
                     revenue: 0,
                     cost: 0,
                     profit: 0,
@@ -696,11 +691,7 @@ export default function ProfitReportQuarter() {
             let totalIncreaseProfit = 0;
             try {
                 const profitChangesDoc = await getDoc(
-                    doc(
-                        db,
-                        "profitChanges",
-                        `${selectedYear}_${selectedQuarter}`
-                    )
+                    doc(db, "profitChanges", `${selectedYear}`)
                 );
                 if (profitChangesDoc.exists()) {
                     totalDecreaseProfit = toNum(
@@ -852,7 +843,7 @@ export default function ProfitReportQuarter() {
             const idxIV = updatedRows.findIndex(
                 (r) =>
                     (r.name || "").trim().toUpperCase() ===
-                    `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
+                    `IV. LỢI NHUẬN ${selectedYear}`.toUpperCase()
             );
             if (idxIV !== -1 && idxTotal !== -1) {
                 updatedRows[idxIV] = {
@@ -908,30 +899,27 @@ export default function ProfitReportQuarter() {
 
         fetchData();
         // eslint-disable-next-line
-    }, [selectedYear, selectedQuarter]);
+    }, [selectedYear]);
 
     const handleSave = async (rowsToSave) => {
         const rowsData = Array.isArray(rowsToSave) ? rowsToSave : rows;
-        await setDoc(
-            doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`),
-            {
-                rows: rowsData,
-                updatedAt: new Date().toISOString(),
-            }
-        );
+        await setDoc(doc(db, "profitReports", `${selectedYear}`), {
+            rows: rowsData,
+            updatedAt: new Date().toISOString(),
+        });
         // Có thể thêm toast/success
     };
 
     const rowsHideRevenueCost = [
-        `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase(),
+        `IV. LỢI NHUẬN ${selectedYear}`.toUpperCase(),
         "V. GIẢM LỢI NHUẬN",
         "VI. THU NHẬP KHÁC",
         `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase(),
         "VIII. GIẢM LÃI ĐT DỰ ÁN",
-        `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase(),
-        `+ VƯỢT CP BPXN DO KO ĐẠT DT ${selectedQuarter}`.toUpperCase(),
-        `+ VƯỢT CP BPSX DO KO ĐẠT DT ${selectedQuarter}`.toUpperCase(),
-        `+ VƯỢT CP BPĐT DO KO CÓ DT ${selectedQuarter} (LÃI + THUÊ VP)`.toUpperCase(),
+        `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedYear}`.toUpperCase(),
+        `+ VƯỢT CP BPXN DO KO ĐẠT DT`.toUpperCase(),
+        `+ VƯỢT CP BPSX DO KO ĐẠT DT`.toUpperCase(),
+        `+ VƯỢT CP BPĐT DO KO CÓ DT (LÃI + THUÊ VP)`.toUpperCase(),
         "+ CHI PHÍ ĐÃ TRẢ TRƯỚC",
     ];
 
@@ -1154,7 +1142,7 @@ export default function ProfitReportQuarter() {
         const idxIV = updatedRows.findIndex(
             (r) =>
                 (r.name || "").trim().toUpperCase() ===
-                `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
+                `IV. LỢI NHUẬN ${selectedYear}`.toUpperCase()
         );
         if (idxIV !== -1 && idxTotal !== -1) {
             updatedRows[idxIV] = {
@@ -1186,7 +1174,7 @@ export default function ProfitReportQuarter() {
         const idxLNFinal = updatedRows.findIndex(
             (r) =>
                 (r.name || "").trim().toUpperCase() ===
-                `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase()
+                `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedYear}`.toUpperCase()
         );
         if (
             idxLNFinal !== -1 &&
@@ -1220,9 +1208,9 @@ export default function ProfitReportQuarter() {
         const disallowedFields = ["percent"];
         const nameUpper = (r.name || "").trim().toUpperCase();
         const isCalcRow = [
-            `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`,
-            `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase(),
-            `+ Vượt CP BPXN do ko đạt DT ${selectedQuarter}`,
+            `IV. LỢI NHUẬN ${selectedYear}`,
+            `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedYear}`.toUpperCase(),
+            `+ Vượt CP BPXN do ko đạt DT `,
             `V. GIẢM LỢI NHUẬN`,
             "VI. THU NHẬP KHÁC",
         ].includes(nameUpper);
@@ -1318,9 +1306,19 @@ export default function ProfitReportQuarter() {
         // 2. Header
         const headers = [
             "CÔNG TRÌNH",
-            "DOANH THU",
-            "CHI PHÍ ĐÃ CHI",
-            "LỢI NHUẬN",
+            "QUÝ 1",
+            "QUÝ 2",
+            "QUÝ 3",
+            "QUÝ 4",
+            `TỔNG CỘNG DOANH THU NĂM ${selectedYear}`,
+            "CHI PHÍ ĐÃ CHI QUÝ 1",
+            "CHI PHÍ ĐÃ CHI QUÝ 2",
+            "CHI PHÍ ĐÃ CHI QUÝ 3",
+            "CHI PHÍ ĐÃ CHI QUÝ 4",
+            "LỢI NHUẬN QUÝ 1",
+            "LỢI NHUẬN QUÝ 2",
+            "LỢI NHUẬN QUÝ 3",
+            "LỢI NHUẬN QUÝ 4",
             "% CHỈ TIÊU LN QUÍ",
             "% LN QUÍ",
             "CP VƯỢT QUÝ",
@@ -1352,9 +1350,18 @@ export default function ProfitReportQuarter() {
         rows.forEach((r, idx) => {
             const row = sheet.addRow([
                 r.name,
-                r.revenue,
-                r.cost,
-                r.profit,
+                r.q1,
+                r.q2,
+                r.q3,
+                r.q4,
+                toNum(r.q1) + toNum(r.q2) + toNum(r.q3) + toNum(r.q4),
+
+                ...r.cost,
+  r.p1,
+  r.p2,
+  r.p3,
+  r.p4,
+  toNum(r.p1) + toNum(r.p2) + toNum(r.p3) + toNum(r.p4),
                 r.percent != null ? +r.percent : "",
                 r.revenue ? +(r.profit / r.revenue) * 100 : "",
                 r.costOverQuarter,
@@ -1453,7 +1460,7 @@ export default function ProfitReportQuarter() {
             .replaceAll("/", "-");
         saveAs(
             new Blob([buffer]),
-            `BaoCaoLoiNhuan_${selectedQuarter}_${selectedYear}_${dateStr}.xlsx`
+            `BaoCaoLoiNhuan_${selectedYear}_${dateStr}.xlsx`
         );
     };
 
@@ -1495,7 +1502,7 @@ export default function ProfitReportQuarter() {
                         color="primary"
                         sx={{ fontSize: { xs: 16, sm: 18, md: 20 } }}
                     >
-                        Báo cáo quý: {selectedQuarter}.{selectedYear}
+                        Báo cáo năm: {selectedYear}
                     </Typography>
                     <Stack
                         direction="row"
@@ -1520,22 +1527,7 @@ export default function ProfitReportQuarter() {
                         >
                             Excel
                         </Button>
-                        <FormControl size="small" sx={{ minWidth: 100 }}>
-                            <InputLabel>Quý</InputLabel>
-                            <Select
-                                value={selectedQuarter}
-                                label="Chọn quý"
-                                onChange={(e) =>
-                                    setSelectedQuarter(e.target.value)
-                                }
-                            >
-                                {"Q1 Q2 Q3 Q4".split(" ").map((q) => (
-                                    <MenuItem key={q} value={q}>
-                                        {q}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
+
                         <TextField
                             size="small"
                             label="Năm"
@@ -1591,9 +1583,20 @@ export default function ProfitReportQuarter() {
                                 <TableRow>
                                     {[
                                         "CÔNG TRÌNH",
-                                        "DOANH THU",
-                                        "CHI PHÍ ĐÃ CHI",
-                                        "LỢI NHUẬN",
+                                        "QUÝ 1",
+                                        "QUÝ 2",
+                                        "QUÝ 3",
+                                        "QUÝ 4",
+                                        `TỔNG CỘNG DOANH THU NĂM ${selectedYear}`,
+                                        "CHI PHÍ ĐÃ CHI QUÝ 1",
+                                        "CHI PHÍ ĐÃ CHI QUÝ 2",
+                                        "CHI PHÍ ĐÃ CHI QUÝ 3",
+                                        "CHI PHÍ ĐÃ CHI QUÝ 4",
+
+                                        "LỢI NHUẬN QUÝ 1",
+                                        "LỢI NHUẬN QUÝ 2",
+                                        "LỢI NHUẬN QUÝ 3",
+                                        "LỢI NHUẬN QUÝ 4",
                                         "% CHỈ TIÊU LN QUÍ",
                                         "% LN QUÍ",
                                         cpVuotLabel,
@@ -1663,9 +1666,34 @@ export default function ProfitReportQuarter() {
                                                 : ""}
                                             {r.name}
                                         </TableCell>
-                                        {renderEditableCell(r, idx, "revenue")}
-                                        {renderEditableCell(r, idx, "cost")}
-                                        {renderEditableCell(r, idx, "profit")}
+                                        {renderEditableCell(r, idx, "q1")}
+                                        {renderEditableCell(r, idx, "q2")}
+                                        {renderEditableCell(r, idx, "q3")}
+                                        {renderEditableCell(r, idx, "q4")}
+                                        <TableCell align="right" sx={cellStyle}>
+                                            {format(
+                                                toNum(r.q1) +
+                                                    toNum(r.q2) +
+                                                    toNum(r.q3) +
+                                                    toNum(r.q4)
+                                            )}
+                                        </TableCell>
+                                        {renderEditableCell(r, idx, "c1")}
+                                        {renderEditableCell(r, idx, "c2")}
+                                        {renderEditableCell(r, idx, "c3")}
+                                        {renderEditableCell(r, idx, "c4")}
+                                        {renderEditableCell(r, idx, "p1")}
+                                        {renderEditableCell(r, idx, "p2")}
+                                        {renderEditableCell(r, idx, "p3")}
+                                        {renderEditableCell(r, idx, "p4")}
+                                        <TableCell align="right" sx={cellStyle}>
+                                            {format(
+                                                toNum(r.p1) +
+                                                    toNum(r.p2) +
+                                                    toNum(r.p3) +
+                                                    toNum(r.p4)
+                                            )}
+                                        </TableCell>
                                         {renderEditableCell(
                                             r,
                                             idx,

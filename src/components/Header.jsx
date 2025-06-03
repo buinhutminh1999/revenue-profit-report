@@ -53,7 +53,9 @@ export default function Header() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const searchRef = useRef(null);
 
-  useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
+  useEffect(() => {
+    if (searchOpen) searchRef.current?.focus();
+  }, [searchOpen]);
 
   useHotkeys('ctrl+k, cmd+k', (e) => {
     e.preventDefault();
@@ -85,6 +87,7 @@ export default function Header() {
       >
         <Container maxWidth="lg">
           <Toolbar disableGutters sx={{ justifyContent: 'space-between', py: 1.5 }}>
+            {/* Logo */}
             <Link to="/">
               <Tooltip title="Trang chủ">
                 <Logo src="https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png" alt="Logo" />
@@ -93,7 +96,9 @@ export default function Header() {
 
             <Box sx={{ flexGrow: 1 }} />
 
+            {/* Hành động */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {/* Search PC */}
               <SearchWrapper sx={{ display: { xs: 'none', sm: 'flex' } }}>
                 <Tooltip title="Tìm kiếm (Ctrl/Cmd + K)">
                   <IconButton color="inherit" onClick={() => setSearchOpen(o => !o)}>
@@ -107,32 +112,40 @@ export default function Header() {
                 />
               </SearchWrapper>
 
+              {/* Search mobile */}
               <IconButton sx={{ display: { xs: 'inline-flex', sm: 'none' } }} color="inherit" onClick={() => setMobileSearch(true)}>
                 <SearchIcon />
               </IconButton>
 
+              {/* Dark mode toggle */}
               <Tooltip title="Chuyển chế độ sáng/tối">
                 <IconButton color="inherit" onClick={toggleDark}>
                   {theme.palette.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
                 </IconButton>
               </Tooltip>
 
+              {/* App Drawer */}
               <Tooltip title="Mở menu ứng dụng">
                 <IconButton color="inherit" onClick={() => setDrawerOpen(true)}>
                   <AppsIcon />
                 </IconButton>
               </Tooltip>
 
+              {/* Avatar + tên người dùng */}
               <Tooltip title="Tài khoản">
-                <IconButton color="inherit" onClick={openUser}>
+                <IconButton color="inherit" onClick={openUser} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Avatar
                     sx={{ width: 32, height: 32, bgcolor: 'primary.main', color: 'white' }}
                     src={user?.photoURL}
                     alt={user?.displayName}
                   />
+                  <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                    {user?.displayName?.split(' ')[0] || 'Bạn'}
+                  </Typography>
                 </IconButton>
               </Tooltip>
 
+              {/* Menu người dùng */}
               <Menu
                 anchorEl={anchorUser}
                 open={Boolean(anchorUser)}
@@ -151,10 +164,16 @@ export default function Header() {
                   </Typography>
                 </MenuItem>
                 <Divider />
-                <MenuItem onClick={() => { closeUser(); navigate('/user'); }}>
+                <MenuItem
+                  onClick={() => { closeUser(); navigate('/user'); }}
+                  sx={{ '&:hover': { bgcolor: 'action.hover' } }}
+                >
                   <Avatar sx={{ width: 20, height: 20, mr: 1 }} /> Hồ sơ cá nhân
                 </MenuItem>
-                <MenuItem onClick={() => { closeUser(); navigate('/settings'); }}>
+                <MenuItem
+                  onClick={() => { closeUser(); navigate('/settings'); }}
+                  sx={{ '&:hover': { bgcolor: 'action.hover' } }}
+                >
                   <SettingsIcon fontSize="small" sx={{ mr: 1 }} /> Cài đặt
                 </MenuItem>
                 <MenuItem
@@ -164,6 +183,7 @@ export default function Header() {
                     await signOut(getAuth());
                     navigate('/login');
                   }}
+                  sx={{ '&:hover': { bgcolor: 'action.hover' } }}
                 >
                   <LogoutIcon fontSize="small" sx={{ mr: 1 }} /> Đăng xuất
                 </MenuItem>
@@ -173,6 +193,7 @@ export default function Header() {
         </Container>
       </AppBar>
 
+      {/* Drawer menu ứng dụng */}
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
         <Box sx={{ width: 260, pt: 2 }} role="presentation">
           <Typography variant="subtitle1" fontWeight={600} textAlign="center" mb={2}>
@@ -198,6 +219,7 @@ export default function Header() {
         </Box>
       </Drawer>
 
+      {/* Modal tìm kiếm mobile */}
       <Modal open={mobileSearch} onClose={() => setMobileSearch(false)}>
         <Slide direction="down" in={mobileSearch} mountOnEnter unmountOnExit>
           <Box sx={{

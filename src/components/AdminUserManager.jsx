@@ -1,14 +1,19 @@
+// src/pages/AdminUserManager.jsx
 import React, { useEffect, useState } from "react";
 import {
   Box, Typography, Paper, Select, MenuItem, FormControl, InputLabel,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Snackbar, Alert, CircularProgress, TextField, Button, Stack, IconButton,
-  Tooltip
+  Tooltip, Chip
 } from "@mui/material";
-import { Delete, Email, PersonAdd, PeopleAlt, Search, Verified, AccessTime } from "@mui/icons-material";
+import {
+  Delete, Email, PersonAdd, PeopleAlt, Search, Verified, AccessTime,
+  LockOpen, Lock, Download
+} from "@mui/icons-material";
 import { collection, getDocs, updateDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { createUserWithEmailAndPassword, getAuth, sendEmailVerification } from "firebase/auth";
+import { createUserWithEmailAndPassword, getAuth, sendEmailVerification, sendPasswordResetEmail } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import * as XLSX from "xlsx";
 import { db } from "../services/firebase-config";
 
 const roles = ["admin", "manager", "user"];
@@ -51,6 +56,7 @@ export default function AdminUserManager() {
       role: form.role,
       createdAt: serverTimestamp(),
       lastLogin: serverTimestamp(),
+      locked: false,
     });
 
     setUsers(prev => [...prev, {
@@ -58,7 +64,8 @@ export default function AdminUserManager() {
       email: form.email,
       displayName: form.email.split("@")[0],
       role: form.role,
-      lastLogin: new Date()
+      lastLogin: new Date(),
+      locked: false,
     }]);
 
     setSuccess("🎉 Tạo tài khoản thành công!");
@@ -77,6 +84,22 @@ export default function AdminUserManager() {
     }
   };
 
+  const handleResetPassword = async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setSuccess("📩 Đã gửi email đặt lại mật khẩu");
+    } catch (e) {
+      console.error(e);
+      setSuccess("❌ Lỗi khi gửi đặt lại mật khẩu");
+    }
+  };
+
+  const handleToggleLock = async (uid, currentState) => {
+    await updateDoc(doc(db, "users", uid), { locked: !currentState });
+    setUsers(prev => prev.map(u => u.uid === uid ? { ...u, locked: !currentState } : u));
+    setSuccess(currentState ? "🔓 Đã mở khoá tài khoản" : "🔒 Đã khoá tài khoản");
+  };
+
   const handleDeleteUserCompletely = async (uid) => {
     try {
       await deleteUserByUid({ uid });
@@ -88,6 +111,21 @@ export default function AdminUserManager() {
     }
   };
 
+  const handleExportExcel = () => {
+    const data = users.map((u) => ({
+      Email: u.email,
+      Tên: u.displayName,
+      VaiTrò: u.role,
+      UID: u.uid,
+      Locked: u.locked ? "🔒" : "✅",
+      LastLogin: u.lastLogin?.toDate?.()?.toLocaleString?.() || "—",
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Users");
+    XLSX.writeFile(wb, "DanhSachNguoiDung.xlsx");
+  };
+
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.email?.toLowerCase().includes(search.toLowerCase()) ||
                           u.displayName?.toLowerCase().includes(search.toLowerCase());
@@ -95,9 +133,12 @@ export default function AdminUserManager() {
     return matchesSearch && matchesRole;
   });
 
+  const roleStats = roles.map(role => `${role}: ${users.filter(u => u.role === role).length}`).join(" | ");
+
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" fontWeight={600} mb={3}>👤 Quản lý người dùng</Typography>
+      <Typography variant="h5" fontWeight={600} mb={1}>👤 Quản lý người dùng</Typography>
+      <Typography variant="body2" color="text.secondary" mb={3}>Tổng: {users.length} | {roleStats}</Typography>
 
       <Paper elevation={4} sx={{ p: 3, borderRadius: 3, mb: 4 }}>
         <Stack direction="row" alignItems="center" spacing={1} mb={2}>
@@ -110,10 +151,10 @@ export default function AdminUserManager() {
           <FormControl fullWidth size="small">
             <InputLabel>Vai trò</InputLabel>
             <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} label="Vai trò">
-              {roles.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-            </Select>
+              {roles.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}</Select>
           </FormControl>
-          <Button onClick={handleCreateUser} variant="contained" color="primary" sx={{ minWidth: 120 }}>TẠO</Button>
+          <Button onClick={handleCreateUser} variant="contained" color="primary">TẠO</Button>
+          <Button onClick={handleExportExcel} startIcon={<Download />} variant="outlined">Xuất Excel</Button>
         </Stack>
       </Paper>
 
@@ -124,8 +165,7 @@ export default function AdminUserManager() {
             <InputLabel>Lọc theo vai trò</InputLabel>
             <Select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} label="Vai trò">
               <MenuItem value="">Tất cả</MenuItem>
-              {roles.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-            </Select>
+              {roles.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}</Select>
           </FormControl>
         </Stack>
 
@@ -140,6 +180,7 @@ export default function AdminUserManager() {
                   <TableCell>Tên</TableCell>
                   <TableCell>UID</TableCell>
                   <TableCell>Vai trò</TableCell>
+                  <TableCell>Trạng thái</TableCell>
                   <TableCell>Last login</TableCell>
                   <TableCell align="right">Thao tác</TableCell>
                 </TableRow>
@@ -157,11 +198,20 @@ export default function AdminUserManager() {
                         </Select>
                       </FormControl>
                     </TableCell>
-                    <TableCell sx={{ fontSize: "0.75rem" }}>{u.lastLogin?.toDate?.().toLocaleString?.() || "—"}</TableCell>
+                    <TableCell>
+                      <Chip label={u.locked ? "Khoá" : "Hoạt động"} color={u.locked ? "error" : "success"} size="small" />
+                    </TableCell>
+                    <TableCell sx={{ fontSize: "0.75rem" }}>{u.lastLogin?.toDate?.()?.toLocaleString?.() || "—"}</TableCell>
                     <TableCell align="right">
                       <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Tooltip title="Reset mật khẩu">
+                          <IconButton color="warning" onClick={() => handleResetPassword(u.email)}><Email /></IconButton>
+                        </Tooltip>
                         <Tooltip title="Xác minh email hoặc gửi lại">
                           <IconButton color="info" onClick={() => handleSendVerification(u.uid)}><Verified /></IconButton>
+                        </Tooltip>
+                        <Tooltip title={u.locked ? "Mở khoá" : "Khoá tài khoản"}>
+                          <IconButton color="inherit" onClick={() => handleToggleLock(u.uid, u.locked)}>{u.locked ? <LockOpen /> : <Lock />}</IconButton>
                         </Tooltip>
                         <Tooltip title="Xoá user">
                           <IconButton color="error" onClick={() => handleDeleteUserCompletely(u.uid)}><Delete /></IconButton>
