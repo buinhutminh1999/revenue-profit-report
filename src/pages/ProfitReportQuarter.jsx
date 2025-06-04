@@ -1071,24 +1071,26 @@ export default function ProfitReportQuarter() {
         }
 
         if (["profit", "revenue", "cost"].includes(field) && isSpecialLDX) {
-            const rev = toNum(newRows[idx].revenue);
-            const cost = toNum(newRows[idx].cost);
-            const profit = newRows[idx].profit ?? rev - cost;
-            const target = toNum(newRows[idx].target);
-            const percent = target !== 0 ? (profit / target) * 100 : null;
-            newRows[idx].profit = profit;
-            newRows[idx].percent = percent;
-        }
+    const rev = toNum(newRows[idx].revenue);
+    const cost = toNum(newRows[idx].cost);
+    // SỬA DÒNG NÀY (bỏ dùng giá trị nhập tay)
+    const profit = rev - cost; // Luôn lấy = revenue - cost
+    const target = toNum(newRows[idx].target);
+    const percent = target !== 0 ? (profit / target) * 100 : null;
+    newRows[idx].profit = profit;
+    newRows[idx].percent = percent;
+}
+if (["profit", "revenue", "cost"].includes(field) && isSpecialSalan) {
+    const rev = toNum(newRows[idx].revenue);
+    const cost = toNum(newRows[idx].cost);
+    // SỬA DÒNG NÀY
+    const profit = rev - cost;
+    const target = toNum(newRows[idx].target);
+    const percent = target !== 0 ? (profit / target) * 100 : null;
+    newRows[idx].profit = profit;
+    newRows[idx].percent = percent;
+}
 
-        if (["profit", "revenue", "cost"].includes(field) && isSpecialSalan) {
-            const rev = toNum(newRows[idx].revenue);
-            const cost = toNum(newRows[idx].cost);
-            const profit = newRows[idx].profit ?? rev - cost;
-            const target = toNum(newRows[idx].target);
-            const percent = target !== 0 ? (profit / target) * 100 : null;
-            newRows[idx].profit = profit;
-            newRows[idx].percent = percent;
-        }
 
         // --- TÍNH LẠI CÁC DÒNG GROUP TỔNG HỢP VÀ LỢI NHUẬN FINAL ---
         let updatedRows = updateLDXRow(newRows);
@@ -1315,6 +1317,7 @@ export default function ProfitReportQuarter() {
                 (r.name || "").trim().toUpperCase() ===
                 "I.1. DÂN DỤNG + GIAO THÔNG"
         );
+        
         const idxI2 = rows.findIndex(
             (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
         );
