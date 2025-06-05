@@ -597,10 +597,54 @@ export default function CostAllocationQuarter() {
                 (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
         )
         .reduce((sum, r) => sum + (toNum(r.cumQuarterOnly) || 0), 0);
+// B2: Tính tổng used (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
+const totalUsed = rowsWithSplit
+  .filter(
+    (r) =>
+      (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
+      (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
+  )
+  .reduce((sum, r) => sum + (toNum(r.usedRaw) || 0), 0);
 
-  const rowsWithTotal = rowsWithSplit.map(r => {
-  if ((r.label || "").trim().toUpperCase() === "TỔNG CHI PHÍ") {
-    return { ...r, cumQuarterOnly: totalCumQuarterOnly, isTotal: true };
+// B3: Tính tổng allocated (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
+const totalAllocated = rowsWithSplit
+  .filter(
+    (r) =>
+      (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
+      (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
+  )
+  .reduce((sum, r) => sum + (toNum(r.allocated) || 0), 0);
+
+// B4: Tính tổng carryOver (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
+const totalCarryOver = rowsWithSplit
+  .filter(
+    (r) =>
+      (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
+      (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
+  )
+  .reduce((sum, r) => sum + (toNum(r.carryOver) || 0), 0);
+
+// B5: Tính tổng cumCurrent (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
+const totalCumCurrent = rowsWithSplit
+  .filter(
+    (r) =>
+      (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
+      (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
+  )
+  .reduce((sum, r) => sum + (toNum(r.cumCurrent) || 0), 0);
+ const rowsWithTotal = rowsWithSplit.map(r => {
+  const labelUpper = (r.label || "").trim().toUpperCase();
+  if (labelUpper === "TỔNG CHI PHÍ") {
+    return {
+      ...r,
+      // Gán tổng cho từng cột:
+      usedRaw: totalUsed,
+      allocated: totalAllocated,
+      carryOver: totalCarryOver,
+      cumCurrent: totalCumCurrent,
+      cumQuarterOnly: totalCumQuarterOnly,
+      isTotal: true,
+    };
   }
   return r;
 });
