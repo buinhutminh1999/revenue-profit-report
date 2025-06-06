@@ -589,6 +589,17 @@ export default function CostAllocationQuarter() {
         ];
         return [...base, ...projCols, ...other];
     }, [visibleProjects, options, year, quarter, getDC, isXs]);
+// Bước 0: Tính tổng theo từng project ID (ignore DOANH THU & TỔNG CHI PHÍ)
+const totalByProject = {};
+visibleProjects.forEach((p) => {
+  const pid = p.id;
+  totalByProject[pid] = rowsWithSplit
+    .filter((r) => {
+      const labelUpper = (r.label || "").trim().toUpperCase();
+      return labelUpper !== "DOANH THU" && labelUpper !== "TỔNG CHI PHÍ";
+    })
+    .reduce((sum, r) => sum + (toNum(r[pid]) || 0), 0);
+});
 
     const totalCumQuarterOnly = rowsWithSplit
         .filter(
@@ -632,22 +643,29 @@ const totalCumCurrent = rowsWithSplit
       (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
   )
   .reduce((sum, r) => sum + (toNum(r.cumCurrent) || 0), 0);
- const rowsWithTotal = rowsWithSplit.map(r => {
+ const rowsWithTotal = rowsWithSplit.map((r) => {
   const labelUpper = (r.label || "").trim().toUpperCase();
   if (labelUpper === "TỔNG CHI PHÍ") {
     return {
       ...r,
-      // Gán tổng cho từng cột:
+
+      // 1. Gán tất cả tổng theo project (cột project đang tô đỏ)
+      ...totalByProject,
+
+      // 2. Gán total cho các cột đặc biệt
       usedRaw: totalUsed,
       allocated: totalAllocated,
       carryOver: totalCarryOver,
-      cumCurrent: totalCumCurrent,
       cumQuarterOnly: totalCumQuarterOnly,
+      cumCurrent: totalCumCurrent,
+
+      // 3. (Tùy chọn) flag để highlight hàng tổng
       isTotal: true,
     };
   }
   return r;
 });
+
 
     const columnVisibilityModel = useMemo(() => {
         if (!isXs) return {};
