@@ -424,7 +424,7 @@ export default function ProfitReportQuarter() {
             const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
 
             // 3. Lấy dữ liệu Firestore đã lưu
-           const saved = await getDoc(
+const saved = await getDoc(
   doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`)
 );
 if (
@@ -435,9 +435,9 @@ if (
   let updatedRows = [...saved.data().rows];
 
   // ——————————————————————————————————————————————————————————
-  // Cập nhật số liệu mới cho I.1. Dân Dụng + Giao Thông từ projects
+  // 1. Cập nhật I.1. Dân Dụng + Giao Thông
 
-  // 1. Tạo groupI1 giống như ở phần defaultRows
+  // 1.1. Xây groupI1 (công trình thuộc Thi công, không chứa "KÈ")
   const groupI1 = projects.filter(
     (r) =>
       (r.type === "Thi cong" || r.type === "Thi công") &&
@@ -445,13 +445,13 @@ if (
       !(r.name || "").toUpperCase().includes("KÈ")
   );
 
-  // 2. Tìm vị trí của dòng "I.1. Dân Dụng + Giao Thông"
+  // 1.2. Tìm vị trí dòng "I.1. DÂN DỤNG + GIAO THÔNG"
   const idxI1 = updatedRows.findIndex(
     (r) => (r.name || "").trim().toUpperCase() === "I.1. DÂN DỤNG + GIAO THÔNG"
   );
 
   if (idxI1 !== -1) {
-    // 3. Thu thập tên các công trình đã tồn tại dưới I.1
+    // 1.3. Thu thập tên các dòng con hiện có dưới I.1
     let existedNamesI1 = [];
     let j = idxI1 + 1;
     while (
@@ -467,13 +467,12 @@ if (
       j++;
     }
 
-    // 4. Với mỗi project trong groupI1, update hoặc chèn mới
+    // 1.4. Với mỗi project trong groupI1, update hoặc chèn mới
     groupI1.forEach((p) => {
       const idxDetail = updatedRows.findIndex(
         (r) => (r.name || "").trim() === (p.name || "").trim()
       );
       if (idxDetail !== -1) {
-        // Nếu đã có trong updatedRows, update lại giá trị
         updatedRows[idxDetail] = {
           ...updatedRows[idxDetail],
           revenue: p.revenue,
@@ -483,7 +482,6 @@ if (
           editable: false,
         };
       } else {
-        // Nếu chưa có, chèn mới ngay sau "I.1" (tại vị trí j)
         updatedRows.splice(j, 0, {
           projectId: p.projectId,
           name: p.name,
@@ -502,7 +500,7 @@ if (
       }
     });
 
-    // 5. Tính lại tổng cho "I.1. Dân Dụng + Giao Thông" từ các detailRows vừa cập nhật
+    // 1.5. Tính lại tổng cho I.1
     let sumRevenueI1 = 0,
       sumCostI1 = 0,
       sumProfitI1 = 0;
@@ -524,13 +522,105 @@ if (
       revenue: sumRevenueI1,
       cost: sumCostI1,
       profit: sumProfitI1,
-      percent: sumRevenueI1 !== 0 ? (sumProfitI1 / sumRevenueI1) * 100 : null,
+      percent:
+        sumRevenueI1 !== 0 ? (sumProfitI1 / sumRevenueI1) * 100 : null,
     };
   }
-  // ——————————————————————————————————————————————————————————
 
-  // ================= XỬ LÝ II.1. SẢN XUẤT ==================
-  // Cập nhật số liệu mới cho các công trình chi tiết dưới II.1
+  // ——————————————————————————————————————————————————————————
+  // 2. Cập nhật I.2. KÈ
+
+  // 2.1. Xây groupI2 (công trình có tên chứa "KÈ")
+  const groupI2 = projects.filter((r) =>
+    (r.name || "").toUpperCase().includes("KÈ")
+  );
+
+  // 2.2. Tìm vị trí dòng "I.2. KÈ"
+  const idxI2 = updatedRows.findIndex(
+    (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
+  );
+
+  if (idxI2 !== -1) {
+    // 2.3. Thu thập tên các dòng con hiện có dưới I.2
+    let existedNamesI2 = [];
+    let m = idxI2 + 1;
+    while (
+      m < updatedRows.length &&
+      !(
+        (updatedRows[m].name || "").toUpperCase().startsWith("I.3.") ||
+        (updatedRows[m].name || "").trim().match(/^[IVX]+\./)
+      )
+    ) {
+      if (updatedRows[m].name) {
+        existedNamesI2.push((updatedRows[m].name || "").trim());
+      }
+      m++;
+    }
+
+    // 2.4. Với mỗi project trong groupI2, update hoặc chèn mới
+    groupI2.forEach((p) => {
+      const idxDetail2 = updatedRows.findIndex(
+        (r) => (r.name || "").trim() === (p.name || "").trim()
+      );
+      if (idxDetail2 !== -1) {
+        updatedRows[idxDetail2] = {
+          ...updatedRows[idxDetail2],
+          revenue: p.revenue,
+          cost: p.cost,
+          profit: p.profit,
+          percent: p.percent,
+          editable: false,
+        };
+      } else {
+        updatedRows.splice(m, 0, {
+          projectId: p.projectId,
+          name: p.name,
+          revenue: p.revenue,
+          cost: p.cost,
+          profit: p.profit,
+          percent: p.percent,
+          costOverQuarter: null,
+          target: null,
+          note: "",
+          suggest: "",
+          type: p.type,
+          editable: false,
+        });
+        m++;
+      }
+    });
+
+    // 2.5. Tính lại tổng cho I.2
+    let sumRevenueI2 = 0,
+      sumCostI2 = 0,
+      sumProfitI2 = 0;
+    let n = idxI2 + 1;
+    while (
+      n < updatedRows.length &&
+      !(
+        (updatedRows[n].name || "").toUpperCase().startsWith("I.3.") ||
+        (updatedRows[n].name || "").trim().match(/^[IVX]+\./)
+      )
+    ) {
+      sumRevenueI2 += toNum(updatedRows[n].revenue);
+      sumCostI2 += toNum(updatedRows[n].cost);
+      sumProfitI2 += toNum(updatedRows[n].profit);
+      n++;
+    }
+    updatedRows[idxI2] = {
+      ...updatedRows[idxI2],
+      revenue: sumRevenueI2,
+      cost: sumCostI2,
+      profit: sumProfitI2,
+      percent:
+        sumRevenueI2 !== 0 ? (sumProfitI2 / sumRevenueI2) * 100 : null,
+    };
+  }
+
+  // ——————————————————————————————————————————————————————————
+  // 3. Cập nhật II.1. SẢN XUẤT
+
+  // 3.1. Xử lý các detail dưới II.1
   groupII.forEach((p) => {
     const idx = updatedRows.findIndex(
       (r) => (r.name || "").trim() === (p.name || "").trim()
@@ -542,12 +632,12 @@ if (
         cost: p.cost,
         profit: p.profit,
         percent: p.percent,
-        editable: false, // không cho sửa tay
+        editable: false,
       };
     }
   });
 
-  // Thêm công trình mới nếu có dưới II.1
+  // 3.2. Thêm công trình mới nếu có
   const idxII1 = updatedRows.findIndex(
     (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
   );
@@ -574,7 +664,7 @@ if (
     );
   }
 
-  // 👉 Tính lại dòng II.1. SẢN XUẤT từ các dòng chi tiết bên dưới
+  // 3.3. Tính lại tổng cho II.1
   if (idxII1 !== -1) {
     let i = idxII1 + 1;
     const detailRows = [];
@@ -589,7 +679,8 @@ if (
     const sumRevenue = detailRows.reduce((s, r) => s + toNum(r.revenue), 0);
     const sumCost = detailRows.reduce((s, r) => s + toNum(r.cost), 0);
     const sumProfit = detailRows.reduce((s, r) => s + toNum(r.profit), 0);
-    const sumPercent = sumRevenue !== 0 ? (sumProfit / sumRevenue) * 100 : null;
+    const sumPercent =
+      sumRevenue !== 0 ? (sumProfit / sumRevenue) * 100 : null;
 
     updatedRows[idxII1] = {
       ...updatedRows[idxII1],
@@ -599,10 +690,9 @@ if (
       percent: sumPercent,
     };
   }
-  // ================== END XỬ LÝ II.1 =======================
 
   // ——————————————————————————————————————————————————————————
-  // Cập nhật số liệu mới cho V. GIẢM LỢI NHUẬN và VI. THU NHẬP KHÁC
+  // 4. Cập nhật V. GIẢM LỢI NHUẬN và VI. THU NHẬP KHÁC
 
   let totalDecreaseProfit = 0;
   let totalIncreaseProfit = 0;
@@ -623,7 +713,6 @@ if (
     totalIncreaseProfit = 0;
   }
 
-  // Tìm index của “V. GIẢM LỢI NHUẬN”
   const idxV = updatedRows.findIndex(
     (r) => (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
   );
@@ -631,15 +720,58 @@ if (
     updatedRows[idxV].profit = totalDecreaseProfit;
   }
 
-  // Tìm index của “VI. THU NHẬP KHÁC”
   const idxVI = updatedRows.findIndex(
     (r) => (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
   );
   if (idxVI !== -1) {
     updatedRows[idxVI].profit = totalIncreaseProfit;
   }
-  // ——————————————————————————————————————————————————————————
 
+  // ——————————————————————————————————————————————————————————
+  // 5. Lọc (loại bỏ) tất cả các dòng con có revenue === 0 && cost === 0 && profit === 0
+
+  updatedRows = updatedRows.filter((r) => {
+    const rev = toNum(r.revenue);
+    const cost = toNum(r.cost);
+    const profit = toNum(r.profit);
+    // Nếu cả 3 đều là 0:
+    if (rev === 0 && cost === 0 && profit === 0) {
+      // nhưng phải giữ lại các dòng nhóm hoặc tổng (tức tên bắt đầu bằng I., II., III., "TỔNG", "I.1.", "I.2.", "II.1.", v.v.)
+      const nameUpper = (r.name || "").trim().toUpperCase();
+      // Giữ lại nếu:
+      // 1) Bắt đầu bằng chữ La Mã + dấu chấm (ví dụ "I. ", "II. ", "III. "…)
+      // 2) Là các dòng tổng/góc nhóm (ví dụ "I.1. DÂN DỤNG + GIAO THÔNG", "I.2. KÈ", "II.1. SẢN XUẤT", "TỔNG", v.v.)
+      if (
+        /^[IVX]+\./.test(nameUpper) ||
+        [
+          "I. XÂY DỰNG",
+          "I.1. DÂN DỤNG + GIAO THÔNG",
+          "I.2. KÈ",
+          "I.3. CÔNG TRÌNH CÔNG TY CĐT",
+          "II. SẢN XUẤT",
+          "II.1. SẢN XUẤT",
+          "II.2. DT + LN ĐƯỢC CHIA TỪ LDX",
+          "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)",
+          "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY",
+          "III. ĐẦU TƯ",
+          "IV. LỢI NHUẬN " + selectedQuarter + "." + selectedYear,
+          "V. GIẢM LỢI NHUẬN",
+          "VI. THU NHẬP KHÁC",
+          `VII. KHTSCĐ NĂM ${selectedYear}`,
+          "VIII. GIẢM LÃI ĐT DỰ ÁN",
+          "TỔNG",
+        ].includes(nameUpper)
+      ) {
+        return true;
+      }
+      // Ngược lại (là dòng con không thuộc nhóm nào, và 3 giá trị đều 0) → loại bỏ
+      return false;
+    }
+    // Nếu không phải trường hợp tất cả đều 0, giữ lại
+    return true;
+  });
+
+  // ——————————————————————————————————————————————————————————
   setRows(updatedRows);
   setLoading(false);
   return;
