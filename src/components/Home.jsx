@@ -1,45 +1,133 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
-  Box,
-  Container,
-  Alert,
-  Button,
-  Collapse,
-  Paper,
-  Stack,
-  TextField,
-  Grid,
-  Typography,
-  Tab,
-  Tabs,
-  CardActionArea,
-  useTheme,
-  Skeleton,
-  Chip,
-  useMediaQuery,
-  Fade,
-  CircularProgress,
-  Breadcrumbs,
+  Box, Alert, Paper, Grid, Typography, CardActionArea,
+  Skeleton, Chip, AlertTitle, Divider, styled,
 } from "@mui/material";
-import Autocomplete from "@mui/material/Autocomplete";
-import SearchIcon from "@mui/icons-material/Search";
-import ConstructionIcon from "@mui/icons-material/Construction";
-import AssessmentIcon from "@mui/icons-material/Assessment";
-import CategoryIcon from "@mui/icons-material/Category";
-import BuildCircleIcon from "@mui/icons-material/BuildCircle";
-import StarIcon from "@mui/icons-material/Star";
 import { motion } from "framer-motion";
-import { LineChart, FolderKanban, PieChart } from "lucide-react";
+import {
+  LineChart, FolderKanban, PieChart, Construction, Building,
+  Settings, BarChart3, TrendingUp, BookCheck, ArrowRight,
+} from "lucide-react";
+
+// --- DỮ LIỆU CẤU HÌNH ---
+const mainFunctions = [
+  { icon: <Construction size={32} />, text: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ các dự án" },
+  { icon: <Building size={32} />, text: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết, quản lý từng công trình", isNew: true },
+  { icon: <BookCheck size={32} />, text: "Phân bổ chi phí", to: "/allocations", desc: "Nhập và quản lý chi phí cho dự án" },
+];
+const reportFunctions = [
+  { icon: <BarChart3 size={24} />, text: "Báo Cáo Lợi Nhuận", to: "/profit-report-quarter", desc: "Phân tích doanh thu - chi phí" },
+  { icon: <PieChart size={24} />, text: "Chi Phí Theo Quý", to: "/cost-allocation-quarter", desc: "Theo dõi phân bổ quý" },
+  { icon: <LineChart size={24} />, text: "Lợi Nhuận Theo Năm", to: "/profit-report-year", desc: "Báo cáo doanh thu - chi phí cả năm" },
+  { icon: <TrendingUp size={24} />, text: "Tăng Giảm Lợi Nhuận", to: "/profit-change", desc: "Phát sinh ảnh hưởng lợi nhuận" },
+];
+const settingsFunctions = [
+  { icon: <Settings size={24} />, text: "Quản Trị Khoản Mục", to: "/categories", desc: "Cấu hình các khoản mục chi phí" },
+];
 
 const formatVND = (v) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(v);
 
+// --- CÁC STYLED COMPONENTS CHO NỘI DUNG TRANG HOME ---
+const KpiCard = styled(Paper)(({ theme, color = 'primary' }) => ({
+  padding: theme.spacing(3),
+  borderRadius: theme.shape.borderRadius * 4,
+  position: 'relative',
+  overflow: 'hidden',
+  backgroundColor: 'rgba(255, 255, 255, 0.7)',
+  backdropFilter: 'blur(10px)',
+  border: `1px solid rgba(224, 224, 224, 0.6)`,
+  transition: 'all 300ms ease-in-out',
+  boxShadow: 'rgba(149, 157, 165, 0.1) 0px 8px 24px',
+  display: 'flex',
+  alignItems: 'center',
+  '&:hover': {
+    transform: 'translateY(-4px)',
+    boxShadow: `0 0 25px -5px ${theme.palette[color].light}`,
+  }
+}));
+
+const MainFunctionCard = styled(CardActionArea)(({ theme }) => ({
+  padding: theme.spacing(3),
+  borderRadius: theme.shape.borderRadius * 4,
+  backgroundColor: 'rgba(255, 255, 255, 0.8)',
+  backdropFilter: 'blur(12px)',
+  border: `1px solid white`,
+  boxShadow: `rgba(145, 158, 171, 0.15) 0px 10px 30px -5px`,
+  textAlign: 'center',
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  position: 'relative',
+  transition: 'all 0.3s ease-in-out',
+  '& .icon-wrapper': {
+    color: theme.palette.primary.dark,
+    marginBottom: theme.spacing(2),
+    transition: 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+  },
+  '&::after': {
+    content: '""',
+    position: 'absolute', top: -2, left: -2, right: -2, bottom: -2,
+    borderRadius: 'inherit',
+    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+    zIndex: -1,
+    opacity: 0,
+    transition: 'opacity 0.4s ease',
+  },
+  '&:hover': {
+    transform: 'translateY(-8px)',
+    color: 'white',
+    '& .icon-wrapper': {
+      color: 'white',
+      transform: 'scale(1.1) rotate(-5deg)'
+    },
+    '& .MuiTypography-body2': {
+      color: 'rgba(255, 255, 255, 0.8)'
+    },
+    '&::after': { opacity: 1 },
+  },
+}));
+
+const SubFunctionCard = styled(CardActionArea)(({ theme }) => ({
+    padding: theme.spacing(2),
+    borderRadius: theme.shape.borderRadius * 3,
+    backgroundColor: 'transparent',
+    textAlign: 'left',
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    color: theme.palette.text.secondary,
+    border: '1px solid transparent',
+    transition: 'all 0.3s ease-in-out',
+    '& .arrow-icon': {
+        opacity: 0,
+        marginLeft: 'auto',
+        transition: 'opacity 0.3s ease-in-out',
+    },
+    '&:hover': {
+        backgroundColor: theme.palette.action.hover,
+        borderColor: theme.palette.divider,
+        color: theme.palette.text.primary,
+        '& .arrow-icon': {
+            opacity: 1,
+        },
+    },
+}));
+
+const Section = ({ title, children }) => (
+  <Box mb={6}>
+    <Divider sx={{ mb: 4, '&::before, &::after': { borderColor: 'rgba(0, 0, 0, 0.08)' } }}>
+      <Typography variant="overline" color="text.secondary" sx={{ px: 2, fontSize: '0.8rem', letterSpacing: '1px' }}>{title}</Typography>
+    </Divider>
+    {children}
+  </Box>
+);
+
 export default function Home() {
-  const theme = useTheme();
-  const isXs = useMediaQuery(theme.breakpoints.down("sm"));
-  const [showAdv, setShowAdv] = useState(false);
-  const [tab, setTab] = useState(0);
+  const [showAlert, setShowAlert] = useState(true);
   const [summary, setSummary] = useState(null);
 
   useEffect(() => {
@@ -50,166 +138,103 @@ export default function Home() {
   }, []);
 
   const kpis = [
-    { label: "Tổng Dự Án", value: summary?.totalProjects, icon: <FolderKanban size={32} color="#1976d2" /> },
-    { label: "Tổng Doanh Thu", value: summary ? formatVND(summary.totalRevenue) : undefined, icon: <LineChart size={32} color="#1976d2" /> },
-    { label: "Tổng Chi Phí", value: summary ? formatVND(summary.totalCost) : undefined, icon: <PieChart size={32} color="#1976d2" /> },
+    { label: "Tổng Dự Án", value: summary?.totalProjects, icon: <FolderKanban size={32} />, color: 'primary' },
+    { label: "Tổng Doanh Thu", value: summary ? formatVND(summary.totalRevenue) : undefined, icon: <LineChart size={32} />, color: 'success' },
+    { label: "Tổng Chi Phí", value: summary ? formatVND(summary.totalCost) : undefined, icon: <PieChart size={32} />, color: 'error' },
   ];
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.07 } }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { y: 0, opacity: 1 }
+  };
+
   return (
-    <Box>
-      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
-
-        <Breadcrumbs separator="›" sx={{ mb: 1 }}>
-          <Typography color="text.secondary">Trang chủ</Typography>
-          <Typography color="text.primary">Tổng quan</Typography>
-        </Breadcrumbs>
-
-        <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
-          🔔 Hệ thống đã cập nhật tính năng phân tích lợi nhuận theo quý!
+    <React.Fragment>
+      {showAlert && (
+        <Alert severity="info" onClose={() => setShowAlert(false)} sx={{ mb: 4, borderRadius: 2, bgcolor: 'info.lighter', color: 'info.darker', border: '1px solid', borderColor: 'info.light' }}>
+          <AlertTitle sx={{ fontWeight: 'bold' }}>Thông báo</AlertTitle>
+          Hệ thống đã cập nhật tính năng phân tích lợi nhuận theo quý!
         </Alert>
+      )}
 
-        <Collapse in={showAdv} timeout="auto" unmountOnExit>
-          <Paper elevation={3} sx={{ p: 3, mb: 4, maxWidth: 700, mx: "auto" }}>
-            <Stack spacing={2} direction={{ xs: "column", sm: "row" }}>
-              <TextField label="Từ khoá" fullWidth size="small" />
-              <Autocomplete
-                options={["Nhân sự", "Vật tư", "Tài chính", "Khác"]}
-                renderInput={(params) => <TextField {...params} label="Danh mục" size="small" />}
-                fullWidth
-              />
-              <Button variant="contained" size="large" sx={{ whiteSpace: "nowrap" }}>
-                Tìm kiếm
-              </Button>
-            </Stack>
-          </Paper>
-        </Collapse>
-
-        <Box textAlign="center" mb={3}>
-          <Button startIcon={<SearchIcon />} onClick={() => setShowAdv((p) => !p)}>
-            {showAdv ? "Ẩn tìm kiếm nâng cao" : "Tìm kiếm nâng cao"}
-          </Button>
-        </Box>
-
-        {/* Loading state */}
-        {!summary ? (
-          <Box textAlign="center" py={8}>
-            <CircularProgress size={48} color="primary" />
-            <Typography mt={2} color="text.secondary">Đang tải dữ liệu...</Typography>
-          </Box>
-        ) : (
-          <>
-            <Grid container spacing={3} justifyContent="space-between" sx={{ mb: 6 }}>
-              {kpis.map((k, index) => (
-                <Grid item xs={12} sm={6} md={4} key={k.label}>
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: index * 0.1 }}
-                  >
-                    <Paper elevation={3} sx={{ p: 2, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, '&:hover': { boxShadow: 6 } }}>
-                      {k.icon}
-                      <Box>
-                        <Typography variant="body2" color="text.secondary">{k.label}</Typography>
-                        <Typography variant="h6" fontWeight={700} color="primary">
-                          {k.value ?? <Skeleton width={60} />}
-                        </Typography>
-                      </Box>
-                    </Paper>
+      <motion.div variants={containerVariants} initial="hidden" animate={!!summary ? "visible" : "hidden"}>
+        <Grid container spacing={3} sx={{ mb: 6 }}>
+          {kpis.map((k) => (
+            <Grid item xs={12} sm={6} md={4} key={k.label}>
+              <motion.div variants={itemVariants}>
+                <KpiCard color={k.color}>
+                  <Box sx={{ color: `${k.color}.main`, mr: 2 }}>{k.icon}</Box>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">{k.label}</Typography>
+                    <Typography variant="h5" fontWeight={700}>{summary ? k.value : <Skeleton width={120} />}</Typography>
+                  </Box>
+                </KpiCard>
+              </motion.div>
+            </Grid>
+          ))}
+        </Grid>
+        
+        <Section title="Không gian làm việc">
+          <motion.div variants={containerVariants}>
+            <Grid container spacing={{ xs: 2, md: 3 }}>
+              {mainFunctions.map((item) => (
+                <Grid item xs={12} sm={6} md={4} key={item.to}>
+                  <motion.div variants={itemVariants} style={{ height: '100%' }}>
+                    <MainFunctionCard component={Link} to={item.to}>
+                      <Box className="icon-wrapper">{item.icon}</Box>
+                      <Typography variant="h6" fontWeight={600}>
+                        {item.text}
+                        {item.isNew && <Chip label="New" size="small" color="warning" sx={{ ml: 1 }} />}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">{item.desc}</Typography>
+                    </MainFunctionCard>
                   </motion.div>
                 </Grid>
               ))}
             </Grid>
+          </motion.div>
+        </Section>
 
-            <Tabs
-              value={tab}
-              onChange={(_, v) => setTab(v)}
-              centered
-              sx={{ mb: 4, maxWidth: 500, mx: "auto" }}
-            >
-              <Tab icon={<ConstructionIcon />} iconPosition="start" label="Quản lý dự án" />
-              <Tab icon={<AssessmentIcon />} iconPosition="start" label="Quản lý chi phí" />
-            </Tabs>
-
-            <Fade in={tab === 0} timeout={500} unmountOnExit>
-              <Grid container spacing={4} justifyContent="center">
-                {[
-                  { icon: <ConstructionIcon sx={iconSX} />, text: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Theo dõi kế hoạch và phân công công trình" },
-                  { icon: <BuildCircleIcon sx={iconSX} />, text: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết từng công trình" },
-                ].map((c, index) => (
-                  <Grid item xs={12} sm={6} md={4} key={c.to}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: index * 0.1 }}
-                    >
-                      <CardActionArea component={Link} to={c.to} sx={cardSX}>
-                        {c.icon}
-                        <Typography variant="subtitle1" fontWeight={600} mt={1}>
-                          {c.text}
-                          {c.to === "/project-manager" && <Chip icon={<StarIcon />} label="New" size="small" color="warning" sx={{ ml: 1 }} />}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">{c.desc}</Typography>
-                      </CardActionArea>
-                    </motion.div>
-                  </Grid>
+        <motion.div variants={containerVariants}>
+          <Grid container spacing={{ xs: 4, md: 8 }} mt={2}>
+            <Grid item xs={12} md={6}>
+              <Section title="Báo cáo & Phân tích">
+                {reportFunctions.map((item) => (
+                  <motion.div variants={itemVariants} key={item.to}>
+                    <SubFunctionCard component={Link} to={item.to}>
+                      {item.icon}
+                      <Box ml={1.5}><Typography variant="body1" fontWeight={500}>{item.text}</Typography></Box>
+                      <ArrowRight className="arrow-icon" />
+                    </SubFunctionCard>
+                  </motion.div>
                 ))}
-              </Grid>
-            </Fade>
-
-            <Fade in={tab === 1} timeout={500} unmountOnExit>
-              <Grid container spacing={4} justifyContent="center">
-                {[
-                  { icon: <AssessmentIcon sx={iconSX} />, text: "Quản Lý - CP", to: "/allocations", desc: "Phân bổ chi phí dự án" },
-                  { icon: <AssessmentIcon sx={iconSX} />, text: "Chi Phí Theo Quý", to: "/cost-allocation-quarter", desc: "Theo dõi phân bổ quý" },
-                  { icon: <CategoryIcon sx={iconSX} />, text: "Quản Trị Khoản Mục", to: "/categories", desc: "Cấu hình khoản mục" },
-                  { icon: <AssessmentIcon sx={iconSX} />, text: "Báo Cáo Lợi Nhuận", to: "/profit-report-quarter", desc: "Phân tích doanh thu - chi phí" },
-                  { icon: <AssessmentIcon sx={iconSX} />, text: "Lợi Nhuận Theo Năm", to: "/profit-report-year", desc: "Báo cáo doanh thu - chi phí cả năm" },
-
-                  { icon: <AssessmentIcon sx={iconSX} />, text: "Tăng Giảm Lợi Nhuận", to: "/profit-change", desc: "Phát sinh ảnh hưởng lợi nhuận" },
-                ].map((c, index) => (
-                  <Grid item xs={12} sm={6} md={4} key={c.to}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: index * 0.1 }}
-                    >
-                      <CardActionArea component={Link} to={c.to} sx={cardSX}>
-                        {c.icon}
-                        <Typography variant="subtitle1" fontWeight={600} mt={1}>{c.text}</Typography>
-                        <Typography variant="body2" color="text.secondary">{c.desc}</Typography>
-                      </CardActionArea>
-                    </motion.div>
-                  </Grid>
+              </Section>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Section title="Thiết lập hệ thống">
+                {settingsFunctions.map((item) => (
+                  <motion.div variants={itemVariants} key={item.to}>
+                    <SubFunctionCard component={Link} to={item.to}>
+                      {item.icon}
+                      <Box ml={1.5}><Typography variant="body1" fontWeight={500}>{item.text}</Typography></Box>
+                      <ArrowRight className="arrow-icon" />
+                    </SubFunctionCard>
+                  </motion.div>
                 ))}
-              </Grid>
-            </Fade>
-          </>
-        )}
+              </Section>
+            </Grid>
+          </Grid>
+        </motion.div>
+      </motion.div>
 
-        <Typography variant="body2" textAlign="center" mt={8} color="text.secondary">
-          Cần hỗ trợ? Liên hệ <strong>buinhutminh1999@gmail.com</strong>
-        </Typography>
-      </Container>
-    </Box>
+      <Typography variant="body2" textAlign="center" mt={8} color="text.secondary">
+        Cần hỗ trợ? Liên hệ <strong>buinhutminh1999@gmail.com</strong>
+      </Typography>
+    </React.Fragment>
   );
 }
-
-const cardSX = {
-  p: 3,
-  borderRadius: 3,
-  bgcolor: "white",
-  boxShadow: 3,
-  transition: "all .3s",
-  textAlign: "center",
-  height: "100%",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  '&:hover': {
-    transform: 'translateY(-6px) scale(1.02)',
-    boxShadow: 6,
-  },
-};
-
-const iconSX = { fontSize: 50, color: "primary.main" };
