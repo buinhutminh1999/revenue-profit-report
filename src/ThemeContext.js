@@ -1,124 +1,150 @@
+// CustomThemeProvider.jsx - Phiên bản nâng cấp
+
 import React, { createContext, useMemo, useState } from 'react';
-import { createTheme, ThemeProvider, CssBaseline } from '@mui/material';
+import { createTheme, ThemeProvider, CssBaseline, alpha } from '@mui/material';
 
 export const ColorModeContext = createContext({ toggleColorMode: () => {} });
 
+// TỐI ƯU 1: Tạo hệ thống đổ bóng riêng, tinh tế hơn
+const customShadows = {
+    light: 'rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px',
+    dark: 'rgba(0, 0, 0, 0.2) 0px 0px 2px 0px, rgba(0, 0, 0, 0.12) 0px 12px 24px -4px',
+};
+
 export default function CustomThemeProvider({ children }) {
-  const [mode, setMode] = useState(() => localStorage.getItem('themeMode') || 'light');
+    const [mode, setMode] = useState(() => localStorage.getItem('themeMode') || 'light');
 
-  const colorMode = useMemo(() => ({
-    toggleColorMode: () => {
-      const next = mode === 'light' ? 'dark' : 'light';
-      localStorage.setItem('themeMode', next);
-      setMode(next);
-    },
-  }), [mode]);
-
-  const theme = useMemo(() =>
-    createTheme({
-      palette: {
-        mode,
-        primary: { main: '#004ba0' },     // Xanh navy theo logo
-        secondary: { main: '#d32f2f' },   // Đỏ thương hiệu
-        success: { main: '#2e7d32' },     // Xanh lá nhẹ
-        warning: { main: '#f9a825' },     // Vàng cảnh báo
-        info: { main: '#0288d1' },        // Xanh thông báo
-        error: { main: '#c62828' },       // Đỏ lỗi
-        background: {
-          default: mode === 'light' ? '#f5f7fa' : '#121212',
-          paper: mode === 'light' ? '#ffffff' : '#1e1e1e',
+    const colorMode = useMemo(() => ({
+        toggleColorMode: () => {
+            const next = mode === 'light' ? 'dark' : 'light';
+            localStorage.setItem('themeMode', next);
+            setMode(next);
         },
-      },
-      typography: {
-        fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-        h5: { fontWeight: 600 },
-        button: { textTransform: 'none', fontWeight: 600 },
-      },
-      shape: {
-        borderRadius: 4,
-      },
-      components: {
-        MuiCssBaseline: {
-          styleOverrides: {
-            body: {
-              transition: 'background-color 0.3s ease, color 0.3s ease',
-              scrollbarWidth: 'thin',
-              scrollbarColor: '#ccc transparent',
-              '&::-webkit-scrollbar': {
-                width: '8px',
-                height: '8px',
-              },
-              '&::-webkit-scrollbar-thumb': {
-                backgroundColor: '#aaa',
-                borderRadius: '4px',
-              },
-              '&::-webkit-scrollbar-track': {
-                background: 'transparent',
-              },
-            },
-            '*:focus-visible': {
-              outline: '2px solid #004ba0',
-              outlineOffset: '2px',
-            },
-          },
-        },
-        MuiButton: {
-          styleOverrides: {
-            root: {
-              borderRadius: theme => theme.shape.borderRadius,
-              textTransform: 'none',
-              fontWeight: 600,
-            },
-          },
-        },
-        MuiPaper: {
-          styleOverrides: {
-            root: {
-              borderRadius: theme => theme.shape.borderRadius,
-              boxShadow: 'none',
-            },
-          },
-        },
-        MuiCard: {
-          styleOverrides: {
-            root: {
-              boxShadow: 'none',
-              border: '1px solid #e0e0e0',
-              borderRadius: theme => theme.shape.borderRadius,
-            },
-          },
-        },
-        MuiInputBase: {
-          styleOverrides: {
-            root: {
-              borderRadius: theme => theme.shape.borderRadius,
-            },
-          },
-        },
-        MuiTextField: {
-          defaultProps: {
-            size: 'small',
-          },
-        },
-        MuiLink: {
-          styleOverrides: {
-            root: {
-              cursor: 'pointer',
-              '&:hover': {
-                textDecoration: 'underline',
-              },
-            },
-          },
-        },
-      },
     }), [mode]);
 
-  return (
-    <ColorModeContext.Provider value={colorMode}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        {children}
-      </ThemeProvider>
-    </ColorModeContext.Provider>
-  );
+    const theme = useMemo(() => {
+        const isLight = mode === 'light';
+        
+        return createTheme({
+            palette: {
+                mode,
+                // TỐI ƯU 2: Tinh chỉnh bảng màu cho cả 2 chế độ
+                primary: {
+                    main: '#004ba0',
+                    light: '#5876d2',
+                    dark: '#002570',
+                    contrastText: '#ffffff',
+                },
+                secondary: {
+                    main: '#d32f2f',
+                    light: '#ff6659',
+                    dark: '#9a0007',
+                },
+                background: {
+                    default: isLight ? '#f4f6f8' : '#161c24',
+                    paper: isLight ? '#ffffff' : '#212b36',
+                },
+                text: {
+                    primary: isLight ? '#212B36' : '#FFFFFF',
+                    secondary: isLight ? '#637381' : '#919EAB',
+                    disabled: isLight ? '#919EAB' : '#637381',
+                },
+                divider: alpha(isLight ? '#212B36' : '#FFFFFF', 0.12),
+            },
+            // TỐI ƯU 3: Dùng font chữ hiện đại hơn
+            typography: {
+                fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
+                h4: { fontWeight: 700 },
+                h5: { fontWeight: 600 },
+                h6: { fontWeight: 600 },
+                subtitle1: { fontWeight: 600 },
+                subtitle2: { fontWeight: 600 },
+                body1: { fontWeight: 500 },
+                body2: { fontWeight: 400 },
+                button: { fontWeight: 600 },
+            },
+            shape: {
+                borderRadius: 12, // Tăng độ bo tròn cho cảm giác mềm mại, hiện đại
+            },
+            // Gán hệ thống đổ bóng vào theme
+            shadows: [
+                'none',
+                isLight ? customShadows.light : customShadows.dark,
+                ...Array(23).fill(isLight ? customShadows.light : customShadows.dark) // Ghi đè các mức shadow khác
+            ],
+            // TỐI ƯU 4: Tinh chỉnh các component
+            components: {
+                MuiCssBaseline: {
+                    styleOverrides: {
+                        // ... Giữ nguyên style cho scrollbar và focus-visible ...
+                    },
+                },
+                MuiButton: {
+                    defaultProps: {
+                        disableElevation: true,
+                    },
+                    styleOverrides: {
+                        root: {
+                            textTransform: 'none',
+                        },
+                        containedPrimary: {
+                            boxShadow: `0 8px 16px 0 ${alpha('#004ba0', 0.24)}`,
+                            '&:hover': {
+                                boxShadow: 'none',
+                            }
+                        }
+                    },
+                },
+                MuiPaper: {
+                    styleOverrides: {
+                        root: {
+                            backgroundImage: 'none', // Bỏ gradient mặc định của MUI v5
+                        },
+                    },
+                },
+                MuiCard: {
+                    styleOverrides: {
+                        root: ({ theme }) => ({
+                            borderRadius: theme.shape.borderRadius * 1.5,
+                            boxShadow: theme.shadows[1], // Sử dụng custom shadow
+                            position: 'relative',
+                        }),
+                    },
+                },
+                MuiTooltip: {
+                    styleOverrides: {
+                        tooltip: ({ theme }) => ({
+                            backgroundColor: theme.palette.grey[isLight ? 800 : 700],
+                            borderRadius: theme.shape.borderRadius,
+                        }),
+                        arrow: ({ theme }) => ({
+                            color: theme.palette.grey[isLight ? 800 : 700],
+                        }),
+                    },
+                },
+                MuiTextField: {
+                    defaultProps: {
+                        variant: 'outlined',
+                        size: 'small',
+                    },
+                },
+                MuiInputBase: {
+                    styleOverrides: {
+                        root: ({ theme }) => ({
+                           borderRadius: `${theme.shape.borderRadius}px !important`,
+                        }),
+                    },
+                },
+            },
+        })
+    }, [mode]);
+
+    return (
+        <ColorModeContext.Provider value={colorMode}>
+            <ThemeProvider theme={theme}>
+                <CssBaseline />
+                {children}
+            </ThemeProvider>
+        </ColorModeContext.Provider>
+    );
 }

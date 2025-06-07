@@ -882,182 +882,172 @@ const handleSave = async () => {
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [saving, dirtyCells]);
 
-    return (
-        <Container maxWidth="xl" sx={{ py: 3 }}>
-            <Paper
+  return (
+    // 1. Giao diện tổng thể: Container để căn giữa và có khoảng đệm
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+        {/* 2. Header: Paper bo góc, thiết kế phẳng, chứa các bộ lọc và nút hành động */}
+        <Paper
+            variant="outlined"
+            sx={{
+                p: 2,
+                mb: 2.5,
+                borderRadius: 2.5,
+                bgcolor: 'background.paper',
+            }}
+        >
+            <Box
                 sx={{
-                    mb: 2,
-                    p: 2,
-                    position: isXs ? "sticky" : "relative",
-                    top: 0,
-                    zIndex: 1,
-                    bgcolor: "background.paper",
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 2,
                 }}
             >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Button
-                        size="small"
-                        variant="contained"
-                        onClick={handleSave}
-                        disabled={saving || dirtyCells.size === 0}
-                        startIcon={
-                            showSaved ? (
-                                <CheckIcon />
-                            ) : saving ? (
-                                <CircularProgress size={16} />
-                            ) : (
-                                <SaveIcon />
-                            )
-                        }
-                    >
-                        {saving ? "Đang lưu..." : showSaved ? "Đã lưu" : "Lưu"}
-                    </Button>
-                    <Tooltip title="Double-click để sửa">
-                        <IconButton>
-                            <InfoOutlinedIcon />
-                        </IconButton>
-                    </Tooltip>
-                    <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
-                        <TextField
-                            size="small"
-                            select
-                            label="Quý"
-                            value={quarter}
-                            onChange={(e) => setQuarter(e.target.value)}
-                            sx={{ width: 80 }}
-                        >
-                            {quarters.map((q) => (
-                                <MenuItem key={q} value={q}>
-                                    {q}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                        <TextField
-                            size="small"
-                            label="Năm"
-                            type="number"
-                            sx={{ width: 80 }}
-                            value={year}
-                            onChange={(e) => setYear(+e.target.value)}
-                        />
-                        <TextField
-                            size="small"
-                            select
-                            label="Loại dự án"
-                            value={typeFilter}
-                            onChange={(e) => setTypeFilter(e.target.value)}
-                            sx={{ width: 160 }}
-                        >
-                            {Object.keys(valueFieldMap).map((k) => (
-                                <MenuItem key={k} value={k}>
-                                    {k}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Box>
+                {/* Tiêu đề trang */}
+                <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                        Chi phí phân bổ Quý {quarter} {year}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Cập nhật lần cuối: {lastUpdated ? lastUpdated.toLocaleString('vi-VN') : "Chưa có dữ liệu"}
+                    </Typography>
                 </Box>
-            </Paper>
 
-            <Typography
-                variant="h4"
-                align="center"
-                gutterBottom
-                sx={{ fontWeight: 600 }}
-            >
-                Chi phí phân bổ {quarter} {year}
-            </Typography>
-            <Typography variant="body2" align="center" gutterBottom>
-                Cập nhật lần cuối: {lastUpdated?.toLocaleString() || "—"}
-            </Typography>
-
-            <Paper sx={{ p: 2 }}>
-                {loading ? (
-                    <Skeleton variant="rectangular" height={400} />
-                ) : (
-                    <DataGrid
-                        ref={gridRef}
-                        rows={rowsWithTotal}
-                        columns={columns}
-                        autoHeight={false}
-                        pageSize={20}
-                        rowsPerPageOptions={[20, 50, 100]}
-                        pagination
-                        hideFooter
-                        editMode="cell"
-                        isCellEditable={isCellEditable}
-                        processRowUpdate={processRowUpdate}
-                        onProcessRowUpdateError={console.error}
-                        experimentalFeatures={{ newEditingApi: true }}
-                        components={{ Toolbar: GridToolbar }}
-                        componentsProps={{
-                            toolbar: {
-                                showQuickFilter: true,
-                                quickFilterProps: { debounceMs: 500 },
-                            },
-                        }}
-                        loading={loading || saving}
-                        columnVisibilityModel={columnVisibilityModel}
-                        getRowClassName={(params) =>
-                            params.row.isTotal ? "total-row" : ""
-                        }
-                        sx={{
-                            bgcolor: "white",
-                            "& .MuiDataGrid-columnHeaders": {
-                                backgroundColor: alpha(
-                                    theme.palette.primary.main,
-                                    0.1
-                                ),
-                                position: "sticky",
-                                top: 0,
-                                zIndex: 1,
-                            },
-                            "& .MuiDataGrid-row:nth-of-type(odd)": {
-                                backgroundColor: theme.palette.action.hover,
-                            },
-                            "& .dirty-cell": {
-                                backgroundColor: alpha(
-                                    theme.palette.success.main,
-                                    0.15
-                                ),
-                            },
-                            "& .negative-cell": {
-                                backgroundColor: alpha(
-                                    theme.palette.error.main,
-                                    0.1
-                                ),
-                            },
-                            "& .allocated-cell": {
-                                backgroundColor: alpha(
-                                    theme.palette.grey[300],
-                                    0.3
-                                ),
-                                fontWeight: 600,
-                            },
-                            "& .total-row": {
-                                fontWeight: 700,
-                                background: alpha(
-                                    theme.palette.success.light,
-                                    0.13
-                                ),
-                            },
-                        }}
+                {/* Các bộ lọc và nút */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
+                    <TextField
+                        select size="small" label="Loại dự án"
+                        value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
+                        sx={{ minWidth: 150 }}
+                    >
+                        {Object.keys(valueFieldMap).map((k) => (
+                            <MenuItem key={k} value={k}>{k}</MenuItem>
+                        ))}
+                    </TextField>
+                    <TextField
+                        select size="small" label="Quý"
+                        value={quarter} onChange={(e) => setQuarter(e.target.value)}
+                        sx={{ minWidth: 80 }}
+                    >
+                        {quarters.map((q) => <MenuItem key={q} value={q}>{q}</MenuItem>)}
+                    </TextField>
+                    <TextField
+                        size="small" label="Năm" type="number"
+                        value={year} onChange={(e) => setYear(+e.target.value)}
+                        sx={{ width: 100 }}
                     />
-                )}
-            </Paper>
+                    <Tooltip title={dirtyCells.size > 0 ? `Bạn có ${dirtyCells.size} thay đổi chưa lưu` : "Lưu thay đổi (Ctrl+S)"}>
+                        <span> {/* Bọc Button trong span để Tooltip hoạt động khi disabled */}
+                            <Button
+                                variant="contained"
+                                onClick={handleSave}
+                                disabled={saving || dirtyCells.size === 0}
+                                startIcon={
+                                    saving ? <CircularProgress size={20} color="inherit" /> :
+                                    showSaved ? <CheckIcon /> :
+                                    <SaveIcon />
+                                }
+                            >
+                                {saving ? "Đang lưu..." : showSaved ? "Đã lưu" : "Lưu"}
+                            </Button>
+                        </span>
+                    </Tooltip>
+                </Box>
+            </Box>
+        </Paper>
 
-            <Snackbar
-                open={snack.open}
-                autoHideDuration={3000}
+        {/* 3. DataGrid: Bảng dữ liệu được bọc trong Paper với thiết kế hiện đại */}
+        <Paper
+            variant="outlined"
+            sx={{
+                height: '75vh', // Chiều cao cố định để scroll
+                width: '100%',
+                borderRadius: 2.5,
+                overflow: 'hidden', // Để bo góc hoạt động
+            }}
+        >
+            <DataGrid
+                ref={gridRef}
+                rows={rowsWithTotal}
+                columns={columns}
+                loading={loading || saving}
+                editMode="cell"
+                isCellEditable={isCellEditable}
+                processRowUpdate={processRowUpdate}
+                onProcessRowUpdateError={console.error}
+                experimentalFeatures={{ newEditingApi: true }}
+                components={{ Toolbar: GridToolbar }}
+                componentsProps={{
+                    toolbar: {
+                        showQuickFilter: true,
+                        quickFilterProps: { debounceMs: 500 },
+                        sx: { p: 1.5 }
+                    },
+                }}
+                columnVisibilityModel={columnVisibilityModel}
+                getRowClassName={(params) =>
+                    params.row.isTotal ? "total-row" : ""
+                }
+                sx={{
+                    border: 'none', // Bỏ viền mặc định của DataGrid
+                    // 4. Tinh chỉnh giao diện DataGrid
+                    '& .MuiDataGrid-columnHeaders': {
+                        backgroundColor: alpha(theme.palette.primary.light, 0.1),
+                        borderBottom: `1px solid ${theme.palette.divider}`,
+                        fontWeight: 'bold',
+                    },
+                    '& .MuiDataGrid-cell': {
+                        borderBottom: `1px solid ${theme.palette.divider}`,
+                    },
+                    '& .MuiDataGrid-row:nth-of-type(even)': {
+                        backgroundColor: alpha(theme.palette.action.hover, 0.3),
+                    },
+                    '& .MuiDataGrid-row.total-row': {
+                        backgroundColor: alpha(theme.palette.success.light, 0.2),
+                        fontWeight: 700,
+                        '& .MuiDataGrid-cell': {
+                            fontWeight: 'inherit'
+                        }
+                    },
+                    '& .negative-cell': {
+                        backgroundColor: alpha(theme.palette.error.main, 0.1),
+                        color: theme.palette.error.dark,
+                    },
+                     '& .allocated-cell': {
+                        backgroundColor: alpha(theme.palette.grey[500], 0.1),
+                    },
+                    '& .dirty-cell': {
+                        position: 'relative',
+                        '&::after': {
+                            content: '""',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '4px',
+                            height: '100%',
+                            backgroundColor: theme.palette.success.main,
+                        }
+                    },
+                }}
+            />
+        </Paper>
+
+        {/* 5. Snackbar: Thông báo lưu thành công/thất bại */}
+        <Snackbar
+            open={snack.open}
+            autoHideDuration={4000}
+            onClose={handleCloseSnack}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+            <Alert
                 onClose={handleCloseSnack}
+                severity={snack.msg.includes('Lỗi') ? 'error' : 'success'}
+                sx={{ width: '100%', boxShadow: 6, borderRadius: 1.5 }}
             >
-                <Alert
-                    onClose={handleCloseSnack}
-                    severity="success"
-                    sx={{ width: "100%" }}
-                >
-                    {snack.msg}
-                </Alert>
-            </Snackbar>
-        </Container>
-    );
+                {snack.msg}
+            </Alert>
+        </Snackbar>
+    </Container>
+);
 }

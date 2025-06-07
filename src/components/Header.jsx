@@ -1,19 +1,18 @@
 import React, { useContext, useState } from 'react';
 import {
   AppBar, Toolbar, Box, IconButton, InputBase, Tooltip, Container, alpha,
-  Modal, Fade, Menu, MenuItem, Divider, useTheme, Avatar, Typography, Drawer, List, ListItem, ListItemButton, ListItemText, ListItemIcon, Button, Chip, useScrollTrigger
+  Modal, Fade, Menu, MenuItem, Divider, useTheme, Avatar, Typography, Drawer, List, ListItem, ListItemButton, ListItemText, ListItemIcon, Button, Chip, useScrollTrigger, Badge
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Icons
+// Icons và các Context/Hook
 import { Search, Moon, Sun, Settings, LogOut, User as UserIcon, LayoutDashboard, FolderOpen, BarChart2, Menu as MenuIcon, ChevronsRight } from 'lucide-react';
 import { useHotkeys } from 'react-hotkeys-hook';
-
-// Các file context và hook custom của bạn
 import { ColorModeContext } from '../ThemeContext';
 import { useAuth } from '../App';
+import BreadcrumbsNav from './Breadcrumbs'; // Giả sử bạn đã có component này
 
 // --- STYLED COMPONENTS & HELPERS ---
 
@@ -35,17 +34,55 @@ const SearchModalWrapper = styled(motion.div)(({ theme }) => ({
   border: `1px solid ${theme.palette.divider}`,
 }));
 
-const NavButton = styled(Button)(({ theme, active }) => ({
+const NavButton = styled(Button)(({ theme }) => ({
+  position: 'relative',
   textTransform: 'none',
-  fontWeight: active ? 600 : 400,
+  fontWeight: 500,
   fontSize: '0.9rem',
-  color: active ? theme.palette.text.primary : theme.palette.text.secondary,
-  backgroundColor: active ? alpha(theme.palette.action.selected, 0.12) : 'transparent',
-  transition: 'all 0.2s ease',
+  color: theme.palette.text.secondary,
+  padding: theme.spacing(1, 2),
+  transition: 'color 0.2s ease',
+  '&.active': {
+    color: theme.palette.text.primary,
+    fontWeight: 600,
+  },
   '&:hover': {
-    backgroundColor: alpha(theme.palette.text.primary, 0.05),
+    backgroundColor: 'transparent',
     color: theme.palette.text.primary,
   }
+}));
+
+const ActiveNavIndicator = styled(motion.div)(({ theme }) => ({
+  position: 'absolute',
+  bottom: '0px',
+  left: 0,
+  right: 0,
+  height: '2px',
+  borderRadius: '2px',
+  background: theme.palette.primary.main,
+}));
+
+const StyledBadge = styled(Badge)(({ theme }) => ({
+  '& .MuiBadge-badge': {
+    backgroundColor: '#44b700',
+    color: '#44b700',
+    boxShadow: `0 0 0 2px ${theme.palette.background.paper}`,
+    '&::after': {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      borderRadius: '50%',
+      animation: 'ripple 1.2s infinite ease-in-out',
+      border: '1px solid currentColor',
+      content: '""',
+    },
+  },
+  '@keyframes ripple': {
+    '0%': { transform: 'scale(.8)', opacity: 1 },
+    '100%': { transform: 'scale(2.4)', opacity: 0 },
+  },
 }));
 
 // --- MAIN COMPONENT ---
@@ -61,10 +98,7 @@ export default function Header() {
   const [userMenuAnchor, setUserMenuAnchor] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const isScrolled = useScrollTrigger({
-    disableHysteresis: true,
-    threshold: 10,
-  });
+  const isScrolled = useScrollTrigger({ disableHysteresis: true, threshold: 10 });
 
   useHotkeys('ctrl+k, cmd+k', (e) => {
     e.preventDefault();
@@ -74,23 +108,22 @@ export default function Header() {
   const handleUserMenuOpen = (e) => setUserMenuAnchor(e.currentTarget);
   const handleUserMenuClose = () => setUserMenuAnchor(null);
 
+  const handleLogout = async () => {
+    handleUserMenuClose();
+    const { signOut, getAuth } = await import('firebase/auth');
+    try {
+      await signOut(getAuth());
+      navigate('/login');
+    } catch (error) {
+      console.error("Lỗi đăng xuất:", error);
+    }
+  };
+
   const mainNavLinks = [
     { text: 'Trang chính', to: '/', icon: <LayoutDashboard size={20} /> },
     { text: 'Công trình', to: '/project-manager', icon: <FolderOpen size={20} /> },
     { text: 'Báo cáo', to: '/profit-report-quarter', icon: <BarChart2 size={20} /> },
   ];
-
-  // ĐÃ ĐIỀN ĐẦY ĐỦ: Hàm đăng xuất
-  const handleLogout = async () => {
-    handleUserMenuClose();
-    const { signOut, getAuth } = await import('firebase/auth');
-    try {
-        await signOut(getAuth());
-        navigate('/login');
-    } catch (error) {
-        console.error("Lỗi đăng xuất:", error);
-    }
-  };
 
   return (
     <>
@@ -130,17 +163,26 @@ export default function Header() {
                 </Tooltip>
               </Link>
               <Box component="nav" sx={{ display: { xs: 'none', lg: 'flex' }, gap: 1, ml: 2 }}>
-                {mainNavLinks.map((item) => (
-                  <NavButton
-                    key={item.text}
-                    component={Link}
-                    to={item.to}
-                    active={location.pathname === item.to || (item.to !== '/' && location.pathname.startsWith(item.to))}
-                  >
-                    {item.text}
-                  </NavButton>
-                ))}
+                {mainNavLinks.map((item) => {
+                  const isActive = location.pathname === item.to || (item.to !== '/' && location.pathname.startsWith(item.to));
+                  return (
+                    <NavButton
+                      key={item.text}
+                      component={Link}
+                      to={item.to}
+                      className={isActive ? 'active' : ''}
+                    >
+                      {item.text}
+                      {isActive && <ActiveNavIndicator layoutId="activeNavIndicator" />}
+                    </NavButton>
+                  );
+                })}
               </Box>
+            </Box>
+
+            {/* --- TRUNG TÂM (BREADCRUMBS) --- */}
+            <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' }, justifyContent: 'center', px: 4 }}>
+              <BreadcrumbsNav />
             </Box>
 
             {/* --- BÊN PHẢI --- */}
@@ -169,19 +211,20 @@ export default function Header() {
 
               <Tooltip title="Tài khoản">
                 <IconButton onClick={handleUserMenuOpen} sx={{ p: 0 }}>
-                  <Avatar
-                    sx={{ width: 40, height: 40, bgcolor: 'primary.main', color: 'white', border: `2px solid ${theme.palette.background.paper}` }}
-                    src={user?.photoURL} alt={user?.displayName}
-                  />
+                  <StyledBadge
+                    overlap="circular"
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                    variant="dot"
+                  >
+                    <Avatar sx={{ width: 40, height: 40 }} src={user?.photoURL} alt={user?.displayName} />
+                  </StyledBadge>
                 </IconButton>
               </Tooltip>
-
-              {/* ĐÃ ĐIỀN ĐẦY ĐỦ: Menu người dùng */}
               <Menu
                 anchorEl={userMenuAnchor}
                 open={Boolean(userMenuAnchor)}
                 onClose={handleUserMenuClose}
-                MenuListProps={{'aria-labelledby': 'user-menu-button'}}
+                MenuListProps={{ 'aria-labelledby': 'user-menu-button' }}
                 PaperProps={{
                   elevation: 0,
                   sx: {
@@ -190,7 +233,7 @@ export default function Header() {
                     mt: 1.5,
                     minWidth: 220,
                     borderRadius: '12px',
-                    '& .MuiAvatar-root': { width: 32, height: 32, ml: -0.5, mr: 1,},
+                    '& .MuiAvatar-root': { width: 32, height: 32, ml: -0.5, mr: 1, },
                     '&:before': {
                       content: '""', display: 'block', position: 'absolute', top: 0, right: 14,
                       width: 10, height: 10, bgcolor: 'background.paper',
@@ -207,14 +250,14 @@ export default function Header() {
                 </Box>
                 <Divider sx={{ borderStyle: 'dashed' }} />
                 <MenuItem onClick={() => { handleUserMenuClose(); navigate('/user'); }}>
-                    <UserIcon size={16} style={{marginRight: 12, color: theme.palette.text.secondary}}/> Hồ sơ cá nhân
+                  <UserIcon size={16} style={{ marginRight: 12, color: theme.palette.text.secondary }} /> Hồ sơ cá nhân
                 </MenuItem>
                 <MenuItem onClick={() => { handleUserMenuClose(); navigate('/settings'); }}>
-                   <Settings size={16} style={{marginRight: 12, color: theme.palette.text.secondary}}/> Cài đặt
+                  <Settings size={16} style={{ marginRight: 12, color: theme.palette.text.secondary }} /> Cài đặt
                 </MenuItem>
                 <Divider sx={{ borderStyle: 'dashed' }} />
-                <MenuItem onClick={handleLogout} sx={{color: 'error.main'}}>
-                  <LogOut size={16} style={{marginRight: 12}}/> Đăng xuất
+                <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
+                  <LogOut size={16} style={{ marginRight: 12 }} /> Đăng xuất
                 </MenuItem>
               </Menu>
             </Box>
@@ -222,12 +265,12 @@ export default function Header() {
         </Container>
       </AppBar>
 
-      {/* ĐÃ ĐIỀN ĐẦY ĐỦ: Drawer menu cho mobile */}
+      {/* --- CÁC THÀNH PHẦN PHỤ --- */}
       <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
         <Box sx={{ width: 260, p: 2 }} role="presentation">
-           <Link to="/" onClick={() => setDrawerOpen(false)} style={{ display: 'block', marginBottom: '16px' }}>
-             <Logo src="https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png" alt="Logo" style={{height: 36}} />
-           </Link>
+          <Link to="/" onClick={() => setDrawerOpen(false)} style={{ display: 'block', marginBottom: '16px' }}>
+            <Logo src="https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png" alt="Logo" style={{ height: 36 }} />
+          </Link>
           <List>
             {mainNavLinks.map((item) => (
               <ListItem key={item.text} disablePadding>
@@ -245,7 +288,6 @@ export default function Header() {
         </Box>
       </Drawer>
 
-      {/* ĐÃ ĐIỀN ĐẦY ĐỦ: Modal tìm kiếm */}
       <AnimatePresence>
         {searchModalOpen && (
           <Modal open={searchModalOpen} onClose={() => setSearchModalOpen(false)} closeAfterTransition sx={{ backdropFilter: 'blur(3px)' }}>
