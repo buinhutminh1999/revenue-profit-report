@@ -79,47 +79,45 @@ export default function CostAllocationQuarter() {
 
     const projects = useProjects(typeFilter);
     const baseProjects = useMemo(() => {
-    const compQ = toComparableQuarter(`${year}_${quarter}`);
-    return projects.filter((p) => {
-        if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom)) return false;
-        return true;
-    });
-}, [projects, year, quarter]);
+        const compQ = toComparableQuarter(`${year}_${quarter}`);
+        return projects.filter((p) => {
+            if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom))
+                return false;
+            return true;
+        });
+    }, [projects, year, quarter]);
 
+    const { projData, loading } = useProjectData(baseProjects, year, quarter);
+    const visibleProjects = useMemo(() => {
+        const compQ = toComparableQuarter(`${year}_${quarter}`);
+        const filtered = projects.filter((p) => {
+            // Chỉ lấy dự án đang mở, chưa closed
+            if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom))
+                return false;
 
-    const { projData, loading } = useProjectData(
-        baseProjects,
-        year,
-        quarter
-    );
-       const visibleProjects = useMemo(() => {
-    const compQ = toComparableQuarter(`${year}_${quarter}`);
-    const filtered = projects.filter((p) => {
-        // Chỉ lấy dự án đang mở, chưa closed
-        if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom)) return false;
+            // Chỉ lấy dự án đã có dữ liệu quý/năm hiện tại
+            const qData = projData?.[p.id];
+            // Phải có revenue hoặc cost > 0 mới cho hiện (cost có thể nằm trong qData.items)
+            let hasData = false;
+            if (qData) {
+                if (toNum(qData.overallRevenue) > 0) hasData = true;
+                if (
+                    Array.isArray(qData.items) &&
+                    qData.items.some((item) => toNum(item.totalCost) > 0)
+                )
+                    hasData = true;
+            }
+            return hasData;
+        });
 
-        // Chỉ lấy dự án đã có dữ liệu quý/năm hiện tại
-        const qData = projData?.[p.id];
-        // Phải có revenue hoặc cost > 0 mới cho hiện (cost có thể nằm trong qData.items)
-        let hasData = false;
-        if (qData) {
-            if (toNum(qData.overallRevenue) > 0) hasData = true;
-            if (
-                Array.isArray(qData.items) &&
-                qData.items.some((item) => toNum(item.totalCost) > 0)
-            ) hasData = true;
-        }
-        return hasData;
-    });
-
-    // Lọc trùng id
-    const seen = new Set();
-    return filtered.filter((p) => {
-        if (seen.has(p.id)) return false;
-        seen.add(p.id);
-        return true;
-    });
-}, [projects, year, quarter, projData]);
+        // Lọc trùng id
+        const seen = new Set();
+        return filtered.filter((p) => {
+            if (seen.has(p.id)) return false;
+            seen.add(p.id);
+            return true;
+        });
+    }, [projects, year, quarter, projData]);
     const options = useCategories();
     const mainRows = useQuarterMainData(COL_MAIN, `${year}_${quarter}`);
 
@@ -129,7 +127,6 @@ export default function CostAllocationQuarter() {
         mainRows,
         typeFilter
     );
-
 
     const gridRef = useRef(null);
 
@@ -162,6 +159,7 @@ export default function CostAllocationQuarter() {
             visibleProjects.forEach((p) => {
                 const rev = toNum(projData[p.id]?.overallRevenue);
                 const dc = getDC(p.id, draftRow.label);
+
                 needCurr[p.id] = Math.max(
                     0,
                     Math.round((rev * pctVal) / 100 - dc)
@@ -589,17 +587,19 @@ export default function CostAllocationQuarter() {
         ];
         return [...base, ...projCols, ...other];
     }, [visibleProjects, options, year, quarter, getDC, isXs]);
-// Bước 0: Tính tổng theo từng project ID (ignore DOANH THU & TỔNG CHI PHÍ)
-const totalByProject = {};
-visibleProjects.forEach((p) => {
-  const pid = p.id;
-  totalByProject[pid] = rowsWithSplit
-    .filter((r) => {
-      const labelUpper = (r.label || "").trim().toUpperCase();
-      return labelUpper !== "DOANH THU" && labelUpper !== "TỔNG CHI PHÍ";
-    })
-    .reduce((sum, r) => sum + (toNum(r[pid]) || 0), 0);
-});
+    // Bước 0: Tính tổng theo từng project ID (ignore DOANH THU & TỔNG CHI PHÍ)
+    const totalByProject = {};
+    visibleProjects.forEach((p) => {
+        const pid = p.id;
+        totalByProject[pid] = rowsWithSplit
+            .filter((r) => {
+                const labelUpper = (r.label || "").trim().toUpperCase();
+                return (
+                    labelUpper !== "DOANH THU" && labelUpper !== "TỔNG CHI PHÍ"
+                );
+            })
+            .reduce((sum, r) => sum + (toNum(r[pid]) || 0), 0);
+    });
 
     const totalCumQuarterOnly = rowsWithSplit
         .filter(
@@ -608,64 +608,63 @@ visibleProjects.forEach((p) => {
                 (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
         )
         .reduce((sum, r) => sum + (toNum(r.cumQuarterOnly) || 0), 0);
-// B2: Tính tổng used (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
-const totalUsed = rowsWithSplit
-  .filter(
-    (r) =>
-      (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
-      (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
-  )
-  .reduce((sum, r) => sum + (toNum(r.usedRaw) || 0), 0);
+    // B2: Tính tổng used (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
+    const totalUsed = rowsWithSplit
+        .filter(
+            (r) =>
+                (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
+                (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
+        )
+        .reduce((sum, r) => sum + (toNum(r.usedRaw) || 0), 0);
 
-// B3: Tính tổng allocated (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
-const totalAllocated = rowsWithSplit
-  .filter(
-    (r) =>
-      (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
-      (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
-  )
-  .reduce((sum, r) => sum + (toNum(r.allocated) || 0), 0);
+    // B3: Tính tổng allocated (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
+    const totalAllocated = rowsWithSplit
+        .filter(
+            (r) =>
+                (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
+                (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
+        )
+        .reduce((sum, r) => sum + (toNum(r.allocated) || 0), 0);
 
-// B4: Tính tổng carryOver (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
-const totalCarryOver = rowsWithSplit
-  .filter(
-    (r) =>
-      (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
-      (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
-  )
-  .reduce((sum, r) => sum + (toNum(r.carryOver) || 0), 0);
+    // B4: Tính tổng carryOver (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
+    const totalCarryOver = rowsWithSplit
+        .filter(
+            (r) =>
+                (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
+                (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
+        )
+        .reduce((sum, r) => sum + (toNum(r.carryOver) || 0), 0);
 
-// B5: Tính tổng cumCurrent (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
-const totalCumCurrent = rowsWithSplit
-  .filter(
-    (r) =>
-      (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
-      (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
-  )
-  .reduce((sum, r) => sum + (toNum(r.cumCurrent) || 0), 0);
- const rowsWithTotal = rowsWithSplit.map((r) => {
-  const labelUpper = (r.label || "").trim().toUpperCase();
-  if (labelUpper === "TỔNG CHI PHÍ") {
-    return {
-      ...r,
+    // B5: Tính tổng cumCurrent (trừ “DOANH THU” và “TỔNG CHI PHÍ”)
+    const totalCumCurrent = rowsWithSplit
+        .filter(
+            (r) =>
+                (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
+                (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
+        )
+        .reduce((sum, r) => sum + (toNum(r.cumCurrent) || 0), 0);
+    const rowsWithTotal = rowsWithSplit.map((r) => {
+        const labelUpper = (r.label || "").trim().toUpperCase();
+        if (labelUpper === "TỔNG CHI PHÍ") {
+            return {
+                ...r,
 
-      // 1. Gán tất cả tổng theo project (cột project đang tô đỏ)
-      ...totalByProject,
+                // 1. Gán tất cả tổng theo project (cột project đang tô đỏ)
+                ...totalByProject,
 
-      // 2. Gán total cho các cột đặc biệt
-      usedRaw: totalUsed,
-      allocated: totalAllocated,
-      carryOver: totalCarryOver,
-      cumQuarterOnly: totalCumQuarterOnly,
-      cumCurrent: totalCumCurrent,
+                // 2. Gán total cho các cột đặc biệt
+                usedRaw: totalUsed,
+                allocated: totalAllocated,
+                carryOver: totalCarryOver,
+                cumQuarterOnly: totalCumQuarterOnly,
+                cumCurrent: totalCumCurrent,
 
-      // 3. (Tùy chọn) flag để highlight hàng tổng
-      isTotal: true,
-    };
-  }
-  return r;
-});
-
+                // 3. (Tùy chọn) flag để highlight hàng tổng
+                isTotal: true,
+            };
+        }
+        return r;
+    });
 
     const columnVisibilityModel = useMemo(() => {
         if (!isXs) return {};
@@ -702,218 +701,169 @@ const totalCumCurrent = rowsWithSplit
     };
 
     // LUÔN LẤY rowsInit ĐỂ LƯU (chính là số đang HIỂN THỊ trên UI)
-    const handleSave = async () => {
+const handleSave = async () => {
     try {
         setSaving(true);
 
-        // LẤY DỮ LIỆU GỐC TRONG FIRESTORE ĐỂ GIỮ LẠI byType các loại cũ
         const docRef = doc(db, COL_QUARTER, `${year}_${quarter}`);
         const snapshot = await getDoc(docRef);
-        const prevMainRows = snapshot.exists()
-            ? snapshot.data().mainRows || []
-            : [];
+        const prevMainRows = snapshot.exists() ? snapshot.data().mainRows || [] : [];
 
-        const dataToSave = [];
-
-        for (const r of rowsInit) {
-            const lbl = (r.label || "").trim().toUpperCase();
-            if (lbl === "DOANH THU" || lbl === "TỔNG CHI PHÍ") continue;
-            const baseId = r.id.split("__")[0];
-
-            // --- Tính overrun cho từng project ---
-            const overrun = {};
-            for (const p of visibleProjects) {
-                const rev = toNum(projData[p.id]?.overallRevenue);
-                const dc = getDC(p.id, r.label);
-                const need = Math.round((rev * (r.pct || 0)) / 100 - dc);
-                const shown = r[p.id] ?? 0;
-                overrun[p.id] = Math.max(0, need - shown);
-            }
-
-            // --- Lấy prevOverrun các quý trước (lấy 1 quý trước gần nhất, nếu muốn cộng dồn thì dùng hàm khác) ---
-            const prev = await getOverrunOfPrevQuarter(baseId);
-            const fullNeed = {};
-            for (const p of visibleProjects) {
-                fullNeed[p.id] = (prev[p.id] || 0) + overrun[p.id];
-            }
-
-            // --- LẤY byType cũ từ Firestore ---
-            const old = prevMainRows.find((x) => x.id === baseId);
-            const oldByType = old?.byType || {};
-
-            // --- Dữ liệu của type hiện tại ---
-            const rawTypeData = {
-                pct: r.pct ?? 0,
-                value: r[valKey] ?? 0,
-                used: r.used ?? 0,
-                allocated: r.allocated ?? 0,
-                carryOver: r.carryOver ?? 0,
-                cumQuarterOnly: r.cumQuarterOnly ?? 0,
-                cumCurrent: r.cumCurrent ?? 0,
-                overrun: fullNeed,
-            };
-            const typeData = Object.fromEntries(
-                Object.entries(rawTypeData).filter(([, v]) => v != null)
-            );
-
-            // --- GHÉP GIỮ LẠI byType CŨ ---
-            const row = {
-                id: baseId,
-                label: r.label,
-                byType: { ...oldByType, [typeFilter]: typeData },
-                prevIncluded: true,
-            };
-            for (const p of visibleProjects) {
-                row[p.id] = r[p.id] ?? 0;
-            }
-            dataToSave.push(row);
+        // Load overrun 1 lần duy nhất cho tất cả dòng
+        const prev = getPrevQuarter(year, quarter);
+        let allPrevOverrun = {};
+        if (prev) {
+            const prevRef = doc(db, COL_QUARTER, `${prev.year}_${prev.quarter}`);
+            const prevSnap = await getDoc(prevRef);
+            const prevData = prevSnap.data() || {};
+            (prevData.mainRows || []).forEach((r) => {
+                allPrevOverrun[r.id] = r.byType?.[typeFilter]?.overrun || {};
+            });
         }
 
-        // 1. TÍNH TỔNG VƯỢT QUÝ THEO TYPE
-        const totalCumQuarterOnly = rowsWithTotal
-            .filter(r =>
-                (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
-                (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
-            )
-            .reduce((sum, r) => sum + (toNum(r.cumQuarterOnly) || 0), 0);
+        const dataToSave = rowsInit
+            .filter((r) => {
+                const lbl = (r.label || '').trim().toUpperCase();
+                return lbl !== 'DOANH THU' && lbl !== 'TỔNG CHI PHÍ';
+            })
+            .map((r) => {
+                const baseId = r.id.split('__')[0];
+                const overrun = {};
+                const prevOver = allPrevOverrun[baseId] || {};
+                visibleProjects.forEach((p) => {
+                    const rev = toNum(projData[p.id]?.overallRevenue);
+                    const dc = getDC(p.id, r.label);
+                    const need = Math.round((rev * (r.pct || 0)) / 100 - dc);
+                    const shown = r[p.id] ?? 0;
+                    overrun[p.id] = Math.max(0, need - shown);
+                });
 
-        // 2. LƯU mainRows trước
+                const fullNeed = {};
+                visibleProjects.forEach((p) => {
+                    fullNeed[p.id] = (prevOver[p.id] || 0) + overrun[p.id];
+                });
+
+                const old = prevMainRows.find((x) => x.id === baseId);
+                const oldByType = old?.byType || {};
+
+                const rawTypeData = {
+                    pct: r.pct ?? 0,
+                    value: r[valKey] ?? 0,
+                    used: r.used ?? 0,
+                    allocated: r.allocated ?? 0,
+                    carryOver: r.carryOver ?? 0,
+                    cumQuarterOnly: r.cumQuarterOnly ?? 0,
+                    cumCurrent: r.cumCurrent ?? 0,
+                    overrun: fullNeed,
+                };
+                const typeData = Object.fromEntries(Object.entries(rawTypeData).filter(([, v]) => v != null));
+
+                const row = {
+                    id: baseId,
+                    label: r.label,
+                    byType: { ...oldByType, [typeFilter]: typeData },
+                    prevIncluded: true,
+                };
+                visibleProjects.forEach((p) => {
+                    row[p.id] = r[p.id] ?? 0;
+                });
+
+                return row;
+            });
+
+        const totalCumQuarterOnly = dataToSave.reduce((sum, r) => {
+            return sum + (toNum(r.byType?.[typeFilter]?.cumQuarterOnly) || 0);
+        }, 0);
+
+        const totalFieldMap = {
+            'Thi công': 'totalThiCongCumQuarterOnly',
+            'Nhà máy': 'totalNhaMayCumQuarterOnly',
+            'KH-ĐT': 'totalKhdtCumQuarterOnly',
+        };
+
+        const totalField = totalFieldMap[typeFilter.trim()];
+
         await setDoc(
             docRef,
-            { mainRows: dataToSave, updated_at: serverTimestamp() },
+            {
+                mainRows: dataToSave,
+                ...(totalField ? { [totalField]: totalCumQuarterOnly } : {}),
+                updated_at: serverTimestamp(),
+            },
             { merge: true }
         );
 
-        // 3. LƯU TỔNG cumQuarterOnly THEO TYPE
-        const totalFieldMap = {
-            "Thi công": "totalThiCongCumQuarterOnly",
-            "Nhà máy": "totalNhaMayCumQuarterOnly",
-            "KH-ĐT": "totalKhdtCumQuarterOnly",
-        };
-
-console.log("typeFilter khi lưu:", JSON.stringify(typeFilter), "| length:", typeFilter.length);
-console.log("totalFieldMap keys:", Object.keys(totalFieldMap));
-       const totalField = totalFieldMap[typeFilter.trim()];
-        console.log("totalField resolved:", totalField);
-console.log("totalCumQuarterOnly:", totalCumQuarterOnly);
-        if (totalField) {
-            await setDoc(
-                docRef,
-                { [totalField]: totalCumQuarterOnly, updated_at: serverTimestamp() },
-                { merge: true }
-            );
-        }
-
-        // --- Lưu sang quý sau (chỉ cần update phần byType[typeFilter] quý sau thôi) ---
-        const { year: nextY, quarter: nextQ } = getNextQuarter(
-            year,
-            quarter
-        );
+        // Ghi quý sau
+        const { year: nextY, quarter: nextQ } = getNextQuarter(year, quarter);
         const nextRef = doc(db, COL_QUARTER, `${nextY}_${nextQ}`);
         const nextSnap = await getDoc(nextRef);
         const nextData = nextSnap.exists() ? nextSnap.data() : {};
-        const nextRows = Array.isArray(nextData.mainRows)
-            ? [...nextData.mainRows]
-            : [];
+        const nextRows = Array.isArray(nextData.mainRows) ? [...nextData.mainRows] : [];
 
-        for (const r of rowsInit) {
-            const baseId = r.id.split("__")[0];
-            const overrun = {};
-            for (const p of visibleProjects) {
-                const rev = toNum(projData[p.id]?.overallRevenue);
-                const dc = getDC(p.id, r.label);
-                const need = Math.round((rev * (r.pct || 0)) / 100 - dc);
-                const shown = r[p.id] ?? 0;
-                overrun[p.id] = Math.max(0, need - shown);
-            }
-            const prev = await getOverrunOfPrevQuarter(baseId);
-            const fullNeed = {};
-            for (const p of visibleProjects) {
-                fullNeed[p.id] = (prev[p.id] || 0) + overrun[p.id];
-            }
-            const carryNext = r.cumCurrent ?? 0;
+        const updatedNextRows = [...nextRows];
 
-            // --- GHÉP GIỮ LẠI byType CŨ quý sau ---
-            const oldNext = nextRows.find((x) => x.id === baseId);
-            const oldByTypeNext = oldNext?.byType || {};
+        dataToSave.forEach((r) => {
+            const baseId = r.id;
+            const carryNext = r.byType?.[typeFilter]?.cumCurrent ?? 0;
+            const fullNeed = r.byType?.[typeFilter]?.overrun ?? {};
 
-            const idx = nextRows.findIndex((x) => x.id === baseId);
-            if (idx >= 0) {
-                nextRows[idx].byType = {
+            const idx = updatedNextRows.findIndex((x) => x.id === baseId);
+            const oldByTypeNext = idx >= 0 ? updatedNextRows[idx].byType || {} : {};
+
+            const nextRow = {
+                id: baseId,
+                label: r.label,
+                byType: {
                     ...oldByTypeNext,
                     [typeFilter]: {
                         overrun: fullNeed,
                         carryOver: carryNext,
                     },
-                };
-            } else {
-                nextRows.push({
-                    id: baseId,
-                    label: r.label,
-                    byType: {
-                        ...oldByTypeNext,
-                        [typeFilter]: {
-                            overrun: fullNeed,
-                            carryOver: carryNext,
-                        },
-                    },
-                });
-            }
-        }
+                },
+            };
 
-        await setDoc(
-            nextRef,
-            { mainRows: nextRows, updated_at: serverTimestamp() },
-            { merge: true }
+            if (idx >= 0) {
+                updatedNextRows[idx] = nextRow;
+            } else {
+                updatedNextRows.push(nextRow);
+            }
+        });
+
+        await setDoc(nextRef, { mainRows: updatedNextRows, updated_at: serverTimestamp() }, { merge: true });
+
+        // Cập nhật items[].allocated song song bằng Promise.all
+        await Promise.all(
+            visibleProjects.map(async (p) => {
+                const ref = doc(db, 'projects', p.id, 'years', String(year), 'quarters', quarter);
+                const snap = await getDoc(ref);
+                const data = snap.exists() ? snap.data() : {};
+                const items = Array.isArray(data.items) ? [...data.items] : [];
+
+                dataToSave.forEach((r) => {
+                    const itemIdx = items.findIndex(
+                        (item) =>
+                            item.id === r.id ||
+                            (item.description && item.description.trim() === r.label.trim())
+                    );
+                    if (itemIdx >= 0) {
+                        items[itemIdx].allocated = String(r[p.id] ?? 0);
+                    }
+                });
+
+                await setDoc(ref, { items }, { merge: true });
+            })
         );
 
-        // === CẬP NHẬT p[id] sang items[].allocated của từng project ===
-        for (const p of visibleProjects) {
-            const projectQuarterRef = doc(
-                db,
-                "projects",
-                p.id,
-                "years",
-                String(year),
-                "quarters",
-                quarter
-            );
-            // Lấy items hiện có
-            const projectQuarterSnap = await getDoc(projectQuarterRef);
-            const projectQuarterData = projectQuarterSnap.exists()
-                ? projectQuarterSnap.data()
-                : {};
-            const items = Array.isArray(projectQuarterData.items)
-                ? [...projectQuarterData.items]
-                : [];
-
-            // Cập nhật từng item theo id hoặc description
-            for (const r of rowsInit) {
-                const lbl = (r.label || "").trim().toUpperCase();
-                if (lbl === "DOANH THU" || lbl === "TỔNG CHI PHÍ") continue;
-                const itemIdx = items.findIndex(
-                    (item) =>
-                        item.id === r.id ||
-                        (item.description &&
-                            item.description.trim() === r.label.trim())
-                );
-                if (itemIdx >= 0) {
-                    items[itemIdx].allocated = String(r[p.id] ?? 0);
-                }
-            }
-            // Ghi lại
-            await setDoc(projectQuarterRef, { items }, { merge: true });
-        }
-
-        setSnack({ open: true, msg: "Đã lưu & cập nhật phân bổ dự án 🎉" });
+        setSnack({ open: true, msg: 'Đã lưu & cập nhật phân bổ dự án 🎉' });
         setDirtyCells(new Set());
         setShowSaved(true);
     } catch (err) {
-        setSnack({ open: true, msg: "Lỗi khi lưu!" });
+        setSnack({ open: true, msg: 'Lỗi khi lưu!' });
     } finally {
         setSaving(false);
     }
 };
+
 
     useEffect(() => {
         const onKeyDown = (e) => {
