@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Box, Tabs, Tab, Paper, Typography, Skeleton } from '@mui/material';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase-config';
+import { Toaster } from 'react-hot-toast'; // << 1. IMPORT Toaster TỪ THƯ VIỆN
 
 // Import 2 tab con (hãy chắc chắn đường dẫn này đúng với cấu trúc dự án của bạn)
 import ActualCostsTab from '../components/tabs/ActualCostsTab';
@@ -59,6 +60,22 @@ export default function ProjectDetailsLayout() {
 
     return (
         <Box sx={{ p: 3, bgcolor: '#f4f6f8', minHeight: 'calc(100vh - 64px)' }}>
+            
+            {/* // << 2. THÊM COMPONENT Toaster VÀO ĐÂY */}
+            <Toaster
+                position="top-center"
+                reverseOrder={false}
+                toastOptions={{
+                    duration: 3500,
+                    style: {
+                        borderRadius: '8px',
+                        background: '#333',
+                        color: '#fff',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    },
+                }}
+            />
+
             <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>
                 {loading ? <Skeleton width="60%" /> : `Chi tiết Công trình: ${projectInfo?.name}`}
             </Typography>

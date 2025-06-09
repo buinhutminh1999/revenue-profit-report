@@ -21,13 +21,13 @@ import {
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import logo from './assets/logo.png';
+import { Toaster } from 'react-hot-toast';
 
 import CustomThemeProvider from './ThemeContext';
 import Layout from './components/Layout';
 import Home from './components/Home';
 import ConstructionPlan from './components/ConstructionPlan';
-// import ProjectDetails from './pages/ProjectDetails'; // << THAY ĐỔI 1: BỎ HOẶC CHÚ THÍCH DÒNG NÀY
-import ProjectDetailsLayout from './pages/ProjectDetailsLayout'; // << THAY ĐỔI 1: THÊM DÒNG NÀY
+import ProjectDetailsLayout from './pages/ProjectDetailsLayout';
 import CostAllocation from './pages/CostAllocation';
 import CostAllocationQuarter from './pages/CostAllocationQuarter';
 import Office from './pages/Office';
@@ -82,7 +82,6 @@ export default function App() {
       if (u) {
         const ref = doc(db, "users", u.uid);
         const snap = await getDoc(ref);
-
         if (!snap.exists()) {
           await setDoc(ref, {
             displayName: u.email.split('@')[0],
@@ -103,24 +102,8 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <Box
-        sx={{
-          height: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          bgcolor: 'white',
-        }}
-      >
-        <motion.img
-          src={logo}
-          alt="Logo Công ty"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6 }}
-          style={{ width: 100, borderRadius: 12, marginBottom: 24 }}
-        />
+      <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', bgcolor: 'white' }}>
+        <motion.img src={logo} alt="Logo Công ty" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6 }} style={{ width: 100, borderRadius: 12, marginBottom: 24 }} />
         <CircularProgress color="primary" />
         <Typography mt={2} color="text.secondary">
           Đang xác thực tài khoản...
@@ -133,17 +116,24 @@ export default function App() {
     <AuthContext.Provider value={{ user: userInfo, userInfo }}>
       <CustomThemeProvider>
         <BrowserRouter>
+          <Toaster
+            position="top-center"
+            reverseOrder={false}
+            toastOptions={{
+                duration: 3500,
+                style: {
+                    borderRadius: '8px',
+                    background: '#333',
+                    color: '#fff',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                },
+            }}
+          />
           <RouterProgressWrapper>
             <Suspense fallback={<LinearProgress />}>
               <Routes>
-                <Route
-                  path="/login"
-                  element={userInfo ? <Navigate to="/" replace /> : <LoginPage />}
-                />
-                <Route
-                  path="/*"
-                  element={userInfo ? <LayoutRoutes /> : <Navigate to="/login" replace />}
-                />
+                <Route path="/login" element={userInfo ? <Navigate to="/" replace /> : <LoginPage />} />
+                <Route path="/*" element={userInfo ? <LayoutRoutes /> : <Navigate to="/login" replace />} />
               </Routes>
             </Suspense>
           </RouterProgressWrapper>
@@ -163,12 +153,8 @@ function LayoutRoutes() {
         <Route path="profit-report-year" element={<ProfitReportYear />} />
         <Route path="profit-report-quarter" element={<ProfitReportQuarter />} />
         <Route path="construction-plan" element={<ConstructionPlan />} />
-        
-        {/* // << THAY ĐỔI 2: THAY THẾ COMPONENT TẠI ĐÂY */}
         <Route path="project-details/:id" element={<ProjectDetailsLayout />} />
-
         <Route path="allocations" element={<CostAllocation />} />
-        
         <Route
           path="cost-allocation-quarter"
           element={
@@ -177,7 +163,6 @@ function LayoutRoutes() {
             </RequireRole>
           }
         />
-
         <Route
           path="categories"
           element={
@@ -186,30 +171,26 @@ function LayoutRoutes() {
             </RequireRole>
           }
         />
-
         <Route
           path="admin/users"
           element={
             <RequireRole allowedRoles={['admin']}>
-              
               <AdminUserManager />
             </RequireRole>
           }
         />
-         <Route
+        <Route
           path="admin/audit-log"
           element={
             <RequireRole allowedRoles={['admin']}>
-              
               <AdminAuditLog />
             </RequireRole>
           }
         />
- <Route
+        <Route
           path="admin"
           element={
             <RequireRole allowedRoles={['admin']}>
-              
               <AdminDashboard />
             </RequireRole>
           }
