@@ -87,19 +87,30 @@ function useDebounce(value, delay) {
     }, [value, delay]);
     return debouncedValue;
 }
+// --- BẠN HÃY THAY THẾ HÀM NÀY VÀO CODE CỦA MÌNH ---
+
 function AnimatedCounter({ value, isCurrency = false }) {
-    const spring = useSpring(0, { mass: 0.8, stiffness: 75, damping: 15 });
+    // SỬA LỖI: Khởi tạo spring với giá trị `value` nhận được, không phải 0.
+    // Đảm bảo `value` là một số hợp lệ trước khi truyền vào.
+    const spring = useSpring(Number(value) || 0, {
+        mass: 0.8,
+        stiffness: 75,
+        damping: 15,
+    });
     const display = useTransform(spring, (current) =>
         isCurrency
             ? `${formatNumber(Math.round(current))} ₫`
             : formatNumber(Math.round(current))
     );
+
+    // useEffect này vẫn cần thiết để cập nhật giá trị khi prop `value` thay đổi
+    // sau lần render đầu tiên.
     useEffect(() => {
         spring.set(Number(value) || 0);
     }, [spring, value]);
+
     return <motion.span>{display}</motion.span>;
 }
-
 // --- CÁC COMPONENT CON (Không thay đổi) ---
 const StatCard = ({
     title,

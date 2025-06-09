@@ -34,6 +34,7 @@ import { collection, getDocs, setDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 import { toNum, formatNumber } from "../utils/numberUtils";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
+import ProfitSummaryTable from "../reports/ProfitSummaryTable";
 export default function ProfitReportQuarter() {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedQuarter, setSelectedQuarter] = useState("Q1");
@@ -52,27 +53,34 @@ export default function ProfitReportQuarter() {
         rows.find((r) => (r.name || "").trim().toUpperCase() === "TỔNG")
             ?.percent
     );
-
+    const [summaryTargets, setSummaryTargets] = useState({
+        revenueTargetXayDung: 0,
+        profitTargetXayDung: 0,
+        revenueTargetSanXuat: 0,
+        profitTargetSanXuat: 0,
+        revenueTargetDauTu: 0,
+        profitTargetDauTu: 0,
+    });
     // Đổi nhãn cột "CP VƯỢT QUÝ <hiện tại>"
     const cpVuotLabel = `CP VƯỢT QUÝ ${selectedQuarter} ${selectedYear}`;
 
- const cellStyle = {
-  // Khi TV mode, giảm minWidth để ô co lại vừa khít
-  minWidth: tvMode ? 80 : 120,
+    const cellStyle = {
+        // Khi TV mode, giảm minWidth để ô co lại vừa khít
+        minWidth: tvMode ? 80 : 120,
 
-  // Font-size khi TV mode nhỏ hơn chút, bình thường dùng responsive
-  fontSize: tvMode ? 16 : { xs: 12, sm: 14, md: 16 },
+        // Font-size khi TV mode nhỏ hơn chút, bình thường dùng responsive
+        fontSize: tvMode ? 16 : { xs: 12, sm: 14, md: 16 },
 
-  // Padding ngang/dọc nhỏ hơn khi TV mode
-  px: tvMode ? 1 : 2,
-  py: tvMode ? 0.5 : 1,
+        // Padding ngang/dọc nhỏ hơn khi TV mode
+        px: tvMode ? 1 : 2,
+        py: tvMode ? 0.5 : 1,
 
-  whiteSpace: "nowrap",
-  verticalAlign: "middle",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  border: "1px solid #ccc",
-};
+        whiteSpace: "nowrap",
+        verticalAlign: "middle",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        border: "1px solid #ccc",
+    };
 
     // Các hàm tính group (giữ nguyên)
     const updateLDXRow = (inputRows) => {
@@ -190,7 +198,7 @@ export default function ProfitReportQuarter() {
                 revenue,
                 cost,
                 profit,
-                percent: null, // Cột % CHỈ TIÊU LN QUÍ để dấu –
+                percent: null, // Cột % CHỈ TIÊU LN KH để dấu –
                 // % LN QUÍ hiển thị "–" là do phần format ở UI đã để rồi, không cần xử lý thêm
             };
         }
@@ -306,7 +314,55 @@ export default function ProfitReportQuarter() {
         };
         return newRows;
     };
+    // Đặt hàm này cùng với các hàm update... khác của bạn
 
+const updateVuotCPRows = (inputRows) => {
+    const rows = [...inputRows];
+
+    // Tìm các giá trị nguồn từ cột "CP VƯỢT QUÝ"
+    const costOverXD = rows.find(r => (r.name || "").toUpperCase() === "I. XÂY DỰNG")?.costOverQuarter || 0;
+    const costOverSX = rows.find(r => (r.name || "").toUpperCase() === "II. SẢN XUẤT")?.costOverQuarter || 0;
+    const costOverDT = rows.find(r => (r.name || "").toUpperCase() === "III. ĐẦU TƯ")?.costOverQuarter || 0;
+
+    // Tìm chỉ số (index) của các hàng mục tiêu
+    const idxVuotBPXD = rows.findIndex(r => (r.name || "").toUpperCase() === "+VƯỢT CP BPXD");
+    const idxVuotBPSX = rows.findIndex(r => (r.name || "").toUpperCase() === "+VƯỢT CP BPSX");
+    const idxVuotBPDT = rows.findIndex(r => (r.name || "").toUpperCase() === "+VƯỢT CP BPĐT");
+
+    // Cập nhật giá trị "profit" cho các hàng mục tiêu
+    if (idxVuotBPXD !== -1) {
+        rows[idxVuotBPXD].profit = toNum(costOverXD);
+    }
+    if (idxVuotBPSX !== -1) {
+        rows[idxVuotBPSX].profit = toNum(costOverSX);
+    }
+    if (idxVuotBPDT !== -1) {
+        rows[idxVuotBPDT].profit = toNum(costOverDT);
+    }
+
+    return rows;
+};
+    // Helper lấy revenue 3 dòng nhóm
+    const summaryRowsGroupRevenue = (rows) => {
+        // Chuyển về chữ hoa, bỏ khoảng trắng để tránh lỗi chính tả
+        const getRevenue = (name) => {
+            const idx = rows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === name
+            );
+            return idx !== -1 ? toNum(rows[idx].revenue) : 0;
+        };
+        return {
+            revenueXayDung: getRevenue("I. XÂY DỰNG"),
+            revenueSanXuat: getRevenue("II. SẢN XUẤT"),
+            revenueDauTu: getRevenue("III. ĐẦU TƯ"),
+        };
+    };
+    const handleSummaryTargetChange = (targetKey, value) => {
+        setSummaryTargets((prevTargets) => ({
+            ...prevTargets,
+            [targetKey]: value,
+        }));
+    };
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
@@ -407,13 +463,84 @@ export default function ProfitReportQuarter() {
             const saved = await getDoc(
                 doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`)
             );
+            const defaultTargets = {
+                revenueTargetXayDung: 0,
+                profitTargetXayDung: 0,
+                revenueTargetSanXuat: 0,
+                profitTargetSanXuat: 0,
+                revenueTargetDauTu: 0,
+                profitTargetDauTu: 0,
+            };
+            // Nếu có dữ liệu đã lưu thì đọc, không thì dùng giá trị mặc định (0)
+            if (saved.exists() && saved.data().summaryTargets) {
+                // Kết hợp dữ liệu đã lưu và mặc định để tránh lỗi thiếu trường
+                setSummaryTargets({
+                    ...defaultTargets,
+                    ...saved.data().summaryTargets,
+                });
+            } else {
+                // Nếu không có gì được lưu, đặt chỉ tiêu về 0
+                setSummaryTargets(defaultTargets);
+            }
             if (
                 saved.exists() &&
                 Array.isArray(saved.data().rows) &&
                 saved.data().rows.length > 0
             ) {
                 let updatedRows = [...saved.data().rows];
+                const newRowsTemplate = [
+                    {
+                        name: "CP VƯỢT DỰ KẾ",
+                        revenue: null,
+                        cost: null,
+                        profit: null,
+                        percent: null,
+                    },
+                    {
+                        name: "+Vượt CP BPXD",
+                        revenue: null,
+                        cost: null,
+                        profit: 0,
+                        percent: null,
+                    },
+                    {
+                        name: "+Vượt CP BPSX",
+                        revenue: null,
+                        cost: null,
+                        profit: 0,
+                        percent: null,
+                    },
+                    {
+                        name: "+Vượt CP BPĐT",
+                        revenue: null,
+                        cost: null,
+                        profit: 0,
+                        percent: null,
+                    },
+                ];
 
+                // 2. Kiểm tra xem các hàng mới đã tồn tại chưa
+                const cpVuotDuKeExists = updatedRows.some(
+                    (row) => (row.name || "").toUpperCase() === "CP VƯỢT DỰ KẾ"
+                );
+
+                // 3. Nếu chưa tồn tại, hãy chèn chúng vào đúng vị trí
+                if (!cpVuotDuKeExists) {
+                    const insertionIndex = updatedRows.findIndex((row) =>
+                        (row.name || "")
+                            .toUpperCase()
+                            .startsWith(`IV. LỢI NHUẬN`)
+                    );
+
+                    if (insertionIndex !== -1) {
+                        // Chèn các hàng mới vào ngay sau hàng "IV. LỢI NHUẬN..."
+                        updatedRows.splice(
+                            insertionIndex + 1,
+                            0,
+                            ...newRowsTemplate
+                        );
+                    }
+                }
                 // ——————————————————————————————————————————————————————————
                 // 1. Cập nhật I.1. Dân Dụng + Giao Thông
 
@@ -794,6 +921,10 @@ export default function ProfitReportQuarter() {
                                 `VII. KHTSCĐ NĂM ${selectedYear}`,
                                 "VIII. GIẢM LÃI ĐT DỰ ÁN",
                                 "TỔNG",
+                                "CP VƯỢT DỰ KẾ",
+                                "+VƯỢT CP BPXD",
+                                "+VƯỢT CP BPSX",
+                                "+VƯỢT CP BPĐT",
                             ].includes(nameUpper)
                         ) {
                             return true;
@@ -806,6 +937,8 @@ export default function ProfitReportQuarter() {
                 });
 
                 // ——————————————————————————————————————————————————————————
+                    updatedRows = updateVuotCPRows(updatedRows); // <<< THÊM DÒNG NÀY
+
                 setRows(updatedRows);
                 setLoading(false);
                 return;
@@ -957,6 +1090,39 @@ export default function ProfitReportQuarter() {
                     cost: 0,
                     profit: 0,
                     percent: null,
+                },
+
+                {
+                    name: "CP VƯỢT DO KO ĐỦ DT",
+                    revenue: null,
+                    cost: null,
+                    profit: null,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "+Vượt CP BPXD",
+                    revenue: null,
+                    cost: null,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "+Vượt CP BPSX",
+                    revenue: null,
+                    cost: null,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
+                },
+                {
+                    name: "+Vượt CP BPĐT",
+                    revenue: null,
+                    cost: null,
+                    profit: 0,
+                    percent: null,
+                    editable: true,
                 },
                 {
                     name: "V. GIẢM LỢI NHUẬN",
@@ -1131,6 +1297,7 @@ export default function ProfitReportQuarter() {
             updatedRows = updateThuNhapKhacRow(updatedRows);
             updatedRows = updateDauTuRow(updatedRows);
             updatedRows = updateGroupI3(updatedRows);
+updatedRows = updateVuotCPRows(updatedRows); // <<< THÊM DÒNG NÀY
 
             // 9. Tính lại II. SẢN XUẤT (sum các nhóm con)
             const idxII = updatedRows.findIndex(
@@ -1322,16 +1489,26 @@ export default function ProfitReportQuarter() {
         // eslint-disable-next-line
     }, [selectedYear, selectedQuarter]);
 
+    // Bên trong component ProfitReportQuarter
+
     const handleSave = async (rowsToSave) => {
         const rowsData = Array.isArray(rowsToSave) ? rowsToSave : rows;
+
+        // Dữ liệu sẽ được lưu lên Firestore
+        const dataToSave = {
+            rows: rowsData,
+            summaryTargets: summaryTargets, // <<< THÊM DÒNG NÀY ĐỂ LƯU CHỈ TIÊU
+            updatedAt: new Date().toISOString(),
+        };
+
+        // Gọi hàm setDoc với dữ liệu đã cập nhật
         await setDoc(
             doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`),
-            {
-                rows: rowsData,
-                updatedAt: new Date().toISOString(),
-            }
+            dataToSave
         );
-        // Có thể thêm toast/success
+
+        // Có thể thêm thông báo thành công ở đây
+        console.log("Đã lưu báo cáo và chỉ tiêu thành công!");
     };
 
     const rowsHideRevenueCost = [
@@ -1831,7 +2008,7 @@ export default function ProfitReportQuarter() {
             "DOANH THU",
             "CHI PHÍ ĐÃ CHI",
             "LỢI NHUẬN",
-            "% CHỈ TIÊU LN QUÍ",
+            "% CHỈ TIÊU LN KH",
             "% LN QUÍ",
             "CP VƯỢT QUÝ",
             "CHỈ TIÊU",
@@ -1973,7 +2150,28 @@ export default function ProfitReportQuarter() {
             name.includes("DT + LN ĐƯỢC CHIA TỪ SÀ LAN")
         );
     };
+    // Helper để lấy giá trị từ state `rows`
+    const getValueByName = (name, field) => {
+        const row = rows.find(
+            (r) => (r.name || "").trim().toUpperCase() === name.toUpperCase()
+        );
+        return row ? toNum(row[field]) : 0;
+    };
 
+    // Chuẩn bị dữ liệu `summaryData`
+    const summaryData = {
+        revenueXayDung: getValueByName("I. XÂY DỰNG", "revenue"),
+        profitXayDung: getValueByName("I. XÂY DỰNG", "profit"),
+        costOverXayDung: getValueByName("I. XÂY DỰNG", "costOverQuarter"),
+
+        revenueSanXuat: getValueByName("II. SẢN XUẤT", "revenue"),
+        profitSanXuat: getValueByName("II. SẢN XUẤT", "profit"),
+        costOverSanXuat: 0, // << Cần thay bằng logic tính đúng
+
+        revenueDauTu: getValueByName("III. ĐẦU TƯ", "revenue"),
+        profitDauTu: getValueByName("III. ĐẦU TƯ", "profit"),
+        costOverDauTu: getValueByName("III. ĐẦU TƯ", "costOverQuarter"),
+    };
     return (
         <Box sx={{ minHeight: "100vh", bgcolor: "#f7faff", py: 4 }}>
             {loading && (
@@ -2082,7 +2280,11 @@ export default function ProfitReportQuarter() {
                         </Button>
                     </Stack>
                 </Box>
-
+                <ProfitSummaryTable
+                    data={summaryData}
+                    targets={summaryTargets}
+                    onTargetChange={handleSummaryTargetChange}
+                />
                 {/* --- Chỉ dùng một thẻ cuộn ngang ở TableContainer --- */}
                 <TableContainer
                     sx={{
@@ -2119,7 +2321,7 @@ export default function ProfitReportQuarter() {
                                     "DOANH THU",
                                     "CHI PHÍ ĐÃ CHI",
                                     "LỢI NHUẬN",
-                                    "% CHỈ TIÊU LN QUÍ",
+                                    "% CHỈ TIÊU LN KH",
                                     "% LN QUÍ",
                                     cpVuotLabel,
                                     "CHỈ TIÊU",
@@ -2216,7 +2418,7 @@ export default function ProfitReportQuarter() {
                                     {renderEditableCell(r, idx, "cost")}
                                     {renderEditableCell(r, idx, "profit")}
 
-                                    {/* % CHỈ TIÊU LN QUÍ */}
+                                    {/* % CHỈ TIÊU LN KH */}
                                     {isDTLNLDX(r) ? (
                                         <TableCell
                                             align="center"
