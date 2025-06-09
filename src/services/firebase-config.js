@@ -1,7 +1,9 @@
-// src/services/firebase-config.js
+// File: src/services/firebase-config.js
+
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getAuth } from "firebase/auth"; // BƯỚC 1: Thêm dòng này
 
 const firebaseConfig = {
     apiKey: "AIzaSyABAtDgu1RWl8yhHECA2WDqOYTO_6NNQ6I",
@@ -17,13 +19,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 console.log("🔥 Firebase đã khởi tạo thành công!");
 
-// Kiểm tra kết nối Firestore
+// Khởi tạo và kiểm tra các dịch vụ
 const db = getFirestore(app);
 db && console.log("✅ Kết nối Firestore thành công!");
 
-// Kiểm tra kết nối Storage
 const storage = getStorage(app);
 storage && console.log("✅ Kết nối Storage thành công!");
 
+const auth = getAuth(app); // BƯỚC 2: Thêm dòng này
+auth && console.log("✅ Dịch vụ Auth sẵn sàng!");
+
 // Xuất các dịch vụ
-export { db, storage };
+export { db, storage, auth }; // BƯỚC 3: Thêm 'auth' vào đây

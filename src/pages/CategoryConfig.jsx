@@ -1,4 +1,4 @@
-// File: src/pages/CategoryConfig.jsx - Phiên bản "Signature" (UI/UX Tinh Xảo)
+// File: src/pages/CategoryConfig.jsx - Phiên bản "Signature" (UI/UX Tinh Xảo) với cột Checkbox
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
@@ -21,6 +21,7 @@ import {
     Link as MuiLink,
     Skeleton,
     alpha,
+    Checkbox, // << 1. IMPORT THÊM CHECKBOX
 } from "@mui/material";
 import {
     Add as AddIcon,
@@ -99,14 +100,28 @@ export default function CategoryConfig() {
             stt: index + 1,
         }));
     }, [filteredCategories]);
+    
+    // << 2. TẠO HÀM XỬ LÝ UPDATE CHO CHECKBOX
+    const handleCheckboxChange = async (id, field, value) => {
+        try {
+            const categoryRef = doc(db, "categories", id);
+            await updateDoc(categoryRef, { [field]: value });
+            // Cập nhật snackbar một cách tinh tế, có thể bỏ qua để tránh quá nhiều thông báo
+            // setSnackbar({ open: true, message: 'Cập nhật thành công.', severity: 'success' });
+        } catch (error) {
+            console.error("Error updating checkbox state:", error);
+            setSnackbar({ open: true, message: 'Lỗi khi cập nhật!', severity: 'error' });
+        }
+    };
 
+    // << 3. CẬP NHẬT LẠI CÁC CỘT TRONG BẢNG
     const columns = [
-        { field: "stt", headerName: "STT", width: 90, align: 'center', headerAlign: 'center', sortable: false },
+        { field: "stt", headerName: "STT", width: 70, align: 'center', headerAlign: 'center', sortable: false },
         {
             field: "label",
             headerName: "Tên Khoản Mục",
             flex: 1,
-            minWidth: 400,
+            minWidth: 350,
             renderCell: (params) => (
                 <Stack direction="row" alignItems="center" spacing={1.5}>
                     <CategoryIcon sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
@@ -114,10 +129,57 @@ export default function CategoryConfig() {
                 </Stack>
             )
         },
+        // --- BẮT ĐẦU CÁC CỘT CHECKBOX MỚI ---
+        {
+            field: 'isThiCong',
+            headerName: 'Thi công',
+            width: 120,
+            align: 'center',
+            headerAlign: 'center',
+            sortable: false,
+            renderCell: (params) => (
+                <Checkbox
+                    checked={!!params.value}
+                    onChange={(e) => handleCheckboxChange(params.id, 'isThiCong', e.target.checked)}
+                    onClick={(e) => e.stopPropagation()} // Ngăn DataGrid chọn hàng khi click
+                />
+            ),
+        },
+        {
+            field: 'isNhaMay',
+            headerName: 'Nhà máy',
+            width: 120,
+            align: 'center',
+            headerAlign: 'center',
+            sortable: false,
+            renderCell: (params) => (
+                <Checkbox
+                    checked={!!params.value}
+                    onChange={(e) => handleCheckboxChange(params.id, 'isNhaMay', e.target.checked)}
+                    onClick={(e) => e.stopPropagation()}
+                />
+            ),
+        },
+        {
+            field: 'isKhdt',
+            headerName: 'KH-ĐT',
+            width: 120,
+            align: 'center',
+            headerAlign: 'center',
+            sortable: false,
+            renderCell: (params) => (
+                <Checkbox
+                    checked={!!params.value}
+                    onChange={(e) => handleCheckboxChange(params.id, 'isKhdt', e.target.checked)}
+                    onClick={(e) => e.stopPropagation()}
+                />
+            ),
+        },
+        // --- KẾT THÚC CÁC CỘT CHECKBOX MỚI ---
         {
             field: "actions",
             headerName: "Hành Động",
-            width: 150,
+            width: 130,
             align: 'center',
             headerAlign: 'center',
             sortable: false,
@@ -146,7 +208,14 @@ export default function CategoryConfig() {
             return;
         }
         const key = Date.now().toString();
-        await addDoc(collection(db, "categories"), { label, key });
+        // << 4. THÊM CÁC TRƯỜNG MẶC ĐỊNH KHI TẠO MỚI
+        await addDoc(collection(db, "categories"), {
+            label,
+            key,
+            isThiCong: false,
+            isNhaMay: false,
+            isKhdt: false,
+        });
         setSnackbar({ open: true, message: 'Đã thêm khoản mục mới.', severity: 'success' });
         setOpenAddDialog(false);
         setNewCategoryName("");
@@ -160,7 +229,9 @@ export default function CategoryConfig() {
             setSnackbar({ open: true, message: "Tên khoản mục đã tồn tại!", severity: "warning" });
             return;
         }
-        await updateDoc(doc(db, "categories", editRow.id), { label: newLabel });
+        // Giữ lại các giá trị checkbox hiện có khi cập nhật tên
+        const { label, isThiCong, isNhaMay, isKhdt } = editRow;
+        await updateDoc(doc(db, "categories", editRow.id), { label, isThiCong, isNhaMay, isKhdt });
         setEditRow(null);
         setSnackbar({ open: true, message: 'Cập nhật thành công.', severity: 'success' });
     };
@@ -189,7 +260,19 @@ export default function CategoryConfig() {
                 if (existingLabels.has(normalizedNewLabel)) return;
 
                 const newKey = Date.now().toString() + Math.random();
-                batch.set(doc(collection(db, "categories")), { label: rawLabel, key: newKey });
+                
+                // << 5. CẬP NHẬT LOGIC IMPORT EXCEL
+                // Giả định: Cột A: Tên, Cột B: Thi công, Cột C: Nhà máy, Cột D: KH-ĐT
+                // Dùng 'x' hoặc 'X' để đánh dấu là true
+                const data = {
+                    label: rawLabel,
+                    key: newKey,
+                    isThiCong: (r[1] ?? '').toString().toLowerCase() === 'x',
+                    isNhaMay: (r[2] ?? '').toString().toLowerCase() === 'x',
+                    isKhdt: (r[3] ?? '').toString().toLowerCase() === 'x',
+                };
+
+                batch.set(doc(collection(db, "categories")), data);
                 existingLabels.add(normalizedNewLabel);
             });
             await batch.commit();
@@ -260,7 +343,7 @@ export default function CategoryConfig() {
                                     border: 'none',
                                     '& .MuiDataGrid-columnHeaders': { bgcolor: 'transparent', borderBottom: '1px solid #E0E0E0' },
                                     '& .MuiDataGrid-columnHeaderTitle': { fontWeight: '600', color: '#637381' },
-                                    '& .MuiDataGrid-cell': { border: 'none' },
+                                    '& .MuiDataGrid-cell': { border: 'none', outline: 'none !important' },
                                     '& .MuiDataGrid-row': {
                                         transition: 'all 0.2s ease-in-out',
                                         '&:hover': {

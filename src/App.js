@@ -26,7 +26,8 @@ import CustomThemeProvider from './ThemeContext';
 import Layout from './components/Layout';
 import Home from './components/Home';
 import ConstructionPlan from './components/ConstructionPlan';
-import ProjectDetails from './pages/ProjectDetails';
+// import ProjectDetails from './pages/ProjectDetails'; // << THAY ĐỔI 1: BỎ HOẶC CHÚ THÍCH DÒNG NÀY
+import ProjectDetailsLayout from './pages/ProjectDetailsLayout'; // << THAY ĐỔI 1: THÊM DÒNG NÀY
 import CostAllocation from './pages/CostAllocation';
 import CostAllocationQuarter from './pages/CostAllocationQuarter';
 import Office from './pages/Office';
@@ -41,6 +42,7 @@ import AdminUserManager from './components/AdminUserManager';
 import ProfitChange from './pages/ProfitChange';
 import AdminDashboard from './pages/AdminDashboard';
 import ProfitReportYear from './pages/ProfitReportYear';
+import AdminAuditLog from './pages/AdminAuditLog';
 
 const auth = getAuth();
 const db = getFirestore();
@@ -161,7 +163,10 @@ function LayoutRoutes() {
         <Route path="profit-report-year" element={<ProfitReportYear />} />
         <Route path="profit-report-quarter" element={<ProfitReportQuarter />} />
         <Route path="construction-plan" element={<ConstructionPlan />} />
-        <Route path="project-details/:id" element={<ProjectDetails />} />
+        
+        {/* // << THAY ĐỔI 2: THAY THẾ COMPONENT TẠI ĐÂY */}
+        <Route path="project-details/:id" element={<ProjectDetailsLayout />} />
+
         <Route path="allocations" element={<CostAllocation />} />
         
         <Route
@@ -186,8 +191,17 @@ function LayoutRoutes() {
           path="admin/users"
           element={
             <RequireRole allowedRoles={['admin']}>
-                
+              
               <AdminUserManager />
+            </RequireRole>
+          }
+        />
+         <Route
+          path="admin/audit-log"
+          element={
+            <RequireRole allowedRoles={['admin']}>
+              
+              <AdminAuditLog />
             </RequireRole>
           }
         />
@@ -195,7 +209,7 @@ function LayoutRoutes() {
           path="admin"
           element={
             <RequireRole allowedRoles={['admin']}>
-                
+              
               <AdminDashboard />
             </RequireRole>
           }
