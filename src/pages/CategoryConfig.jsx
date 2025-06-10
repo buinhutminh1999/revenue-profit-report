@@ -47,6 +47,7 @@ import {
 } from "firebase/firestore";
 import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from "react-hot-toast";
 
 const Alert = React.forwardRef((props, ref) => (
     <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />
@@ -242,48 +243,81 @@ export default function CategoryConfig() {
         setSnackbar({ open: true, message: 'Đã xoá khoản mục.', severity: 'info' });
     };
 
-    const handleExcel = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        try {
-            const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
-            const sheet = wb.Sheets[wb.SheetNames[0]];
-            const rowsX = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-            const batch = writeBatch(db);
-            const existingLabels = new Set(categories.map(c => normalizeLabel(c.label)));
+// Thay thế hàm handleExcel cũ của bạn bằng hàm này
 
-            rowsX.slice(1).forEach((r) => {
-                const rawLabel = (r[0] ?? "").toString().trim();
-                if (!rawLabel) return;
-                
-                const normalizedNewLabel = normalizeLabel(rawLabel);
-                if (existingLabels.has(normalizedNewLabel)) return;
+const handleExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
+    let addedCount = 0;
+    let updatedCount = 0; // Thêm biến đếm số mục được cập nhật
+    toast.loading('Đang xử lý file Excel...');
+
+    try {
+        const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rowsX = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const batch = writeBatch(db);
+
+        // THAY ĐỔI 1: Dùng Map thay cho Set để lưu cả ID của document
+        // Key là tên khoản mục đã chuẩn hóa, value là toàn bộ object category
+        const categoriesMap = new Map(
+            categories.map(c => [normalizeLabel(c.label), c])
+        );
+
+        rowsX.slice(1).forEach((r) => {
+            const rawLabel = (r[0] ?? "").toString().trim();
+            if (!rawLabel) return;
+            
+            const normalizedNewLabel = normalizeLabel(rawLabel);
+            
+            // Dữ liệu mới từ các cột checkbox trong Excel
+            const newData = {
+                isThiCong: (r[1] ?? '').toString().toLowerCase() === 'x',
+                isNhaMay: (r[2] ?? '').toString().toLowerCase() === 'x',
+                isKhdt: (r[3] ?? '').toString().toLowerCase() === 'x',
+            };
+
+            // THAY ĐỔI 2: Kiểm tra sự tồn tại trong Map
+            if (categoriesMap.has(normalizedNewLabel)) {
+                // NẾU TỒN TẠI: Cập nhật (update) document cũ
+                const existingDoc = categoriesMap.get(normalizedNewLabel);
+                const docRef = doc(db, "categories", existingDoc.id);
+                batch.update(docRef, newData);
+                updatedCount++;
+
+            } else {
+                // NẾU CHƯA TỒN TẠI: Thêm mới (set) document như cũ
                 const newKey = Date.now().toString() + Math.random();
-                
-                // << 5. CẬP NHẬT LOGIC IMPORT EXCEL
-                // Giả định: Cột A: Tên, Cột B: Thi công, Cột C: Nhà máy, Cột D: KH-ĐT
-                // Dùng 'x' hoặc 'X' để đánh dấu là true
-                const data = {
+                batch.set(doc(collection(db, "categories")), {
                     label: rawLabel,
                     key: newKey,
-                    isThiCong: (r[1] ?? '').toString().toLowerCase() === 'x',
-                    isNhaMay: (r[2] ?? '').toString().toLowerCase() === 'x',
-                    isKhdt: (r[3] ?? '').toString().toLowerCase() === 'x',
-                };
+                    ...newData
+                });
+                addedCount++;
+                // Thêm vào map để nếu trong file excel có 2 dòng trùng tên thì dòng sau sẽ cập nhật dòng trước
+                categoriesMap.set(normalizedNewLabel, {label: rawLabel, ...newData}); 
+            }
+        });
+        
+        await batch.commit();
+        toast.dismiss(); // Tắt toast loading
 
-                batch.set(doc(collection(db, "categories")), data);
-                existingLabels.add(normalizedNewLabel);
-            });
-            await batch.commit();
-            setSnackbar({ open: true, message: 'Upload thành công', severity: 'success' });
-        } catch (err) {
-            console.error(err);
-            setSnackbar({ open: true, message: 'File lỗi hoặc có sự cố khi upload', severity: 'error' });
-        } finally {
-            e.target.value = "";
-        }
-    };
+        // Cập nhật lại thông báo chi tiết hơn
+        setSnackbar({ 
+            open: true, 
+            message: `Hoàn tất! Đã thêm ${addedCount} mục mới và cập nhật ${updatedCount} mục.`, 
+            severity: 'success' 
+        });
+
+    } catch (err) {
+        toast.dismiss();
+        console.error(err);
+        setSnackbar({ open: true, message: 'File lỗi hoặc có sự cố khi upload', severity: 'error' });
+    } finally {
+        e.target.value = "";
+    }
+};
 
     return (
         <Box sx={{ bgcolor: '#F0F2F5', minHeight: "calc(100vh - 64px)", p: 3 }}>

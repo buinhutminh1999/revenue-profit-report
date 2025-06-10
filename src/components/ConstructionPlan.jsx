@@ -10,6 +10,7 @@ import {
     writeBatch,
     query,
     orderBy as firestoreOrderBy,
+    getDocs,
 } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 import toast from "react-hot-toast";
@@ -378,26 +379,63 @@ export default function ConstructionPlan() {
         isAllocated: true,
     });
 
-    useEffect(() => {
-        setIsLoading(true);
-        const q = query(
-            collection(db, "projects"),
-            firestoreOrderBy("name", "asc")
-        );
-        const unsub = onSnapshot(
-            q,
-            (snap) => {
-                setProjects(snap.docs.map((d) => ({ ...d.data(), id: d.id })));
-                setIsLoading(false);
-            },
-            (error) => {
-                console.error("Firebase error:", error);
-                setIsLoading(false);
-                toast.error("Không thể tải dữ liệu công trình.");
-            }
-        );
-        return () => unsub();
-    }, []);
+  // --- BẠN HÃY THAY THẾ HÀM useEffect CŨ BẰNG HÀM NÀY ---
+
+useEffect(() => {
+    setIsLoading(true);
+    const projectsCollection = collection(db, "projects");
+    const q = query(projectsCollection, firestoreOrderBy("name", "asc"));
+
+    const unsub = onSnapshot(q, async (projectsSnapshot) => {
+        try {
+            // 1. Lấy dữ liệu cơ bản của tất cả các công trình
+            const projectsData = projectsSnapshot.docs.map((d) => ({
+                ...d.data(),
+                id: d.id,
+            }));
+
+            // 2. Với mỗi công trình, lấy tổng doanh thu HSKH từ subcollection 'planningItems'
+            // Promise.all giúp thực hiện các yêu cầu này một cách song song, tăng tốc độ
+            const projectsWithTotals = await Promise.all(
+                projectsData.map(async (project) => {
+                    const planningItemsRef = collection(
+                        db,
+                        "projects",
+                        project.id,
+                        "planningItems"
+                    );
+                    const planningSnapshot = await getDocs(planningItemsRef);
+
+                    // Tính tổng cột 'amount'
+                    const totalHSKH = planningSnapshot.docs.reduce(
+                        (sum, doc) => sum + (Number(doc.data().amount) || 0),
+                        0
+                    );
+
+                    // Trả về đối tượng project đã được thêm trường mới 'revenueHSKH'
+                    return { ...project, revenueHSKH: totalHSKH };
+                })
+            );
+
+            // 3. Cập nhật state với dữ liệu đầy đủ
+            setProjects(projectsWithTotals);
+
+        } catch (error) {
+            console.error("Lỗi khi lấy dữ liệu tổng HSKH:", error);
+            toast.error("Không thể tải được dữ liệu Doanh thu HSKH.");
+            // Trong trường hợp lỗi, vẫn hiển thị danh sách công trình cơ bản
+            setProjects(projectsSnapshot.docs.map((d) => ({ ...d.data(), id: d.id, revenueHSKH: 0 })));
+        } finally {
+            setIsLoading(false);
+        }
+    }, (error) => {
+        console.error("Lỗi khi lắng nghe thay đổi công trình:", error);
+        setIsLoading(false);
+        toast.error("Không thể tải dữ liệu công trình.");
+    });
+
+    return () => unsub();
+}, []);
 
     const handleUpdateAllocation = useCallback(async (ids, isAllocated) => {
         if (!ids || ids.length === 0) return;
@@ -538,6 +576,26 @@ export default function ConstructionPlan() {
                     </Typography>
                 ),
             },
+            {
+            field: "revenueHSKH",
+            headerName: "Doanh thu HSKH",
+            width: 200,
+            type: "number",
+            align: "right",
+            headerAlign: "right",
+            renderCell: (params) => (
+                <Typography
+                    variant="body2"
+                    fontWeight={600} // In đậm để dễ phân biệt
+                    sx={{ 
+                        fontFamily: "Roboto Mono, monospace",
+                        color: 'primary.main', // Tô màu xanh để dễ nhận biết
+                    }}
+                >
+                    {formatNumber(params.value)} ₫
+                </Typography>
+            ),
+        },
             {
                 field: "type",
                 headerName: "Loại",

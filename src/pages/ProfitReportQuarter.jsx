@@ -2159,19 +2159,25 @@ updatedRows = updateVuotCPRows(updatedRows); // <<< THÊM DÒNG NÀY
     };
 
     // Chuẩn bị dữ liệu `summaryData`
-    const summaryData = {
-        revenueXayDung: getValueByName("I. XÂY DỰNG", "revenue"),
-        profitXayDung: getValueByName("I. XÂY DỰNG", "profit"),
-        costOverXayDung: getValueByName("I. XÂY DỰNG", "costOverQuarter"),
+   // Chuẩn bị dữ liệu `summaryData`
+const summaryData = {
+    revenueXayDung: getValueByName("I. XÂY DỰNG", "revenue"),
+    profitXayDung: getValueByName("I. XÂY DỰNG", "profit"),
+    costOverXayDung: getValueByName("I. XÂY DỰNG", "costOverQuarter"),
 
-        revenueSanXuat: getValueByName("II. SẢN XUẤT", "revenue"),
-        profitSanXuat: getValueByName("II. SẢN XUẤT", "profit"),
-        costOverSanXuat: 0, // << Cần thay bằng logic tính đúng
+    // ✅ Đã sửa: Lấy doanh thu từ "II.1. SẢN XUẤT" thay vì "II. SẢN XUẤT"
+    revenueSanXuat: getValueByName("II.1. SẢN XUẤT", "revenue"),
+    
+    // Giữ nguyên: Lợi nhuận vẫn lấy từ dòng tổng "II. SẢN XUẤT"
+    profitSanXuat: getValueByName("II. SẢN XUẤT", "profit"),
+    
+    // ✅ Đã sửa: Lấy CP Vượt từ "II. SẢN XUẤT" thay vì để là 0
+    costOverSanXuat: getValueByName("II. SẢN XUẤT", "costOverQuarter"),
 
-        revenueDauTu: getValueByName("III. ĐẦU TƯ", "revenue"),
-        profitDauTu: getValueByName("III. ĐẦU TƯ", "profit"),
-        costOverDauTu: getValueByName("III. ĐẦU TƯ", "costOverQuarter"),
-    };
+    revenueDauTu: getValueByName("III. ĐẦU TƯ", "revenue"),
+    profitDauTu: getValueByName("III. ĐẦU TƯ", "profit"),
+    costOverDauTu: getValueByName("III. ĐẦU TƯ", "costOverQuarter"),
+};
     return (
         <Box sx={{ minHeight: "100vh", bgcolor: "#f7faff", py: 4 }}>
             {loading && (
