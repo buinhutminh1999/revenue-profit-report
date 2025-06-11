@@ -836,12 +836,13 @@ export default function CostAllocationQuarter() {
                             ? [...data.items]
                             : [];
                         dataToSave.forEach((r) => {
+                            // Thay đổi trong hàm handleSave
                             const itemIdx = items.findIndex(
                                 (item) =>
                                     item.id === r.id ||
                                     (item.description &&
-                                        item.description.trim() ===
-                                            r.label.trim())
+                                        normalize(item.description) ===
+                                            normalize(r.label)) // <-- SỬA DÒNG NÀY
                             );
                             if (itemIdx >= 0) {
                                 items[itemIdx].allocated = String(r[p.id] ?? 0);

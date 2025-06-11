@@ -1,5 +1,3 @@
-// File: src/pages/CategoryConfig.jsx - Phiên bản "Signature" (UI/UX Tinh Xảo) với cột Checkbox
-
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
     Box,
@@ -21,7 +19,7 @@ import {
     Link as MuiLink,
     Skeleton,
     alpha,
-    Checkbox, // << 1. IMPORT THÊM CHECKBOX
+    Checkbox,
 } from "@mui/material";
 import {
     Add as AddIcon,
@@ -90,9 +88,12 @@ export default function CategoryConfig() {
     }, []);
     
     const filteredCategories = useMemo(() => {
+        const validCategories = Array.isArray(categories) ? categories : [];
         const s = search.trim().toLowerCase();
-        if (!s) return categories;
-        return categories.filter((c) => c.label.toLowerCase().includes(s));
+        if (!s) return validCategories;
+        return validCategories.filter(
+            (c) => c && c.label && typeof c.label === 'string' && c.label.toLowerCase().includes(s)
+        );
     }, [categories, search]);
 
     const rows = useMemo(() => {
@@ -102,20 +103,16 @@ export default function CategoryConfig() {
         }));
     }, [filteredCategories]);
     
-    // << 2. TẠO HÀM XỬ LÝ UPDATE CHO CHECKBOX
     const handleCheckboxChange = async (id, field, value) => {
         try {
             const categoryRef = doc(db, "categories", id);
             await updateDoc(categoryRef, { [field]: value });
-            // Cập nhật snackbar một cách tinh tế, có thể bỏ qua để tránh quá nhiều thông báo
-            // setSnackbar({ open: true, message: 'Cập nhật thành công.', severity: 'success' });
         } catch (error) {
             console.error("Error updating checkbox state:", error);
             setSnackbar({ open: true, message: 'Lỗi khi cập nhật!', severity: 'error' });
         }
     };
 
-    // << 3. CẬP NHẬT LẠI CÁC CỘT TRONG BẢNG
     const columns = [
         { field: "stt", headerName: "STT", width: 70, align: 'center', headerAlign: 'center', sortable: false },
         {
@@ -130,7 +127,6 @@ export default function CategoryConfig() {
                 </Stack>
             )
         },
-        // --- BẮT ĐẦU CÁC CỘT CHECKBOX MỚI ---
         {
             field: 'isThiCong',
             headerName: 'Thi công',
@@ -142,7 +138,7 @@ export default function CategoryConfig() {
                 <Checkbox
                     checked={!!params.value}
                     onChange={(e) => handleCheckboxChange(params.id, 'isThiCong', e.target.checked)}
-                    onClick={(e) => e.stopPropagation()} // Ngăn DataGrid chọn hàng khi click
+                    onClick={(e) => e.stopPropagation()}
                 />
             ),
         },
@@ -176,7 +172,6 @@ export default function CategoryConfig() {
                 />
             ),
         },
-        // --- KẾT THÚC CÁC CỘT CHECKBOX MỚI ---
         {
             field: "actions",
             headerName: "Hành Động",
@@ -187,12 +182,20 @@ export default function CategoryConfig() {
             renderCell: (params) => (
                 <Stack direction="row" spacing={1}>
                     <Tooltip title="Sửa">
-                        <IconButton size="small" onClick={() => setEditRow(params.row)}>
+                        <IconButton 
+                            size="small" 
+                            onClick={() => setEditRow(params.row)}
+                            sx={{ '&:hover': { color: 'primary.main' } }}
+                        >
                             <EditIcon fontSize="small" />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Xoá">
-                        <IconButton size="small" onClick={() => setDelId(params.id)}>
+                        <IconButton 
+                            size="small" 
+                            onClick={() => setDelId(params.id)}
+                            sx={{ '&:hover': { color: 'error.main' } }}
+                        >
                             <DeleteIcon fontSize="small" />
                         </IconButton>
                     </Tooltip>
@@ -204,12 +207,11 @@ export default function CategoryConfig() {
     const handleAdd = async () => {
         const label = newCategoryName.trim();
         if (!label) return;
-        if (categories.some((c) => normalizeLabel(c.label) === normalizeLabel(label))) {
+        if (categories.some((c) => c && c.label && normalizeLabel(c.label) === normalizeLabel(label))) {
             setSnackbar({ open: true, message: 'Khoản mục đã tồn tại!', severity: 'warning' });
             return;
         }
         const key = Date.now().toString();
-        // << 4. THÊM CÁC TRƯỜNG MẶC ĐỊNH KHI TẠO MỚI
         await addDoc(collection(db, "categories"), {
             label,
             key,
@@ -225,12 +227,11 @@ export default function CategoryConfig() {
     const handleUpdate = async () => {
         const newLabel = editRow.label.trim();
         if (!newLabel) return;
-        const duplicate = categories.find(c => c.id !== editRow.id && normalizeLabel(c.label) === normalizeLabel(newLabel));
+        const duplicate = categories.find(c => c.id !== editRow.id && c && c.label && normalizeLabel(c.label) === normalizeLabel(newLabel));
         if (duplicate) {
             setSnackbar({ open: true, message: "Tên khoản mục đã tồn tại!", severity: "warning" });
             return;
         }
-        // Giữ lại các giá trị checkbox hiện có khi cập nhật tên
         const { label, isThiCong, isNhaMay, isKhdt } = editRow;
         await updateDoc(doc(db, "categories", editRow.id), { label, isThiCong, isNhaMay, isKhdt });
         setEditRow(null);
@@ -243,81 +244,101 @@ export default function CategoryConfig() {
         setSnackbar({ open: true, message: 'Đã xoá khoản mục.', severity: 'info' });
     };
 
-// Thay thế hàm handleExcel cũ của bạn bằng hàm này
+    const handleExcel = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-const handleExcel = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    let addedCount = 0;
-    let updatedCount = 0; // Thêm biến đếm số mục được cập nhật
-    toast.loading('Đang xử lý file Excel...');
-
-    try {
-        const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rowsX = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        const batch = writeBatch(db);
-
-        // THAY ĐỔI 1: Dùng Map thay cho Set để lưu cả ID của document
-        // Key là tên khoản mục đã chuẩn hóa, value là toàn bộ object category
-        const categoriesMap = new Map(
-            categories.map(c => [normalizeLabel(c.label), c])
-        );
-
-        rowsX.slice(1).forEach((r) => {
-            const rawLabel = (r[0] ?? "").toString().trim();
-            if (!rawLabel) return;
+        toast.loading('Đang xử lý file Excel...');
+        try {
+            // --- BƯỚC 1: Đọc và xử lý dữ liệu từ Excel ---
+            const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const rowsX = XLSX.utils.sheet_to_json(sheet, { header: 1 });
             
-            const normalizedNewLabel = normalizeLabel(rawLabel);
-            
-            // Dữ liệu mới từ các cột checkbox trong Excel
-            const newData = {
-                isThiCong: (r[1] ?? '').toString().toLowerCase() === 'x',
-                isNhaMay: (r[2] ?? '').toString().toLowerCase() === 'x',
-                isKhdt: (r[3] ?? '').toString().toLowerCase() === 'x',
-            };
+            const excelDataMap = new Map();
 
-            // THAY ĐỔI 2: Kiểm tra sự tồn tại trong Map
-            if (categoriesMap.has(normalizedNewLabel)) {
-                // NẾU TỒN TẠI: Cập nhật (update) document cũ
-                const existingDoc = categoriesMap.get(normalizedNewLabel);
-                const docRef = doc(db, "categories", existingDoc.id);
-                batch.update(docRef, newData);
-                updatedCount++;
+            // --- LOGIC ĐÃ SỬA LỖI ---
+            rowsX.slice(1).forEach((r) => {
+                if (!r || !Array.isArray(r) || r.length === 0) return;
+                const rawLabel = (r[0] ?? "").toString().trim();
+                if (!rawLabel) return;
+                
+                const normalizedLabel = normalizeLabel(rawLabel);
 
-            } else {
-                // NẾU CHƯA TỒN TẠI: Thêm mới (set) document như cũ
-                const newKey = Date.now().toString() + Math.random();
-                batch.set(doc(collection(db, "categories")), {
-                    label: rawLabel,
-                    key: newKey,
-                    ...newData
-                });
-                addedCount++;
-                // Thêm vào map để nếu trong file excel có 2 dòng trùng tên thì dòng sau sẽ cập nhật dòng trước
-                categoriesMap.set(normalizedNewLabel, {label: rawLabel, ...newData}); 
+                const newRowData = {
+                    rawLabel: rawLabel,
+                    isThiCong: (r[1] ?? '').toString().toLowerCase() === 'x',
+                    isNhaMay: (r[2] ?? '').toString().toLowerCase() === 'x',
+                    isKhdt: (r[3] ?? '').toString().toLowerCase() === 'x',
+                };
+
+                if (excelDataMap.has(normalizedLabel)) {
+                    const existingData = excelDataMap.get(normalizedLabel);
+                    
+                    existingData.isThiCong = existingData.isThiCong || newRowData.isThiCong;
+                    existingData.isNhaMay = existingData.isNhaMay || newRowData.isNhaMay;
+                    existingData.isKhdt = existingData.isKhdt || newRowData.isKhdt;
+                    existingData.rawLabel = newRowData.rawLabel;
+
+                } else {
+                    excelDataMap.set(normalizedLabel, newRowData);
+                }
+            });
+            // --- KẾT THÚC LOGIC SỬA LỖI ---
+
+
+            // --- BƯỚC 2: Chuẩn bị dữ liệu từ Firestore ---
+            const firestoreMap = new Map(
+                categories.filter(c => c && c.label).map(c => [normalizeLabel(c.label), c])
+            );
+
+            // --- BƯỚC 3: Quyết định tạo mới hay cập nhật ---
+            const batch = writeBatch(db);
+            let addedCount = 0;
+            let updatedCount = 0;
+
+            for (const [normalizedLabel, excelRowData] of excelDataMap.entries()) {
+                const existingDoc = firestoreMap.get(normalizedLabel);
+                const dataPayload = {
+                    isThiCong: excelRowData.isThiCong,
+                    isNhaMay: excelRowData.isNhaMay,
+                    isKhdt: excelRowData.isKhdt,
+                };
+
+                if (existingDoc && existingDoc.id) {
+                    const docRef = doc(db, "categories", existingDoc.id);
+                    batch.update(docRef, dataPayload);
+                    updatedCount++;
+                } else {
+                    const docRef = doc(collection(db, "categories"));
+                    batch.set(docRef, {
+                        label: excelRowData.rawLabel,
+                        key: Date.now().toString() + Math.random(),
+                        ...dataPayload
+                    });
+                    addedCount++;
+                }
             }
-        });
-        
-        await batch.commit();
-        toast.dismiss(); // Tắt toast loading
 
-        // Cập nhật lại thông báo chi tiết hơn
-        setSnackbar({ 
-            open: true, 
-            message: `Hoàn tất! Đã thêm ${addedCount} mục mới và cập nhật ${updatedCount} mục.`, 
-            severity: 'success' 
-        });
+            // --- BƯỚC 4: Gửi lên Firestore ---
+            await batch.commit();
+            toast.dismiss();
+            setSnackbar({
+                open: true,
+                message: `Hoàn tất! Đã thêm ${addedCount} mục mới và cập nhật ${updatedCount} mục.`,
+                severity: 'success'
+            });
 
-    } catch (err) {
-        toast.dismiss();
-        console.error(err);
-        setSnackbar({ open: true, message: 'File lỗi hoặc có sự cố khi upload', severity: 'error' });
-    } finally {
-        e.target.value = "";
-    }
-};
+        } catch (err) {
+            toast.dismiss();
+            console.error("Lỗi chi tiết khi upload Excel:", err);
+            setSnackbar({ open: true, message: 'File lỗi hoặc có sự cố khi upload', severity: 'error' });
+        } finally {
+            if (e.target) {
+                e.target.value = "";
+            }
+        }
+    };
 
     return (
         <Box sx={{ bgcolor: '#F0F2F5', minHeight: "calc(100vh - 64px)", p: 3 }}>
@@ -375,19 +396,25 @@ const handleExcel = async (e) => {
                                 rowHeight={52}
                                 sx={{
                                     border: 'none',
-                                    '& .MuiDataGrid-columnHeaders': { bgcolor: 'transparent', borderBottom: '1px solid #E0E0E0' },
-                                    '& .MuiDataGrid-columnHeaderTitle': { fontWeight: '600', color: '#637381' },
-                                    '& .MuiDataGrid-cell': { border: 'none', outline: 'none !important' },
+                                    '& .MuiDataGrid-columnHeaders': {
+                                        backgroundColor: alpha('#F0F2F5', 0.7),
+                                        borderBottom: `1px solid ${alpha('#919EAB', 0.24)}`,
+                                    },
+                                    '& .MuiDataGrid-columnHeaderTitle': {
+                                        fontWeight: '600',
+                                        color: '#212B36',
+                                    },
+                                    '& .MuiDataGrid-cell': {
+                                        borderBottom: `1px solid ${alpha('#919EAB', 0.24)}`,
+                                    },
                                     '& .MuiDataGrid-row': {
-                                        transition: 'all 0.2s ease-in-out',
                                         '&:hover': {
-                                            bgcolor: alpha('#90CAF9', 0.1),
-                                            transform: 'scale(1.01)',
-                                            boxShadow: '0px 4px 12px rgba(0,0,0,0.08)',
-                                            zIndex: 1,
+                                            backgroundColor: alpha('#90CAF9', 0.1),
                                         },
                                     },
-                                    '& .MuiDataGrid-footerContainer': { borderTop: '1px solid #E0E0E0' },
+                                    '& .MuiDataGrid-footerContainer': {
+                                        borderTop: 'none',
+                                    },
                                 }}
                             />
                         }
