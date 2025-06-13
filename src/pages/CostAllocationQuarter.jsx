@@ -32,6 +32,8 @@ import {
     setDoc,
     serverTimestamp,
     onSnapshot,
+    getDocs,
+    collection,
 } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 import { toNum, formatNumber, normalize } from "../utils/numberUtils";
@@ -118,6 +120,7 @@ export default function CostAllocationQuarter() {
     const [typeFilter, setTypeFilter] = useState("Thi công");
     const { pctKey, valKey } = valueFieldMap[typeFilter];
     const isXs = useMediaQuery(theme.breakpoints.down("sm"));
+    const [categories, setCategories] = useState([]);
 
     const [year, setYear] = useState(new Date().getFullYear());
     const [quarter, setQuarter] = useState(quarters[0]);
@@ -125,16 +128,27 @@ export default function CostAllocationQuarter() {
     const [saving, setSaving] = useState(false);
     const [lastUpdated, setLastUpdated] = useState(null);
 
-    // --- LOGIC TÍNH TOÁN (ĐƯỢC GIỮ NGUYÊN VÀ KHÔI PHỤC ĐẦY ĐỦ) ---
+    useEffect(() => {
+        const fetchCategories = async () => {
+            const querySnapshot = await getDocs(collection(db, "categories"));
+            const catList = querySnapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+            }));
+            setCategories(catList);
+        };
+
+        fetchCategories();
+    }, []);
+    
+    // --- LOGIC TÍNH TOÁN ---
     const projects = useProjects(typeFilter);
     const baseProjects = useMemo(() => {
         const compQ = toComparableQuarter(`${year}_${quarter}`);
         return projects.filter((p) => {
-            // Điều kiện 1: Dự án phải được set là "đã phân bổ"
             if (p.isAllocated !== true) {
                 return false;
             }
-            // Điều kiện 2: Dự án không bị đóng trong quý hiện tại
             if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom)) {
                 return false;
             }
@@ -378,6 +392,10 @@ export default function CostAllocationQuarter() {
         },
         [mainRows, valKey, fixedTotals, typeFilter]
     );
+
+    // --- CHUỖI TÍNH TOÁN DỮ LIỆU HIỂN THỊ (ĐÃ SẮP XẾP LẠI) ---
+
+    // BƯỚC 1: Build tất cả các dòng cơ bản
     const rows = useMemo(() => {
         const built = buildRows({
             projects: visibleProjects,
@@ -385,7 +403,7 @@ export default function CostAllocationQuarter() {
             mainRows,
             extraRows,
             getDC,
-            cats,
+            cats, // Lưu ý: `cats` vẫn được dùng ở đây, bạn có thể cần thay thế nó bằng `categories` trong hàm `buildRows` nếu cần
             salaryRowId,
         });
         const seen = {};
@@ -433,8 +451,34 @@ export default function CostAllocationQuarter() {
         typeFilter,
         getOriginalVal,
     ]);
+
+    // BƯỚC 2: Lọc các dòng dựa trên `categories` và `typeFilter`
+    const filteredRows = useMemo(() => {
+        if (categories.length === 0) return []; // Tránh chạy khi chưa có categories
+        
+        return rows.filter((row) => {
+            const labelUpper = (row.label || "").trim().toUpperCase();
+            if (labelUpper === "DOANH THU" || labelUpper === "TỔNG CHI PHÍ") {
+                return true;
+            }
+    
+            const matchedCat = categories.find(
+                (cat) => cat.label?.trim() === row.label?.trim()
+            );
+    
+            if (!matchedCat) return false;
+    
+            if (typeFilter === "Thi công") return matchedCat.isThiCong === true;
+            if (typeFilter === "Nhà máy") return matchedCat.isNhaMay === true;
+            if (typeFilter === "KH-ĐT") return matchedCat.isKhdt === true;
+            
+            return false;
+        });
+    }, [rows, categories, typeFilter]);
+
+    // BƯỚC 3: Thêm dữ liệu từ quý trước vào các dòng đã được lọc
     const rowsWithPrev = useMemo(() => {
-        return rows.map((r) => {
+        return filteredRows.map((r) => {
             const src = extraRows.find((e) => e.id === r.id);
             return src
                 ? {
@@ -444,12 +488,14 @@ export default function CostAllocationQuarter() {
                   }
                 : r;
         });
-    }, [rows, extraRows]);
+    }, [filteredRows, extraRows]);
+
+    // BƯỚC 4: Chạy hàm tính toán chính trên các dòng đã có đủ dữ liệu
     const rowsInit = useMemo(() => {
         return rowsWithPrev.map((r) => recomputeRow({ ...r }));
     }, [rowsWithPrev, recomputeRow]);
 
-    // << KHÔI PHỤC LOGIC TÍNH TOÁN CHO DÒNG TỔNG CỘNG >>
+    // BƯỚC 5: Tính toán lại sự phân bổ nếu vượt chi
     const rowsWithSplit = useMemo(() => {
         return rowsInit.map((r) => {
             if ((r.label || "").trim().toUpperCase() === "DOANH THU") {
@@ -471,6 +517,8 @@ export default function CostAllocationQuarter() {
             return r;
         });
     }, [rowsInit, visibleProjects, dirtyCells]);
+
+    // BƯỚC 6: Tính toán các dòng tổng cộng
     const totalByProject = useMemo(() => {
         const totals = {};
         visibleProjects.forEach((p) => {
@@ -487,6 +535,7 @@ export default function CostAllocationQuarter() {
         });
         return totals;
     }, [rowsWithSplit, visibleProjects]);
+
     const totalUsed = useMemo(
         () =>
             rowsWithSplit
@@ -498,6 +547,7 @@ export default function CostAllocationQuarter() {
                 .reduce((sum, r) => sum + (toNum(r.usedRaw) || 0), 0),
         [rowsWithSplit]
     );
+
     const totalAllocated = useMemo(
         () =>
             rowsWithSplit
@@ -509,6 +559,7 @@ export default function CostAllocationQuarter() {
                 .reduce((sum, r) => sum + (toNum(r.allocated) || 0), 0),
         [rowsWithSplit]
     );
+
     const totalCarryOver = useMemo(
         () =>
             rowsWithSplit
@@ -520,6 +571,7 @@ export default function CostAllocationQuarter() {
                 .reduce((sum, r) => sum + (toNum(r.carryOver) || 0), 0),
         [rowsWithSplit]
     );
+
     const totalCumQuarterOnly = useMemo(
         () =>
             rowsWithSplit
@@ -531,6 +583,7 @@ export default function CostAllocationQuarter() {
                 .reduce((sum, r) => sum + (toNum(r.cumQuarterOnly) || 0), 0),
         [rowsWithSplit]
     );
+
     const totalCumCurrent = useMemo(
         () =>
             rowsWithSplit
@@ -542,6 +595,8 @@ export default function CostAllocationQuarter() {
                 .reduce((sum, r) => sum + (toNum(r.cumCurrent) || 0), 0),
         [rowsWithSplit]
     );
+
+    // BƯỚC 7: Kết hợp dữ liệu và dòng tổng cộng để đưa vào bảng
     const rowsWithTotal = useMemo(() => {
         return rowsWithSplit.map((r) => {
             if ((r.label || "").trim().toUpperCase() === "TỔNG CHI PHÍ") {
@@ -567,6 +622,7 @@ export default function CostAllocationQuarter() {
         totalCumQuarterOnly,
         totalCumCurrent,
     ]);
+
     const { totalOverrun } = useMemo(
         () => ({ totalOverrun: totalCumQuarterOnly }),
         [totalCumQuarterOnly]
@@ -836,13 +892,12 @@ export default function CostAllocationQuarter() {
                             ? [...data.items]
                             : [];
                         dataToSave.forEach((r) => {
-                            // Thay đổi trong hàm handleSave
                             const itemIdx = items.findIndex(
                                 (item) =>
                                     item.id === r.id ||
                                     (item.description &&
                                         normalize(item.description) ===
-                                            normalize(r.label)) // <-- SỬA DÒNG NÀY
+                                            normalize(r.label))
                             );
                             if (itemIdx >= 0) {
                                 items[itemIdx].allocated = String(r[p.id] ?? 0);
@@ -1032,7 +1087,7 @@ export default function CostAllocationQuarter() {
                 }}
             >
                 <DataGrid
-                    rows={rowsWithTotal} // << SỬA LỖI: TRUYỀN ĐÚNG `rowsWithTotal` VÀO BẢNG
+                    rows={rowsWithTotal}
                     columns={columns}
                     loading={loading || saving}
                     density="compact"
@@ -1076,9 +1131,9 @@ export default function CostAllocationQuarter() {
                             cursor: "cell",
                         },
                         "& .MuiDataGrid-cell.MuiDataGrid-cell--editing:focus-within":
-                            {
-                                outline: `2px solid ${theme.palette.warning.main} !important`,
-                            },
+                        {
+                            outline: `2px solid ${theme.palette.warning.main} !important`,
+                        },
                         "& .dirty-cell::before": {
                             content: '""',
                             position: "absolute",

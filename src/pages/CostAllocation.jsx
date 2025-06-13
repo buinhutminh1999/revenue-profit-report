@@ -6,10 +6,8 @@ import {
     alpha
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-// --- THAY ĐỔI 1: Import thêm icon FileDownload và thư viện xlsx ---
 import { Save, Home as HomeIcon, BusinessCenter, Construction, BarChart, Layers, NewReleases, FileDownload } from "@mui/icons-material";
 import * as XLSX from 'xlsx';
-// --- KẾT THÚC THAY ĐỔI 1 ---
 import { useNavigate } from "react-router-dom";
 import {
     doc, setDoc, onSnapshot, serverTimestamp, collection, query,
@@ -60,12 +58,13 @@ const normalizeRow = (row) => ({
 });
 
 function EditableCell({ value, onChange, type = "text", isNumeric = false, disabled = false }) {
+    const theme = useTheme(); // Thêm dòng này để sử dụng theme
     const [edit, setEdit] = useState(false);
     const handleDoubleClick = () => { if (!disabled) setEdit(true); };
     return edit ? (
         <TextField autoFocus size="small" type={type} fullWidth value={value} onChange={(e) => onChange(e.target.value)} onBlur={() => setEdit(false)} sx={{ '& .MuiInputBase-input': { textAlign: 'center' } }} />
     ) : (
-        <Box onDoubleClick={handleDoubleClick} sx={{ width: "100%", minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: disabled ? "not-allowed" : "pointer", p: 1, bgcolor: disabled ? theme => alpha(theme.palette.grey[500], 0.08) : 'transparent', color: disabled ? 'text.disabled' : 'text.primary', borderRadius: 1.5, transition: 'background-color 0.2s', '&:hover': { bgcolor: !disabled ? theme => alpha(theme.palette.primary.light, 0.1) : undefined } }}>
+        <Box onDoubleClick={handleDoubleClick} sx={{ width: "100%", minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: disabled ? "not-allowed" : "pointer", p: 1, bgcolor: disabled ? alpha(theme.palette.grey[500], 0.08) : 'transparent', color: disabled ? 'text.disabled' : 'text.primary', borderRadius: 1.5, transition: 'background-color 0.2s', '&:hover': { bgcolor: !disabled ? alpha(theme.palette.primary.light, 0.1) : undefined } }}>
             <Typography variant="body2">{isNumeric ? parseValue(value).toLocaleString() : value}</Typography>
         </Box>
     );
@@ -128,11 +127,7 @@ export default function CostAllocation() {
                     allDynamicRowStructures.push(normalizeRow(savedRow));
                 }
             });
-            let a = 3
-            if( a < 3 === 0 || setSnack === setDynamicRowTemplates.Data && NewReleases.apply.arguments.setDoc){
-
-            }
-
+            
             const finalDynamicRows = allDynamicRowStructures.map(structure => {
                 const savedData = savedDynamicRowsData.find(d => d.id === structure.id);
                 return normalizeRow({ ...structure, ...(savedData || {}) });
@@ -173,12 +168,37 @@ export default function CostAllocation() {
             return newGroups;
         });
     };
+
+    const fixedSum = useMemo(() => {
+        return rows.filter(r => r.fixed).reduce((acc, r) => {
+            const qv = getQuarterValue(r);
+            acc.T1 += parseValue(r.monthly.T1); acc.T2 += parseValue(r.monthly.T2);
+            acc.T3 += parseValue(r.monthly.T3); acc.Q += qv;
+            acc.factory += Math.round((qv * parseValue(r.percentage)) / 100);
+            acc.thiCong += Math.round((qv * parseValue(r.percentThiCong)) / 100);
+            acc.khdt += Math.round((qv * parseValue(r.percentKHDT)) / 100);
+            return acc;
+        }, { T1: 0, T2: 0, T3: 0, Q: 0, factory: 0, thiCong: 0, khdt: 0 });
+    }, [rows]);
     
     const handleSave = async () => {
         const allRowsToSave = [...rows, ...Object.values(groupedRows).flat()];
         try {
             const dataToSave = allRowsToSave.map(r => {
                 const qv = getQuarterValue(r);
+                const isSalaryRow = (r.name || "").toLowerCase().includes("chi phí lương");
+                
+                // *** THAY ĐỔI 1: Logic lưu cho dòng Chi phí lương ***
+                if (isSalaryRow) {
+                    return {
+                        ...normalizeRow(r), // Giữ lại các giá trị khác
+                        thiCongValue: fixedSum.thiCong,
+                        nhaMayValue: fixedSum.factory,
+                        khdtValue: fixedSum.khdt,
+                    };
+                }
+
+                // Logic cũ cho các dòng khác
                 return {
                     id: r.id, name: r.name, fixed: r.fixed, monthly: r.monthly,
                     thueVP: r.thueVP, thueNhaCongVu: r.thueNhaCongVu, quarterManual: r.quarterManual,
@@ -195,20 +215,17 @@ export default function CostAllocation() {
         } catch (e) { showSnack(e.message, "error"); }
     };
     
-    // --- THAY ĐỔI 2: Thêm hàm xử lý xuất file Excel ---
     const handleExport = () => {
         const dataForExport = [];
         const merges = [];
         let currentRowIndex = 0;
 
-        // 1. TẠO HEADER
         const excelHeader = [
             "Khoản mục", ...monthLabels, quarterLabel, "% Nhà Máy", "Nhà Máy", "% Thi Công", "Thi Công", "% KH-ĐT", "KH-ĐT"
         ];
         dataForExport.push(excelHeader);
         currentRowIndex++;
 
-        // 2. TẠO CÁC DÒNG DỮ LIỆU (FIXED ROWS)
         rows.forEach(r => {
             const qv = getQuarterValue(r);
             const nhaMayValue = Math.round((qv * parseValue(r.percentage)) / 100);
@@ -216,10 +233,9 @@ export default function CostAllocation() {
             const khdtValue = Math.round((qv * parseValue(r.percentKHDT)) / 100);
             
             let monthlyValues;
-            // Xử lý trường hợp đặc biệt "Thuê văn phòng"
             if (r.name.toLowerCase().includes("thuê văn phòng")) {
                 monthlyValues = [`VP: ${parseValue(r.thueVP).toLocaleString()}, CV: ${parseValue(r.thueNhaCongVu).toLocaleString()}`, null, null];
-                merges.push({ s: { r: currentRowIndex, c: 1 }, e: { r: currentRowIndex, c: 3 } }); // Merge 3 cell tháng
+                merges.push({ s: { r: currentRowIndex, c: 1 }, e: { r: currentRowIndex, c: 3 } });
             } else {
                 monthlyValues = [parseValue(r.monthly.T1), parseValue(r.monthly.T2), parseValue(r.monthly.T3)];
             }
@@ -236,7 +252,6 @@ export default function CostAllocation() {
             currentRowIndex++;
         });
 
-        // 3. TẠO DÒNG TỔNG (FIXED ROWS)
         const fixedSumRow = [
             "Tổng chi phí lương",
             fixedSum.T1, fixedSum.T2, fixedSum.T3, fixedSum.Q, null,
@@ -244,10 +259,9 @@ export default function CostAllocation() {
         ];
         dataForExport.push(fixedSumRow);
         currentRowIndex++;
-        dataForExport.push([]); // Dòng trống phân cách
+        dataForExport.push([]);
         currentRowIndex++;
         
-        // 4. TẠO CÁC DÒNG THEO NHÓM (GROUPED ROWS) và TÍNH TỔNG
         let grandTotalNhaMay = fixedSum.factory;
         let grandTotalThiCong = fixedSum.thiCong;
         let grandTotalKhdt = fixedSum.khdt;
@@ -262,9 +276,12 @@ export default function CostAllocation() {
             
             groupItems.forEach(r => {
                 const qv = getQuarterValue(r);
-                const nhaMayValue = Math.round((qv * parseValue(r.percentage)) / 100);
-                const thiCongValue = Math.round((qv * parseValue(r.percentThiCong)) / 100);
-                const khdtValue = Math.round((qv * parseValue(r.percentKHDT)) / 100);
+                const isSalaryRow = (r.name || "").toLowerCase().includes("chi phí lương");
+                
+                // *** THAY ĐỔI 2 (Tương tự): Logic xuất Excel cho dòng Chi phí lương ***
+                const nhaMayValue = isSalaryRow ? fixedSum.factory : Math.round((qv * parseValue(r.percentage)) / 100);
+                const thiCongValue = isSalaryRow ? fixedSum.thiCong : Math.round((qv * parseValue(r.percentThiCong)) / 100);
+                const khdtValue = isSalaryRow ? fixedSum.khdt : Math.round((qv * parseValue(r.percentKHDT)) / 100);
 
                 grandTotalNhaMay += nhaMayValue;
                 grandTotalThiCong += thiCongValue;
@@ -274,18 +291,17 @@ export default function CostAllocation() {
                     r.name,
                     parseValue(r.monthly.T1), parseValue(r.monthly.T2), parseValue(r.monthly.T3),
                     qv,
-                    parseValue(r.percentage), nhaMayValue,
-                    parseValue(r.percentThiCong), thiCongValue,
-                    parseValue(r.percentKHDT), khdtValue
+                    isSalaryRow ? 100 : parseValue(r.percentage), nhaMayValue,
+                    isSalaryRow ? 100 : parseValue(r.percentThiCong), thiCongValue,
+                    isSalaryRow ? 100 : parseValue(r.percentKHDT), khdtValue
                 ];
                 dataForExport.push(rowData);
                 currentRowIndex++;
             });
-            dataForExport.push([]); // Dòng trống
+            dataForExport.push([]);
             currentRowIndex++;
         });
 
-        // 5. TẠO KHỐI TỔNG HỢP CUỐI CÙNG
         dataForExport.push(["TỔNG HỢP PHÂN BỔ"]);
         merges.push({ s: { r: currentRowIndex, c: 0 }, e: { r: currentRowIndex, c: 10 } });
         currentRowIndex++;
@@ -297,11 +313,9 @@ export default function CostAllocation() {
         dataForExport.push(["Tổng phân bổ cho KH-ĐT", null, null, null, null, null, null, null, null, null, grandTotalKhdt]);
         currentRowIndex++;
 
-        // 6. TẠO WORKBOOK VÀ TẢI FILE
         const ws = XLSX.utils.aoa_to_sheet(dataForExport);
-        ws['!merges'] = merges; // Áp dụng merge cells
+        ws['!merges'] = merges;
 
-        // Định dạng độ rộng cột
         ws['!cols'] = [
             { wch: 35 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 },
             { wch: 10 }, { wch: 18 }, { wch: 10 }, { wch: 18 }, { wch: 10 }, { wch: 18 }
@@ -311,22 +325,16 @@ export default function CostAllocation() {
         XLSX.utils.book_append_sheet(wb, ws, "PhanBoChiPhi");
         XLSX.writeFile(wb, `PhanBoChiPhi_${year}_${quarter}.xlsx`);
     };
-    // --- KẾT THÚC THAY ĐỔI 2 ---
     
-    const fixedSum = useMemo(() => {
-        return rows.filter(r => r.fixed).reduce((acc, r) => {
-            const qv = getQuarterValue(r);
-            acc.T1 += parseValue(r.monthly.T1); acc.T2 += parseValue(r.monthly.T2);
-            acc.T3 += parseValue(r.monthly.T3); acc.Q += qv;
-            acc.factory += Math.round((qv * parseValue(r.percentage)) / 100);
-            acc.thiCong += Math.round((qv * parseValue(r.percentThiCong)) / 100);
-            acc.khdt += Math.round((qv * parseValue(r.percentKHDT)) / 100);
-            return acc;
-        }, { T1: 0, T2: 0, T3: 0, Q: 0, factory: 0, thiCong: 0, khdt: 0 });
-    }, [rows]);
-
     const renderRow = (r) => {
         const qv = getQuarterValue(r);
+        const isSalaryRow = (r.name || "").toLowerCase().includes("chi phí lương");
+
+        // *** THAY ĐỔI 3: Logic hiển thị cho dòng Chi phí lương ***
+        const nhaMayValue = isSalaryRow ? fixedSum.factory : Math.round((qv * parseValue(r.percentage)) / 100);
+        const thiCongValue = isSalaryRow ? fixedSum.thiCong : Math.round((qv * parseValue(r.percentThiCong)) / 100);
+        const khdtValue = isSalaryRow ? fixedSum.khdt : Math.round((qv * parseValue(r.percentKHDT)) / 100);
+
         return (
             <TableRow key={r.id} sx={{ '& .MuiTableCell-root': { borderBottom: `1px solid ${theme.palette.divider}` }, '&:hover': { bgcolor: alpha(theme.palette.primary.light, 0.05) } }}>
                 <TableCell sx={{ position: "sticky", left: 0, zIndex: 1, bgcolor: 'background.paper', fontWeight: r.fixed ? '600' : 400, borderRight: `1px solid ${theme.palette.divider}` }}>{r.name}</TableCell>
@@ -334,12 +342,24 @@ export default function CostAllocation() {
                     <TableCell colSpan={3} align="center"><Stack direction="row" spacing={1} justifyContent="center"><EditableCell value={r.thueVP} isNumeric onChange={(v) => handleChange(r.id, "thueVP", v)} /><EditableCell value={r.thueNhaCongVu} isNumeric onChange={(v) => handleChange(r.id, "thueNhaCongVu", v)} /></Stack></TableCell>
                 ) : (["T1", "T2", "T3"].map((sf) => (<TableCell key={sf} align="center"><EditableCell value={r.monthly[sf]} isNumeric onChange={(v) => handleChange(r.id, "monthly", v, sf)} /></TableCell>)))}
                 <TableCell align="center" sx={{ fontWeight: '600', bgcolor: alpha(theme.palette.grey[500], 0.1) }}>{qv.toLocaleString()}</TableCell>
-                <TableCell align="center" sx={{ display: isXs ? "none" : "table-cell" }}><EditableCell value={r.percentage} isNumeric onChange={(v) => handleChange(r.id, "percentage", v)} disabled={!r.fixed && !r.isNhaMay} /></TableCell>
-                <TableCell align="center" sx={{ fontWeight: '500' }}>{Math.round((qv * parseValue(r.percentage)) / 100).toLocaleString()}</TableCell>
-                <TableCell align="center" sx={{ display: isXs ? "none" : "table-cell" }}><EditableCell value={r.percentThiCong} isNumeric onChange={(v) => handleChange(r.id, "percentThiCong", v)} disabled={!r.fixed && !r.isThiCong} /></TableCell>
-                <TableCell align="center" sx={{ fontWeight: '500' }}>{Math.round((qv * parseValue(r.percentThiCong)) / 100).toLocaleString()}</TableCell>
-                <TableCell align="center" sx={{ display: isXs ? "none" : "table-cell" }}><EditableCell value={r.percentKHDT} isNumeric onChange={(v) => handleChange(r.id, "percentKHDT", v)} disabled={!r.fixed && !r.isKhdt} /></TableCell>
-                <TableCell align="center" sx={{ fontWeight: '500' }}>{Math.round((qv * parseValue(r.percentKHDT)) / 100).toLocaleString()}</TableCell>
+                
+                {/* Cột % Nhà Máy */}
+                <TableCell align="center" sx={{ display: isXs ? "none" : "table-cell" }}>
+                    <EditableCell value={isSalaryRow ? "100" : r.percentage} isNumeric onChange={(v) => handleChange(r.id, "percentage", v)} disabled={isSalaryRow || (!r.fixed && !r.isNhaMay)} />
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: '500' }}>{nhaMayValue.toLocaleString()}</TableCell>
+                
+                {/* Cột % Thi Công */}
+                <TableCell align="center" sx={{ display: isXs ? "none" : "table-cell" }}>
+                    <EditableCell value={isSalaryRow ? "100" : r.percentThiCong} isNumeric onChange={(v) => handleChange(r.id, "percentThiCong", v)} disabled={isSalaryRow || (!r.fixed && !r.isThiCong)} />
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: '500' }}>{thiCongValue.toLocaleString()}</TableCell>
+                
+                {/* Cột % KH-ĐT */}
+                <TableCell align="center" sx={{ display: isXs ? "none" : "table-cell" }}>
+                    <EditableCell value={isSalaryRow ? "100" : r.percentKHDT} isNumeric onChange={(v) => handleChange(r.id, "percentKHDT", v)} disabled={isSalaryRow || (!r.fixed && !r.isKhdt)} />
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: '500' }}>{khdtValue.toLocaleString()}</TableCell>
             </TableRow>
         );
     }
@@ -354,11 +374,9 @@ export default function CostAllocation() {
                             <TextField select label="Năm" size="small" sx={{ width: 120, bgcolor: 'background.paper' }} value={year} onChange={(e) => setYear(+e.target.value)}>{[2023, 2024, 2025, 2026].map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}</TextField>
                             <TextField select label="Quý" size="small" sx={{ width: 120, bgcolor: 'background.paper' }} value={quarter} onChange={(e) => setQuarter(e.target.value)}>{Object.entries(quarterMap).map(([q, cfg]) => (<MenuItem key={q} value={q}>{cfg.label}</MenuItem>))}</TextField>
                             
-                            {/* --- THAY ĐỔI 3: Thêm nút Xuất Excel --- */}
                             <Button variant="outlined" color="primary" startIcon={<FileDownload />} onClick={handleExport} sx={{ height: '40px' }}>
                                 Xuất Excel
                             </Button>
-                            {/* --- KẾT THÚC THAY ĐỔI 3 --- */}
 
                             <Button variant="contained" color="success" startIcon={<Save />} onClick={handleSave} sx={{ height: '40px', boxShadow: '0 8px 16px 0 rgba(0,171,85,0.24)' }}>Lưu thay đổi</Button>
                         </Stack>
