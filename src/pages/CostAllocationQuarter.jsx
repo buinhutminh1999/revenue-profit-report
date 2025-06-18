@@ -15,6 +15,12 @@ import {
     CardContent,
     Stack,
     Skeleton,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    InputAdornment,
+    DialogActions,
+    IconButton,
 } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import {
@@ -68,13 +74,11 @@ const StatCard = ({ title, value, icon, color, isLoading }) => {
     const theme = useTheme();
     return (
         <Grid item xs={12} sm={6} md={4}>
-            {" "}
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
             >
-                {" "}
                 <Card
                     sx={{
                         borderRadius: 3,
@@ -82,36 +86,96 @@ const StatCard = ({ title, value, icon, color, isLoading }) => {
                         border: `1px solid ${theme.palette.divider}`,
                     }}
                 >
-                    {" "}
                     <CardContent>
-                        {" "}
                         <Stack direction="row" spacing={2} alignItems="center">
-                            {" "}
-                            <Box sx={{ color: `${color}.main` }}>
-                                {icon}
-                            </Box>{" "}
+                            <Box sx={{ color: `${color}.main` }}>{icon}</Box>
                             <Box>
-                                {" "}
                                 <Typography
                                     variant="body2"
                                     color="text.secondary"
                                 >
                                     {title}
-                                </Typography>{" "}
+                                </Typography>
                                 <Typography variant="h6" fontWeight="700">
-                                    {" "}
                                     {isLoading ? (
                                         <Skeleton width={80} />
                                     ) : (
                                         formatNumber(value)
-                                    )}{" "}
-                                </Typography>{" "}
-                            </Box>{" "}
-                        </Stack>{" "}
-                    </CardContent>{" "}
-                </Card>{" "}
-            </motion.div>{" "}
+                                    )}
+                                </Typography>
+                            </Box>
+                        </Stack>
+                    </CardContent>
+                </Card>
+            </motion.div>
         </Grid>
+    );
+};
+
+// --- Component Dialog để điều chỉnh giới hạn ---
+const LimitDialog = ({ open, onClose, onSave, cellInfo, initialValue }) => {
+    const [limit, setLimit] = useState(100);
+
+    useEffect(() => {
+        if (open) {
+            setLimit(initialValue || 100);
+        }
+    }, [initialValue, open]);
+
+    const handleSave = () => {
+        onSave(cellInfo.rowId, cellInfo.projectId, limit);
+        onClose();
+    };
+
+    if (!cellInfo) return null;
+
+    return (
+        <Dialog
+            open={open}
+            onClose={onClose}
+            PaperProps={{ sx: { borderRadius: 3 } }}
+        >
+            <DialogTitle fontWeight="700">
+                Điều chỉnh giới hạn sử dụng (%)
+            </DialogTitle>
+            <DialogContent>
+                <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 2 }}
+                >
+                    <b>Khoản mục:</b> {cellInfo.rowLabel}
+                    <br />
+                    <b>Công trình:</b> {cellInfo.projectName}
+                </Typography>
+                <TextField
+                    autoFocus
+                    margin="dense"
+                    id="limit"
+                    label="Điền giới hạn sử dụng"
+                    type="number"
+                    fullWidth
+                    value={limit}
+                    onChange={(e) => setLimit(parseFloat(e.target.value) || 0)}
+                    InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">%</InputAdornment>
+                        ),
+                    }}
+                    sx={{ minWidth: 300 }}
+                />
+            </DialogContent>
+            <DialogActions sx={{ p: "0 24px 16px" }}>
+                <Button onClick={onClose}>Hủy</Button>
+                <Button
+                    onClick={handleSave}
+                    variant="contained"
+                    startIcon={<CheckIcon />}
+                >
+                    Lưu
+                </Button>
+            </DialogActions>
+        </Dialog>
     );
 };
 
@@ -127,6 +191,10 @@ export default function CostAllocationQuarter() {
     const [dirtyCells, setDirtyCells] = useState(new Set());
     const [saving, setSaving] = useState(false);
     const [lastUpdated, setLastUpdated] = useState(null);
+    const [manualLimits, setManualLimits] = useState({});
+    const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+    const [currentLimitCell, setCurrentLimitCell] = useState(null);
+    const [dataVersion, setDataVersion] = useState(Date.now());
 
     useEffect(() => {
         const fetchCategories = async () => {
@@ -137,21 +205,16 @@ export default function CostAllocationQuarter() {
             }));
             setCategories(catList);
         };
-
         fetchCategories();
     }, []);
-    
-    // --- LOGIC TÍNH TOÁN ---
+
     const projects = useProjects(typeFilter);
     const baseProjects = useMemo(() => {
         const compQ = toComparableQuarter(`${year}_${quarter}`);
         return projects.filter((p) => {
-            if (p.isAllocated !== true) {
+            if (p.isAllocated !== true) return false;
+            if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom))
                 return false;
-            }
-            if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom)) {
-                return false;
-            }
             return true;
         });
     }, [projects, year, quarter]);
@@ -199,69 +262,180 @@ export default function CostAllocationQuarter() {
         [extraRows]
     );
     const recomputeRow = useCallback(
-        (draftRow) => {
+        (draftRow, options = {}) => {
+            // --- BƯỚC 1: KHỞI TẠO ---
             const label = (draftRow.label || "").trim().toUpperCase();
             if (label === "DOANH THU") return draftRow;
-            const prevOver =
-                draftRow.prevOver || prevOverMapById.get(draftRow.id) || {};
-            const pctVal = parseFloat(draftRow.pct) || 0;
-            const carryVal = toNum(
+
+            const revenuePercent = parseFloat(draftRow.pct) || 0;
+            let carryOverValue = toNum(
                 String(draftRow.carryOver).replace(",", ".")
             );
-            const needCurr = {};
+            const projectDebtFromPrevQuarter =
+                draftRow.prevOver || prevOverMapById.get(draftRow.id) || {};
+            const originalMainRow = mainRows.find((m) => m.id === draftRow.id);
+            const totalAllocatedForPeriod = toNum(
+                draftRow.allocated ?? originalMainRow?.[valKey] ?? 0
+            );
+            const budgetForNewCosts = totalAllocatedForPeriod;
+
+            // --- BƯỚC 2: TÍNH TOÁN LẠI NHU CẦU DỰA TRÊN GIỚI HẠN ---
+
+            // 2a. Tính nhu cầu gốc ban đầu
+            const originalCalculatedNeeds = {};
             visibleProjects.forEach((p) => {
-                const rev = toNum(projData[p.id]?.overallRevenue);
-                const dc = getDC(p.id, draftRow.label);
-                needCurr[p.id] = Math.max(
+                const revenue = toNum(projData[p.id]?.overallRevenue);
+                const directCost = getDC(p.id, draftRow.label);
+                originalCalculatedNeeds[p.id] = Math.max(
                     0,
-                    Math.round((rev * pctVal) / 100 - dc)
+                    Math.round((revenue * revenuePercent) / 100 - directCost)
                 );
             });
-            const totalNeed = visibleProjects.reduce(
-                (sum, p) => sum + needCurr[p.id],
-                0
-            );
-            const orig = mainRows.find((m) => m.id === draftRow.id);
-            const allocated = toNum(draftRow.allocated ?? orig?.[valKey] ?? 0);
-            const allocatedForCalc = allocated - carryVal;
-            let scaledNeed = { ...needCurr };
-            let doScale = totalNeed > allocatedForCalc && allocatedForCalc > 0;
-            if (doScale) {
-                visibleProjects.forEach((p) => {
-                    scaledNeed[p.id] = Math.round(
-                        (needCurr[p.id] / totalNeed) * allocatedForCalc
-                    );
+
+            // 2b. Áp dụng giới hạn thủ công
+            const idealNeedsThisQuarter = { ...originalCalculatedNeeds };
+            const rowLimits = manualLimits[draftRow.id] || {};
+            const hasManualLimits = Object.keys(rowLimits).length > 0;
+
+            if (hasManualLimits) {
+                Object.keys(rowLimits).forEach((projectId) => {
+                    if (idealNeedsThisQuarter[projectId] !== undefined) {
+                        const limitPercent = rowLimits[projectId];
+                        const originalNeed = originalCalculatedNeeds[projectId];
+                        idealNeedsThisQuarter[projectId] = Math.round(
+                            originalNeed * (limitPercent / 100)
+                        );
+                    }
                 });
             }
-            const usedIfAdd = visibleProjects.reduce((sum, p) => {
-                const prev = prevOver[p.id] || 0;
-                return sum + scaledNeed[p.id] + prev;
-            }, 0);
-            const shouldAddPrev = !doScale && usedIfAdd <= allocatedForCalc;
-            visibleProjects.forEach((p) => {
-                const prev = prevOver[p.id] || 0;
-                draftRow[p.id] = scaledNeed[p.id] + (shouldAddPrev ? prev : 0);
+
+            // 2c. Tính tổng nhu cầu MỚI (sau khi giới hạn)
+            const totalNeedAfterLimits = Object.values(
+                idealNeedsThisQuarter
+            ).reduce((sum, need) => sum + need, 0);
+            draftRow.usedRaw = totalNeedAfterLimits;
+
+            // --- BƯỚC 2.2: TÍNH LẠI "VƯỢT KỲ TRƯỚC" THEO ĐIỀU KIỆN MỚI ---
+            const { isCarryOverEdit } = options;
+            if (hasManualLimits && !isCarryOverEdit) {
+                if (totalNeedAfterLimits < totalAllocatedForPeriod) {
+                    carryOverValue =
+                        totalAllocatedForPeriod - totalNeedAfterLimits;
+                }
+            }
+
+            // --- BƯỚC 2.3: CHỐT TRẠNG THÁI NGÂN SÁCH ---
+            const isOverBudget = totalNeedAfterLimits > budgetForNewCosts;
+
+            // --- BƯỚC 3: QUYẾT ĐỊNH CÁCH PHÂN BỔ TIỀN ---
+
+            // --- BƯỚC 3 (LOGIC MỚI): THỰC HIỆN "QUY TẮC VÀNG" ---
+            let finalAllocation = {};
+            let shouldRepayOldDebt = false;
+
+            // 3a. Tách các công trình thành 2 nhóm: có giới hạn và không có giới hạn
+            const limitedProjects = visibleProjects.filter(
+                (p) => rowLimits[p.id] !== undefined
+            );
+            const unlimitedProjects = visibleProjects.filter(
+                (p) => rowLimits[p.id] === undefined
+            );
+
+            let remainingBudget = budgetForNewCosts;
+
+            // 3b. Ưu tiên "chốt" giá trị cho các công trình có giới hạn
+            limitedProjects.forEach((p) => {
+                const limitPercent = rowLimits[p.id];
+                // Lấy giá trị gốc ban đầu để nhân, đảm bảo tính đúng
+                const allocation = Math.round(
+                    originalCalculatedNeeds[p.id] * (limitPercent / 100)
+                );
+                finalAllocation[p.id] = allocation;
+                remainingBudget -= allocation; // Trừ ngân sách đã dùng
             });
+
+            // 3c. Phân bổ ngân sách CÒN LẠI cho nhóm không giới hạn
+            const totalNeedOfUnlimited = unlimitedProjects.reduce(
+                (sum, p) => sum + originalCalculatedNeeds[p.id],
+                0
+            );
+
+            // Gán giá trị cho các công trình không giới hạn
+            unlimitedProjects.forEach((p) => {
+                // Chỉ tính toán khi có nhu cầu
+                if (totalNeedOfUnlimited > 0) {
+                    const budgetForUnlimited = Math.max(0, remainingBudget);
+
+                    // ✨ SỬA LỖI TYPO TẠI ĐÂY ✨
+                    const allocationRatio =
+                        budgetForUnlimited >= totalNeedOfUnlimited
+                            ? 1
+                            : budgetForUnlimited / totalNeedOfUnlimited;
+
+                    const originalNeed = originalCalculatedNeeds[p.id];
+                    finalAllocation[p.id] = Math.round(
+                        originalNeed * allocationRatio
+                    );
+                } else {
+                    // Nếu nhóm không giới hạn không có nhu cầu, gán bằng 0 để tránh lỗi NaN
+                    finalAllocation[p.id] = 0;
+                }
+            });
+            // 3d. Logic trả nợ cũ (chạy sau khi đã phân bổ)
+            const totalUsedBeforeDebt = Object.values(finalAllocation).reduce(
+                (s, v) => s + v,
+                0
+            );
+            const totalOldDebt = Object.values(
+                projectDebtFromPrevQuarter
+            ).reduce((s, v) => s + v, 0);
+
+            if (totalUsedBeforeDebt + totalOldDebt <= budgetForNewCosts) {
+                shouldRepayOldDebt = true;
+            } else {
+                shouldRepayOldDebt = false;
+            }
+
+            // --- CÁC BƯỚC CÒN LẠI GIỮ NGUYÊN ---
             draftRow.prevIncluded =
-                shouldAddPrev && Object.keys(prevOver).length > 0;
-            draftRow.usedRaw = visibleProjects.reduce(
-                (sum, p) => sum + needCurr[p.id],
-                0
-            );
-            const used = visibleProjects.reduce(
-                (sum, p) => sum + (draftRow[p.id] || 0),
-                0
-            );
-            draftRow.used = used;
-            if (Math.abs(used - allocatedForCalc) < 2) {
+                shouldRepayOldDebt &&
+                Object.keys(projectDebtFromPrevQuarter).length > 0;
+
+            let totalUsedInPeriod = 0;
+            visibleProjects.forEach((p) => {
+                const oldDebtForThisProject =
+                    projectDebtFromPrevQuarter[p.id] || 0;
+                const finalValue =
+                    finalAllocation[p.id] +
+                    (shouldRepayOldDebt ? oldDebtForThisProject : 0);
+                draftRow[p.id] = finalValue;
+                totalUsedInPeriod += finalValue;
+            });
+
+            draftRow.used = totalUsedInPeriod;
+            draftRow.carryOver = carryOverValue;
+
+            if (Math.abs(totalUsedInPeriod - budgetForNewCosts) < 2) {
                 draftRow.cumQuarterOnly = 0;
             } else {
-                draftRow.cumQuarterOnly = used - allocated;
+                draftRow.cumQuarterOnly =
+                    totalUsedInPeriod - totalAllocatedForPeriod;
             }
-            draftRow.cumCurrent = used - allocated + carryVal;
+
+            draftRow.cumCurrent =
+                totalUsedInPeriod - totalAllocatedForPeriod + carryOverValue;
+
             return draftRow;
         },
-        [visibleProjects, projData, getDC, mainRows, valKey, prevOverMapById]
+        [
+            visibleProjects,
+            projData,
+            getDC,
+            mainRows,
+            valKey,
+            prevOverMapById,
+            manualLimits,
+        ]
     );
     const processRowUpdate = useCallback(
         (newRow, oldRow) => {
@@ -297,8 +471,15 @@ export default function CostAllocationQuarter() {
             );
             return updatedRow;
         },
-        [recomputeRow, setExtraRows, setDirtyCells, prevOverMapById]
+        [
+            recomputeRow,
+            setExtraRows,
+            setDirtyCells,
+            prevOverMapById,
+            manualLimits,
+        ]
     );
+
     const [fixedTotals, setFixedTotals] = useState({
         "Thi công": 0,
         "Nhà máy": 0,
@@ -318,57 +499,84 @@ export default function CostAllocationQuarter() {
         );
         return () => unsub();
     }, [year, quarter]);
+
+    // THAY THẾ NÓ BẰNG KHỐI CODE HOÀN CHỈNH NÀY
     useEffect(() => {
         const ref = doc(db, COL_QUARTER, `${year}_${quarter}`);
-        const unsub = onSnapshot(ref, (snap) => {
-            if (!snap.exists()) return;
-            const data = snap.data();
-            const savedRows = data.mainRows || [];
-            setExtraRows((prev) =>
-                prev.map((r) => {
-                    const baseId = r.id.split("__")[0];
-                    const saved = savedRows.find((x) => x.id === baseId);
-                    if (!saved) return r;
-                    if (
-                        Array.from(dirtyCells).some((dc) =>
-                            dc.startsWith(baseId + "-")
-                        )
-                    )
-                        return r;
-                    const typeData = saved.byType?.[typeFilter] || {};
-                    const updated = {
-                        ...r,
-                        label: saved.label ?? r.label,
-                        pct:
-                            typeof typeData[pctKey] === "number"
-                                ? typeData[pctKey]
-                                : parseFloat(typeData.pct) || r.pct,
-                        allocated:
-                            baseId === salaryRowId
-                                ? fixedTotals[typeFilter]
-                                : toNum(
-                                      typeData.value ??
-                                          typeData.allocated ??
-                                          r.allocated
-                                  ),
-                        carryOver: toNum(typeData.carryOver ?? r.carryOver),
-                        used: toNum(typeData.used ?? r.used),
-                        cumQuarterOnly: toNum(
-                            typeData.cumQuarterOnly ?? r.cumQuarterOnly
-                        ),
-                        cumCurrent: toNum(typeData.cumCurrent ?? r.cumCurrent),
-                        prevOver: typeData.overrun || {},
-                        prevIncluded: saved.prevIncluded ?? false,
-                        byType: saved.byType || {},
-                    };
-                    visibleProjects.forEach((p) => {
-                        updated[p.id] = toNum(saved[p.id] ?? r[p.id]);
-                    });
-                    return recomputeRow(updated);
-                })
-            );
-            setLastUpdated(data.updated_at?.toDate() || null);
-        });
+
+        // Thêm { includeMetadataChanges: true } để nhận biết thay đổi cục bộ
+        const unsub = onSnapshot(
+            ref,
+            { includeMetadataChanges: true },
+            (snap) => {
+                // NẾU SNAPSHOT NÀY LÀ KẾT QUẢ CỦA HÀNH ĐỘNG GHI TỪ CHÍNH MÁY NÀY,
+                // THÌ BỎ QUA ĐỂ TRÁNH GHI ĐÈ GÂY CHỚP NHÁY.
+                if (snap.metadata.hasPendingWrites) {
+                    return;
+                }
+
+                if (!snap.exists()) return;
+                const data = snap.data();
+                const savedRows = data.mainRows || [];
+
+                const savedLimits = data.manualLimits || {};
+                const hasDirtyLimits = Array.from(dirtyCells).some((cell) =>
+                    cell.includes("-limit")
+                );
+                if (!hasDirtyLimits) {
+                    setManualLimits(savedLimits);
+                }
+
+                setExtraRows((prev) =>
+                    prev.map((r) => {
+                        const baseId = r.id.split("__")[0];
+                        const saved = savedRows.find((x) => x.id === baseId);
+                        if (!saved) return r;
+
+                        const isRowDirty = Array.from(dirtyCells).some(
+                            (dirtyCellId) => dirtyCellId.startsWith(r.id)
+                        );
+                        if (isRowDirty) {
+                            return r;
+                        }
+
+                        const typeData = saved.byType?.[typeFilter] || {};
+                        const updated = {
+                            ...r,
+                            label: saved.label ?? r.label,
+                            pct:
+                                typeof typeData[pctKey] === "number"
+                                    ? typeData[pctKey]
+                                    : parseFloat(typeData.pct) || r.pct,
+                            allocated:
+                                baseId === salaryRowId
+                                    ? fixedTotals[typeFilter]
+                                    : toNum(
+                                          typeData.value ??
+                                              typeData.allocated ??
+                                              r.allocated
+                                      ),
+                            carryOver: toNum(typeData.carryOver ?? r.carryOver),
+                            used: toNum(typeData.used ?? r.used),
+                            cumQuarterOnly: toNum(
+                                typeData.cumQuarterOnly ?? r.cumQuarterOnly
+                            ),
+                            cumCurrent: toNum(
+                                typeData.cumCurrent ?? r.cumCurrent
+                            ),
+                            prevOver: typeData.overrun || {},
+                            prevIncluded: saved.prevIncluded ?? false,
+                            byType: saved.byType || {},
+                        };
+                        visibleProjects.forEach((p) => {
+                            updated[p.id] = toNum(saved[p.id] ?? r[p.id]);
+                        });
+                        return recomputeRow(updated);
+                    })
+                );
+                setLastUpdated(data.updated_at?.toDate() || null);
+            }
+        );
         return () => unsub();
     }, [
         year,
@@ -381,6 +589,7 @@ export default function CostAllocationQuarter() {
         recomputeRow,
         fixedTotals,
     ]);
+    // ... (Các useMemo còn lại giữ nguyên, nhưng cần sửa `rowsWithSplit` thành `rowsInit`)
     const getOriginalVal = useCallback(
         (id) => {
             const baseId = id.split("__")[0];
@@ -392,10 +601,6 @@ export default function CostAllocationQuarter() {
         },
         [mainRows, valKey, fixedTotals, typeFilter]
     );
-
-    // --- CHUỖI TÍNH TOÁN DỮ LIỆU HIỂN THỊ (ĐÃ SẮP XẾP LẠI) ---
-
-    // BƯỚC 1: Build tất cả các dòng cơ bản
     const rows = useMemo(() => {
         const built = buildRows({
             projects: visibleProjects,
@@ -403,7 +608,7 @@ export default function CostAllocationQuarter() {
             mainRows,
             extraRows,
             getDC,
-            cats, // Lưu ý: `cats` vẫn được dùng ở đây, bạn có thể cần thay thế nó bằng `categories` trong hàm `buildRows` nếu cần
+            cats,
             salaryRowId,
         });
         const seen = {};
@@ -451,32 +656,22 @@ export default function CostAllocationQuarter() {
         typeFilter,
         getOriginalVal,
     ]);
-
-    // BƯỚC 2: Lọc các dòng dựa trên `categories` và `typeFilter`
     const filteredRows = useMemo(() => {
-        if (categories.length === 0) return []; // Tránh chạy khi chưa có categories
-        
+        if (categories.length === 0) return [];
         return rows.filter((row) => {
             const labelUpper = (row.label || "").trim().toUpperCase();
-            if (labelUpper === "DOANH THU" || labelUpper === "TỔNG CHI PHÍ") {
+            if (labelUpper === "DOANH THU" || labelUpper === "TỔNG CHI PHÍ")
                 return true;
-            }
-    
             const matchedCat = categories.find(
                 (cat) => cat.label?.trim() === row.label?.trim()
             );
-    
             if (!matchedCat) return false;
-    
             if (typeFilter === "Thi công") return matchedCat.isThiCong === true;
             if (typeFilter === "Nhà máy") return matchedCat.isNhaMay === true;
             if (typeFilter === "KH-ĐT") return matchedCat.isKhdt === true;
-            
             return false;
         });
     }, [rows, categories, typeFilter]);
-
-    // BƯỚC 3: Thêm dữ liệu từ quý trước vào các dòng đã được lọc
     const rowsWithPrev = useMemo(() => {
         return filteredRows.map((r) => {
             const src = extraRows.find((e) => e.id === r.id);
@@ -489,41 +684,13 @@ export default function CostAllocationQuarter() {
                 : r;
         });
     }, [filteredRows, extraRows]);
-
-    // BƯỚC 4: Chạy hàm tính toán chính trên các dòng đã có đủ dữ liệu
     const rowsInit = useMemo(() => {
         return rowsWithPrev.map((r) => recomputeRow({ ...r }));
     }, [rowsWithPrev, recomputeRow]);
-
-    // BƯỚC 5: Tính toán lại sự phân bổ nếu vượt chi
-    const rowsWithSplit = useMemo(() => {
-        return rowsInit.map((r) => {
-            if ((r.label || "").trim().toUpperCase() === "DOANH THU") {
-                return r;
-            }
-            const allocatedForCalc = r.allocated - (r.carryOver || 0);
-            if (r.used > allocatedForCalc) {
-                const total = r.used;
-                const newRow = { ...r };
-                visibleProjects.forEach((p) => {
-                    newRow[p.id] = Math.round(
-                        (r[p.id] / total) * allocatedForCalc
-                    );
-                });
-                newRow.cumQuarterOnly = total - allocatedForCalc;
-                newRow.cumCurrent = newRow.cumQuarterOnly + (r.carryOver || 0);
-                return newRow;
-            }
-            return r;
-        });
-    }, [rowsInit, visibleProjects, dirtyCells]);
-
-    // BƯỚC 6: Tính toán các dòng tổng cộng
     const totalByProject = useMemo(() => {
         const totals = {};
         visibleProjects.forEach((p) => {
-            const pid = p.id;
-            totals[pid] = rowsWithSplit
+            totals[p.id] = rowsInit
                 .filter((r) => {
                     const labelUpper = (r.label || "").trim().toUpperCase();
                     return (
@@ -531,74 +698,67 @@ export default function CostAllocationQuarter() {
                         labelUpper !== "TỔNG CHI PHÍ"
                     );
                 })
-                .reduce((sum, r) => sum + (toNum(r[pid]) || 0), 0);
+                .reduce((sum, r) => sum + (toNum(r[p.id]) || 0), 0);
         });
         return totals;
-    }, [rowsWithSplit, visibleProjects]);
-
+    }, [rowsInit, visibleProjects, manualLimits]);
     const totalUsed = useMemo(
         () =>
-            rowsWithSplit
+            rowsInit
                 .filter(
                     (r) =>
                         (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
                         (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
                 )
                 .reduce((sum, r) => sum + (toNum(r.usedRaw) || 0), 0),
-        [rowsWithSplit]
+        [rowsInit]
     );
-
     const totalAllocated = useMemo(
         () =>
-            rowsWithSplit
+            rowsInit
                 .filter(
                     (r) =>
                         (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
                         (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
                 )
                 .reduce((sum, r) => sum + (toNum(r.allocated) || 0), 0),
-        [rowsWithSplit]
+        [rowsInit]
     );
-
     const totalCarryOver = useMemo(
         () =>
-            rowsWithSplit
+            rowsInit
                 .filter(
                     (r) =>
                         (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
                         (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
                 )
                 .reduce((sum, r) => sum + (toNum(r.carryOver) || 0), 0),
-        [rowsWithSplit]
+        [rowsInit]
     );
-
     const totalCumQuarterOnly = useMemo(
         () =>
-            rowsWithSplit
+            rowsInit
                 .filter(
                     (r) =>
                         (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
                         (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
                 )
                 .reduce((sum, r) => sum + (toNum(r.cumQuarterOnly) || 0), 0),
-        [rowsWithSplit]
+        [rowsInit]
     );
-
     const totalCumCurrent = useMemo(
         () =>
-            rowsWithSplit
+            rowsInit
                 .filter(
                     (r) =>
                         (r.label || "").trim().toUpperCase() !== "DOANH THU" &&
                         (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
                 )
                 .reduce((sum, r) => sum + (toNum(r.cumCurrent) || 0), 0),
-        [rowsWithSplit]
+        [rowsInit]
     );
-
-    // BƯỚC 7: Kết hợp dữ liệu và dòng tổng cộng để đưa vào bảng
     const rowsWithTotal = useMemo(() => {
-        return rowsWithSplit.map((r) => {
+        return rowsInit.map((r) => {
             if ((r.label || "").trim().toUpperCase() === "TỔNG CHI PHÍ") {
                 return {
                     ...r,
@@ -614,7 +774,7 @@ export default function CostAllocationQuarter() {
             return r;
         });
     }, [
-        rowsWithSplit,
+        rowsInit,
         totalByProject,
         totalUsed,
         totalAllocated,
@@ -622,13 +782,10 @@ export default function CostAllocationQuarter() {
         totalCumQuarterOnly,
         totalCumCurrent,
     ]);
-
     const { totalOverrun } = useMemo(
         () => ({ totalOverrun: totalCumQuarterOnly }),
         [totalCumQuarterOnly]
     );
-
-    // --- CỘT & LƯU TRỮ ---
     const columns = useMemo(() => {
         const base = [
             {
@@ -690,7 +847,8 @@ export default function CostAllocationQuarter() {
                     >
                         {" "}
                         <Typography variant="caption" sx={{ lineHeight: 1.2 }}>
-                            Phân bổ {quarter}.{year}
+                            {" "}
+                            Phân bổ {quarter}.{year}{" "}
                         </Typography>{" "}
                         <LockOutlinedIcon fontSize="inherit" />{" "}
                     </Box>
@@ -761,22 +919,42 @@ export default function CostAllocationQuarter() {
                     })
                     .map((r) => {
                         const baseId = r.id.split("__")[0];
-                        const overrun = {};
+                        const overrun = {}; // Bắt đầu với object rỗng
                         const prevOver = allPrevOverrun[baseId] || {};
+
+                        // ✨ Bắt đầu khối code mới theo "Quy tắc vàng" ✨
+                        const rowLimits = manualLimits[r.id] || {}; // Lấy các giới hạn của dòng hiện tại
+
                         visibleProjects.forEach((p) => {
-                            const rev = toNum(projData[p.id]?.overallRevenue);
-                            const dc = getDC(p.id, r.label);
-                            const need = Math.round(
-                                (rev * (r.pct || 0)) / 100 - dc
-                            );
-                            const shown = r[p.id] ?? 0;
-                            overrun[p.id] = Math.max(0, need - shown);
+                            // Kiểm tra xem công trình này có bị đặt giới hạn không
+                            const hasLimit = rowLimits[p.id] !== undefined;
+
+                            if (hasLimit) {
+                                // Nếu CÓ GIỚI HẠN, overrun của công trình này đem qua quý sau luôn bằng 0.
+                                overrun[p.id] = 0;
+                            } else {
+                                // Nếu KHÔNG CÓ GIỚI HẠN, tính overrun như bình thường.
+                                const rev = toNum(
+                                    projData[p.id]?.overallRevenue
+                                );
+                                const dc = getDC(p.id, r.label);
+                                const need = Math.round(
+                                    (rev * (r.pct || 0)) / 100 - dc
+                                );
+                                const shown = r[p.id] ?? 0;
+                                overrun[p.id] = Math.max(0, need - shown);
+                            }
                         });
+                        // ✨ Kết thúc khối code mới ✨
+                        // Nếu không, overrun sẽ là object rỗng {}, tức là không có nợ
+
                         const fullNeed = {};
                         visibleProjects.forEach((p) => {
                             fullNeed[p.id] =
-                                (prevOver[p.id] || 0) + overrun[p.id];
+                                (prevOver[p.id] || 0) + (overrun[p.id] || 0);
                         });
+                        // ✨ Kết thúc thay đổi ✨
+
                         const old = prevMainRows.find((x) => x.id === baseId);
                         const oldByType = old?.byType || {};
                         const rawTypeData = {
@@ -805,6 +983,7 @@ export default function CostAllocationQuarter() {
                         });
                         return row;
                     });
+
                 const totalCumQuarterOnlySave = dataToSave.reduce((sum, r) => {
                     return (
                         sum +
@@ -821,6 +1000,7 @@ export default function CostAllocationQuarter() {
                     docRef,
                     {
                         mainRows: dataToSave,
+                        manualLimits: manualLimits,
                         ...(totalField
                             ? { [totalField]: totalCumQuarterOnlySave }
                             : {}),
@@ -935,8 +1115,8 @@ export default function CostAllocationQuarter() {
         projData,
         getDC,
         valKey,
+        manualLimits,
     ]);
-
     useEffect(() => {
         const onKeyDown = (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === "s") {
@@ -947,6 +1127,62 @@ export default function CostAllocationQuarter() {
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [saving, dirtyCells, handleSave]);
+
+    const handleCellClick = (params) => {
+        const isProjectCol = visibleProjects.some((p) => p.id === params.field);
+        const isTotalRow = params.row.isTotal;
+        const isNonEditableRow =
+            (params.row.label || "").trim().toUpperCase() === "DOANH THU" ||
+            isFixed(params.row.id);
+        if (isProjectCol && !isTotalRow && !isNonEditableRow) {
+            const projectName = visibleProjects.find(
+                (p) => p.id === params.field
+            )?.name;
+            setCurrentLimitCell({
+                rowId: params.id,
+                projectId: params.field,
+                projectName,
+                rowLabel: params.row.label,
+            });
+            setLimitDialogOpen(true);
+        }
+    };
+
+    const handleSetManualLimit = (rowId, projectId, limit) => {
+        setManualLimits((prev) => {
+            const newLimits = JSON.parse(JSON.stringify(prev));
+            if (!newLimits[rowId]) {
+                newLimits[rowId] = {};
+            }
+            if (limit == null) {
+                // chỉ xoá khi thực sự muốn bỏ limit
+                if (newLimits[rowId]) {
+                    delete newLimits[rowId][projectId];
+                    if (Object.keys(newLimits[rowId]).length === 0) {
+                        delete newLimits[rowId];
+                    }
+                }
+            } else {
+                // luôn lưu limit, kể cả 100%
+                if (!newLimits[rowId]) newLimits[rowId] = {};
+                newLimits[rowId][projectId] = limit;
+            }
+
+            return newLimits;
+        });
+        setDataVersion(Date.now()); // ép useMemo chạy lại
+
+        // BẮT ĐẦU SỬA LỖI
+        // Đánh dấu dirty cell một cách chính xác và duy nhất
+        setDirtyCells((ds) => {
+            const next = new Set(ds);
+            next.add(`${rowId}-${projectId}-limit`); // Key mới, cụ thể hơn
+            return next;
+        });
+        // KẾT THÚC SỬA LỖI
+
+        toast.success(`Đã cập nhật giới hạn. Bảng sẽ được tính toán lại.`);
+    };
 
     return (
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
@@ -1103,6 +1339,7 @@ export default function CostAllocationQuarter() {
                             sx: { p: 1.5 },
                         },
                     }}
+                    onCellClick={handleCellClick}
                     getRowClassName={(params) =>
                         params.row.isTotal ? "total-row" : ""
                     }
@@ -1131,9 +1368,9 @@ export default function CostAllocationQuarter() {
                             cursor: "cell",
                         },
                         "& .MuiDataGrid-cell.MuiDataGrid-cell--editing:focus-within":
-                        {
-                            outline: `2px solid ${theme.palette.warning.main} !important`,
-                        },
+                            {
+                                outline: `2px solid ${theme.palette.warning.main} !important`,
+                            },
                         "& .dirty-cell::before": {
                             content: '""',
                             position: "absolute",
@@ -1153,6 +1390,19 @@ export default function CostAllocationQuarter() {
                     }
                 />
             </Paper>
+            <LimitDialog
+                open={limitDialogOpen}
+                onClose={() => setLimitDialogOpen(false)}
+                onSave={handleSetManualLimit}
+                cellInfo={currentLimitCell}
+                initialValue={
+                    currentLimitCell
+                        ? manualLimits[currentLimitCell.rowId]?.[
+                              currentLimitCell.projectId
+                          ] || 100
+                        : 100
+                }
+            />
         </Box>
     );
 }
