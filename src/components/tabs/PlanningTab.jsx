@@ -37,6 +37,7 @@ import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { NumericFormat } from "react-number-format";
 import {
+    // --- ICON CŨ ---
     SubdirectoryArrowRight as SubdirectoryArrowRightIcon,
     Functions as FunctionsIcon,
     Article as ArticleIcon,
@@ -44,12 +45,16 @@ import {
     PlaylistAddCheck as PlaylistAddCheckIcon,
     Close as CloseIcon,
     WarningAmber as WarningAmberIcon,
-    // --- ICON MỚI CHO TÍNH NĂNG PREVIEW ---
     FactCheck as FactCheckIcon,
     CheckCircleOutline as CheckCircleOutlineIcon,
     ErrorOutline as ErrorOutlineIcon,
     Cancel as CancelIcon,
     CloudUpload as CloudUploadIcon,
+    // --- ICON MỚI CHO TÍNH NĂNG KẾ HOẠCH ---
+    AccountBalanceWallet as AccountBalanceWalletIcon, // Cho Giá trị hợp đồng
+    TrendingUp as TrendingUpIcon, // Cho Lợi nhuận
+    Edit as EditIcon,
+    Save as SaveIcon,
 } from "@mui/icons-material";
 
 // --- CÁC COMPONENT TIỆN ÍCH (Giữ nguyên) ---
@@ -123,17 +128,16 @@ const processHierarchicalData = (items) => {
 const StatCard = ({ title, value, icon, color }) => {
     const theme = useTheme();
     return (
-        <Grid item xs={12} sm={6}>
-            {" "}
+        <Grid item xs={12} sm={6} md={3}>
             <Card
                 sx={{
                     borderRadius: 4,
                     overflow: "hidden",
                     border: `1px solid ${theme.palette.divider}`,
                     boxShadow: "none",
+                    height: "100%", // Đảm bảo các card cao bằng nhau
                 }}
             >
-                {" "}
                 <CardContent
                     sx={{
                         display: "flex",
@@ -143,7 +147,6 @@ const StatCard = ({ title, value, icon, color }) => {
                         position: "relative",
                     }}
                 >
-                    {" "}
                     <Box
                         sx={{
                             width: 52,
@@ -152,34 +155,32 @@ const StatCard = ({ title, value, icon, color }) => {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            color: theme.palette[color].dark,
+                            color: theme.palette[color]?.dark || theme.palette.text.primary,
                             background: `linear-gradient(135deg, ${alpha(
-                                theme.palette[color].light,
+                                theme.palette[color]?.light || theme.palette.grey[300],
                                 0.25
                             )} 0%, ${alpha(
-                                theme.palette[color].main,
+                                theme.palette[color]?.main || theme.palette.grey[500],
                                 0.25
                             )} 100%)`,
                         }}
                     >
-                        {" "}
-                        {icon}{" "}
-                    </Box>{" "}
+                        {icon}
+                    </Box>
                     <Box>
-                        {" "}
                         <Typography variant="body2" color="text.secondary">
                             {title}
-                        </Typography>{" "}
+                        </Typography>
                         <Typography
                             variant="h6"
                             fontWeight={700}
-                            color="text.primary"
+                            color={color === "error" ? "error.main" : "text.primary"}
                         >
                             {value}
-                        </Typography>{" "}
-                    </Box>{" "}
-                </CardContent>{" "}
-            </Card>{" "}
+                        </Typography>
+                    </Box>
+                </CardContent>
+            </Card>
         </Grid>
     );
 };
@@ -193,16 +194,14 @@ function CustomFooter({ total }) {
                 bgcolor: "action.hover",
             }}
         >
-            {" "}
             <Stack direction="row" spacing={2} alignItems="center">
-                {" "}
                 <Typography variant="body1" fontWeight={600}>
                     Tổng cộng:
-                </Typography>{" "}
+                </Typography>
                 <Typography variant="h6" fontWeight={700} color="primary.main">
                     {total.toLocaleString("vi-VN")} ₫
-                </Typography>{" "}
-            </Stack>{" "}
+                </Typography>
+            </Stack>
         </GridFooterContainer>
     );
 }
@@ -214,18 +213,16 @@ function CustomNoRowsOverlay() {
             justifyContent="center"
             sx={{ color: "text.secondary", p: 3 }}
         >
-            {" "}
-            <ArticleIcon sx={{ fontSize: 60, mb: 1, opacity: 0.5 }} />{" "}
-            <Typography variant="h6">Chưa có hạng mục nào</Typography>{" "}
+            <ArticleIcon sx={{ fontSize: 60, mb: 1, opacity: 0.5 }} />
+            <Typography variant="h6">Chưa có hạng mục nào</Typography>
             <Typography variant="body2">
                 Hãy dán danh sách từ Excel vào ô bên trên để bắt đầu.
-            </Typography>{" "}
+            </Typography>
         </Stack>
     );
 }
 
-// --- NÂNG CẤP: TÁCH LOGIC PARSER RA KHỎI COMPONENT ---
-// THAY THẾ TOÀN BỘ HÀM NÀY BẰNG PHIÊN BẢN ĐÃ SỬA LỖI BÊN DƯỚI
+// --- LOGIC PARSER (Giữ nguyên) ---
 const parseAndValidatePastedData = (
     pasteData,
     categoriesMap,
@@ -243,36 +240,19 @@ const parseAndValidatePastedData = (
     pastedLines.forEach((line, index) => {
         const parts = line.split("\t");
         const description = parts[0]?.trim();
-
-        // Lấy chuỗi số tiền và trim() để loại bỏ khoảng trắng hai bên
         const amountString = (parts.length > 1 ? parts[1] : "0")?.trim();
 
         if (!description) {
-            return; // Bỏ qua dòng trống
+            return;
         }
-
-        // =================================================================
-        // THAY ĐỔI QUAN TRỌNG BẮT ĐẦU TỪ ĐÂY
-        // =================================================================
-
-        // 1. Dọn dẹp chuỗi số tiền: Loại bỏ TẤT CẢ các ký tự không phải là số (0-9).
-        // Regex /[^d]/g sẽ xóa dấu chấm (.), dấu phẩy (,), ký hiệu tiền tệ (₫, $), và mọi loại khoảng trắng.
-        // VD: " 15.760.000 ₫" sẽ trở thành "15760000"
+        
         const cleanedAmountString = amountString.replace(/[^\d]/g, "");
-
-        // 2. Chuyển đổi chuỗi đã dọn dẹp thành số.
-        // Nếu chuỗi rỗng (sau khi dọn dẹp từ "abc" hoặc chuỗi trắng), nó sẽ được coi là 0.
         const amount = cleanedAmountString
             ? parseInt(cleanedAmountString, 10)
             : 0;
 
-        // =================================================================
-        // KẾT THÚC THAY ĐỔI
-        // =================================================================
-
         const normalizedDescription = description.toLowerCase();
 
-        // Các bước kiểm tra logic còn lại giữ nguyên
         if (existingDescriptions.has(normalizedDescription)) {
             previewRows.push({
                 description,
@@ -297,7 +277,6 @@ const parseAndValidatePastedData = (
                     reason: "Không thuộc loại dự án này.",
                 });
             } else {
-                // Hợp lệ
                 previewRows.push({
                     description: category.label,
                     amount,
@@ -317,7 +296,7 @@ const parseAndValidatePastedData = (
 
     return { itemsToAdd, previewRows };
 };
-// --- NÂNG CẤP: COMPONENT PREVIEW ---
+// --- COMPONENT PREVIEW (Giữ nguyên) ---
 const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
     const theme = useTheme();
     const validCount = previewRows.filter((r) => r.status === "valid").length;
@@ -441,39 +420,73 @@ export default function PlanningTab({ projectId }) {
     const [loading, setLoading] = useState(true);
     const [pasteData, setPasteData] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
-    const [previewData, setPreviewData] = useState(null); // <-- STATE MỚI
+    const [previewData, setPreviewData] = useState(null);
     const theme = useTheme();
 
-    useEffect(() => {
-        if (!projectId) {
-            setLoading(false);
-            return;
-        }
-        setLoading(true);
-        const q = query(
-            collection(db, "projects", projectId, "planningItems"),
-            orderBy("order")
-        );
-        const unsub = onSnapshot(
-            q,
-            (snapshot) => {
-                setPlanningItems(
-                    snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-                );
-                setLoading(false);
-            },
-            (error) => {
-                console.error("Error fetching planning items:", error);
-                toast.error("Lỗi tải dữ liệu!");
+    // --- STATE MỚI CHO TÍNH NĂNG KẾ HOẠCH ---
+    const [contractValue, setContractValue] = useState(0);
+    const [isEditingContract, setIsEditingContract] = useState(false);
+    const [tempContractValue, setTempContractValue] = useState(0);
+
+   // --- THAY THẾ TOÀN BỘ useEffect CŨ BẰNG HÀM NÀY ---
+useEffect(() => {
+    if (!projectId) {
+        setLoading(false);
+        return;
+    }
+
+    setLoading(true);
+    let isMounted = true; // Biến cờ để tránh cập nhật state trên component đã unmount
+
+    // Listener cho danh sách hạng mục
+    const itemsQuery = query(
+        collection(db, "projects", projectId, "planningItems"),
+        orderBy("order")
+    );
+
+    const unsubscribeItems = onSnapshot(
+        itemsQuery,
+        (snapshot) => {
+            if (isMounted) {
+                const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+                setPlanningItems(items);
+                setLoading(false); // **QUAN TRỌNG: Luôn set loading false sau khi có dữ liệu**
+            }
+        },
+        (error) => {
+            console.error("Firebase Error: Lỗi khi lắng nghe planningItems:", error);
+            toast.error("Không thể tải danh sách kế hoạch. Vui lòng kiểm tra quyền truy cập.");
+            if (isMounted) {
                 setLoading(false);
             }
-        );
-        return () => unsub();
-    }, [projectId]);
+        }
+    );
 
-    const handleProcessRowUpdate = useCallback(
-        async (newRow) => {
-            /* Giữ nguyên */
+    // Fetch thông tin chi tiết của dự án (chỉ 1 lần)
+    const fetchProjectDetails = async () => {
+        try {
+            const projectDocRef = doc(db, "projects", projectId);
+            const projectSnap = await getDoc(projectDocRef);
+            if (projectSnap.exists() && isMounted) {
+                const projectData = projectSnap.data();
+                setContractValue(projectData.contractValue || 0);
+            }
+        } catch (error) {
+            console.error("Firebase Error: Lỗi khi tải chi tiết dự án:", error);
+            toast.error("Không thể tải thông tin dự án.");
+        }
+    };
+
+    fetchProjectDetails();
+
+    // Hàm dọn dẹp
+    return () => {
+        isMounted = false;
+        unsubscribeItems();
+    };
+}, [projectId]);
+
+    const handleProcessRowUpdate = useCallback(async (newRow) => {
             const { id, ...dataToUpdate } = newRow;
             const updatePromise = updateDoc(
                 doc(db, "projects", projectId, "planningItems", id),
@@ -495,10 +508,32 @@ export default function PlanningTab({ projectId }) {
         [projectId, planningItems]
     );
 
-    // --- NÂNG CẤP: LUỒNG XỬ LÝ 2 BƯỚC ---
+    // --- HÀM MỚI: LƯU GIÁ TRỊ HỢP ĐỒNG ---
+    const handleSaveContractValue = useCallback(async () => {
+        const numericValue = Number(tempContractValue) || 0;
+        const projectDocRef = doc(db, "projects", projectId);
+        
+        const savePromise = updateDoc(projectDocRef, {
+            contractValue: numericValue,
+        });
 
-    // BƯỚC 1: PARSE VÀ HIỂN THỊ PREVIEW
-    // Thay thế hàm cũ bằng hàm này
+        toast.promise(savePromise, {
+            loading: "Đang lưu giá trị hợp đồng...",
+            success: "Lưu thành công!",
+            error: "Lưu thất bại!",
+        });
+
+        try {
+            await savePromise;
+            setContractValue(numericValue);
+            setIsEditingContract(false);
+        } catch (error) {
+            console.error("Error updating contract value:", error);
+        }
+    }, [projectId, tempContractValue]);
+
+
+    // --- LUỒNG XỬ LÝ 2 BƯỚC (Giữ nguyên) ---
     const handleParseAndPreview = useCallback(async () => {
         if (!pasteData.trim()) {
             toast.error("Vui lòng dán dữ liệu vào ô trống.");
@@ -551,7 +586,6 @@ export default function PlanningTab({ projectId }) {
             setPreviewData(result);
             toast.dismiss(processingToast);
             if (result.previewRows.length === 0) {
-                // SỬA TỪ toast.info THÀNH toast
                 toast("Không tìm thấy dữ liệu hợp lệ để phân tích.");
                 setPreviewData(null);
             } else {
@@ -567,17 +601,13 @@ export default function PlanningTab({ projectId }) {
             setIsProcessing(false);
         }
     }, [projectId, pasteData, planningItems]);
-
-    // BƯỚC 2: XÁC NHẬN VÀ LƯU VÀO FIREBASE
     const handleConfirmSave = useCallback(async () => {
         if (!previewData || previewData.itemsToAdd.length === 0) {
             toast.error("Không có mục hợp lệ nào để thêm.");
             return;
         }
-
         setIsProcessing(true);
         const { itemsToAdd } = previewData;
-
         try {
             const batch = writeBatch(db);
             const planningItemsRef = collection(
@@ -587,16 +617,12 @@ export default function PlanningTab({ projectId }) {
                 "planningItems"
             );
             let orderIndex = planningItems.length;
-
             itemsToAdd.forEach((item) => {
                 const newItemRef = doc(planningItemsRef);
                 batch.set(newItemRef, { ...item, order: ++orderIndex });
             });
-
             await batch.commit();
             toast.success(`Đã thêm thành công ${itemsToAdd.length} mục mới.`);
-
-            // Reset state sau khi thành công
             setPasteData("");
             setPreviewData(null);
         } catch (error) {
@@ -606,14 +632,12 @@ export default function PlanningTab({ projectId }) {
             setIsProcessing(false);
         }
     }, [projectId, planningItems, previewData]);
-
-    // Thay thế hàm cũ bằng hàm này
     const handleCancelPreview = () => {
         setPreviewData(null);
-        // SỬA TỪ toast.info THÀNH toast
         toast("Đã hủy thao tác.");
     };
 
+    // --- TÍNH TOÁN CÁC CHỈ SỐ ---
     const { totalAmount, totalItems } = useMemo(
         () => ({
             totalAmount: planningItems.reduce(
@@ -624,6 +648,10 @@ export default function PlanningTab({ projectId }) {
         }),
         [planningItems]
     );
+
+    // --- GIÁ TRỊ PHÁI SINH MỚI ---
+    const estimatedProfit = contractValue - totalAmount;
+
     const processedRows = useMemo(
         () => processHierarchicalData(planningItems),
         [planningItems]
@@ -631,7 +659,6 @@ export default function PlanningTab({ projectId }) {
 
     const columns = useMemo(
         () => [
-            /* Giữ nguyên */
             {
                 field: "description",
                 headerName: "Diễn Giải",
@@ -645,7 +672,6 @@ export default function PlanningTab({ projectId }) {
                             alignItems: "flex-start",
                         }}
                     >
-                        {" "}
                         {params.row.level > 0 && (
                             <SubdirectoryArrowRightIcon
                                 sx={{
@@ -655,13 +681,13 @@ export default function PlanningTab({ projectId }) {
                                     mt: "4px",
                                 }}
                             />
-                        )}{" "}
+                        )}
                         <Typography
                             variant="body2"
                             sx={{ whiteSpace: "normal", lineHeight: 1.5 }}
                         >
                             {params.value}
-                        </Typography>{" "}
+                        </Typography>
                     </Stack>
                 ),
             },
@@ -678,8 +704,7 @@ export default function PlanningTab({ projectId }) {
                         variant="body2"
                         sx={{ fontFamily: "monospace", fontWeight: 500 }}
                     >
-                        {" "}
-                        {Number(params.value || 0).toLocaleString("vi-VN")}{" "}
+                        {Number(params.value || 0).toLocaleString("vi-VN")}
                     </Typography>
                 ),
                 renderEditCell: (params) => (
@@ -717,7 +742,6 @@ export default function PlanningTab({ projectId }) {
         []
     );
 
-    // --- RENDER ---
     const pageVariants = {
         initial: { opacity: 0 },
         in: {
@@ -741,18 +765,124 @@ export default function PlanningTab({ projectId }) {
             sx={{ p: { xs: 1, sm: 2 } }}
         >
             <Stack spacing={3}>
+                {/* --- CẬP NHẬT KHU VỰC THỐNG KÊ --- */}
                 <Grid
                     container
-                    spacing={2}
+                    spacing={2.5}
                     component={motion.div}
                     variants={itemVariants}
                 >
+                    {/* CARD 1: GIÁ TRỊ HỢP ĐỒNG (CÓ CHỈNH SỬA) */}
+                    <Grid item xs={12} sm={6} md={3}>
+                        <Card
+                            sx={{
+                                borderRadius: 4,
+                                border: `1px solid ${theme.palette.divider}`,
+                                boxShadow: "none",
+                                height: "100%",
+                                display: 'flex', 
+                                flexDirection: 'column'
+                            }}
+                        >
+                            <CardContent
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    p: 2.5,
+                                    gap: 2.5,
+                                    position: "relative",
+                                    flexGrow: 1
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        width: 52,
+                                        height: 52,
+                                        borderRadius: "50%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        color: theme.palette.warning.dark,
+                                        background: `linear-gradient(135deg, ${alpha(
+                                            theme.palette.warning.light,
+                                            0.25
+                                        )} 0%, ${alpha(
+                                            theme.palette.warning.main,
+                                            0.25
+                                        )} 100%)`,
+                                    }}
+                                >
+                                    <AccountBalanceWalletIcon />
+                                </Box>
+                                <Box sx={{ flex: 1 }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Giá trị Hợp đồng
+                                    </Typography>
+                                    {!isEditingContract ? (
+                                        <Typography variant="h6" fontWeight={700}>
+                                            {contractValue.toLocaleString("vi-VN")} ₫
+                                        </Typography>
+                                    ) : (
+                                        <NumericFormat
+                                            value={tempContractValue}
+                                            customInput={TextField}
+                                            variant="standard"
+                                            thousandSeparator=","
+                                            onValueChange={({floatValue}) => setTempContractValue(floatValue)}
+                                            fullWidth
+                                            autoFocus
+                                            sx={{ 
+                                                "& .MuiInput-input": {
+                                                     fontWeight: 700,
+                                                     fontSize: '1.25rem' 
+                                                },
+                                                mt: '4px'
+                                            }}
+                                        />
+                                    )}
+                                </Box>
+                                {!isEditingContract ? (
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => {
+                                            setTempContractValue(contractValue);
+                                            setIsEditingContract(true);
+                                        }}
+                                        sx={{ position: "absolute", top: 8, right: 8 }}
+                                    >
+                                        <EditIcon fontSize="small" />
+                                    </IconButton>
+                                ) : (
+                                  <Stack direction="row" spacing={0.5} sx={{ position: "absolute", top: 8, right: 8 }}>
+                                    <IconButton size="small" onClick={handleSaveContractValue} color="primary">
+                                      <SaveIcon fontSize="small" />
+                                    </IconButton>
+                                     <IconButton size="small" onClick={() => setIsEditingContract(false)}>
+                                      <CloseIcon fontSize="small" />
+                                    </IconButton>
+                                  </Stack>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </Grid>
+
+                    {/* CARD 2: TỔNG TIỀN KẾ HOẠCH */}
                     <StatCard
                         title="Tổng tiền Kế hoạch"
                         value={`${totalAmount.toLocaleString("vi-VN")} ₫`}
                         icon={<AttachMoneyIcon />}
                         color="primary"
                     />
+
+                    {/* CARD 3: LỢI NHUẬN DỰ KIẾN */}
+                    <StatCard
+                        title="Lợi nhuận dự kiến"
+                        value={`${estimatedProfit.toLocaleString("vi-VN")} ₫`}
+                        icon={<TrendingUpIcon />}
+                        color={estimatedProfit >= 0 ? "success" : "error"}
+                    />
+
+                    {/* CARD 4: SỐ HẠNG MỤC */}
                     <StatCard
                         title="Số Hạng mục"
                         value={totalItems}
@@ -773,7 +903,6 @@ export default function PlanningTab({ projectId }) {
                         boxShadow: "none",
                     }}
                 >
-                    {/* --- NÂNG CẤP: HIỂN THỊ CÓ ĐIỀU KIỆN GIỮA INPUT VÀ PREVIEW --- */}
                     {!previewData ? (
                         <>
                             <Typography

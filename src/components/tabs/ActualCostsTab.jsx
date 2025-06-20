@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-    Box,
-    Snackbar,
-    Alert,
-    ThemeProvider,
-    createTheme,
-} from "@mui/material";
+import { Box, Snackbar, Alert } from "@mui/material";
 import * as XLSX from "xlsx";
 import {
     doc,
@@ -29,7 +23,7 @@ import SummaryPanel from "../ui/SummaryPanel";
 
 // ---------- Default Data ----------
 export const defaultRow = {
-    id: generateUniqueId(), // đảm bảo mỗi dòng luôn có id
+    id: generateUniqueId(),
     project: "",
     description: "",
     inventory: "0",
@@ -44,6 +38,19 @@ export const defaultRow = {
     totalCost: "0",
     revenue: "0",
     hskh: "0",
+};
+
+const transformProjectName = (name) => {
+    if (!name) return "";
+    return (
+        name
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/đ/g, "d")
+            .replace(/Đ/g, "D")
+            .toUpperCase()
+            .replace(/\s+/g, "") + "-CP"
+    );
 };
 
 export const handleFileUpload = (
@@ -115,10 +122,8 @@ export const handleFileUpload = (
                     });
                     return newItem;
                 });
-
                 setCostItems(newItems);
             } else {
-                // mode: "merge" hoặc "multiSheet"
                 const newDataMap = {};
                 for (const row of dataFromFile) {
                     const key = `${(row["Công Trình"] || "")
@@ -226,7 +231,7 @@ export default function ActualCostsTab({ projectId }) {
     const id = projectId;
     const navigate = useNavigate();
     const [costItems, setCostItems] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [year, setYear] = useState(String(new Date().getFullYear()));
     const [quarter, setQuarter] = useState("Q1");
@@ -237,6 +242,8 @@ export default function ActualCostsTab({ projectId }) {
     const [overallRevenueEditing, setOverallRevenueEditing] = useState(false);
     const [projectTotalAmount, setProjectTotalAmount] = useState("");
     const [categories, setCategories] = useState([]);
+    const [projectData, setProjectData] = useState(null);
+    const [initialDbLoadComplete, setInitialDbLoadComplete] = useState(false);
 
     const columnsAll = useMemo(
         () => [
@@ -261,7 +268,6 @@ export default function ActualCostsTab({ projectId }) {
         ],
         []
     );
-
     const [columnsVisibility, setColumnsVisibility] = useState(
         () =>
             JSON.parse(localStorage.getItem("columnsVisibility")) ||
@@ -269,8 +275,19 @@ export default function ActualCostsTab({ projectId }) {
     );
 
     useEffect(() => {
+        setLoading(true);
+        setInitialDbLoadComplete(false);
+        // FIX: Không reset projectData khi chỉ đổi quý/năm
+        // setProjectData(null);
+    }, [id, year, quarter]);
+
+    useEffect(() => {
         const unsub = onSnapshot(collection(db, "categories"), (snap) => {
-            setCategories(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            const fetchedCategories = snap.docs.map((d) => ({
+                id: d.id,
+                ...d.data(),
+            }));
+            setCategories(fetchedCategories);
         });
         return () => unsub();
     }, []);
@@ -322,11 +339,10 @@ export default function ActualCostsTab({ projectId }) {
         [sumKeys]
     );
 
-    // Load dữ liệu từ Firestore
+    // Step 1: Load saved cost data from DB
     useEffect(() => {
         if (!id || !year || !quarter) return;
         const loadSavedData = async () => {
-            setLoading(true);
             try {
                 const docRef = doc(
                     db,
@@ -342,51 +358,101 @@ export default function ActualCostsTab({ projectId }) {
                     ? parseNumber(docSnap.data().overallRevenue ?? 0)
                     : 0;
                 setOverallRevenue(rev);
+
                 const items = (
                     docSnap.exists() ? docSnap.data().items || [] : []
-                ).map((item) => {
-                    const newItem = { ...item };
-                    newItem.id = newItem.id || generateUniqueId();
-                    newItem.project = (newItem.project || "")
-                        .trim()
-                        .toUpperCase();
-                    newItem.description = (newItem.description || "").trim();
-                    calcAllFields(newItem, {
-                        overallRevenue: rev,
-                        projectTotalAmount,
-                    });
-                    return newItem;
-                });
+                ).map((item) => ({
+                    ...item,
+                    id: item.id || generateUniqueId(),
+                    project: (item.project || "").trim().toUpperCase(),
+                    description: (item.description || "").trim(),
+                }));
                 setCostItems(items);
             } catch (err) {
-                setError("Lỗi tải dữ liệu: " + err.message);
-            } finally {
+                setError("Lỗi tải dữ liệu chi phí: " + err.message);
                 setLoading(false);
+            } finally {
+                setInitialDbLoadComplete(true);
             }
         };
         loadSavedData();
-    }, [id, year, quarter, projectTotalAmount]);
+    }, [id, year, quarter]);
 
-    // Load dữ liệu dự án (ví dụ: tổng doanh thu dự kiến)
+    // Step 2: Load project details (chỉ chạy khi id thay đổi)
     useEffect(() => {
         if (!id) return;
+        setProjectData(null); // Reset khi đổi hẳn project
         const loadProjectData = async () => {
             try {
                 const projectDocRef = doc(db, "projects", id);
                 const projectDocSnap = await getDoc(projectDocRef);
                 if (projectDocSnap.exists()) {
                     const data = projectDocSnap.data();
+                    setProjectData(data);
                     setProjectTotalAmount(data.totalAmount || "0");
+                } else {
+                    setProjectData(null);
+                    setProjectTotalAmount("0");
                 }
             } catch (err) {
-                setError("Lỗi tải dữ liệu project: " + err.message);
+                setError("Lỗi tải dữ liệu dự án: " + err.message);
             }
         };
         loadProjectData();
     }, [id]);
 
-    // Cập nhật lại các dòng khi overallRevenue hoặc projectTotalAmount thay đổi
+    // Step 3: Sync categories after initial data is loaded
     useEffect(() => {
+        if (!initialDbLoadComplete || !projectData || categories.length === 0) {
+            // Nếu chưa tải xong, nhưng không có categories để đồng bộ, cũng tắt loading
+            if (
+                initialDbLoadComplete &&
+                projectData &&
+                categories.length === 0
+            ) {
+                setLoading(false);
+            }
+            return;
+        }
+
+        const requiredCategories = categories.filter((cat) => {
+            if (projectData.type === "Thi công" && cat.isThiCong) {
+                return true;
+            }
+            return false;
+        });
+
+        const transformedProjName = transformProjectName(projectData.name);
+
+        // Dùng một bản sao của costItems để tránh lỗi stale state
+        const currentCostItems = [...costItems];
+
+        const newItemsToAdd = requiredCategories
+            .filter((cat) => {
+                return !currentCostItems.some(
+                    (item) =>
+                        item.project === transformedProjName &&
+                        item.description === cat.label
+                );
+            })
+            .map((cat) => ({
+                ...defaultRow,
+                id: generateUniqueId(),
+                project: transformedProjName,
+                description: cat.label,
+            }));
+
+        if (newItemsToAdd.length > 0) {
+            setCostItems((prevItems) => [...prevItems, ...newItemsToAdd]);
+        }
+
+        setLoading(false);
+    }, [initialDbLoadComplete, projectData, categories]);
+
+    // Step 4: Recalculate fields when total amounts change
+    useEffect(() => {
+        if (loading) return;
+
         setCostItems((prev) =>
             prev.map((row) => {
                 const newRow = { ...row };
@@ -394,7 +460,7 @@ export default function ActualCostsTab({ projectId }) {
                 return newRow;
             })
         );
-    }, [overallRevenue, projectTotalAmount]);
+    }, [overallRevenue, projectTotalAmount, loading]);
 
     const handleChangeField = useCallback(
         (id, field, val) => {
@@ -423,7 +489,6 @@ export default function ActualCostsTab({ projectId }) {
         },
         [overallRevenue, projectTotalAmount]
     );
-
     const handleRemoveRow = useCallback(
         (id) => setCostItems((prev) => prev.filter((row) => row.id !== id)),
         []
@@ -456,7 +521,6 @@ export default function ActualCostsTab({ projectId }) {
             setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
             return;
         }
-
         setLoading(true);
         try {
             const quarters = ["Q1", "Q2", "Q3", "Q4"];
@@ -464,7 +528,6 @@ export default function ActualCostsTab({ projectId }) {
             const isLastQuarter = currIndex === 3;
             const nextQuarter = isLastQuarter ? "Q1" : quarters[currIndex + 1];
             const nextYear = isLastQuarter ? String(Number(year) + 1) : year;
-
             await setDoc(
                 doc(db, "projects", id, "years", year, "quarters", quarter),
                 {
@@ -473,7 +536,6 @@ export default function ActualCostsTab({ projectId }) {
                     updated_at: new Date().toISOString(),
                 }
             );
-
             const nextItems = costItems.map((item) => ({
                 ...defaultRow,
                 id: generateUniqueId(),
@@ -484,7 +546,6 @@ export default function ActualCostsTab({ projectId }) {
                 debt: item.noPhaiTraCK || "0",
                 carryover: item.carryoverEnd || "0",
             }));
-
             await setDoc(
                 doc(
                     db,
@@ -501,7 +562,6 @@ export default function ActualCostsTab({ projectId }) {
                     created_at: new Date().toISOString(),
                 }
             );
-
             setSnackOpen(true);
             alert(`Đã lưu và tạo dữ liệu cho ${nextQuarter} / ${nextYear}`);
         } catch (err) {
@@ -510,7 +570,6 @@ export default function ActualCostsTab({ projectId }) {
             setLoading(false);
         }
     };
-
     const handleAddRow = useCallback(
         () =>
             setCostItems((prev) => [
@@ -519,7 +578,6 @@ export default function ActualCostsTab({ projectId }) {
             ]),
         []
     );
-
     const filtered = useMemo(
         () =>
             costItems.filter(
@@ -558,8 +616,7 @@ export default function ActualCostsTab({ projectId }) {
                 costItems={costItems}
                 sx={{ mb: 2 }}
             />
-
-            <Box x={{ width: "100%", overflowX: "auto" }}>
+            <Box sx={{ width: "100%", overflowX: "auto" }}>
                 <Filters
                     search={search}
                     onSearchChange={(e) => setSearch(e.target.value)}
@@ -582,7 +639,6 @@ export default function ActualCostsTab({ projectId }) {
                     projectTotalAmount={projectTotalAmount}
                     categories={categories}
                 />
-
                 <SummaryPanel
                     overallRevenue={overallRevenue}
                     overallRevenueEditing={overallRevenueEditing}
@@ -594,7 +650,6 @@ export default function ActualCostsTab({ projectId }) {
                     groupedData={groupedData}
                 />
             </Box>
-
             <ColumnSelector
                 columnsAll={columnsAll}
                 columnsVisibility={columnsVisibility}
