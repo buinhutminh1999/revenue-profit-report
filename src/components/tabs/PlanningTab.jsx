@@ -20,7 +20,7 @@ import {
     Divider,
     Chip,
 } from "@mui/material";
-import { DataGrid, GridFooterContainer } from "@mui/x-data-grid";
+import { DataGrid } from "@mui/x-data-grid";
 import {
     collection,
     query,
@@ -29,102 +29,34 @@ import {
     doc,
     updateDoc,
     getDoc,
-    getDocs,
+    deleteDoc,
     writeBatch,
 } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
-import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { NumericFormat } from "react-number-format";
 import {
-    // --- ICON CŨ ---
-    SubdirectoryArrowRight as SubdirectoryArrowRightIcon,
-    Functions as FunctionsIcon,
-    Article as ArticleIcon,
+    ChevronRight as ChevronRightIcon,
+    ExpandMore as ExpandMoreIcon,
+    AddComment as AddCommentIcon,
+    Edit as EditIcon,
+    Delete as DeleteIcon,
+    AccountBalanceWallet as AccountBalanceWalletIcon,
     AttachMoney as AttachMoneyIcon,
-    PlaylistAddCheck as PlaylistAddCheckIcon,
-    Close as CloseIcon,
-    WarningAmber as WarningAmberIcon,
+    Calculate as CalculateIcon,
+    TrendingUp as TrendingUpIcon,
+    InfoOutlined as InfoOutlinedIcon,
     FactCheck as FactCheckIcon,
+    PlaylistAddCheck as PlaylistAddCheckIcon,
+    Cancel as CancelIcon,
+    WarningAmber as WarningAmberIcon,
     CheckCircleOutline as CheckCircleOutlineIcon,
     ErrorOutline as ErrorOutlineIcon,
-    Cancel as CancelIcon,
-    CloudUpload as CloudUploadIcon,
-    // --- ICON MỚI CHO TÍNH NĂNG KẾ HOẠCH ---
-    AccountBalanceWallet as AccountBalanceWalletIcon, // Cho Giá trị hợp đồng
-    TrendingUp as TrendingUpIcon, // Cho Lợi nhuận
-    Edit as EditIcon,
-    Save as SaveIcon,
+    Close as CloseIcon,
 } from "@mui/icons-material";
 
-// --- CÁC COMPONENT TIỆN ÍCH (Giữ nguyên) ---
-const ErrorToast = ({ t, title, errors }) => (
-    <Box
-        sx={{
-            background: "white",
-            color: "text.primary",
-            padding: "16px",
-            borderRadius: "10px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 2,
-            maxWidth: 450,
-        }}
-    >
-        <WarningAmberIcon sx={{ color: "error.main", mt: "4px" }} />
-        <Box sx={{ flex: 1 }}>
-            <Typography variant="body1" fontWeight="700">
-                {title}
-            </Typography>
-            <Stack
-                component="ul"
-                sx={{ pl: 2, my: 1, maxHeight: 150, overflowY: "auto" }}
-            >
-                {errors.map((error, index) => (
-                    <Typography
-                        component="li"
-                        key={index}
-                        variant="body2"
-                        sx={{ mt: 0.5 }}
-                    >
-                        {error}
-                    </Typography>
-                ))}
-            </Stack>
-        </Box>
-        <IconButton size="small" onClick={() => toast.dismiss(t.id)}>
-            <CloseIcon fontSize="small" />
-        </IconButton>
-    </Box>
-);
-const processHierarchicalData = (items) => {
-    if (!items || items.length === 0) return [];
-    const map = new Map(
-        items.map((item) => [item.id, { ...item, children: [] }])
-    );
-    const roots = [];
-    for (const item of map.values()) {
-        if (item.parentId && map.has(item.parentId)) {
-            if (!map.get(item.parentId).children)
-                map.get(item.parentId).children = [];
-            map.get(item.parentId).children.push(item);
-        } else {
-            roots.push(item);
-        }
-    }
-    const flattened = [];
-    const flatten = (itemsToFlatten, level = 0) => {
-        itemsToFlatten.sort((a, b) => (a.order || 0) - (b.order || 0));
-        for (const item of itemsToFlatten) {
-            flattened.push({ ...item, level });
-            if (item.children && item.children.length > 0)
-                flatten(item.children, level + 1);
-        }
-    };
-    flatten(roots);
-    return flattened;
-};
+import AdjustmentModal from "./AdjustmentModal";
+
 const StatCard = ({ title, value, icon, color }) => {
     const theme = useTheme();
     return (
@@ -132,10 +64,9 @@ const StatCard = ({ title, value, icon, color }) => {
             <Card
                 sx={{
                     borderRadius: 4,
-                    overflow: "hidden",
-                    border: `1px solid ${theme.palette.divider}`,
                     boxShadow: "none",
-                    height: "100%", // Đảm bảo các card cao bằng nhau
+                    border: `1px solid ${theme.palette.divider}`,
+                    height: "100%",
                 }}
             >
                 <CardContent
@@ -144,7 +75,6 @@ const StatCard = ({ title, value, icon, color }) => {
                         alignItems: "center",
                         p: 2.5,
                         gap: 2.5,
-                        position: "relative",
                     }}
                 >
                     <Box
@@ -155,12 +85,16 @@ const StatCard = ({ title, value, icon, color }) => {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            color: theme.palette[color]?.dark || theme.palette.text.primary,
+                            color:
+                                theme.palette[color]?.dark ||
+                                theme.palette.text.primary,
                             background: `linear-gradient(135deg, ${alpha(
-                                theme.palette[color]?.light || theme.palette.grey[300],
+                                theme.palette[color]?.light ||
+                                    theme.palette.grey[300],
                                 0.25
                             )} 0%, ${alpha(
-                                theme.palette[color]?.main || theme.palette.grey[500],
+                                theme.palette[color]?.main ||
+                                    theme.palette.grey[500],
                                 0.25
                             )} 100%)`,
                         }}
@@ -174,7 +108,11 @@ const StatCard = ({ title, value, icon, color }) => {
                         <Typography
                             variant="h6"
                             fontWeight={700}
-                            color={color === "error" ? "error.main" : "text.primary"}
+                            color={
+                                color === "error"
+                                    ? "error.main"
+                                    : "text.primary"
+                            }
                         >
                             {value}
                         </Typography>
@@ -184,51 +122,8 @@ const StatCard = ({ title, value, icon, color }) => {
         </Grid>
     );
 };
-function CustomFooter({ total }) {
-    return (
-        <GridFooterContainer
-            sx={{
-                borderTop: "1px solid #e0e0e0",
-                justifyContent: "flex-end",
-                p: 1.5,
-                bgcolor: "action.hover",
-            }}
-        >
-            <Stack direction="row" spacing={2} alignItems="center">
-                <Typography variant="body1" fontWeight={600}>
-                    Tổng cộng:
-                </Typography>
-                <Typography variant="h6" fontWeight={700} color="primary.main">
-                    {total.toLocaleString("vi-VN")} ₫
-                </Typography>
-            </Stack>
-        </GridFooterContainer>
-    );
-}
-function CustomNoRowsOverlay() {
-    return (
-        <Stack
-            height="100%"
-            alignItems="center"
-            justifyContent="center"
-            sx={{ color: "text.secondary", p: 3 }}
-        >
-            <ArticleIcon sx={{ fontSize: 60, mb: 1, opacity: 0.5 }} />
-            <Typography variant="h6">Chưa có hạng mục nào</Typography>
-            <Typography variant="body2">
-                Hãy dán danh sách từ Excel vào ô bên trên để bắt đầu.
-            </Typography>
-        </Stack>
-    );
-}
 
-// --- LOGIC PARSER (Giữ nguyên) ---
-const parseAndValidatePastedData = (
-    pasteData,
-    categoriesMap,
-    existingDescriptions,
-    fieldToCheck
-) => {
+const parseAndValidatePastedData = (pasteData, existingDescriptions) => {
     const pastedLines = pasteData
         .trim()
         .split("\n")
@@ -236,23 +131,13 @@ const parseAndValidatePastedData = (
         .filter(Boolean);
     const itemsToAdd = [];
     const previewRows = [];
-
-    pastedLines.forEach((line, index) => {
+    pastedLines.forEach((line) => {
         const parts = line.split("\t");
         const description = parts[0]?.trim();
         const amountString = (parts.length > 1 ? parts[1] : "0")?.trim();
-
-        if (!description) {
-            return;
-        }
-        
-        const cleanedAmountString = amountString.replace(/[^\d]/g, "");
-        const amount = cleanedAmountString
-            ? parseInt(cleanedAmountString, 10)
-            : 0;
-
+        if (!description) return;
+        const amount = parseInt(amountString.replace(/[^\d]/g, ""), 10) || 0;
         const normalizedDescription = description.toLowerCase();
-
         if (existingDescriptions.has(normalizedDescription)) {
             previewRows.push({
                 description,
@@ -261,42 +146,18 @@ const parseAndValidatePastedData = (
                 reason: "Hạng mục đã tồn tại.",
             });
         } else {
-            const category = categoriesMap.get(normalizedDescription);
-            if (!category) {
-                previewRows.push({
-                    description,
-                    amount,
-                    status: "error",
-                    reason: "Không có trong danh mục.",
-                });
-            } else if (category[fieldToCheck] !== true) {
-                previewRows.push({
-                    description,
-                    amount,
-                    status: "error",
-                    reason: "Không thuộc loại dự án này.",
-                });
-            } else {
-                previewRows.push({
-                    description: category.label,
-                    amount,
-                    status: "valid",
-                    reason: "",
-                });
-                itemsToAdd.push({
-                    description: category.label,
-                    amount: amount,
-                    notes: "",
-                    parentId: null,
-                    syncedFromCategoryId: category.id,
-                });
-            }
+            previewRows.push({
+                description,
+                amount,
+                status: "valid",
+                reason: "",
+            });
+            itemsToAdd.push({ description, amount, order: 0 });
         }
     });
-
     return { itemsToAdd, previewRows };
 };
-// --- COMPONENT PREVIEW (Giữ nguyên) ---
+
 const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
     const theme = useTheme();
     const validCount = previewRows.filter((r) => r.status === "valid").length;
@@ -304,8 +165,7 @@ const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
     const skippedCount = previewRows.filter(
         (r) => r.status === "skipped"
     ).length;
-
-    const getStatusChip = (status, reason) => {
+    const getStatusChip = (status) => {
         if (status === "valid")
             return (
                 <Chip
@@ -414,200 +274,180 @@ const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
     );
 };
 
-// --- MAIN COMPONENT ---
 export default function PlanningTab({ projectId }) {
     const [planningItems, setPlanningItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [contractValue, setContractValue] = useState(0);
+    const [expandedRows, setExpandedRows] = useState(new Set());
+    const [adjustmentsData, setAdjustmentsData] = useState({});
+    const [loadingAdjustments, setLoadingAdjustments] = useState(new Set());
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [currentItemForModal, setCurrentItemForModal] = useState(null);
+    const [adjustmentToEdit, setAdjustmentToEdit] = useState(null);
     const [pasteData, setPasteData] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [previewData, setPreviewData] = useState(null);
-    const theme = useTheme();
 
-    // --- STATE MỚI CHO TÍNH NĂNG KẾ HOẠCH ---
-    const [contractValue, setContractValue] = useState(0);
-    const [isEditingContract, setIsEditingContract] = useState(false);
-    const [tempContractValue, setTempContractValue] = useState(0);
+    const populateInitialPlanningItems = useCallback(async (projectId) => {
+        // Logic to automatically add default items for a new project
+    }, []);
 
-   // --- THAY THẾ TOÀN BỘ useEffect CŨ BẰNG HÀM NÀY ---
-useEffect(() => {
-    if (!projectId) {
-        setLoading(false);
-        return;
-    }
-
-    setLoading(true);
-    let isMounted = true; // Biến cờ để tránh cập nhật state trên component đã unmount
-
-    // Listener cho danh sách hạng mục
-    const itemsQuery = query(
-        collection(db, "projects", projectId, "planningItems"),
-        orderBy("order")
-    );
-
-    const unsubscribeItems = onSnapshot(
-        itemsQuery,
-        (snapshot) => {
-            if (isMounted) {
-                const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-                setPlanningItems(items);
-                setLoading(false); // **QUAN TRỌNG: Luôn set loading false sau khi có dữ liệu**
-            }
-        },
-        (error) => {
-            console.error("Firebase Error: Lỗi khi lắng nghe planningItems:", error);
-            toast.error("Không thể tải danh sách kế hoạch. Vui lòng kiểm tra quyền truy cập.");
-            if (isMounted) {
-                setLoading(false);
-            }
+    useEffect(() => {
+        if (!projectId) {
+            setLoading(false);
+            return;
         }
-    );
+        let isMounted = true;
+        setLoading(true);
 
-    // Fetch thông tin chi tiết của dự án (chỉ 1 lần)
-    const fetchProjectDetails = async () => {
-        try {
-            const projectDocRef = doc(db, "projects", projectId);
-            const projectSnap = await getDoc(projectDocRef);
-            if (projectSnap.exists() && isMounted) {
-                const projectData = projectSnap.data();
-                setContractValue(projectData.contractValue || 0);
-            }
-        } catch (error) {
-            console.error("Firebase Error: Lỗi khi tải chi tiết dự án:", error);
-            toast.error("Không thể tải thông tin dự án.");
-        }
-    };
-
-    fetchProjectDetails();
-
-    // Hàm dọn dẹp
-    return () => {
-        isMounted = false;
-        unsubscribeItems();
-    };
-}, [projectId]);
-
-    const handleProcessRowUpdate = useCallback(async (newRow) => {
-            const { id, ...dataToUpdate } = newRow;
-            const updatePromise = updateDoc(
-                doc(db, "projects", projectId, "planningItems", id),
-                dataToUpdate
-            );
-            toast.promise(updatePromise, {
-                loading: "Đang cập nhật...",
-                success: "Cập nhật thành công!",
-                error: "Cập nhật thất bại!",
-            });
+        const fetchProjectDetails = async () => {
             try {
-                await updatePromise;
-                return newRow;
+                const projectDocRef = doc(db, "projects", projectId);
+                const projectSnap = await getDoc(projectDocRef);
+                if (projectSnap.exists() && isMounted) {
+                    setContractValue(projectSnap.data().contractValue || 0);
+                }
             } catch (error) {
-                console.error(error);
-                return planningItems.find((item) => item.id === id) || newRow;
+                toast.error("Không thể tải thông tin dự án.");
             }
+        };
+        fetchProjectDetails();
+
+        const itemsQuery = query(
+            collection(db, "projects", projectId, "planningItems"),
+            orderBy("order")
+        );
+        const unsubscribe = onSnapshot(
+            itemsQuery,
+            (snapshot) => {
+                if (isMounted) {
+                    const items = snapshot.docs.map((d) => ({
+                        id: d.id,
+                        ...d.data(),
+                    }));
+                    setPlanningItems(items);
+                    setLoading(false);
+                    if (items.length === 0) {
+                        populateInitialPlanningItems(projectId);
+                    }
+                }
+            },
+            () => {
+                if (isMounted) setLoading(false);
+            }
+        );
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
+    }, [projectId, populateInitialPlanningItems]);
+
+    const handleToggleRow = useCallback(
+        (itemId) => {
+            const newExpandedRows = new Set(expandedRows);
+            if (newExpandedRows.has(itemId)) {
+                newExpandedRows.delete(itemId);
+            } else {
+                newExpandedRows.add(itemId);
+                if (!adjustmentsData[itemId]) {
+                    setLoadingAdjustments((prev) => new Set(prev).add(itemId));
+                    const adjQuery = query(
+                        collection(
+                            db,
+                            "projects",
+                            projectId,
+                            "planningItems",
+                            itemId,
+                            "adjustments"
+                        ),
+                        orderBy("createdAt", "desc")
+                    );
+                    onSnapshot(adjQuery, (snapshot) => {
+                        const adjs = snapshot.docs.map((d) => ({
+                            id: d.id,
+                            ...d.data(),
+                        }));
+                        setAdjustmentsData((prev) => ({
+                            ...prev,
+                            [itemId]: adjs,
+                        }));
+                        setLoadingAdjustments((prev) => {
+                            const s = new Set(prev);
+                            s.delete(itemId);
+                            return s;
+                        });
+                    });
+                }
+            }
+            setExpandedRows(newExpandedRows);
         },
-        [projectId, planningItems]
+        [expandedRows, adjustmentsData, projectId]
     );
 
-    // --- HÀM MỚI: LƯU GIÁ TRỊ HỢP ĐỒNG ---
-    const handleSaveContractValue = useCallback(async () => {
-        const numericValue = Number(tempContractValue) || 0;
-        const projectDocRef = doc(db, "projects", projectId);
-        
-        const savePromise = updateDoc(projectDocRef, {
-            contractValue: numericValue,
-        });
-
-        toast.promise(savePromise, {
-            loading: "Đang lưu giá trị hợp đồng...",
-            success: "Lưu thành công!",
-            error: "Lưu thất bại!",
-        });
-
-        try {
-            await savePromise;
-            setContractValue(numericValue);
-            setIsEditingContract(false);
-        } catch (error) {
-            console.error("Error updating contract value:", error);
+    const handleOpenModalForAdd = (item) => {
+        setCurrentItemForModal(item);
+        setAdjustmentToEdit(null);
+        setIsModalOpen(true);
+    };
+    const handleOpenModalForEdit = (parentItem, adjItem) => {
+        setCurrentItemForModal(parentItem);
+        setAdjustmentToEdit(adjItem);
+        setIsModalOpen(true);
+    };
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setCurrentItemForModal(null);
+        setAdjustmentToEdit(null);
+    };
+    const handleDeleteAdjustment = async (parentItemId, adjId) => {
+        if (window.confirm("Bạn có chắc chắn muốn xóa mục phát sinh này?")) {
+            const adjRef = doc(
+                db,
+                "projects",
+                projectId,
+                "planningItems",
+                parentItemId,
+                "adjustments",
+                adjId
+            );
+            try {
+                await deleteDoc(adjRef);
+                toast.success("Đã xóa thành công.");
+            } catch (error) {
+                toast.error("Xóa thất bại.");
+            }
         }
-    }, [projectId, tempContractValue]);
+    };
 
-
-    // --- LUỒNG XỬ LÝ 2 BƯỚC (Giữ nguyên) ---
-    const handleParseAndPreview = useCallback(async () => {
+    const handleParseAndPreview = useCallback(() => {
         if (!pasteData.trim()) {
             toast.error("Vui lòng dán dữ liệu vào ô trống.");
             return;
         }
         setIsProcessing(true);
-        const processingToast = toast.loading("Đang phân tích dữ liệu...");
-
-        try {
-            const projectDocRef = doc(db, "projects", projectId);
-            const categoriesSnapshot = await getDocs(
-                collection(db, "categories")
-            );
-            const projectSnap = await getDoc(projectDocRef);
-
-            if (!projectSnap.exists() || !projectSnap.data().type)
-                throw new Error("Không tìm thấy loại của dự án.");
-
-            const projectType = projectSnap.data().type;
-            const typeToFieldMap = {
-                "Thi công": "isThiCong",
-                "Nhà máy": "isNhaMay",
-                "KH-ĐT": "isKhdt",
-            };
-            const fieldToCheck = typeToFieldMap[projectType];
-            if (!fieldToCheck)
-                throw new Error(
-                    `Loại dự án "${projectType}" không được hỗ trợ.`
-                );
-
-            const categoriesMap = new Map(
-                categoriesSnapshot.docs.map((d) => [
-                    d.data().label.trim().toLowerCase(),
-                    { id: d.id, ...d.data() },
-                ])
-            );
-            const existingDescriptions = new Set(
-                planningItems.map((item) =>
-                    item.description.trim().toLowerCase()
-                )
-            );
-
-            const result = parseAndValidatePastedData(
-                pasteData,
-                categoriesMap,
-                existingDescriptions,
-                fieldToCheck
-            );
-
-            setPreviewData(result);
-            toast.dismiss(processingToast);
-            if (result.previewRows.length === 0) {
-                toast("Không tìm thấy dữ liệu hợp lệ để phân tích.");
-                setPreviewData(null);
-            } else {
-                toast.success("Phân tích hoàn tất. Vui lòng xem lại kết quả.");
-            }
-        } catch (error) {
-            console.error("Error parsing data:", error);
-            toast.error(`Đã xảy ra lỗi: ${error.message}`, {
-                id: processingToast,
-            });
+        const existingDescriptions = new Set(
+            planningItems.map((item) => item.description.trim().toLowerCase())
+        );
+        const result = parseAndValidatePastedData(
+            pasteData,
+            existingDescriptions
+        );
+        setPreviewData(result);
+        setIsProcessing(false);
+        if (result.previewRows.length === 0) {
+            toast("Không tìm thấy dữ liệu hợp lệ để phân tích.");
             setPreviewData(null);
-        } finally {
-            setIsProcessing(false);
+        } else {
+            toast.success("Phân tích hoàn tất. Vui lòng xem lại và xác nhận.");
         }
-    }, [projectId, pasteData, planningItems]);
+    }, [pasteData, planningItems]);
+
     const handleConfirmSave = useCallback(async () => {
         if (!previewData || previewData.itemsToAdd.length === 0) {
             toast.error("Không có mục hợp lệ nào để thêm.");
             return;
         }
         setIsProcessing(true);
-        const { itemsToAdd } = previewData;
         try {
             const batch = writeBatch(db);
             const planningItemsRef = collection(
@@ -616,325 +456,274 @@ useEffect(() => {
                 projectId,
                 "planningItems"
             );
-            let orderIndex = planningItems.length;
-            itemsToAdd.forEach((item) => {
+            let lastOrder =
+                planningItems.length > 0
+                    ? Math.max(...planningItems.map((item) => item.order || 0))
+                    : 0;
+            previewData.itemsToAdd.forEach((item) => {
                 const newItemRef = doc(planningItemsRef);
-                batch.set(newItemRef, { ...item, order: ++orderIndex });
+                batch.set(newItemRef, { ...item, order: ++lastOrder });
             });
             await batch.commit();
-            toast.success(`Đã thêm thành công ${itemsToAdd.length} mục mới.`);
+            toast.success(
+                `Đã thêm thành công ${previewData.itemsToAdd.length} mục mới.`
+            );
             setPasteData("");
             setPreviewData(null);
         } catch (error) {
-            console.error("Error saving items:", error);
             toast.error("Lưu dữ liệu thất bại!");
         } finally {
             setIsProcessing(false);
         }
     }, [projectId, planningItems, previewData]);
+
     const handleCancelPreview = () => {
         setPreviewData(null);
         toast("Đã hủy thao tác.");
     };
 
-    // --- TÍNH TOÁN CÁC CHỈ SỐ ---
-    const { totalAmount, totalItems } = useMemo(
-        () => ({
-            totalAmount: planningItems.reduce(
-                (sum, item) => sum + (Number(item.amount) || 0),
-                0
-            ),
-            totalItems: planningItems.length,
-        }),
-        [planningItems]
-    );
-
-    // --- GIÁ TRỊ PHÁI SINH MỚI ---
-    const estimatedProfit = contractValue - totalAmount;
-
-    const processedRows = useMemo(
-        () => processHierarchicalData(planningItems),
-        [planningItems]
-    );
-
-    const columns = useMemo(
-        () => [
-            {
-                field: "description",
-                headerName: "Diễn Giải",
-                flex: 1,
-                minWidth: 400,
-                renderCell: (params) => (
-                    <Stack
-                        direction="row"
-                        sx={{
-                            pl: `${params.row.level * 2}rem`,
-                            alignItems: "flex-start",
-                        }}
-                    >
-                        {params.row.level > 0 && (
-                            <SubdirectoryArrowRightIcon
-                                sx={{
-                                    fontSize: "1rem",
-                                    mr: 1,
-                                    color: "text.disabled",
-                                    mt: "4px",
-                                }}
-                            />
-                        )}
-                        <Typography
-                            variant="body2"
-                            sx={{ whiteSpace: "normal", lineHeight: 1.5 }}
-                        >
-                            {params.value}
-                        </Typography>
-                    </Stack>
-                ),
-            },
-            {
-                field: "amount",
-                headerName: "Số Tiền",
-                width: 200,
-                type: "number",
-                editable: true,
-                align: "right",
-                headerAlign: "right",
-                renderCell: (params) => (
-                    <Typography
-                        variant="body2"
-                        sx={{ fontFamily: "monospace", fontWeight: 500 }}
-                    >
-                        {Number(params.value || 0).toLocaleString("vi-VN")}
-                    </Typography>
-                ),
-                renderEditCell: (params) => (
-                    <NumericFormat
-                        value={params.value}
-                        customInput={TextField}
-                        variant="standard"
-                        thousandSeparator=","
-                        onValueChange={({ floatValue }) =>
-                            params.api.setEditCellValue({
-                                id: params.id,
-                                field: params.field,
-                                value: floatValue,
-                            })
-                        }
-                        sx={{
-                            "& input": {
-                                textAlign: "right",
-                                fontFamily: "monospace",
-                            },
-                            width: "100%",
-                        }}
-                        autoFocus
-                    />
-                ),
-            },
-            {
-                field: "notes",
-                headerName: "Ghi Chú",
-                flex: 1,
-                editable: true,
-                minWidth: 250,
-            },
-        ],
-        []
-    );
-
-    const pageVariants = {
-        initial: { opacity: 0 },
-        in: {
-            opacity: 1,
-            transition: { staggerChildren: 0.1, delayChildren: 0.2 },
+    const processedRows = useMemo(() => {
+        const flatRows = [];
+        planningItems.forEach((item) => {
+            const itemAdjustments = adjustmentsData[item.id] || [];
+            const totalIncrease = itemAdjustments
+                .filter((a) => a.type === "increase")
+                .reduce((sum, a) => sum + a.amount, 0);
+            const totalDecrease = itemAdjustments
+                .filter((a) => a.type === "decrease")
+                .reduce((sum, a) => sum + a.amount, 0);
+            flatRows.push({
+                ...item,
+                rowType: "parent",
+                increaseAmount: totalIncrease,
+                decreaseAmount: totalDecrease,
+            });
+            if (expandedRows.has(item.id)) {
+                if (itemAdjustments.length > 0) {
+                    itemAdjustments.forEach((adj) =>
+                        flatRows.push({
+                            ...adj,
+                            originalDocId: adj.id,
+                            id: `${item.id}-${adj.id}`,
+                            parentId: item.id,
+                            rowType: "adjustment",
+                        })
+                    );
+                } else {
+                    flatRows.push({
+                        id: `empty-${item.id}`,
+                        parentId: item.id,
+                        rowType: "empty",
+                    });
+                }
+            }
+        });
+        return flatRows;
+    }, [planningItems, adjustmentsData, expandedRows]);
+// *** SỬA LỖI BẰNG CÁCH XÓA useTheme() KHỎI RENDERCELL ***
+    const columns = useMemo(() => [
+        {
+            field: 'description', headerName: 'Diễn Giải', flex: 1, minWidth: 450,
+            renderCell: (params) => {
+                // ĐÃ XÓA DÒNG "const theme = useTheme()" BỊ LỖI Ở ĐÂY
+                switch (params.row.rowType) {
+                    case 'parent':
+                        const isExpanded = expandedRows.has(params.row.id);
+                        const isLoading = loadingAdjustments.has(params.row.id);
+                        const adjustmentsCount = adjustmentsData[params.row.id]?.length || 0;
+                        return (
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                                <IconButton size="small" onClick={() => handleToggleRow(params.row.id)} sx={{ p: 0.5 }}>
+                                    {isLoading ? <CircularProgress size={18} /> : (isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />)}
+                                </IconButton>
+                                <Typography variant="body2" fontWeight={600} color="text.primary">{params.row.description}</Typography>
+                                {adjustmentsCount > 0 && (
+                                     <Chip label={`${adjustmentsCount} chi tiết`} size="small" sx={{ height: '20px', fontSize: '0.75rem' }}/>
+                                )}
+                            </Stack>
+                        );
+                    case 'adjustment':
+                        const isIncrease = params.row.type === 'increase';
+                        return (
+                            <Stack direction="row" alignItems="center" sx={{ pl: 4 }}>
+                                <Typography sx={{ mr: 1, color: isIncrease ? 'success.main' : 'error.main', fontFamily: 'monospace' }}>└─</Typography>
+                                <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
+                                    ({isIncrease ? "Tăng" : "Giảm"}) {params.row.reason}
+                                </Typography>
+                            </Stack>
+                        );
+                    case 'empty':
+                        return (
+                            <Stack direction="row" alignItems="center" sx={{ pl: 5, color: 'text.secondary', fontStyle: 'italic' }}>
+                                <InfoOutlinedIcon fontSize="small" sx={{mr: 1}}/>
+                                Chưa có phát sinh chi tiết
+                            </Stack>
+                        );
+                    default: return null;
+                }
+            }
         },
-        out: { opacity: 0 },
-    };
-    const itemVariants = {
-        initial: { y: 20, opacity: 0 },
-        in: { y: 0, opacity: 1 },
-    };
+        {
+            field: 'amount', headerName: 'Kế hoạch', width: 150, type: 'number', align: 'right', headerAlign: 'right',
+            valueGetter: (v, row) => row.rowType === 'parent' ? row.amount : null,
+            renderCell: (params) => params.value === null ? '' : <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{Number(params.value || 0).toLocaleString('vi-VN')}</Typography>
+        },
+        {
+            field: 'adjustmentAmount', headerName: 'Phát sinh', width: 150, type: 'number', align: 'right', headerAlign: 'right',
+            valueGetter: (v, row) => row.rowType === 'adjustment' ? (row.type === 'increase' ? row.amount : -row.amount) : null,
+            renderCell: (params) => {
+                if (params.value === null) return '';
+                const isIncrease = params.value >= 0;
+                return <Typography variant="body2" sx={{ fontFamily: 'monospace', color: isIncrease ? 'success.dark' : 'error.dark', fontWeight: 500 }}>{`${isIncrease ? '+' : ''}${Number(params.value).toLocaleString('vi-VN')}`}</Typography>;
+            }
+        },
+        {
+            field: 'total', headerName: 'Thành tiền', width: 160, type: 'number', align: 'right', headerAlign: 'right',
+            valueGetter: (v, row) => row.rowType === 'parent' ? (row.amount || 0) + (row.increaseAmount || 0) - (row.decreaseAmount || 0) : null,
+            renderCell: (params) => params.value === null ? '' : <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 700, color: 'primary.main' }}>{Number(params.value).toLocaleString('vi-VN')}</Typography>
+        },
+        {
+            field: 'createdAt', headerName: 'Ngày tạo', width: 160, align: 'right', headerAlign: 'right',
+            renderCell: (params) => {
+                if (params.row.rowType !== 'adjustment' || !params.row.createdAt?.toDate) return '';
+                return <Typography variant="body2" color="text.secondary">{params.row.createdAt.toDate().toLocaleString('vi-VN')}</Typography>
+            }
+        },
+        {
+            field: 'actions', headerName: 'Thao tác', width: 150, align: 'center', headerAlign: 'center',
+            renderCell: (params) => {
+                if (params.row.rowType === 'parent') {
+                    return <Chip icon={<AddCommentIcon />} label="Thêm" variant="outlined" color="primary" size="small" onClick={() => handleOpenModalForAdd(params.row)} sx={{cursor: 'pointer'}}/>;
+                }
+                if (params.row.rowType === 'adjustment') {
+                    const parentItem = planningItems.find(p => p.id === params.row.parentId);
+                    return (
+                        <Stack direction="row" sx={{ '& .MuiIconButton-root': { borderRadius: 2, '&:hover': { bgcolor: (theme) => alpha(theme.palette.action.active, 0.08) } }}}>
+                            <IconButton size="small" color="primary" onClick={() => handleOpenModalForEdit(parentItem, params.row)}><EditIcon fontSize="small" /></IconButton>
+                            <IconButton size="small" color="error" onClick={() => handleDeleteAdjustment(params.row.parentId, params.row.originalDocId)}><DeleteIcon fontSize="small" /></IconButton>
+                        </Stack>
+                    );
+                }
+                return null;
+            }
+        }
+    ], [expandedRows, loadingAdjustments, planningItems, adjustmentsData, handleToggleRow]);
+    const { totalPlannedAmount, totalFinalAmount } = useMemo(() => {
+        let totalPlanned = 0,
+            totalFinal = 0;
+        planningItems.forEach((item) => {
+            const itemAdjustments = adjustmentsData[item.id] || [];
+            const totalIncrease = itemAdjustments
+                .filter((a) => a.type === "increase")
+                .reduce((sum, a) => sum + a.amount, 0);
+            const totalDecrease = itemAdjustments
+                .filter((a) => a.type === "decrease")
+                .reduce((sum, a) => sum + a.amount, 0);
+            totalPlanned += Number(item.amount) || 0;
+            totalFinal +=
+                (Number(item.amount) || 0) + totalIncrease - totalDecrease;
+        });
+        return {
+            totalPlannedAmount: totalPlanned,
+            totalFinalAmount: totalFinal,
+        };
+    }, [planningItems, adjustmentsData]);
+
+    const estimatedProfit = contractValue - totalFinalAmount;
 
     return (
-        <Box
-            component={motion.div}
-            variants={pageVariants}
-            initial="initial"
-            animate="in"
-            exit="out"
-            sx={{ p: { xs: 1, sm: 2 } }}
-        >
+        <Box sx={{ p: { xs: 1, sm: 2 } }}>
             <Stack spacing={3}>
-                {/* --- CẬP NHẬT KHU VỰC THỐNG KÊ --- */}
-                <Grid
-                    container
-                    spacing={2.5}
-                    component={motion.div}
-                    variants={itemVariants}
-                >
-                    {/* CARD 1: GIÁ TRỊ HỢP ĐỒNG (CÓ CHỈNH SỬA) */}
-                    <Grid item xs={12} sm={6} md={3}>
-                        <Card
-                            sx={{
-                                borderRadius: 4,
-                                border: `1px solid ${theme.palette.divider}`,
-                                boxShadow: "none",
-                                height: "100%",
-                                display: 'flex', 
-                                flexDirection: 'column'
-                            }}
-                        >
-                            <CardContent
-                                sx={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    p: 2.5,
-                                    gap: 2.5,
-                                    position: "relative",
-                                    flexGrow: 1
-                                }}
-                            >
-                                <Box
-                                    sx={{
-                                        width: 52,
-                                        height: 52,
-                                        borderRadius: "50%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        color: theme.palette.warning.dark,
-                                        background: `linear-gradient(135deg, ${alpha(
-                                            theme.palette.warning.light,
-                                            0.25
-                                        )} 0%, ${alpha(
-                                            theme.palette.warning.main,
-                                            0.25
-                                        )} 100%)`,
-                                    }}
-                                >
-                                    <AccountBalanceWalletIcon />
-                                </Box>
-                                <Box sx={{ flex: 1 }}>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Giá trị Hợp đồng
-                                    </Typography>
-                                    {!isEditingContract ? (
-                                        <Typography variant="h6" fontWeight={700}>
-                                            {contractValue.toLocaleString("vi-VN")} ₫
-                                        </Typography>
-                                    ) : (
-                                        <NumericFormat
-                                            value={tempContractValue}
-                                            customInput={TextField}
-                                            variant="standard"
-                                            thousandSeparator=","
-                                            onValueChange={({floatValue}) => setTempContractValue(floatValue)}
-                                            fullWidth
-                                            autoFocus
-                                            sx={{ 
-                                                "& .MuiInput-input": {
-                                                     fontWeight: 700,
-                                                     fontSize: '1.25rem' 
-                                                },
-                                                mt: '4px'
-                                            }}
-                                        />
-                                    )}
-                                </Box>
-                                {!isEditingContract ? (
-                                    <IconButton
-                                        size="small"
-                                        onClick={() => {
-                                            setTempContractValue(contractValue);
-                                            setIsEditingContract(true);
-                                        }}
-                                        sx={{ position: "absolute", top: 8, right: 8 }}
-                                    >
-                                        <EditIcon fontSize="small" />
-                                    </IconButton>
-                                ) : (
-                                  <Stack direction="row" spacing={0.5} sx={{ position: "absolute", top: 8, right: 8 }}>
-                                    <IconButton size="small" onClick={handleSaveContractValue} color="primary">
-                                      <SaveIcon fontSize="small" />
-                                    </IconButton>
-                                     <IconButton size="small" onClick={() => setIsEditingContract(false)}>
-                                      <CloseIcon fontSize="small" />
-                                    </IconButton>
-                                  </Stack>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </Grid>
-
-                    {/* CARD 2: TỔNG TIỀN KẾ HOẠCH */}
+                <Grid container spacing={2.5}>
+                    <StatCard
+                        title="Giá trị Hợp đồng"
+                        value={
+                            <NumericFormat
+                                value={contractValue}
+                                displayType={"text"}
+                                thousandSeparator="."
+                                decimalSeparator=","
+                                suffix=" ₫"
+                            />
+                        }
+                        icon={<AccountBalanceWalletIcon />}
+                        color="warning"
+                    />
                     <StatCard
                         title="Tổng tiền Kế hoạch"
-                        value={`${totalAmount.toLocaleString("vi-VN")} ₫`}
+                        value={
+                            <NumericFormat
+                                value={totalPlannedAmount}
+                                displayType={"text"}
+                                thousandSeparator="."
+                                decimalSeparator=","
+                                suffix=" ₫"
+                            />
+                        }
                         icon={<AttachMoneyIcon />}
                         color="primary"
                     />
-
-                    {/* CARD 3: LỢI NHUẬN DỰ KIẾN */}
+                    <StatCard
+                        title="Tổng Thành tiền"
+                        value={
+                            <NumericFormat
+                                value={totalFinalAmount}
+                                displayType={"text"}
+                                thousandSeparator="."
+                                decimalSeparator=","
+                                suffix=" ₫"
+                            />
+                        }
+                        icon={<CalculateIcon />}
+                        color="info"
+                    />
                     <StatCard
                         title="Lợi nhuận dự kiến"
-                        value={`${estimatedProfit.toLocaleString("vi-VN")} ₫`}
+                        value={
+                            <NumericFormat
+                                value={estimatedProfit}
+                                displayType={"text"}
+                                thousandSeparator="."
+                                decimalSeparator=","
+                                suffix=" ₫"
+                            />
+                        }
                         icon={<TrendingUpIcon />}
                         color={estimatedProfit >= 0 ? "success" : "error"}
-                    />
-
-                    {/* CARD 4: SỐ HẠNG MỤC */}
-                    <StatCard
-                        title="Số Hạng mục"
-                        value={totalItems}
-                        icon={<FunctionsIcon />}
-                        color="secondary"
                     />
                 </Grid>
 
                 <Paper
-                    component={motion.div}
-                    variants={itemVariants}
                     sx={{
                         p: 2.5,
                         borderRadius: 4,
-                        position: "relative",
-                        overflow: "hidden",
-                        border: `1px solid ${theme.palette.divider}`,
-                        boxShadow: "none",
+                        border: (theme) => `1px solid ${theme.palette.divider}`,
                     }}
                 >
                     {!previewData ? (
                         <>
                             <Typography
-                                variant="h5"
+                                variant="h6"
                                 fontWeight={700}
                                 gutterBottom
                             >
-                                Thêm Hạng mục
+                                Thêm nhanh Hạng mục từ Excel
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                                 Sao chép 2 cột (Diễn giải, Số tiền) từ Excel và
-                                dán vào ô bên dưới.
+                                dán vào ô bên dưới để thêm các hạng mục kế hoạch
+                                chính.
                             </Typography>
                             <TextField
                                 fullWidth
                                 multiline
-                                rows={5}
+                                rows={4}
                                 variant="outlined"
-                                placeholder={`VD:
-Chi phí vật tư\t1500000
-Chi phí nhân công\t2500000
-Chi phí vận chuyển\t500000`}
+                                placeholder={`VD:\nChi phí vật tư A\t1500000\nChi phí nhân công B\t2500000`}
                                 value={pasteData}
                                 onChange={(e) => setPasteData(e.target.value)}
                                 disabled={isProcessing}
-                                sx={{
-                                    my: 2,
-                                    "& .MuiOutlinedInput-root": {
-                                        backgroundColor:
-                                            theme.palette.background.paper,
-                                    },
-                                }}
+                                sx={{ my: 2 }}
                             />
                             <Button
                                 fullWidth
@@ -955,7 +744,7 @@ Chi phí vận chuyển\t500000`}
                             >
                                 {isProcessing
                                     ? "Đang phân tích..."
-                                    : "Kiểm tra dữ liệu"}
+                                    : "Kiểm tra & Xem trước"}
                             </Button>
                         </>
                     ) : (
@@ -968,63 +757,64 @@ Chi phí vận chuyển\t500000`}
                     )}
                 </Paper>
 
-                <Box component={motion.div} variants={itemVariants}>
+                <Box>
                     <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>
-                        Danh sách Kế hoạch
+                        Danh sách Kế hoạch & Chi tiết Phát sinh
                     </Typography>
                     <Paper
                         sx={{
-                            height: "65vh",
+                            height: "70vh",
                             minHeight: 500,
                             width: "100%",
                             borderRadius: 4,
                             overflow: "hidden",
-                            border: `1px solid ${theme.palette.divider}`,
-                            boxShadow: "none",
                         }}
                     >
-                        <DataGrid
+                       <DataGrid
                             rows={processedRows}
                             columns={columns}
                             loading={loading}
                             getRowId={(row) => row.id}
-                            density="comfortable"
-                            getRowHeight={() => "auto"}
-                            processRowUpdate={handleProcessRowUpdate}
-                            onProcessRowUpdateError={(err) => {
-                                console.error(err);
-                                toast.error("Lỗi cập nhật hàng.");
-                            }}
-                            slots={{
-                                footer: CustomFooter,
-                                noRowsOverlay: CustomNoRowsOverlay,
-                            }}
-                            slotProps={{ footer: { total: totalAmount } }}
+                            isCellEditable={() => false}
+                            getRowHeight={() => 'auto'}
+                            hideFooterSelectedRowCount
+                            disableColumnMenu
+                            // TỐI ƯU: Bỏ đường kẻ dọc, chỉ giữ đường kẻ ngang
+                            showCellVerticalBorder={false}
+                            getRowClassName={(params) => params.row.rowType === 'parent' ? `MuiDataGrid-row--parent` : ''}
                             sx={{
-                                border: "none",
-                                "& .MuiDataGrid-columnHeaders": {
-                                    bgcolor: alpha(
-                                        theme.palette.grey[500],
-                                        0.08
-                                    ),
-                                    borderBottom: `1px solid ${theme.palette.divider}`,
+                                border: 'none',
+                                // TỐI ƯU: Thay đổi màu sắc header và hàng cha
+                                '& .MuiDataGrid-columnHeaders': {
+                                    bgcolor: (theme) => theme.palette.grey[100],
+                                    borderBottom: (theme) => `1px solid ${theme.palette.divider}`
                                 },
-                                "& .MuiDataGrid-cell": {
-                                    py: 1,
-                                    borderBottom: `1px solid ${theme.palette.divider}`,
+                                '& .MuiDataGrid-row--parent': {
+                                    fontWeight: 'bold',
+                                    bgcolor: (theme) => alpha(theme.palette.action.hover, 0.04), // Màu xám rất nhạt
+                                    '&:hover': { bgcolor: (theme) => alpha(theme.palette.primary.light, 0.1) }
                                 },
-                                "& .MuiDataGrid-row:nth-of-type(even)": {
-                                    bgcolor: "action.hover",
+                                '& .MuiDataGrid-cell': {
+                                    py: 1.5, // Tăng khoảng cách cho dễ đọc
                                 },
-                                "& .MuiDataGrid-row:last-child > .MuiDataGrid-cell":
-                                    { borderBottom: "none" },
-                                "& .MuiDataGrid-cell:focus-within, & .MuiDataGrid-cell:focus":
-                                    { outline: "none !important" },
+                                '& .MuiDataGrid-cell:focus-within, & .MuiDataGrid-cell:focus': {
+                                    outline: 'none !important'
+                                }
                             }}
                         />
                     </Paper>
                 </Box>
             </Stack>
+            {currentItemForModal && (
+                <AdjustmentModal
+                    open={isModalOpen}
+                    onClose={handleCloseModal}
+                    projectId={projectId}
+                    planningItem={currentItemForModal}
+                    adjustmentToEdit={adjustmentToEdit}
+                    onSaveSuccess={handleCloseModal}
+                />
+            )}
         </Box>
     );
 }

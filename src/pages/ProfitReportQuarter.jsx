@@ -917,7 +917,7 @@ export default function ProfitReportQuarter() {
                         "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
                         "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
                         "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
-    `DOANH THU BLX ${selectedQuarter} N${selectedYear} - D21`.toUpperCase(), 
+                        `DOANH THU BLX ${selectedQuarter} N${selectedYear} - D21`.toUpperCase(),
                     ];
 
                     // Nếu tên dòng nằm trong danh sách luôn hiển thị, giữ lại nó
@@ -1097,7 +1097,7 @@ export default function ProfitReportQuarter() {
                     costOverQuarter: null,
                 },
                 {
-                name: `DOANH THU BLX ${selectedQuarter} N${selectedYear} - D21`, // <--- Đã sửa thành động
+                    name: `DOANH THU BLX ${selectedQuarter} N${selectedYear} - D21`, // <--- Đã sửa thành động
                     revenue: 0,
                     cost: 0,
                     profit: 0,
