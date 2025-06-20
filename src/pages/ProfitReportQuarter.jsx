@@ -900,17 +900,34 @@ export default function ProfitReportQuarter() {
                 // ——————————————————————————————————————————————————————————
                 // 5. Lọc (loại bỏ) tất cả các dòng con có revenue === 0 && cost === 0 && profit === 0
 
+                // ——————————————————————————————————————————————————————————
+                // 5. Lọc (loại bỏ) các dòng con không có dữ liệu, nhưng giữ lại các dòng chỉ định
+
                 updatedRows = updatedRows.filter((r) => {
                     const rev = toNum(r.revenue);
                     const cost = toNum(r.cost);
                     const profit = toNum(r.profit);
-                    // Nếu cả 3 đều là 0:
+                    const nameUpper = (r.name || "").trim().toUpperCase();
+
+                    // ✅ DANH SÁCH CÁC HÀNG LUÔN HIỂN THỊ (THEO YÊU CẦU CỦA BẠN)
+                    const alwaysShowRows = [
+                        "LỢI NHUẬN LIÊN DOANH (LDX)",
+                        "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
+                        "GIẢM LN LDX",
+                        "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
+                        "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
+                        "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
+    `DOANH THU BLX ${selectedQuarter} N${selectedYear} - D21`.toUpperCase(), 
+                    ];
+
+                    // Nếu tên dòng nằm trong danh sách luôn hiển thị, giữ lại nó
+                    if (alwaysShowRows.includes(nameUpper)) {
+                        return true;
+                    }
+
+                    // Nếu cả 3 giá trị đều là 0:
                     if (rev === 0 && cost === 0 && profit === 0) {
-                        // nhưng phải giữ lại các dòng nhóm hoặc tổng (tức tên bắt đầu bằng I., II., III., "TỔNG", "I.1.", "I.2.", "II.1.", v.v.)
-                        const nameUpper = (r.name || "").trim().toUpperCase();
-                        // Giữ lại nếu:
-                        // 1) Bắt đầu bằng chữ La Mã + dấu chấm (ví dụ "I. ", "II. ", "III. "…)
-                        // 2) Là các dòng tổng/góc nhóm (ví dụ "I.1. DÂN DỤNG + GIAO THÔNG", "I.2. KÈ", "II.1. SẢN XUẤT", "TỔNG", v.v.)
+                        // Giữ lại nếu là các dòng tổng hợp hoặc nhóm chính
                         if (
                             /^[IVX]+\./.test(nameUpper) ||
                             [
@@ -924,29 +941,30 @@ export default function ProfitReportQuarter() {
                                 "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)",
                                 "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY",
                                 "III. ĐẦU TƯ",
-                                "IV. LỢI NHUẬN " +
-                                    selectedQuarter +
-                                    "." +
-                                    selectedYear,
+                                `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase(),
                                 "V. GIẢM LỢI NHUẬN",
                                 "VI. THU NHẬP KHÁC",
-                                `VII. KHTSCĐ NĂM ${selectedYear}`,
+                                `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase(),
                                 "VIII. GIẢM LÃI ĐT DỰ ÁN",
                                 "TỔNG",
                                 "CP VƯỢT DỰ KẾ",
                                 "+VƯỢT CP BPXD",
                                 "+VƯỢT CP BPSX",
                                 "+VƯỢT CP BPĐT",
+                                `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase(),
                             ].includes(nameUpper)
                         ) {
                             return true;
                         }
-                        // Ngược lại (là dòng con không thuộc nhóm nào, và 3 giá trị đều 0) → loại bỏ
+                        // Nếu không, loại bỏ dòng này
                         return false;
                     }
-                    // Nếu không phải trường hợp tất cả đều 0, giữ lại
+
+                    // Nếu có ít nhất một giá trị khác 0, giữ lại
                     return true;
                 });
+
+                // ——————————————————————————————————————————————————————————
 
                 // ——————————————————————————————————————————————————————————
                 updatedRows = updateVuotCPRows(updatedRows); // <<< THÊM DÒNG NÀY
@@ -1079,7 +1097,7 @@ export default function ProfitReportQuarter() {
                     costOverQuarter: null,
                 },
                 {
-                    name: "DOANH THU BLX Q3 N2024 - D21",
+                name: `DOANH THU BLX ${selectedQuarter} N${selectedYear} - D21`, // <--- Đã sửa thành động
                     revenue: 0,
                     cost: 0,
                     profit: 0,
@@ -1580,324 +1598,323 @@ export default function ProfitReportQuarter() {
             !(rows[idx].name || "").match(/^[IVX]+\./)
         );
     };
-// Bên trong component ProfitReportQuarter, HÃY THAY THẾ TOÀN BỘ HÀM handleCellChange BẰNG ĐOẠN MÃ DƯỚI ĐÂY:
+    // Bên trong component ProfitReportQuarter, HÃY THAY THẾ TOÀN BỘ HÀM handleCellChange BẰNG ĐOẠN MÃ DƯỚI ĐÂY:
 
-const handleCellChange = (e, idx, field) => {
-    const rawValue = e.target.value;
-    let newValue;
-    if (["note", "suggest"].includes(field)) {
-        newValue = rawValue;
-    } else {
-        newValue = toNum(rawValue);
-    }
+    const handleCellChange = (e, idx, field) => {
+        const rawValue = e.target.value;
+        let newValue;
+        if (["note", "suggest"].includes(field)) {
+            newValue = rawValue;
+        } else {
+            newValue = toNum(rawValue);
+        }
 
-    if (
-        ["revenue", "cost"].includes(field) &&
-        typeof newValue === "number" &&
-        newValue < 0
-    ) {
-        return;
-    }
+        if (
+            ["revenue", "cost"].includes(field) &&
+            typeof newValue === "number" &&
+            newValue < 0
+        ) {
+            return;
+        }
 
-    let newRows = [...rows];
-    newRows[idx][field] = newValue;
+        let newRows = [...rows];
+        newRows[idx][field] = newValue;
 
-    const name = (newRows[idx].name || "").trim().toUpperCase();
+        const name = (newRows[idx].name || "").trim().toUpperCase();
 
-    // ✅ SỬA LỖI: TÁCH MẢNG TÊN HÀNG RA BIẾN RIÊNG
-    const autoProfitRowNames = [
-        "LỢI NHUẬN LIÊN DOANH (LDX)",
-        "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
-        "GIẢM LN LDX",
-        "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
-        "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
-        "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
-    ];
+        // ✅ SỬA LỖI: TÁCH MẢNG TÊN HÀNG RA BIẾN RIÊNG
+        const autoProfitRowNames = [
+            "LỢI NHUẬN LIÊN DOANH (LDX)",
+            "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
+            "GIẢM LN LDX",
+            "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
+            "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
+            "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
+        ];
 
-    // Sử dụng mảng tên hàng để kiểm tra
-    const isAutoProfitRow = autoProfitRowNames.includes(name);
+        // Sử dụng mảng tên hàng để kiểm tra
+        const isAutoProfitRow = autoProfitRowNames.includes(name);
 
-    // Các dòng cho phép nhập tay lợi nhuận và tính % chỉ tiêu
-    // ✅ SỬA LỖI: Dùng lại biến mảng 'autoProfitRowNames' với spread syntax (...)
-    const isCalcPercentTarget = [
-        ...autoProfitRowNames,
-        "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY",
-    ].includes(name);
+        // Các dòng cho phép nhập tay lợi nhuận và tính % chỉ tiêu
+        // ✅ SỬA LỖI: Dùng lại biến mảng 'autoProfitRowNames' với spread syntax (...)
+        const isCalcPercentTarget = [
+            ...autoProfitRowNames,
+            "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY",
+        ].includes(name);
 
+        // Khi nhập target cho các dòng đặc biệt, cập nhật % chỉ tiêu LN quý
+        if (field === "target" && isCalcPercentTarget) {
+            const profit = toNum(newRows[idx].profit);
+            const target = toNum(newRows[idx].target);
+            newRows[idx].percent =
+                target !== 0 ? (profit / target) * 100 : null;
+        }
 
-    // Khi nhập target cho các dòng đặc biệt, cập nhật % chỉ tiêu LN quý
-    if (field === "target" && isCalcPercentTarget) {
-        const profit = toNum(newRows[idx].profit);
-        const target = toNum(newRows[idx].target);
-        newRows[idx].percent =
-            target !== 0 ? (profit / target) * 100 : null;
-    }
+        // Áp dụng công thức lợi nhuận cho các hàng trong danh sách
+        if (["revenue", "cost"].includes(field) && isAutoProfitRow) {
+            const rev = toNum(newRows[idx].revenue);
+            const cost = toNum(newRows[idx].cost);
+            const profit = rev - cost;
+            const target = toNum(newRows[idx].target);
+            const percent = target !== 0 ? (profit / target) * 100 : null;
 
-    // Áp dụng công thức lợi nhuận cho các hàng trong danh sách
-    if (["revenue", "cost"].includes(field) && isAutoProfitRow) {
-        const rev = toNum(newRows[idx].revenue);
-        const cost = toNum(newRows[idx].cost);
-        const profit = rev - cost;
-        const target = toNum(newRows[idx].target);
-        const percent = target !== 0 ? (profit / target) * 100 : null;
+            newRows[idx].profit = profit;
+            // Gán lại percent để cập nhật % chỉ tiêu LN KH
+            newRows[idx].percent = percent;
+        }
 
-        newRows[idx].profit = profit;
-        // Gán lại percent để cập nhật % chỉ tiêu LN KH
-        newRows[idx].percent = percent;
-    }
+        // Trường hợp còn lại: tự động tính profit và %LN quý như bình thường
+        if (
+            ["revenue", "cost"].includes(field) &&
+            !isAutoProfitRow &&
+            !isCalcPercentTarget &&
+            name !== "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY" &&
+            name !== "III. ĐẦU TƯ"
+        ) {
+            const rev = toNum(newRows[idx].revenue);
+            const cost = toNum(newRows[idx].cost);
+            const profit = rev - cost;
+            const percent = rev !== 0 ? (profit / rev) * 100 : null;
+            newRows[idx].profit = profit;
+            newRows[idx].percent = percent;
+        }
 
-    // Trường hợp còn lại: tự động tính profit và %LN quý như bình thường
-    if (
-        ["revenue", "cost"].includes(field) &&
-        !isAutoProfitRow &&
-        !isCalcPercentTarget &&
-        name !== "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY" &&
-        name !== "III. ĐẦU TƯ"
-    ) {
-        const rev = toNum(newRows[idx].revenue);
-        const cost = toNum(newRows[idx].cost);
-        const profit = rev - cost;
-        const percent = rev !== 0 ? (profit / rev) * 100 : null;
-        newRows[idx].profit = profit;
-        newRows[idx].percent = percent;
-    }
+        // --- TÍNH LẠI CÁC DÒNG GROUP TỔNG HỢP VÀ LỢI NHUẬN FINAL ---
+        let updatedRows = updateLDXRow(newRows);
+        updatedRows = updateDTLNLDXRow(updatedRows);
+        updatedRows = updateSalanRow(updatedRows);
+        updatedRows = updateThuNhapKhacRow(updatedRows);
+        updatedRows = updateDauTuRow(updatedRows);
+        updatedRows = updateGroupI3(updatedRows);
 
-    // --- TÍNH LẠI CÁC DÒNG GROUP TỔNG HỢP VÀ LỢI NHUẬN FINAL ---
-    let updatedRows = updateLDXRow(newRows);
-    updatedRows = updateDTLNLDXRow(updatedRows);
-    updatedRows = updateSalanRow(updatedRows);
-    updatedRows = updateThuNhapKhacRow(updatedRows);
-    updatedRows = updateDauTuRow(updatedRows);
-    updatedRows = updateGroupI3(updatedRows);
+        // === TÍNH LẠI DÒNG II. SẢN XUẤT ===
+        const idxII = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
+        );
+        const idxII1 = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
+        );
+        const idxII2 = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "II.2. DT + LN ĐƯỢC CHIA TỪ LDX"
+        );
+        const idxII3 = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)"
+        );
 
-    // === TÍNH LẠI DÒNG II. SẢN XUẤT ===
-    const idxII = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
-    );
-    const idxII1 = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
-    );
-    const idxII2 = updatedRows.findIndex(
-        (r) =>
-            (r.name || "").trim().toUpperCase() ===
-            "II.2. DT + LN ĐƯỢC CHIA TỪ LDX"
-    );
-    const idxII3 = updatedRows.findIndex(
-        (r) =>
-            (r.name || "").trim().toUpperCase() ===
-            "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)"
-    );
+        if (idxII !== -1 && idxII1 !== -1 && idxII2 !== -1 && idxII3 !== -1) {
+            const revenue =
+                toNum(updatedRows[idxII1].revenue) +
+                toNum(updatedRows[idxII2].revenue) +
+                toNum(updatedRows[idxII3].revenue);
+            const cost =
+                toNum(updatedRows[idxII1].cost) +
+                toNum(updatedRows[idxII2].cost) +
+                toNum(updatedRows[idxII3].cost);
+            const profit =
+                toNum(updatedRows[idxII1].profit) +
+                toNum(updatedRows[idxII2].profit) +
+                toNum(updatedRows[idxII3].profit);
+            const percent = revenue ? (profit / revenue) * 100 : null;
 
-    if (idxII !== -1 && idxII1 !== -1 && idxII2 !== -1 && idxII3 !== -1) {
-        const revenue =
-            toNum(updatedRows[idxII1].revenue) +
-            toNum(updatedRows[idxII2].revenue) +
-            toNum(updatedRows[idxII3].revenue);
-        const cost =
-            toNum(updatedRows[idxII1].cost) +
-            toNum(updatedRows[idxII2].cost) +
-            toNum(updatedRows[idxII3].cost);
-        const profit =
-            toNum(updatedRows[idxII1].profit) +
-            toNum(updatedRows[idxII2].profit) +
-            toNum(updatedRows[idxII3].profit);
-        const percent = revenue ? (profit / revenue) * 100 : null;
+            updatedRows[idxII] = {
+                ...updatedRows[idxII],
+                revenue: null,
+                cost: null,
+                profit: profit === 0 ? null : profit,
+                percent,
+            };
+        }
+        if (field === "target" && idxII !== -1) {
+            const target = toNum(updatedRows[idxII].target);
+            const profit = toNum(updatedRows[idxII].profit);
+            updatedRows[idxII].percent =
+                target !== 0 ? (profit / target) * 100 : null;
+        }
 
-        updatedRows[idxII] = {
-            ...updatedRows[idxII],
-            revenue: null,
-            cost: null,
-            profit: profit === 0 ? null : profit,
-            percent,
-        };
-    }
-    if (field === "target" && idxII !== -1) {
-        const target = toNum(updatedRows[idxII].target);
-        const profit = toNum(updatedRows[idxII].profit);
-        updatedRows[idxII].percent =
-            target !== 0 ? (profit / target) * 100 : null;
-    }
+        // === TÍNH LẠI DÒNG "I. XÂY DỰNG" ===
+        const idxI = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+        );
+        const idxI1 = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "I.1. DÂN DỤNG + GIAO THÔNG"
+        );
+        const idxI2 = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
+        );
+        if (idxI2 !== -1) {
+            updatedRows[idxI2] = {
+                ...updatedRows[idxI2],
+                percent: null, // Luôn là null để hiển thị dấu –
+            };
+        }
+        if (idxI !== -1 && idxI1 !== -1 && idxI2 !== -1) {
+            const rev =
+                toNum(updatedRows[idxI1].revenue) +
+                toNum(updatedRows[idxI2].revenue);
+            const cost =
+                toNum(updatedRows[idxI1].cost) + toNum(updatedRows[idxI2].cost);
+            const profit = rev - cost;
+            updatedRows[idxI].revenue = rev;
+            updatedRows[idxI].cost = cost;
+            updatedRows[idxI].profit = profit;
+            const target = toNum(updatedRows[idxI].target);
+            updatedRows[idxI].percent =
+                target !== 0 ? (profit / target) * 100 : null;
+        }
 
-    // === TÍNH LẠI DÒNG "I. XÂY DỰNG" ===
-    const idxI = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
-    );
-    const idxI1 = updatedRows.findIndex(
-        (r) =>
-            (r.name || "").trim().toUpperCase() ===
-            "I.1. DÂN DỤNG + GIAO THÔNG"
-    );
-    const idxI2 = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
-    );
-    if (idxI2 !== -1) {
-        updatedRows[idxI2] = {
-            ...updatedRows[idxI2],
-            percent: null, // Luôn là null để hiển thị dấu –
-        };
-    }
-    if (idxI !== -1 && idxI1 !== -1 && idxI2 !== -1) {
-        const rev =
-            toNum(updatedRows[idxI1].revenue) +
-            toNum(updatedRows[idxI2].revenue);
-        const cost =
-            toNum(updatedRows[idxI1].cost) + toNum(updatedRows[idxI2].cost);
-        const profit = rev - cost;
-        updatedRows[idxI].revenue = rev;
-        updatedRows[idxI].cost = cost;
-        updatedRows[idxI].profit = profit;
-        const target = toNum(updatedRows[idxI].target);
-        updatedRows[idxI].percent =
-            target !== 0 ? (profit / target) * 100 : null;
-    }
+        // === TÍNH LẠI DÒNG TỔNG, IV, FINAL LN ===
+        const idxTotal = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
+        );
+        const idxIXD = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+        );
+        const idxI2KE = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
+        );
+        const idxI3CDT = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "I.3. CÔNG TRÌNH CÔNG TY CĐT"
+        );
+        const idxIISX = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
+        );
+        const idxIIIDT = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "III. ĐẦU TƯ"
+        );
 
-    // === TÍNH LẠI DÒNG TỔNG, IV, FINAL LN ===
-    const idxTotal = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
-    );
-    const idxIXD = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
-    );
-    const idxI2KE = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
-    );
-    const idxI3CDT = updatedRows.findIndex(
-        (r) =>
-            (r.name || "").trim().toUpperCase() ===
-            "I.3. CÔNG TRÌNH CÔNG TY CĐT"
-    );
-    const idxIISX = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
-    );
-    const idxIIIDT = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "III. ĐẦU TƯ"
-    );
+        if (
+            idxTotal !== -1 &&
+            idxIXD !== -1 &&
+            idxI2KE !== -1 &&
+            idxI3CDT !== -1 &&
+            idxIISX !== -1 &&
+            idxIIIDT !== -1
+        ) {
+            const doanhThu =
+                toNum(updatedRows[idxIXD]?.revenue) +
+                toNum(updatedRows[idxI2KE]?.revenue) +
+                toNum(updatedRows[idxI3CDT]?.revenue) +
+                toNum(updatedRows[idxIISX]?.revenue) +
+                toNum(updatedRows[idxIIIDT]?.revenue);
 
-    if (
-        idxTotal !== -1 &&
-        idxIXD !== -1 &&
-        idxI2KE !== -1 &&
-        idxI3CDT !== -1 &&
-        idxIISX !== -1 &&
-        idxIIIDT !== -1
-    ) {
-        const doanhThu =
-            toNum(updatedRows[idxIXD]?.revenue) +
-            toNum(updatedRows[idxI2KE]?.revenue) +
-            toNum(updatedRows[idxI3CDT]?.revenue) +
-            toNum(updatedRows[idxIISX]?.revenue) +
-            toNum(updatedRows[idxIIIDT]?.revenue);
+            const chiPhi =
+                toNum(updatedRows[idxIXD]?.cost) +
+                toNum(updatedRows[idxI2KE]?.cost) +
+                toNum(updatedRows[idxI3CDT]?.cost) +
+                toNum(updatedRows[idxIISX]?.cost) +
+                toNum(updatedRows[idxIIIDT]?.cost);
 
-        const chiPhi =
-            toNum(updatedRows[idxIXD]?.cost) +
-            toNum(updatedRows[idxI2KE]?.cost) +
-            toNum(updatedRows[idxI3CDT]?.cost) +
-            toNum(updatedRows[idxIISX]?.cost) +
-            toNum(updatedRows[idxIIIDT]?.cost);
+            const idxThuNhapKhac = updatedRows.findIndex(
+                (r) =>
+                    (r.name || "").trim().toUpperCase() ===
+                    "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY"
+            );
 
-        const idxThuNhapKhac = updatedRows.findIndex(
+            let loiNhuan = doanhThu - chiPhi;
+            if (
+                idxIXD !== -1 &&
+                idxIISX !== -1 &&
+                idxIIIDT !== -1 &&
+                idxThuNhapKhac !== -1
+            ) {
+                loiNhuan =
+                    toNum(updatedRows[idxIXD]?.profit) +
+                    toNum(updatedRows[idxIISX]?.profit) +
+                    toNum(updatedRows[idxIIIDT]?.profit) +
+                    toNum(updatedRows[idxThuNhapKhac]?.profit);
+            }
+
+            updatedRows[idxTotal] = {
+                ...updatedRows[idxTotal],
+                revenue: doanhThu === 0 ? null : doanhThu,
+                cost: chiPhi === 0 ? null : chiPhi,
+                profit: loiNhuan === 0 ? null : loiNhuan,
+                percent: null,
+            };
+        }
+
+        const idxIV = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
+        );
+        if (idxIV !== -1 && idxTotal !== -1) {
+            updatedRows[idxIV] = {
+                ...updatedRows[idxIV],
+                revenue: 0,
+                cost: 0,
+                profit: toNum(updatedRows[idxTotal].profit),
+                percent: null,
+            };
+        }
+
+        // Tính lại LỢI NHUẬN SAU GIẢM TRỪ
+        const idxV = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
+        );
+        const idxVI = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
+        );
+        const idxVII = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
+        );
+        const idxVIII = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "VIII. GIẢM LÃI ĐT DỰ ÁN"
+        );
+        const idxLNFinal = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase()
+        );
+        if (
+            idxLNFinal !== -1 &&
+            idxIV !== -1 &&
+            idxV !== -1 &&
+            idxVI !== -1 &&
+            idxVII !== -1 &&
+            idxVIII !== -1
+        ) {
+            updatedRows[idxLNFinal] = {
+                ...updatedRows[idxLNFinal],
+                revenue: 0,
+                cost: 0,
+                profit:
+                    toNum(updatedRows[idxIV].profit) -
+                    toNum(updatedRows[idxV].profit) +
+                    toNum(updatedRows[idxVI].profit) -
+                    toNum(updatedRows[idxVII].profit) -
+                    toNum(updatedRows[idxVIII].profit),
+                percent: null,
+            };
+        }
+
+        // Luôn hiển thị dấu – cho dòng II.4. THU NHẬP KHÁC CỦA NHÀ MÁY
+        const idxII4 = updatedRows.findIndex(
             (r) =>
                 (r.name || "").trim().toUpperCase() ===
                 "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY"
         );
-
-        let loiNhuan = doanhThu - chiPhi;
-        if (
-            idxIXD !== -1 &&
-            idxIISX !== -1 &&
-            idxIIIDT !== -1 &&
-            idxThuNhapKhac !== -1
-        ) {
-            loiNhuan =
-                toNum(updatedRows[idxIXD]?.profit) +
-                toNum(updatedRows[idxIISX]?.profit) +
-                toNum(updatedRows[idxIIIDT]?.profit) +
-                toNum(updatedRows[idxThuNhapKhac]?.profit);
+        if (idxII4 !== -1) {
+            updatedRows[idxII4].percent = null;
+            // The original code had a typo here (percentTarget), which I'm correcting.
+            // It seems `percentTarget` isn't a property on the row object anyway.
+            // Sticking to what the rest of the code does.
         }
 
-        updatedRows[idxTotal] = {
-            ...updatedRows[idxTotal],
-            revenue: doanhThu === 0 ? null : doanhThu,
-            cost: chiPhi === 0 ? null : chiPhi,
-            profit: loiNhuan === 0 ? null : loiNhuan,
-            percent: null,
-        };
-    }
-
-    const idxIV = updatedRows.findIndex(
-        (r) =>
-            (r.name || "").trim().toUpperCase() ===
-            `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
-    );
-    if (idxIV !== -1 && idxTotal !== -1) {
-        updatedRows[idxIV] = {
-            ...updatedRows[idxIV],
-            revenue: 0,
-            cost: 0,
-            profit: toNum(updatedRows[idxTotal].profit),
-            percent: null,
-        };
-    }
-
-    // Tính lại LỢI NHUẬN SAU GIẢM TRỪ
-    const idxV = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
-    );
-    const idxVI = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
-    );
-    const idxVII = updatedRows.findIndex(
-        (r) =>
-            (r.name || "").trim().toUpperCase() ===
-            `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
-    );
-    const idxVIII = updatedRows.findIndex(
-        (r) =>
-            (r.name || "").trim().toUpperCase() ===
-            "VIII. GIẢM LÃI ĐT DỰ ÁN"
-    );
-    const idxLNFinal = updatedRows.findIndex(
-        (r) =>
-            (r.name || "").trim().toUpperCase() ===
-            `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase()
-    );
-    if (
-        idxLNFinal !== -1 &&
-        idxIV !== -1 &&
-        idxV !== -1 &&
-        idxVI !== -1 &&
-        idxVII !== -1 &&
-        idxVIII !== -1
-    ) {
-        updatedRows[idxLNFinal] = {
-            ...updatedRows[idxLNFinal],
-            revenue: 0,
-            cost: 0,
-            profit:
-                toNum(updatedRows[idxIV].profit) -
-                toNum(updatedRows[idxV].profit) +
-                toNum(updatedRows[idxVI].profit) -
-                toNum(updatedRows[idxVII].profit) -
-                toNum(updatedRows[idxVIII].profit),
-            percent: null,
-        };
-    }
-
-    // Luôn hiển thị dấu – cho dòng II.4. THU NHẬP KHÁC CỦA NHÀ MÁY
-    const idxII4 = updatedRows.findIndex(
-        (r) =>
-            (r.name || "").trim().toUpperCase() ===
-            "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY"
-    );
-    if (idxII4 !== -1) {
-        updatedRows[idxII4].percent = null;
-        // The original code had a typo here (percentTarget), which I'm correcting.
-        // It seems `percentTarget` isn't a property on the row object anyway.
-        // Sticking to what the rest of the code does.
-    }
-
-    setRows([...updatedRows]);
-};
+        setRows([...updatedRows]);
+    };
 
     // Kiểm tra dòng chi tiết nằm dưới I.1. Dân Dụng + Giao Thông
     const isDetailUnderI1 = (idx) => {
