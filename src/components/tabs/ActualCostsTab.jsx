@@ -625,6 +625,16 @@ export default function ActualCostsTab({ projectId }) {
                     quarter={quarter}
                     onQuarterChange={(e) => setQuarter(e.target.value)}
                 />
+                  <SummaryPanel
+                    overallRevenue={overallRevenue}
+                    overallRevenueEditing={overallRevenueEditing}
+                    setOverallRevenue={setOverallRevenue}
+                    setOverallRevenueEditing={setOverallRevenueEditing}
+                    projectTotalAmount={projectTotalAmount}
+                    summarySumKeys={summarySumKeys}
+                    columnsAll={columnsAll}
+                    groupedData={groupedData}
+                />
                 <CostTable
                     columnsAll={columnsAll}
                     columnsVisibility={columnsVisibility}
@@ -639,16 +649,7 @@ export default function ActualCostsTab({ projectId }) {
                     projectTotalAmount={projectTotalAmount}
                     categories={categories}
                 />
-                <SummaryPanel
-                    overallRevenue={overallRevenue}
-                    overallRevenueEditing={overallRevenueEditing}
-                    setOverallRevenue={setOverallRevenue}
-                    setOverallRevenueEditing={setOverallRevenueEditing}
-                    projectTotalAmount={projectTotalAmount}
-                    summarySumKeys={summarySumKeys}
-                    columnsAll={columnsAll}
-                    groupedData={groupedData}
-                />
+              
             </Box>
             <ColumnSelector
                 columnsAll={columnsAll}

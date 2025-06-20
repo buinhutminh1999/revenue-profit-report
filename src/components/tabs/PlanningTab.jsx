@@ -19,6 +19,7 @@ import {
     ListItemText,
     Divider,
     Chip,
+    Tooltip,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import {
@@ -54,6 +55,7 @@ import {
     ErrorOutline as ErrorOutlineIcon,
     Close as CloseIcon,
 } from "@mui/icons-material";
+import AddIcon from '@mui/icons-material/Add';
 
 import AdjustmentModal from "./AdjustmentModal";
 
@@ -64,9 +66,10 @@ const StatCard = ({ title, value, icon, color }) => {
             <Card
                 sx={{
                     borderRadius: 4,
-                    boxShadow: "none",
+                    // Thay đổi ở đây
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)', // Hoặc dùng theme.shadows[1]
                     border: `1px solid ${theme.palette.divider}`,
-                    height: "100%",
+                    height: '100%',
                 }}
             >
                 <CardContent
@@ -305,7 +308,7 @@ export default function PlanningTab({ projectId }) {
                 const projectDocRef = doc(db, "projects", projectId);
                 const projectSnap = await getDoc(projectDocRef);
                 if (projectSnap.exists() && isMounted) {
-                    setContractValue(projectSnap.data().contractValue || 0);
+                    setContractValue(projectSnap.data().totalAmount || 0);
                 }
             } catch (error) {
                 toast.error("Không thể tải thông tin dự án.");
@@ -520,94 +523,279 @@ export default function PlanningTab({ projectId }) {
         });
         return flatRows;
     }, [planningItems, adjustmentsData, expandedRows]);
-// *** SỬA LỖI BẰNG CÁCH XÓA useTheme() KHỎI RENDERCELL ***
-    const columns = useMemo(() => [
-        {
-            field: 'description', headerName: 'Diễn Giải', flex: 1, minWidth: 450,
-            renderCell: (params) => {
-                // ĐÃ XÓA DÒNG "const theme = useTheme()" BỊ LỖI Ở ĐÂY
-                switch (params.row.rowType) {
-                    case 'parent':
-                        const isExpanded = expandedRows.has(params.row.id);
-                        const isLoading = loadingAdjustments.has(params.row.id);
-                        const adjustmentsCount = adjustmentsData[params.row.id]?.length || 0;
-                        return (
-                            <Stack direction="row" alignItems="center" spacing={1}>
-                                <IconButton size="small" onClick={() => handleToggleRow(params.row.id)} sx={{ p: 0.5 }}>
-                                    {isLoading ? <CircularProgress size={18} /> : (isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />)}
-                                </IconButton>
-                                <Typography variant="body2" fontWeight={600} color="text.primary">{params.row.description}</Typography>
-                                {adjustmentsCount > 0 && (
-                                     <Chip label={`${adjustmentsCount} chi tiết`} size="small" sx={{ height: '20px', fontSize: '0.75rem' }}/>
-                                )}
-                            </Stack>
-                        );
-                    case 'adjustment':
-                        const isIncrease = params.row.type === 'increase';
-                        return (
-                            <Stack direction="row" alignItems="center" sx={{ pl: 4 }}>
-                                <Typography sx={{ mr: 1, color: isIncrease ? 'success.main' : 'error.main', fontFamily: 'monospace' }}>└─</Typography>
-                                <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
-                                    ({isIncrease ? "Tăng" : "Giảm"}) {params.row.reason}
-                                </Typography>
-                            </Stack>
-                        );
-                    case 'empty':
-                        return (
-                            <Stack direction="row" alignItems="center" sx={{ pl: 5, color: 'text.secondary', fontStyle: 'italic' }}>
-                                <InfoOutlinedIcon fontSize="small" sx={{mr: 1}}/>
-                                Chưa có phát sinh chi tiết
-                            </Stack>
-                        );
-                    default: return null;
-                }
-            }
-        },
-        {
-            field: 'amount', headerName: 'Kế hoạch', width: 150, type: 'number', align: 'right', headerAlign: 'right',
-            valueGetter: (v, row) => row.rowType === 'parent' ? row.amount : null,
-            renderCell: (params) => params.value === null ? '' : <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{Number(params.value || 0).toLocaleString('vi-VN')}</Typography>
-        },
-        {
-            field: 'adjustmentAmount', headerName: 'Phát sinh', width: 150, type: 'number', align: 'right', headerAlign: 'right',
-            valueGetter: (v, row) => row.rowType === 'adjustment' ? (row.type === 'increase' ? row.amount : -row.amount) : null,
-            renderCell: (params) => {
-                if (params.value === null) return '';
-                const isIncrease = params.value >= 0;
-                return <Typography variant="body2" sx={{ fontFamily: 'monospace', color: isIncrease ? 'success.dark' : 'error.dark', fontWeight: 500 }}>{`${isIncrease ? '+' : ''}${Number(params.value).toLocaleString('vi-VN')}`}</Typography>;
-            }
-        },
-        {
-            field: 'total', headerName: 'Thành tiền', width: 160, type: 'number', align: 'right', headerAlign: 'right',
-            valueGetter: (v, row) => row.rowType === 'parent' ? (row.amount || 0) + (row.increaseAmount || 0) - (row.decreaseAmount || 0) : null,
-            renderCell: (params) => params.value === null ? '' : <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 700, color: 'primary.main' }}>{Number(params.value).toLocaleString('vi-VN')}</Typography>
-        },
-        {
-            field: 'createdAt', headerName: 'Ngày tạo', width: 160, align: 'right', headerAlign: 'right',
-            renderCell: (params) => {
-                if (params.row.rowType !== 'adjustment' || !params.row.createdAt?.toDate) return '';
-                return <Typography variant="body2" color="text.secondary">{params.row.createdAt.toDate().toLocaleString('vi-VN')}</Typography>
-            }
-        },
-        {
-            field: 'actions', headerName: 'Thao tác', width: 150, align: 'center', headerAlign: 'center',
-            renderCell: (params) => {
-                if (params.row.rowType === 'parent') {
-                    return <Chip icon={<AddCommentIcon />} label="Thêm" variant="outlined" color="primary" size="small" onClick={() => handleOpenModalForAdd(params.row)} sx={{cursor: 'pointer'}}/>;
-                }
-                if (params.row.rowType === 'adjustment') {
-                    const parentItem = planningItems.find(p => p.id === params.row.parentId);
+    // *** SỬA LỖI BẰNG CÁCH XÓA useTheme() KHỎI RENDERCELL ***
+    const columns = useMemo(
+        () => [
+            {
+                field: "description",
+                headerName: "Diễn Giải",
+                flex: 1,
+                minWidth: 450,
+                renderCell: (params) => {
+                    // ĐÃ XÓA DÒNG "const theme = useTheme()" BỊ LỖI Ở ĐÂY
+                    switch (params.row.rowType) {
+                        case "parent":
+                            const isExpanded = expandedRows.has(params.row.id);
+                            const isLoading = loadingAdjustments.has(
+                                params.row.id
+                            );
+                            const adjustmentsCount =
+                                adjustmentsData[params.row.id]?.length || 0;
+                            return (
+                                <Stack
+                                    direction="row"
+                                    alignItems="center"
+                                    spacing={1}
+                                >
+                                    <IconButton
+                                        size="small"
+                                        onClick={() =>
+                                            handleToggleRow(params.row.id)
+                                        }
+                                        sx={{ p: 0.5 }}
+                                    >
+                                        {isLoading ? (
+                                            <CircularProgress size={18} />
+                                        ) : isExpanded ? (
+                                            <ExpandMoreIcon />
+                                        ) : (
+                                            <ChevronRightIcon />
+                                        )}
+                                    </IconButton>
+                                    <Typography
+                                        variant="body2"
+                                        fontWeight={600}
+                                        color="text.primary"
+                                    >
+                                        {params.row.description}
+                                    </Typography>
+                                    {adjustmentsCount > 0 && (
+                                        <Chip
+                                            label={`${adjustmentsCount} chi tiết`}
+                                            size="small"
+                                            sx={{
+                                                height: "20px",
+                                                fontSize: "0.75rem",
+                                            }}
+                                        />
+                                    )}
+                                </Stack>
+                            );
+                        case "adjustment":
+                            const isIncrease = params.row.type === "increase";
+                            return (
+                                <Stack
+                                    direction="row"
+                                    alignItems="center"
+                                    sx={{ pl: 5 }}
+                                >
+                                    <Typography
+                                        sx={{
+                                            mr: 1,
+                                            color: isIncrease
+                                                ? "success.main"
+                                                : "error.main",
+                                            fontFamily: "monospace",
+                                        }}
+                                    >
+                                        └─
+                                    </Typography>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            fontStyle: "italic",
+                                            color: "text.secondary",
+                                        }}
+                                    >
+                                        ({isIncrease ? "Tăng" : "Giảm"}){" "}
+                                        {params.row.reason}
+                                    </Typography>
+                                </Stack>
+                            );
+                        case "empty":
+                            return (
+                                <Stack
+                                    direction="row"
+                                    alignItems="center"
+                                    sx={{
+                                        pl: 5,
+                                        color: "text.secondary",
+                                        fontStyle: "italic",
+                                    }}
+                                >
+                                    <InfoOutlinedIcon
+                                        fontSize="small"
+                                        sx={{ mr: 1 }}
+                                    />
+                                    Chưa có phát sinh chi tiết
+                                </Stack>
+                            );
+                        default:
+                            return null;
+                    }
+                },
+            },
+            {
+                field: "amount",
+                headerName: "Kế hoạch",
+                width: 150,
+                type: "number",
+                align: "right",
+                headerAlign: "right",
+                valueGetter: (v, row) =>
+                    row.rowType === "parent" ? row.amount : null,
+                renderCell: (params) =>
+                    params.value === null ? (
+                        ""
+                    ) : (
+                        <Typography
+                            variant="body2"
+                            sx={{ fontFamily: "monospace" }}
+                        >
+                            {Number(params.value || 0).toLocaleString("vi-VN")}
+                        </Typography>
+                    ),
+            },
+            {
+                field: "adjustmentAmount",
+                headerName: "Phát sinh",
+                width: 150,
+                type: "number",
+                align: "right",
+                headerAlign: "right",
+                valueGetter: (v, row) =>
+                    row.rowType === "adjustment"
+                        ? row.type === "increase"
+                            ? row.amount
+                            : -row.amount
+                        : null,
+                renderCell: (params) => {
+                    if (params.value === null) return "";
+                    const isIncrease = params.value >= 0;
                     return (
-                        <Stack direction="row" sx={{ '& .MuiIconButton-root': { borderRadius: 2, '&:hover': { bgcolor: (theme) => alpha(theme.palette.action.active, 0.08) } }}}>
-                            <IconButton size="small" color="primary" onClick={() => handleOpenModalForEdit(parentItem, params.row)}><EditIcon fontSize="small" /></IconButton>
-                            <IconButton size="small" color="error" onClick={() => handleDeleteAdjustment(params.row.parentId, params.row.originalDocId)}><DeleteIcon fontSize="small" /></IconButton>
-                        </Stack>
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                fontFamily: "monospace",
+                                color: isIncrease
+                                    ? "success.dark"
+                                    : "error.dark",
+                                fontWeight: 500,
+                            }}
+                        >{`${isIncrease ? "+" : ""}${Number(
+                            params.value
+                        ).toLocaleString("vi-VN")}`}</Typography>
                     );
-                }
-                return null;
-            }
+                },
+            },
+            {
+                field: "total",
+                headerName: "Thành tiền",
+                width: 160,
+                type: "number",
+                align: "right",
+                headerAlign: "right",
+                valueGetter: (v, row) =>
+                    row.rowType === "parent"
+                        ? (row.amount || 0) +
+                          (row.increaseAmount || 0) -
+                          (row.decreaseAmount || 0)
+                        : null,
+                renderCell: (params) =>
+                    params.value === null ? (
+                        ""
+                    ) : (
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                fontFamily: "monospace",
+                                fontWeight: 700,
+                                color: "primary.main",
+                            }}
+                        >
+                            {Number(params.value).toLocaleString("vi-VN")}
+                        </Typography>
+                    ),
+            },
+            {
+                field: "createdAt",
+                headerName: "Ngày tạo",
+                width: 160,
+                align: "right",
+                headerAlign: "right",
+                renderCell: (params) => {
+                    if (
+                        params.row.rowType !== "adjustment" ||
+                        !params.row.createdAt?.toDate
+                    )
+                        return "";
+                    return (
+                        <Typography variant="body2" color="text.secondary">
+                            {params.row.createdAt
+                                .toDate()
+                                .toLocaleString("vi-VN")}
+                        </Typography>
+                    );
+                },
+            },
+     {
+    field: "actions",
+    headerName: "Thao tác",
+    width: 150,
+    align: "center",
+    headerAlign: "center",
+    renderCell: (params) => {
+        if (params.row.rowType === "parent") {
+            return (
+                <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={() => handleOpenModalForAdd(params.row)}
+                >
+                    Thêm
+                </Button>
+            );
         }
-    ], [expandedRows, loadingAdjustments, planningItems, adjustmentsData, handleToggleRow]);
+        if (params.row.rowType === "adjustment") {
+            const parentItem = planningItems.find(
+                (p) => p.id === params.row.parentId
+            );
+            return (
+                // Thêm spacing={1} để tạo khoảng cách
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
+                    <Tooltip title="Chỉnh sửa">
+                        <IconButton
+                            size="small"
+                            onClick={() => handleOpenModalForEdit(parentItem, params.row)}
+                        >
+                            <EditIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Xóa">
+                        <IconButton
+                            size="small"
+                            onClick={() => handleDeleteAdjustment(params.row.parentId, params.row.originalDocId)}
+                            color="error"
+                        >
+                            <DeleteIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                </Stack>
+            );
+        }
+        return null;
+    },
+},
+        ],
+        [
+            expandedRows,
+            loadingAdjustments,
+            planningItems,
+            adjustmentsData,
+            handleToggleRow,
+        ]
+    );
     const { totalPlannedAmount, totalFinalAmount } = useMemo(() => {
         let totalPlanned = 0,
             totalFinal = 0;
@@ -770,36 +958,49 @@ export default function PlanningTab({ projectId }) {
                             overflow: "hidden",
                         }}
                     >
-                       <DataGrid
+                        <DataGrid
                             rows={processedRows}
                             columns={columns}
                             loading={loading}
                             getRowId={(row) => row.id}
                             isCellEditable={() => false}
-                            getRowHeight={() => 'auto'}
+                            getRowHeight={() => "auto"}
                             hideFooterSelectedRowCount
                             disableColumnMenu
                             // TỐI ƯU: Bỏ đường kẻ dọc, chỉ giữ đường kẻ ngang
                             showCellVerticalBorder={false}
-                            getRowClassName={(params) => params.row.rowType === 'parent' ? `MuiDataGrid-row--parent` : ''}
+                            getRowClassName={(params) =>
+                                params.row.rowType === "parent"
+                                    ? `MuiDataGrid-row--parent`
+                                    : ""
+                            }
                             sx={{
-                                border: 'none',
+                                border: "none",
                                 // TỐI ƯU: Thay đổi màu sắc header và hàng cha
-                                '& .MuiDataGrid-columnHeaders': {
+                                "& .MuiDataGrid-columnHeaders": {
                                     bgcolor: (theme) => theme.palette.grey[100],
-                                    borderBottom: (theme) => `1px solid ${theme.palette.divider}`
+                                    borderBottom: (theme) =>
+                                        `1px solid ${theme.palette.divider}`,
                                 },
-                                '& .MuiDataGrid-row--parent': {
-                                    fontWeight: 'bold',
-                                    bgcolor: (theme) => alpha(theme.palette.action.hover, 0.04), // Màu xám rất nhạt
-                                    '&:hover': { bgcolor: (theme) => alpha(theme.palette.primary.light, 0.1) }
+                                "& .MuiDataGrid-row--parent": {
+                                    fontWeight: "bold",
+                                    bgcolor: (theme) =>
+                                        alpha(theme.palette.action.hover, 0.04), // Màu xám rất nhạt
+                                    "&:hover": {
+                                        bgcolor: (theme) =>
+                                            alpha(
+                                                theme.palette.primary.light,
+                                                0.1
+                                            ),
+                                    },
                                 },
-                                '& .MuiDataGrid-cell': {
+                                "& .MuiDataGrid-cell": {
                                     py: 1.5, // Tăng khoảng cách cho dễ đọc
                                 },
-                                '& .MuiDataGrid-cell:focus-within, & .MuiDataGrid-cell:focus': {
-                                    outline: 'none !important'
-                                }
+                                "& .MuiDataGrid-cell:focus-within, & .MuiDataGrid-cell:focus":
+                                    {
+                                        outline: "none !important",
+                                    },
                             }}
                         />
                     </Paper>
