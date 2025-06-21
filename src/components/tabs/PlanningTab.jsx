@@ -32,6 +32,8 @@ import {
     getDoc,
     deleteDoc,
     writeBatch,
+    getDocs,
+    where,
 } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
 import toast from "react-hot-toast";
@@ -55,7 +57,7 @@ import {
     ErrorOutline as ErrorOutlineIcon,
     Close as CloseIcon,
 } from "@mui/icons-material";
-import AddIcon from '@mui/icons-material/Add';
+import AddIcon from "@mui/icons-material/Add";
 
 import AdjustmentModal from "./AdjustmentModal";
 
@@ -67,9 +69,9 @@ const StatCard = ({ title, value, icon, color }) => {
                 sx={{
                     borderRadius: 4,
                     // Thay đổi ở đây
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)', // Hoặc dùng theme.shadows[1]
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)", // Hoặc dùng theme.shadows[1]
                     border: `1px solid ${theme.palette.divider}`,
-                    height: '100%',
+                    height: "100%",
                 }}
             >
                 <CardContent
@@ -279,6 +281,9 @@ const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
 
 export default function PlanningTab({ projectId }) {
     const [planningItems, setPlanningItems] = useState([]);
+    const [categories, setCategories] = useState([]); // <-- THÊM DÒNG NÀY
+    const [projectType, setProjectType] = useState(null); // <-- THÊM DÒNG NÀY
+
     const [loading, setLoading] = useState(true);
     const [contractValue, setContractValue] = useState(0);
     const [expandedRows, setExpandedRows] = useState(new Set());
@@ -290,61 +295,182 @@ export default function PlanningTab({ projectId }) {
     const [pasteData, setPasteData] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [previewData, setPreviewData] = useState(null);
-
-    const populateInitialPlanningItems = useCallback(async (projectId) => {
-        // Logic to automatically add default items for a new project
-    }, []);
-
+    // Thêm useEffect này vào trong component PlanningTab
     useEffect(() => {
-        if (!projectId) {
-            setLoading(false);
-            return;
-        }
-        let isMounted = true;
-        setLoading(true);
-
-        const fetchProjectDetails = async () => {
+        const fetchCategories = async () => {
             try {
-                const projectDocRef = doc(db, "projects", projectId);
-                const projectSnap = await getDoc(projectDocRef);
-                if (projectSnap.exists() && isMounted) {
-                    setContractValue(projectSnap.data().totalAmount || 0);
-                }
+                const categoriesQuery = query(
+                    collection(db, "categories"),
+                    orderBy("key")
+                ); // Sửa thành orderBy("key")
+                const querySnapshot = await getDocs(categoriesQuery);
+                const categoriesData = querySnapshot.docs.map((doc) => ({
+                    id: doc.id,
+                    ...doc.data(),
+                }));
+                setCategories(categoriesData);
             } catch (error) {
-                toast.error("Không thể tải thông tin dự án.");
+                console.error("Error fetching categories: ", error);
+                toast.error("Không thể tải danh mục chi phí mặc định.");
             }
         };
-        fetchProjectDetails();
-
-        const itemsQuery = query(
-            collection(db, "projects", projectId, "planningItems"),
-            orderBy("order")
-        );
-        const unsubscribe = onSnapshot(
-            itemsQuery,
-            (snapshot) => {
-                if (isMounted) {
-                    const items = snapshot.docs.map((d) => ({
-                        id: d.id,
-                        ...d.data(),
-                    }));
-                    setPlanningItems(items);
-                    setLoading(false);
-                    if (items.length === 0) {
-                        populateInitialPlanningItems(projectId);
-                    }
-                }
-            },
-            () => {
-                if (isMounted) setLoading(false);
+        fetchCategories();
+    }, []);
+    // BƯỚC 4: Hoàn thiện logic hàm `populateInitialPlanningItems`
+    const populateInitialPlanningItems = useCallback(
+        async (projectId) => {
+            if (!projectId || categories.length === 0) {
+                return;
             }
-        );
-        return () => {
-            isMounted = false;
-            unsubscribe();
-        };
-    }, [projectId, populateInitialPlanningItems]);
 
+            setLoading(true);
+            const loadingToast = toast.loading(
+                "Đang khởi tạo danh mục kế hoạch mặc định..."
+            );
+
+            try {
+                const batch = writeBatch(db);
+                const planningItemsRef = collection(
+                    db,
+                    "projects",
+                    projectId,
+                    "planningItems"
+                );
+
+             // Trong hàm populateInitialPlanningItems
+// ...
+categories.forEach(category => {
+    const newItemRef = doc(planningItemsRef);
+    batch.set(newItemRef, {
+        description: category.label,
+        amount: 0,
+        order: category.order || category.key || 0,
+        createdAt: new Date(),
+        isCustom: false, // <-- Thêm dòng này
+        categoryId: category.id // <-- (Nên có) Thêm dòng này
+    });
+});
+// ...
+
+                await batch.commit();
+                toast.dismiss(loadingToast);
+                toast.success("Đã khởi tạo thành công danh mục kế hoạch!");
+            } catch (error) {
+                console.error("Error populating initial items: ", error);
+                toast.dismiss(loadingToast);
+                toast.error("Lỗi khi khởi tạo danh mục kế hoạch.");
+            }
+        },
+        [categories]
+    ); // <-- Phụ thuộc vào categories
+
+    // BƯỚC 2: Thêm useEffect mới để xử lý việc khởi tạo một cách an toàn
+    useEffect(() => {
+        // Chỉ chạy logic này khi:
+        // 1. Việc tải dữ liệu ban đầu đã hoàn tất (loading === false)
+        // 2. Danh sách planningItems thực sự rỗng
+        // 3. Danh sách categories đã được tải về và có dữ liệu
+        if (!loading && planningItems.length === 0 && categories.length > 0) {
+            populateInitialPlanningItems(projectId);
+        }
+    }, [
+        loading,
+        planningItems,
+        categories,
+        projectId,
+        populateInitialPlanningItems,
+    ]);
+ // useEffect này bây giờ chỉ tập trung vào việc lấy planningItems và project details
+useEffect(() => {
+    if (!projectId) {
+        setLoading(false);
+        return;
+    }
+    let isMounted = true;
+    setLoading(true);
+
+    // Lấy thông tin chi tiết dự án, bao gồm cả 'type'
+    const fetchProjectDetails = async () => {
+        try {
+            const projectDocRef = doc(db, "projects", projectId);
+            const projectSnap = await getDoc(projectDocRef);
+            if (projectSnap.exists() && isMounted) {
+                setContractValue(projectSnap.data().totalAmount || 0);
+                setProjectType(projectSnap.data().type); // <-- GÁN TYPE VÀO STATE
+            }
+        } catch (error) {
+            toast.error("Không thể tải thông tin dự án.");
+        }
+    };
+    fetchProjectDetails();
+
+    const itemsQuery = query(
+        collection(db, "projects", projectId, "planningItems"),
+        orderBy("order")
+    );
+    const unsubscribe = onSnapshot(
+        itemsQuery,
+        (snapshot) => {
+            if (isMounted) {
+                const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+                setPlanningItems(items);
+                setLoading(false);
+            }
+        },
+        () => {
+            if (isMounted) setLoading(false);
+        }
+    );
+    return () => {
+        isMounted = false;
+        unsubscribe();
+    };
+}, [projectId]); // Bỏ populateInitialPlanningItems khỏi dependency
+// Thêm useEffect này vào component của bạn
+useEffect(() => {
+    // Nếu chưa có projectType thì không làm gì cả
+    if (!projectType) return;
+
+    // Ánh xạ từ project.type sang tên trường trong categories
+    // !!! BẠN CẦN CHỈNH SỬA MAP NÀY CHO ĐÚNG LOGIC CỦA MÌNH !!!
+    const typeToFieldMap = {
+        'KH-ĐT': 'isKhdt',      // Ví dụ: Project 'KHST' sẽ lấy category có isKhoan = true
+        'Nhà máy': 'isNhaMay',       // Ví dụ: Project 'NM' sẽ lấy category có isNhaMay = true
+        'Thi công': 'isThiCong'       // Ví dụ: Project 'TC' sẽ lấy category có isThiCong = true
+    };
+
+    const fieldToFilter = typeToFieldMap[projectType];
+
+    // Nếu không tìm thấy trường tương ứng trong map, không làm gì cả để tránh lỗi
+    if (!fieldToFilter) {
+        console.warn(`Không tìm thấy ánh xạ cho project type: ${projectType}`);
+        return;
+    }
+
+    const fetchCategoriesByType = async () => {
+        try {
+            const categoriesQuery = query(
+                collection(db, "categories"),
+                where(fieldToFilter, "==", true), // <-- LỌC THEO ĐÚNG TRƯỜNG VÀ PHẢI LÀ `true`
+                orderBy("key") // Sắp xếp theo key hoặc trường order bạn đã tạo
+            );
+
+            const querySnapshot = await getDocs(categoriesQuery);
+            const categoriesData = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setCategories(categoriesData); // Gán danh sách đã lọc vào state
+
+        } catch (error) {
+            console.error("Error fetching categories by type: ", error);
+            toast.error("Lỗi khi tải danh mục theo loại dự án.");
+        }
+    };
+
+    fetchCategoriesByType();
+
+}, [projectType]); // Hook này sẽ chạy lại mỗi khi projectType thay đổi
     const handleToggleRow = useCallback(
         (itemId) => {
             const newExpandedRows = new Set(expandedRows);
@@ -738,55 +864,72 @@ export default function PlanningTab({ projectId }) {
                     );
                 },
             },
-     {
-    field: "actions",
-    headerName: "Thao tác",
-    width: 150,
-    align: "center",
-    headerAlign: "center",
-    renderCell: (params) => {
-        if (params.row.rowType === "parent") {
-            return (
-                <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={() => handleOpenModalForAdd(params.row)}
-                >
-                    Thêm
-                </Button>
-            );
-        }
-        if (params.row.rowType === "adjustment") {
-            const parentItem = planningItems.find(
-                (p) => p.id === params.row.parentId
-            );
-            return (
-                // Thêm spacing={1} để tạo khoảng cách
-                <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
-                    <Tooltip title="Chỉnh sửa">
-                        <IconButton
-                            size="small"
-                            onClick={() => handleOpenModalForEdit(parentItem, params.row)}
-                        >
-                            <EditIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Xóa">
-                        <IconButton
-                            size="small"
-                            onClick={() => handleDeleteAdjustment(params.row.parentId, params.row.originalDocId)}
-                            color="error"
-                        >
-                            <DeleteIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                </Stack>
-            );
-        }
-        return null;
-    },
-},
+            {
+                field: "actions",
+                headerName: "Thao tác",
+                width: 150,
+                align: "center",
+                headerAlign: "center",
+                renderCell: (params) => {
+                    if (params.row.rowType === "parent") {
+                        return (
+                            <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<AddIcon />}
+                                onClick={() =>
+                                    handleOpenModalForAdd(params.row)
+                                }
+                            >
+                                Thêm
+                            </Button>
+                        );
+                    }
+                    if (params.row.rowType === "adjustment") {
+                        const parentItem = planningItems.find(
+                            (p) => p.id === params.row.parentId
+                        );
+                        return (
+                            // Thêm spacing={1} để tạo khoảng cách
+                            <Stack
+                                direction="row"
+                                spacing={1}
+                                alignItems="center"
+                                justifyContent="center"
+                            >
+                                <Tooltip title="Chỉnh sửa">
+                                    <IconButton
+                                        size="small"
+                                        onClick={() =>
+                                            handleOpenModalForEdit(
+                                                parentItem,
+                                                params.row
+                                            )
+                                        }
+                                    >
+                                        <EditIcon fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Xóa">
+                                    <IconButton
+                                        size="small"
+                                        onClick={() =>
+                                            handleDeleteAdjustment(
+                                                params.row.parentId,
+                                                params.row.originalDocId
+                                            )
+                                        }
+                                        color="error"
+                                    >
+                                        <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                            </Stack>
+                        );
+                    }
+                    return null;
+                },
+            },
         ],
         [
             expandedRows,
@@ -1017,5 +1160,6 @@ export default function PlanningTab({ projectId }) {
                 />
             )}
         </Box>
+        
     );
 }

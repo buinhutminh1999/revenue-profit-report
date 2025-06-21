@@ -1376,6 +1376,8 @@ export default function CostAllocationQuarter() {
                 }}
             >
                 <DataGrid
+                        key={`${year}_${quarter}_${typeFilter}`} // <--- THÊM DÒNG NÀY
+
                     rows={rowsWithTotal}
                     columns={columns}
                     loading={loading || saving}
