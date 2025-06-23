@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, {
+    useState,
+    useEffect,
+    useMemo,
+    useCallback,
+    useRef,
+} from "react";
 import {
     Box,
     Typography,
@@ -28,7 +34,6 @@ import {
     onSnapshot,
     orderBy,
     doc,
-    updateDoc,
     getDoc,
     deleteDoc,
     writeBatch,
@@ -41,26 +46,25 @@ import { NumericFormat } from "react-number-format";
 import {
     ChevronRight as ChevronRightIcon,
     ExpandMore as ExpandMoreIcon,
-    AddComment as AddCommentIcon,
     Edit as EditIcon,
     Delete as DeleteIcon,
     AccountBalanceWallet as AccountBalanceWalletIcon,
     AttachMoney as AttachMoneyIcon,
     Calculate as CalculateIcon,
     TrendingUp as TrendingUpIcon,
-    InfoOutlined as InfoOutlinedIcon,
     FactCheck as FactCheckIcon,
     PlaylistAddCheck as PlaylistAddCheckIcon,
     Cancel as CancelIcon,
     WarningAmber as WarningAmberIcon,
     CheckCircleOutline as CheckCircleOutlineIcon,
     ErrorOutline as ErrorOutlineIcon,
-    Close as CloseIcon,
+    InfoOutlined as InfoOutlinedIcon,
 } from "@mui/icons-material";
 import AddIcon from "@mui/icons-material/Add";
 
 import AdjustmentModal from "./AdjustmentModal";
 
+// --- CÁC COMPONENT PHỤ (KHÔNG THAY ĐỔI) ---
 const StatCard = ({ title, value, icon, color }) => {
     const theme = useTheme();
     return (
@@ -68,8 +72,7 @@ const StatCard = ({ title, value, icon, color }) => {
             <Card
                 sx={{
                     borderRadius: 4,
-                    // Thay đổi ở đây
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)", // Hoặc dùng theme.shadows[1]
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
                     border: `1px solid ${theme.palette.divider}`,
                     height: "100%",
                 }}
@@ -170,6 +173,7 @@ const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
     const skippedCount = previewRows.filter(
         (r) => r.status === "skipped"
     ).length;
+
     const getStatusChip = (status) => {
         if (status === "valid")
             return (
@@ -279,55 +283,48 @@ const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
     );
 };
 
+// --- COMPONENT CHÍNH ---
 export default function PlanningTab({ projectId }) {
+    // --- STATE MANAGEMENT ---
     const [planningItems, setPlanningItems] = useState([]);
-    const [categories, setCategories] = useState([]); // <-- THÊM DÒNG NÀY
-    const [projectType, setProjectType] = useState(null); // <-- THÊM DÒNG NÀY
-
     const [loading, setLoading] = useState(true);
     const [contractValue, setContractValue] = useState(0);
-    const [expandedRows, setExpandedRows] = useState(new Set());
     const [adjustmentsData, setAdjustmentsData] = useState({});
     const [loadingAdjustments, setLoadingAdjustments] = useState(new Set());
+
+    // State cho Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentItemForModal, setCurrentItemForModal] = useState(null);
     const [adjustmentToEdit, setAdjustmentToEdit] = useState(null);
+
+    // State cho chức năng thêm nhanh từ Excel
     const [pasteData, setPasteData] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [previewData, setPreviewData] = useState(null);
-    // Thêm useEffect này vào trong component PlanningTab
-    useEffect(() => {
-        const fetchCategories = async () => {
-            try {
-                const categoriesQuery = query(
-                    collection(db, "categories"),
-                    orderBy("key")
-                ); // Sửa thành orderBy("key")
-                const querySnapshot = await getDocs(categoriesQuery);
-                const categoriesData = querySnapshot.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                }));
-                setCategories(categoriesData);
-            } catch (error) {
-                console.error("Error fetching categories: ", error);
-                toast.error("Không thể tải danh mục chi phí mặc định.");
-            }
-        };
-        fetchCategories();
-    }, []);
-    // BƯỚC 4: Hoàn thiện logic hàm `populateInitialPlanningItems`
-    const populateInitialPlanningItems = useCallback(
-        async (projectId) => {
-            if (!projectId || categories.length === 0) {
-                return;
-            }
 
-            setLoading(true);
+    // State cho chức năng thêm nhóm mới
+    const [newGroup, setNewGroup] = useState({ name: "", amount: "" });
+    const [isAdding, setIsAdding] = useState(false);
+
+    // State cho việc giả lập Tree View
+    const [expandedGroups, setExpandedGroups] = useState(new Set());
+    const [expandedRows, setExpandedRows] = useState(new Set()); // Vẫn giữ cho adjustments
+
+    const initialSetupDone = useRef(false);
+
+    // --- LOGIC FUNCTIONS (useCallback) ---
+    const populateInitialPlanningItems = useCallback(
+        async (projectId, categoriesToPopulate) => {
+            if (
+                !projectId ||
+                !categoriesToPopulate ||
+                categoriesToPopulate.length === 0
+            )
+                return;
+
             const loadingToast = toast.loading(
                 "Đang khởi tạo danh mục kế hoạch mặc định..."
             );
-
             try {
                 const batch = writeBatch(db);
                 const planningItemsRef = collection(
@@ -336,22 +333,18 @@ export default function PlanningTab({ projectId }) {
                     projectId,
                     "planningItems"
                 );
-
-             // Trong hàm populateInitialPlanningItems
-// ...
-categories.forEach(category => {
-    const newItemRef = doc(planningItemsRef);
-    batch.set(newItemRef, {
-        description: category.label,
-        amount: 0,
-        order: category.order || category.key || 0,
-        createdAt: new Date(),
-        isCustom: false, // <-- Thêm dòng này
-        categoryId: category.id // <-- (Nên có) Thêm dòng này
-    });
-});
-// ...
-
+                categoriesToPopulate.forEach((category) => {
+                    const newItemRef = doc(planningItemsRef);
+                    batch.set(newItemRef, {
+                        description: category.label,
+                        amount: 0,
+                        order: category.order || category.key || 0,
+                        createdAt: new Date(),
+                        isCustom: false,
+                        categoryId: category.id,
+                        itemGroup: "C. Chi phí Khác",
+                    });
+                });
                 await batch.commit();
                 toast.dismiss(loadingToast);
                 toast.success("Đã khởi tạo thành công danh mục kế hoạch!");
@@ -361,123 +354,69 @@ categories.forEach(category => {
                 toast.error("Lỗi khi khởi tạo danh mục kế hoạch.");
             }
         },
-        [categories]
-    ); // <-- Phụ thuộc vào categories
-
-    // BƯỚC 2: Thêm useEffect mới để xử lý việc khởi tạo một cách an toàn
-    useEffect(() => {
-        // Chỉ chạy logic này khi:
-        // 1. Việc tải dữ liệu ban đầu đã hoàn tất (loading === false)
-        // 2. Danh sách planningItems thực sự rỗng
-        // 3. Danh sách categories đã được tải về và có dữ liệu
-        if (!loading && planningItems.length === 0 && categories.length > 0) {
-            populateInitialPlanningItems(projectId);
-        }
-    }, [
-        loading,
-        planningItems,
-        categories,
-        projectId,
-        populateInitialPlanningItems,
-    ]);
- // useEffect này bây giờ chỉ tập trung vào việc lấy planningItems và project details
-useEffect(() => {
-    if (!projectId) {
-        setLoading(false);
-        return;
-    }
-    let isMounted = true;
-    setLoading(true);
-
-    // Lấy thông tin chi tiết dự án, bao gồm cả 'type'
-    const fetchProjectDetails = async () => {
-        try {
-            const projectDocRef = doc(db, "projects", projectId);
-            const projectSnap = await getDoc(projectDocRef);
-            if (projectSnap.exists() && isMounted) {
-                setContractValue(projectSnap.data().totalAmount || 0);
-                setProjectType(projectSnap.data().type); // <-- GÁN TYPE VÀO STATE
-            }
-        } catch (error) {
-            toast.error("Không thể tải thông tin dự án.");
-        }
-    };
-    fetchProjectDetails();
-
-    const itemsQuery = query(
-        collection(db, "projects", projectId, "planningItems"),
-        orderBy("order")
+        []
     );
-    const unsubscribe = onSnapshot(
-        itemsQuery,
-        (snapshot) => {
-            if (isMounted) {
-                const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-                setPlanningItems(items);
-                setLoading(false);
-            }
-        },
-        () => {
-            if (isMounted) setLoading(false);
+
+    const handleAddNewGroup = useCallback(async () => {
+        if (!newGroup.name || !newGroup.amount) {
+            toast.error("Vui lòng nhập đầy đủ Tên nhóm và Số tiền.");
+            return;
         }
-    );
-    return () => {
-        isMounted = false;
-        unsubscribe();
-    };
-}, [projectId]); // Bỏ populateInitialPlanningItems khỏi dependency
-// Thêm useEffect này vào component của bạn
-useEffect(() => {
-    // Nếu chưa có projectType thì không làm gì cả
-    if (!projectType) return;
-
-    // Ánh xạ từ project.type sang tên trường trong categories
-    // !!! BẠN CẦN CHỈNH SỬA MAP NÀY CHO ĐÚNG LOGIC CỦA MÌNH !!!
-    const typeToFieldMap = {
-        'KH-ĐT': 'isKhdt',      // Ví dụ: Project 'KHST' sẽ lấy category có isKhoan = true
-        'Nhà máy': 'isNhaMay',       // Ví dụ: Project 'NM' sẽ lấy category có isNhaMay = true
-        'Thi công': 'isThiCong'       // Ví dụ: Project 'TC' sẽ lấy category có isThiCong = true
-    };
-
-    const fieldToFilter = typeToFieldMap[projectType];
-
-    // Nếu không tìm thấy trường tương ứng trong map, không làm gì cả để tránh lỗi
-    if (!fieldToFilter) {
-        console.warn(`Không tìm thấy ánh xạ cho project type: ${projectType}`);
-        return;
-    }
-
-    const fetchCategoriesByType = async () => {
+        setIsAdding(true);
         try {
-            const categoriesQuery = query(
-                collection(db, "categories"),
-                where(fieldToFilter, "==", true), // <-- LỌC THEO ĐÚNG TRƯỜNG VÀ PHẢI LÀ `true`
-                orderBy("key") // Sắp xếp theo key hoặc trường order bạn đã tạo
+            const planningItemsRef = collection(
+                db,
+                "projects",
+                projectId,
+                "planningItems"
             );
+            const lastOrder =
+                planningItems.length > 0
+                    ? Math.max(...planningItems.map((item) => item.order || 0))
+                    : 0;
+            const trimmedGroupName = newGroup.name.trim();
 
-            const querySnapshot = await getDocs(categoriesQuery);
-            const categoriesData = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            setCategories(categoriesData); // Gán danh sách đã lọc vào state
-
+            const batch = writeBatch(db);
+            const newItemRef = doc(planningItemsRef);
+            batch.set(newItemRef, {
+                description: trimmedGroupName,
+                itemGroup: trimmedGroupName,
+                amount: Number(newGroup.amount),
+                order: lastOrder + 1,
+                createdAt: new Date(),
+                isCustom: true,
+            });
+            await batch.commit();
+            toast.success(`Đã thêm nhóm "${trimmedGroupName}"`);
+            setNewGroup({ name: "", amount: "" });
         } catch (error) {
-            console.error("Error fetching categories by type: ", error);
-            toast.error("Lỗi khi tải danh mục theo loại dự án.");
+            console.error("Error adding new group: ", error);
+            toast.error("Thêm nhóm mới thất bại.");
+        } finally {
+            setIsAdding(false);
         }
-    };
+    }, [projectId, newGroup, planningItems]);
 
-    fetchCategoriesByType();
+    const handleToggleGroup = useCallback(
+        (groupName) => {
+            const newExpanded = new Set(expandedGroups);
+            if (newExpanded.has(groupName)) {
+                newExpanded.delete(groupName);
+            } else {
+                newExpanded.add(groupName);
+            }
+            setExpandedGroups(newExpanded);
+        },
+        [expandedGroups]
+    );
 
-}, [projectType]); // Hook này sẽ chạy lại mỗi khi projectType thay đổi
     const handleToggleRow = useCallback(
         (itemId) => {
-            const newExpandedRows = new Set(expandedRows);
-            if (newExpandedRows.has(itemId)) {
-                newExpandedRows.delete(itemId);
+            const newExpanded = new Set(expandedRows);
+            if (newExpanded.has(itemId)) {
+                newExpanded.delete(itemId);
             } else {
-                newExpandedRows.add(itemId);
+                newExpanded.add(itemId);
                 if (!adjustmentsData[itemId]) {
                     setLoadingAdjustments((prev) => new Set(prev).add(itemId));
                     const adjQuery = query(
@@ -508,7 +447,7 @@ useEffect(() => {
                     });
                 }
             }
-            setExpandedRows(newExpandedRows);
+            setExpandedRows(newExpanded);
         },
         [expandedRows, adjustmentsData, projectId]
     );
@@ -518,16 +457,19 @@ useEffect(() => {
         setAdjustmentToEdit(null);
         setIsModalOpen(true);
     };
+
     const handleOpenModalForEdit = (parentItem, adjItem) => {
         setCurrentItemForModal(parentItem);
         setAdjustmentToEdit(adjItem);
         setIsModalOpen(true);
     };
+
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setCurrentItemForModal(null);
         setAdjustmentToEdit(null);
     };
+
     const handleDeleteAdjustment = async (parentItemId, adjId) => {
         if (window.confirm("Bạn có chắc chắn muốn xóa mục phát sinh này?")) {
             const adjRef = doc(
@@ -591,7 +533,12 @@ useEffect(() => {
                     : 0;
             previewData.itemsToAdd.forEach((item) => {
                 const newItemRef = doc(planningItemsRef);
-                batch.set(newItemRef, { ...item, order: ++lastOrder });
+                batch.set(newItemRef, {
+                    ...item,
+                    order: ++lastOrder,
+                    isCustom: true,
+                    itemGroup: "C. Chi phí Khác",
+                });
             });
             await batch.commit();
             toast.success(
@@ -611,154 +558,210 @@ useEffect(() => {
         toast("Đã hủy thao tác.");
     };
 
+    // --- DATA PROCESSING (useMemo) ---
     const processedRows = useMemo(() => {
-        const flatRows = [];
+        const groups = new Map();
+
         planningItems.forEach((item) => {
-            const itemAdjustments = adjustmentsData[item.id] || [];
-            const totalIncrease = itemAdjustments
-                .filter((a) => a.type === "increase")
-                .reduce((sum, a) => sum + a.amount, 0);
-            const totalDecrease = itemAdjustments
-                .filter((a) => a.type === "decrease")
-                .reduce((sum, a) => sum + a.amount, 0);
+            const groupName = item.itemGroup || "Chưa phân loại";
+            if (!groups.has(groupName)) {
+                groups.set(groupName, []);
+            }
+            groups.get(groupName).push(item);
+        });
+
+        const flatRows = [];
+        const sortedGroupKeys = Array.from(groups.keys()).sort((a, b) =>
+            a.localeCompare(b)
+        );
+
+        sortedGroupKeys.forEach((groupName) => {
+            const children = groups.get(groupName);
+            const isGroupExpanded = expandedGroups.has(groupName);
+
             flatRows.push({
-                ...item,
-                rowType: "parent",
-                increaseAmount: totalIncrease,
-                decreaseAmount: totalDecrease,
+                id: groupName,
+                rowType: "groupHeader",
+                description: groupName,
+                amount: children.reduce(
+                    (sum, item) => sum + (item.amount || 0),
+                    0
+                ),
+                isExpanded: isGroupExpanded,
+                childrenCount: children.length,
             });
-            if (expandedRows.has(item.id)) {
-                if (itemAdjustments.length > 0) {
-                    itemAdjustments.forEach((adj) =>
-                        flatRows.push({
-                            ...adj,
-                            originalDocId: adj.id,
-                            id: `${item.id}-${adj.id}`,
-                            parentId: item.id,
-                            rowType: "adjustment",
-                        })
-                    );
-                } else {
+
+            if (isGroupExpanded) {
+                children.forEach((childItem) => {
+                    const itemAdjustments = adjustmentsData[childItem.id] || [];
+                    const totalIncrease = itemAdjustments
+                        .filter((a) => a.type === "increase")
+                        .reduce((sum, a) => sum + a.amount, 0);
+                    const totalDecrease = itemAdjustments
+                        .filter((a) => a.type === "decrease")
+                        .reduce((sum, a) => sum + a.amount, 0);
+
                     flatRows.push({
-                        id: `empty-${item.id}`,
-                        parentId: item.id,
-                        rowType: "empty",
+                        ...childItem,
+                        id: childItem.id,
+                        rowType: "parent",
+                        increaseAmount: totalIncrease,
+                        decreaseAmount: totalDecrease,
                     });
-                }
+
+                    // Xử lý thêm các hàng adjustments nếu hàng parent được mở
+                    if (expandedRows.has(childItem.id)) {
+                        if (itemAdjustments.length > 0) {
+                            itemAdjustments.forEach((adj) => {
+                                flatRows.push({
+                                    ...adj,
+                                    id: `${childItem.id}-${adj.id}`,
+                                    originalDocId: adj.id,
+                                    parentId: childItem.id,
+                                    rowType: "adjustment",
+                                });
+                            });
+                        } else {
+                            flatRows.push({
+                                id: `empty-${childItem.id}`,
+                                parentId: childItem.id,
+                                rowType: "empty",
+                            });
+                        }
+                    }
+                });
             }
         });
         return flatRows;
-    }, [planningItems, adjustmentsData, expandedRows]);
-    // *** SỬA LỖI BẰNG CÁCH XÓA useTheme() KHỎI RENDERCELL ***
+    }, [planningItems, expandedGroups, adjustmentsData, expandedRows]);
+
     const columns = useMemo(
         () => [
             {
                 field: "description",
-                headerName: "Diễn Giải",
+                headerName: "Nhóm / Diễn Giải",
                 flex: 1,
                 minWidth: 450,
                 renderCell: (params) => {
-                    // ĐÃ XÓA DÒNG "const theme = useTheme()" BỊ LỖI Ở ĐÂY
-                    switch (params.row.rowType) {
-                        case "parent":
-                            const isExpanded = expandedRows.has(params.row.id);
-                            const isLoading = loadingAdjustments.has(
-                                params.row.id
-                            );
-                            const adjustmentsCount =
-                                adjustmentsData[params.row.id]?.length || 0;
-                            return (
-                                <Stack
-                                    direction="row"
-                                    alignItems="center"
-                                    spacing={1}
+                    if (params.row.rowType === "groupHeader") {
+                        return (
+                            <Stack
+                                direction="row"
+                                alignItems="center"
+                                spacing={1}
+                                sx={{ pl: 1, height: "100%" }}
+                            >
+                                <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                        handleToggleGroup(params.row.id)
+                                    }
                                 >
-                                    <IconButton
-                                        size="small"
-                                        onClick={() =>
-                                            handleToggleRow(params.row.id)
-                                        }
-                                        sx={{ p: 0.5 }}
-                                    >
-                                        {isLoading ? (
-                                            <CircularProgress size={18} />
-                                        ) : isExpanded ? (
-                                            <ExpandMoreIcon />
-                                        ) : (
-                                            <ChevronRightIcon />
-                                        )}
-                                    </IconButton>
-                                    <Typography
-                                        variant="body2"
-                                        fontWeight={600}
-                                        color="text.primary"
-                                    >
-                                        {params.row.description}
-                                    </Typography>
-                                    {adjustmentsCount > 0 && (
-                                        <Chip
-                                            label={`${adjustmentsCount} chi tiết`}
-                                            size="small"
-                                            sx={{
-                                                height: "20px",
-                                                fontSize: "0.75rem",
-                                            }}
-                                        />
+                                    {params.row.isExpanded ? (
+                                        <ExpandMoreIcon />
+                                    ) : (
+                                        <ChevronRightIcon />
                                     )}
-                                </Stack>
-                            );
-                        case "adjustment":
-                            const isIncrease = params.row.type === "increase";
-                            return (
-                                <Stack
-                                    direction="row"
-                                    alignItems="center"
-                                    sx={{ pl: 5 }}
+                                </IconButton>
+                                <Typography fontWeight="bold">
+                                    {params.row.description} (
+                                    {params.row.childrenCount} mục)
+                                </Typography>
+                            </Stack>
+                        );
+                    }
+                    if (params.row.rowType === "parent") {
+                        const isItemExpanded = expandedRows.has(params.row.id);
+                        const isLoadingAdjustments = loadingAdjustments.has(
+                            params.row.id
+                        );
+                        const adjustmentsCount =
+                            adjustmentsData[params.row.id]?.length || 0;
+                        return (
+                            <Stack
+                                direction="row"
+                                alignItems="center"
+                                spacing={1}
+                                sx={{ pl: 5, height: "100%" }}
+                            >
+                                <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                        handleToggleRow(params.row.id)
+                                    }
+                                    sx={{ p: 0.5 }}
                                 >
-                                    <Typography
-                                        sx={{
-                                            mr: 1,
-                                            color: isIncrease
-                                                ? "success.main"
-                                                : "error.main",
-                                            fontFamily: "monospace",
-                                        }}
-                                    >
-                                        └─
-                                    </Typography>
-                                    <Typography
-                                        variant="body2"
-                                        sx={{
-                                            fontStyle: "italic",
-                                            color: "text.secondary",
-                                        }}
-                                    >
-                                        ({isIncrease ? "Tăng" : "Giảm"}){" "}
-                                        {params.row.reason}
-                                    </Typography>
-                                </Stack>
-                            );
-                        case "empty":
-                            return (
-                                <Stack
-                                    direction="row"
-                                    alignItems="center"
+                                    {isLoadingAdjustments ? (
+                                        <CircularProgress size={18} />
+                                    ) : isItemExpanded ? (
+                                        <ExpandMoreIcon />
+                                    ) : (
+                                        <ChevronRightIcon />
+                                    )}
+                                </IconButton>
+                                <Typography variant="body2">
+                                    {params.row.description}
+                                </Typography>
+                                {adjustmentsCount > 0 && (
+                                    <Chip
+                                        label={`${adjustmentsCount} chi tiết`}
+                                        size="small"
+                                        sx={{ height: 20, fontSize: "0.75rem" }}
+                                    />
+                                )}
+                            </Stack>
+                        );
+                    }
+                    if (params.row.rowType === "adjustment") {
+                        const isIncrease = params.row.type === "increase";
+                        return (
+                            <Stack
+                                direction="row"
+                                alignItems="center"
+                                sx={{ pl: 10, height: "100%" }}
+                            >
+                                <Typography
+                                    sx={{ mr: 1, fontFamily: "monospace" }}
+                                >
+                                    └─
+                                </Typography>
+                                <Typography
+                                    variant="body2"
                                     sx={{
-                                        pl: 5,
-                                        color: "text.secondary",
                                         fontStyle: "italic",
+                                        color: "text.secondary",
                                     }}
                                 >
-                                    <InfoOutlinedIcon
-                                        fontSize="small"
-                                        sx={{ mr: 1 }}
-                                    />
-                                    Chưa có phát sinh chi tiết
-                                </Stack>
-                            );
-                        default:
-                            return null;
+                                    ({isIncrease ? "Tăng" : "Giảm"}){" "}
+                                    {params.row.reason}
+                                </Typography>
+                            </Stack>
+                        );
                     }
+                    if (params.row.rowType === "empty") {
+                        return (
+                            <Stack
+                                direction="row"
+                                alignItems="center"
+                                sx={{ pl: 10, height: "100%" }}
+                            >
+                                <InfoOutlinedIcon
+                                    fontSize="small"
+                                    sx={{ mr: 1, color: "text.secondary" }}
+                                />
+                                <Typography
+                                    variant="body2"
+                                    sx={{
+                                        fontStyle: "italic",
+                                        color: "text.secondary",
+                                    }}
+                                >
+                                    Chưa có phát sinh chi tiết
+                                </Typography>
+                            </Stack>
+                        );
+                    }
+                    return null;
                 },
             },
             {
@@ -768,19 +771,30 @@ useEffect(() => {
                 type: "number",
                 align: "right",
                 headerAlign: "right",
-                valueGetter: (v, row) =>
-                    row.rowType === "parent" ? row.amount : null,
-                renderCell: (params) =>
-                    params.value === null ? (
-                        ""
-                    ) : (
-                        <Typography
-                            variant="body2"
-                            sx={{ fontFamily: "monospace" }}
-                        >
-                            {Number(params.value || 0).toLocaleString("vi-VN")}
-                        </Typography>
-                    ),
+                renderCell: (params) => {
+                    if (
+                        params.row.rowType === "groupHeader" ||
+                        params.row.rowType === "parent"
+                    ) {
+                        return (
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    fontFamily: "monospace",
+                                    fontWeight:
+                                        params.row.rowType === "groupHeader"
+                                            ? 700
+                                            : 400,
+                                }}
+                            >
+                                {Number(params.value || 0).toLocaleString(
+                                    "vi-VN"
+                                )}
+                            </Typography>
+                        );
+                    }
+                    return "";
+                },
             },
             {
                 field: "adjustmentAmount",
@@ -808,9 +822,11 @@ useEffect(() => {
                                     : "error.dark",
                                 fontWeight: 500,
                             }}
-                        >{`${isIncrease ? "+" : ""}${Number(
-                            params.value
-                        ).toLocaleString("vi-VN")}`}</Typography>
+                        >
+                            {`${isIncrease ? "+" : ""}${Number(
+                                params.value
+                            ).toLocaleString("vi-VN")}`}
+                        </Typography>
                     );
                 },
             },
@@ -822,15 +838,14 @@ useEffect(() => {
                 align: "right",
                 headerAlign: "right",
                 valueGetter: (v, row) =>
-                    row.rowType === "parent"
+                    row.rowType === "groupHeader" || row.rowType === "parent"
                         ? (row.amount || 0) +
                           (row.increaseAmount || 0) -
                           (row.decreaseAmount || 0)
                         : null,
-                renderCell: (params) =>
-                    params.value === null ? (
-                        ""
-                    ) : (
+                renderCell: (params) => {
+                    if (params.value === null) return "";
+                    return (
                         <Typography
                             variant="body2"
                             sx={{
@@ -840,26 +855,6 @@ useEffect(() => {
                             }}
                         >
                             {Number(params.value).toLocaleString("vi-VN")}
-                        </Typography>
-                    ),
-            },
-            {
-                field: "createdAt",
-                headerName: "Ngày tạo",
-                width: 160,
-                align: "right",
-                headerAlign: "right",
-                renderCell: (params) => {
-                    if (
-                        params.row.rowType !== "adjustment" ||
-                        !params.row.createdAt?.toDate
-                    )
-                        return "";
-                    return (
-                        <Typography variant="body2" color="text.secondary">
-                            {params.row.createdAt
-                                .toDate()
-                                .toLocaleString("vi-VN")}
                         </Typography>
                     );
                 },
@@ -890,7 +885,6 @@ useEffect(() => {
                             (p) => p.id === params.row.parentId
                         );
                         return (
-                            // Thêm spacing={1} để tạo khoảng cách
                             <Stack
                                 direction="row"
                                 spacing={1}
@@ -932,16 +926,23 @@ useEffect(() => {
             },
         ],
         [
+            expandedGroups,
             expandedRows,
             loadingAdjustments,
-            planningItems,
             adjustmentsData,
+            planningItems,
+            handleToggleGroup,
             handleToggleRow,
+            handleOpenModalForAdd,
+            handleDeleteAdjustment,
+            handleOpenModalForEdit,
         ]
     );
+
     const { totalPlannedAmount, totalFinalAmount } = useMemo(() => {
-        let totalPlanned = 0,
-            totalFinal = 0;
+        let totalPlanned = 0;
+        let totalFinal = 0;
+
         planningItems.forEach((item) => {
             const itemAdjustments = adjustmentsData[item.id] || [];
             const totalIncrease = itemAdjustments
@@ -954,6 +955,7 @@ useEffect(() => {
             totalFinal +=
                 (Number(item.amount) || 0) + totalIncrease - totalDecrease;
         });
+
         return {
             totalPlannedAmount: totalPlanned,
             totalFinalAmount: totalFinal,
@@ -962,6 +964,102 @@ useEffect(() => {
 
     const estimatedProfit = contractValue - totalFinalAmount;
 
+    // --- MAIN useEffect FOR DATA LOADING ---
+    useEffect(() => {
+        if (!projectId) {
+            setLoading(false);
+            return;
+        }
+
+        const itemsQuery = query(
+            collection(db, "projects", projectId, "planningItems"),
+            orderBy("order")
+        );
+        const unsubscribe = onSnapshot(
+            itemsQuery,
+            (snapshot) => {
+                setPlanningItems(
+                    snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
+                );
+                setLoading(false);
+            },
+            (error) => {
+                console.error("Snapshot error:", error);
+                setLoading(false);
+                toast.error("Lỗi khi lắng nghe thay đổi dữ liệu.");
+            }
+        );
+
+        if (initialSetupDone.current === false) {
+            initialSetupDone.current = true;
+
+            const runInitialSetup = async () => {
+                try {
+                    const planningItemsSnapshot = await getDocs(
+                        collection(db, "projects", projectId, "planningItems")
+                    );
+                    if (planningItemsSnapshot.empty) {
+                        const projectSnap = await getDoc(
+                            doc(db, "projects", projectId)
+                        );
+                        if (!projectSnap.exists()) return;
+
+                        const projectData = projectSnap.data();
+                        const fetchedProjectType = projectData.type;
+                        setContractValue(projectData.totalAmount || 0);
+
+                        if (fetchedProjectType) {
+                            const typeToFieldMap = {
+                                "KH-ĐT": "isKhdt",
+                                "Nhà máy": "isNhaMay",
+                                "Thi công": "isThiCong",
+                            };
+                            const fieldToFilter =
+                                typeToFieldMap[fetchedProjectType];
+                            if (fieldToFilter) {
+                                const categoriesQuery = query(
+                                    collection(db, "categories"),
+                                    where(fieldToFilter, "==", true),
+                                    orderBy("key")
+                                );
+                                const categoriesSnapshot = await getDocs(
+                                    categoriesQuery
+                                );
+                                const fetchedCategories =
+                                    categoriesSnapshot.docs.map((d) => ({
+                                        id: d.id,
+                                        ...d.data(),
+                                    }));
+                                await populateInitialPlanningItems(
+                                    projectId,
+                                    fetchedCategories
+                                );
+                            }
+                        }
+                    } else {
+                        const projectSnap = await getDoc(
+                            doc(db, "projects", projectId)
+                        );
+                        if (projectSnap.exists()) {
+                            setContractValue(
+                                projectSnap.data().totalAmount || 0
+                            );
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error during initial setup:", error);
+                    toast.error("Đã xảy ra lỗi khi thiết lập dự án.");
+                }
+            };
+            runInitialSetup();
+        }
+
+        return () => {
+            unsubscribe();
+        };
+    }, [projectId, populateInitialPlanningItems, handleAddNewGroup]);
+
+    // --- JSX RETURN ---
     return (
         <Box sx={{ p: { xs: 1, sm: 2 } }}>
             <Stack spacing={3}>
@@ -1031,6 +1129,75 @@ useEffect(() => {
                         border: (theme) => `1px solid ${theme.palette.divider}`,
                     }}
                 >
+                    <Typography variant="h6" fontWeight={700} gutterBottom>
+                        Thêm Nhóm Chi Phí Mới
+                    </Typography>
+                    <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mb: 2 }}
+                    >
+                        Dùng để tạo các hạng mục tổng như "A. Chi phí nhân
+                        công", "B. Chi phí vật tư"...
+                    </Typography>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                        <TextField
+                            label="Tên Nhóm Chi Phí"
+                            placeholder="VD: A. Chi phí nhân công"
+                            value={newGroup.name}
+                            onChange={(e) =>
+                                setNewGroup({
+                                    ...newGroup,
+                                    name: e.target.value,
+                                })
+                            }
+                            fullWidth
+                        />
+                        <NumericFormat
+                            label="Số tiền Kế hoạch"
+                            customInput={TextField}
+                            value={newGroup.amount}
+                            onValueChange={(values) => {
+                                setNewGroup({
+                                    ...newGroup,
+                                    amount: values.value,
+                                });
+                            }}
+                            thousandSeparator="."
+                            decimalSeparator=","
+                            suffix=" ₫"
+                            fullWidth
+                        />
+                        <Button
+                            variant="contained"
+                            onClick={handleAddNewGroup}
+                            disabled={
+                                isAdding || !newGroup.name || !newGroup.amount
+                            }
+                            startIcon={
+                                isAdding ? (
+                                    <CircularProgress
+                                        size={20}
+                                        color="inherit"
+                                    />
+                                ) : (
+                                    <AddIcon />
+                                )
+                            }
+                            sx={{ minWidth: 150 }}
+                        >
+                            {isAdding ? "Đang thêm..." : "Thêm Nhóm"}
+                        </Button>
+                    </Stack>
+                </Paper>
+
+                <Paper
+                    sx={{
+                        p: 2.5,
+                        borderRadius: 4,
+                        border: (theme) => `1px solid ${theme.palette.divider}`,
+                    }}
+                >
                     {!previewData ? (
                         <>
                             <Typography
@@ -1042,8 +1209,8 @@ useEffect(() => {
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                                 Sao chép 2 cột (Diễn giải, Số tiền) từ Excel và
-                                dán vào ô bên dưới để thêm các hạng mục kế hoạch
-                                chính.
+                                dán vào ô bên dưới để thêm các hạng mục vào nhóm
+                                "C. Chi phí Khác".
                             </Typography>
                             <TextField
                                 fullWidth
@@ -1110,16 +1277,9 @@ useEffect(() => {
                             getRowHeight={() => "auto"}
                             hideFooterSelectedRowCount
                             disableColumnMenu
-                            // TỐI ƯU: Bỏ đường kẻ dọc, chỉ giữ đường kẻ ngang
                             showCellVerticalBorder={false}
-                            getRowClassName={(params) =>
-                                params.row.rowType === "parent"
-                                    ? `MuiDataGrid-row--parent`
-                                    : ""
-                            }
                             sx={{
                                 border: "none",
-                                // TỐI ƯU: Thay đổi màu sắc header và hàng cha
                                 "& .MuiDataGrid-columnHeaders": {
                                     bgcolor: (theme) => theme.palette.grey[100],
                                     borderBottom: (theme) =>
@@ -1128,7 +1288,7 @@ useEffect(() => {
                                 "& .MuiDataGrid-row--parent": {
                                     fontWeight: "bold",
                                     bgcolor: (theme) =>
-                                        alpha(theme.palette.action.hover, 0.04), // Màu xám rất nhạt
+                                        alpha(theme.palette.action.hover, 0.04),
                                     "&:hover": {
                                         bgcolor: (theme) =>
                                             alpha(
@@ -1137,13 +1297,9 @@ useEffect(() => {
                                             ),
                                     },
                                 },
-                                "& .MuiDataGrid-cell": {
-                                    py: 1.5, // Tăng khoảng cách cho dễ đọc
-                                },
+                                "& .MuiDataGrid-cell": { py: 1.5 },
                                 "& .MuiDataGrid-cell:focus-within, & .MuiDataGrid-cell:focus":
-                                    {
-                                        outline: "none !important",
-                                    },
+                                    { outline: "none !important" },
                             }}
                         />
                     </Paper>
@@ -1160,6 +1316,5 @@ useEffect(() => {
                 />
             )}
         </Box>
-        
     );
 }
