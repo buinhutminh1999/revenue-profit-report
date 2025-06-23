@@ -1193,27 +1193,7 @@ export default function ProfitReportQuarter() {
                     profit: 0,
                     percent: null,
                 },
-                {
-                    name: `+ Vượt CP BPXN do ko đạt DT ${selectedQuarter}`,
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                },
-                {
-                    name: `+ Vượt CP BPSX do ko đạt DT ${selectedQuarter}`,
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                },
-                {
-                    name: `+ Vượt CP BPĐT do ko có DT ${selectedQuarter} (lãi + thuê vp)`,
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                },
+          
                 {
                     name: "+ Chi phí đã trả trước",
                     revenue: 0,

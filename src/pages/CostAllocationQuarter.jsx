@@ -944,232 +944,262 @@ export default function CostAllocationQuarter() {
         return [...base, ...projCols, ...other];
     }, [visibleProjects, year, quarter, isXs]);
 
-  const handleSave = useCallback(async () => {
-    setSaving(true);
-    const savePromise = new Promise(async (resolve, reject) => {
-        try {
-            const docRef = doc(db, COL_QUARTER, `${year}_${quarter}`);
-            const snapshot = await getDoc(docRef);
-            const prevMainRows = snapshot.exists()
-                ? snapshot.data().mainRows || []
-                : [];
+    const handleSave = useCallback(async () => {
+        setSaving(true);
+        const savePromise = new Promise(async (resolve, reject) => {
+            try {
+                const docRef = doc(db, COL_QUARTER, `${year}_${quarter}`);
+                const snapshot = await getDoc(docRef);
+                const prevMainRows = snapshot.exists()
+                    ? snapshot.data().mainRows || []
+                    : [];
 
-            // --- BẮT ĐẦU LOGIC SỬA LỖI ---
-            // 1. Dùng Map để dễ dàng tìm và cập nhật các dòng theo ID.
-            // Khởi tạo Map với dữ liệu cũ từ Firebase.
-            const mainRowsMap = new Map(
-                prevMainRows.map((row) => [row.id, row])
-            );
+                // --- BẮT ĐẦU LOGIC SỬA LỖI ---
+                // 1. Dùng Map để dễ dàng tìm và cập nhật các dòng theo ID.
+                // Khởi tạo Map với dữ liệu cũ từ Firebase.
+                const mainRowsMap = new Map(
+                    prevMainRows.map((row) => [row.id, row])
+                );
 
-            // 2. Lấy dữ liệu overrun của quý trước để tính toán
-            const prev = getPrevQuarter(year, quarter);
-            let allPrevOverrun = {};
-            if (prev) {
-                const prevRef = doc(db, COL_QUARTER, `${prev.year}_${prev.quarter}`);
-                const prevSnap = await getDoc(prevRef);
-                const prevData = prevSnap.data() || {};
-                (prevData.mainRows || []).forEach((r) => {
-                    allPrevOverrun[r.id] = r.byType?.[typeFilter]?.overrun || {};
-                });
-            }
+                // 2. Lấy dữ liệu overrun của quý trước để tính toán
+                const prev = getPrevQuarter(year, quarter);
+                let allPrevOverrun = {};
+                if (prev) {
+                    const prevRef = doc(
+                        db,
+                        COL_QUARTER,
+                        `${prev.year}_${prev.quarter}`
+                    );
+                    const prevSnap = await getDoc(prevRef);
+                    const prevData = prevSnap.data() || {};
+                    (prevData.mainRows || []).forEach((r) => {
+                        allPrevOverrun[r.id] =
+                            r.byType?.[typeFilter]?.overrun || {};
+                    });
+                }
 
-            // 3. Duyệt qua các dòng đang hiển thị trên UI (rowsInit) để cập nhật vào Map
-            rowsInit
-                .filter((r) => {
-                    const lbl = (r.label || "").trim().toUpperCase();
-                    return lbl !== "DOANH THU" && lbl !== "TỔNG CHI PHÍ";
-                })
-                .forEach((currentRow) => {
-                    const baseId = currentRow.id.split("__")[0];
+                // 3. Duyệt qua các dòng đang hiển thị trên UI (rowsInit) để cập nhật vào Map
+                rowsInit
+                    .filter((r) => {
+                        const lbl = (r.label || "").trim().toUpperCase();
+                        return lbl !== "DOANH THU" && lbl !== "TỔNG CHI PHÍ";
+                    })
+                    .forEach((currentRow) => {
+                        const baseId = currentRow.id.split("__")[0];
 
-                    // Lấy dòng đã tồn tại từ Map hoặc tạo một dòng mới nếu chưa có
-                    const existingRow = mainRowsMap.get(baseId) || {
+                        // Lấy dòng đã tồn tại từ Map hoặc tạo một dòng mới nếu chưa có
+                        const existingRow = mainRowsMap.get(baseId) || {
+                            id: baseId,
+                            label: currentRow.label,
+                            byType: {},
+                        };
+
+                        // Tính toán overrun cho quý sau (logic này đã có trong code gốc của bạn)
+                        const overrun = {};
+                        const rowLimits = manualLimits[currentRow.id] || {};
+                        visibleProjects.forEach((p) => {
+                            const hasLimit = rowLimits[p.id] !== undefined;
+                            if (hasLimit) {
+                                overrun[p.id] = 0;
+                            } else {
+                                const rev = toNum(
+                                    projData[p.id]?.overallRevenue
+                                );
+                                const dc = getDC(p.id, currentRow.label);
+                                const need = Math.round(
+                                    (rev * (currentRow.pct || 0)) / 100 - dc
+                                );
+                                const shown = currentRow[p.id] ?? 0;
+                                overrun[p.id] = Math.max(0, need - shown);
+                            }
+                        });
+
+                        const prevOver = allPrevOverrun[baseId] || {};
+                        const fullNeed = {};
+                        visibleProjects.forEach((p) => {
+                            fullNeed[p.id] =
+                                (prevOver[p.id] || 0) + (overrun[p.id] || 0);
+                        });
+
+                        // Chuẩn bị dữ liệu cho type hiện tại
+                        const typeSpecificData = {
+                            pct: currentRow.pct ?? 0,
+                            value: currentRow[valKey] ?? 0,
+                            used: currentRow.used ?? 0,
+                            allocated: currentRow.allocated ?? 0,
+                            carryOver: currentRow.carryOver ?? 0,
+                            cumQuarterOnly: currentRow.cumQuarterOnly ?? 0,
+                            cumCurrent: currentRow.cumCurrent ?? 0,
+                            overrun: fullNeed,
+                        };
+
+                        // Gộp dữ liệu của type hiện tại vào đối tượng byType của dòng đó
+                        const newByType = {
+                            ...existingRow.byType,
+                            [typeFilter]: typeSpecificData,
+                        };
+
+                        // Cập nhật các giá trị của từng công trình (project) trên dòng chính
+                        visibleProjects.forEach((p) => {
+                            existingRow[p.id] = currentRow[p.id] ?? 0;
+                        });
+
+                        // Cập nhật lại dòng trong Map
+                        mainRowsMap.set(baseId, {
+                            ...existingRow,
+                            label: currentRow.label, // Cập nhật label phòng khi có thay đổi
+                            byType: newByType,
+                            prevIncluded: true,
+                        });
+                    });
+
+                // 4. Chuyển Map trở lại thành mảng để lưu.
+                // Mảng này giờ sẽ chứa tất cả dữ liệu cũ và dữ liệu mới đã được cập nhật.
+                const dataToSave = Array.from(mainRowsMap.values());
+                // --- KẾT THÚC LOGIC SỬA LỖI ---
+
+                // Phần còn lại của hàm giữ nguyên, chỉ thay đổi nguồn dữ liệu
+                const totalCumQuarterOnlySave = dataToSave.reduce((sum, r) => {
+                    return (
+                        sum +
+                        (toNum(r.byType?.[typeFilter]?.cumQuarterOnly) || 0)
+                    );
+                }, 0);
+
+                const totalFieldMap = {
+                    "Thi công": "totalThiCongCumQuarterOnly",
+                    "Nhà máy": "totalNhaMayCumQuarterOnly",
+                    "KH-ĐT": "totalKhdtCumQuarterOnly",
+                };
+                const totalField = totalFieldMap[typeFilter.trim()];
+
+                await setDoc(
+                    docRef,
+                    {
+                        mainRows: dataToSave, // Dùng mảng đã được merge
+                        manualLimits: manualLimits,
+                        ...(totalField
+                            ? { [totalField]: totalCumQuarterOnlySave }
+                            : {}),
+                        updated_at: serverTimestamp(),
+                    },
+                    { merge: true }
+                );
+
+                // Logic lưu cho quý sau
+                const { year: nextY, quarter: nextQ } = getNextQuarter(
+                    year,
+                    quarter
+                );
+                const nextRef = doc(db, COL_QUARTER, `${nextY}_${nextQ}`);
+                const nextSnap = await getDoc(nextRef);
+                const nextData = nextSnap.exists() ? nextSnap.data() : {};
+                const nextRows = Array.isArray(nextData.mainRows)
+                    ? [...nextData.mainRows]
+                    : [];
+
+                const updatedNextRowsMap = new Map(
+                    nextRows.map((row) => [row.id, row])
+                );
+
+                dataToSave.forEach((r) => {
+                    const baseId = r.id;
+                    const carryNext = r.byType?.[typeFilter]?.cumCurrent ?? 0;
+                    const fullNeed = r.byType?.[typeFilter]?.overrun ?? {};
+
+                    const existingNextRow = updatedNextRowsMap.get(baseId) || {
                         id: baseId,
-                        label: currentRow.label,
+                        label: r.label,
                         byType: {},
                     };
 
-                    // Tính toán overrun cho quý sau (logic này đã có trong code gốc của bạn)
-                    const overrun = {};
-                    const rowLimits = manualLimits[currentRow.id] || {};
-                    visibleProjects.forEach((p) => {
-                        const hasLimit = rowLimits[p.id] !== undefined;
-                        if (hasLimit) {
-                            overrun[p.id] = 0;
-                        } else {
-                            const rev = toNum(projData[p.id]?.overallRevenue);
-                            const dc = getDC(p.id, currentRow.label);
-                            const need = Math.round(
-                                (rev * (currentRow.pct || 0)) / 100 - dc
-                            );
-                            const shown = currentRow[p.id] ?? 0;
-                            overrun[p.id] = Math.max(0, need - shown);
-                        }
-                    });
-
-                    const prevOver = allPrevOverrun[baseId] || {};
-                    const fullNeed = {};
-                    visibleProjects.forEach((p) => {
-                        fullNeed[p.id] = (prevOver[p.id] || 0) + (overrun[p.id] || 0);
-                    });
-
-                    // Chuẩn bị dữ liệu cho type hiện tại
-                    const typeSpecificData = {
-                        pct: currentRow.pct ?? 0,
-                        value: currentRow[valKey] ?? 0,
-                        used: currentRow.used ?? 0,
-                        allocated: currentRow.allocated ?? 0,
-                        carryOver: currentRow.carryOver ?? 0,
-                        cumQuarterOnly: currentRow.cumQuarterOnly ?? 0,
-                        cumCurrent: currentRow.cumCurrent ?? 0,
-                        overrun: fullNeed,
+                    const nextRowByType = {
+                        ...existingNextRow.byType,
+                        [typeFilter]: {
+                            overrun: fullNeed,
+                            carryOver: carryNext,
+                        },
                     };
 
-                    // Gộp dữ liệu của type hiện tại vào đối tượng byType của dòng đó
-                    const newByType = {
-                        ...existingRow.byType,
-                        [typeFilter]: typeSpecificData,
-                    };
-                    
-                    // Cập nhật các giá trị của từng công trình (project) trên dòng chính
-                    visibleProjects.forEach((p) => {
-                        existingRow[p.id] = currentRow[p.id] ?? 0;
-                    });
-
-                    // Cập nhật lại dòng trong Map
-                    mainRowsMap.set(baseId, {
-                        ...existingRow,
-                        label: currentRow.label, // Cập nhật label phòng khi có thay đổi
-                        byType: newByType,
-                        prevIncluded: true,
+                    updatedNextRowsMap.set(baseId, {
+                        ...existingNextRow,
+                        byType: nextRowByType,
                     });
                 });
 
-            // 4. Chuyển Map trở lại thành mảng để lưu.
-            // Mảng này giờ sẽ chứa tất cả dữ liệu cũ và dữ liệu mới đã được cập nhật.
-            const dataToSave = Array.from(mainRowsMap.values());
-            // --- KẾT THÚC LOGIC SỬA LỖI ---
-
-
-            // Phần còn lại của hàm giữ nguyên, chỉ thay đổi nguồn dữ liệu
-            const totalCumQuarterOnlySave = dataToSave.reduce((sum, r) => {
-                return (
-                    sum + (toNum(r.byType?.[typeFilter]?.cumQuarterOnly) || 0)
-                );
-            }, 0);
-            
-            const totalFieldMap = {
-                "Thi công": "totalThiCongCumQuarterOnly",
-                "Nhà máy": "totalNhaMayCumQuarterOnly",
-                "KH-ĐT": "totalKhdtCumQuarterOnly",
-            };
-            const totalField = totalFieldMap[typeFilter.trim()];
-
-            await setDoc(
-                docRef,
-                {
-                    mainRows: dataToSave, // Dùng mảng đã được merge
-                    manualLimits: manualLimits,
-                    ...(totalField
-                        ? { [totalField]: totalCumQuarterOnlySave }
-                        : {}),
-                    updated_at: serverTimestamp(),
-                },
-                { merge: true }
-            );
-
-            // Logic lưu cho quý sau
-            const { year: nextY, quarter: nextQ } = getNextQuarter(year, quarter);
-            const nextRef = doc(db, COL_QUARTER, `${nextY}_${nextQ}`);
-            const nextSnap = await getDoc(nextRef);
-            const nextData = nextSnap.exists() ? nextSnap.data() : {};
-            const nextRows = Array.isArray(nextData.mainRows)
-                ? [...nextData.mainRows]
-                : [];
-            
-            const updatedNextRowsMap = new Map(nextRows.map(row => [row.id, row]));
-
-            dataToSave.forEach((r) => {
-                const baseId = r.id;
-                const carryNext = r.byType?.[typeFilter]?.cumCurrent ?? 0;
-                const fullNeed = r.byType?.[typeFilter]?.overrun ?? {};
-
-                const existingNextRow = updatedNextRowsMap.get(baseId) || {
-                    id: baseId,
-                    label: r.label,
-                    byType: {}
-                };
-
-                const nextRowByType = {
-                    ...existingNextRow.byType,
-                    [typeFilter]: {
-                        overrun: fullNeed,
-                        carryOver: carryNext,
+                await setDoc(
+                    nextRef,
+                    {
+                        mainRows: Array.from(updatedNextRowsMap.values()),
+                        updated_at: serverTimestamp(),
                     },
-                };
-                
-                updatedNextRowsMap.set(baseId, { ...existingNextRow, byType: nextRowByType });
-            });
+                    { merge: true }
+                );
 
-            await setDoc(
-                nextRef,
-                {
-                    mainRows: Array.from(updatedNextRowsMap.values()),
-                    updated_at: serverTimestamp(),
-                },
-                { merge: true }
-            );
-
-            // Logic cập nhật projects/years/quarters (giữ nguyên)
-            await Promise.all(
-                visibleProjects.map(async (p) => {
-                    const ref = doc(db, "projects", p.id, "years", String(year), "quarters", quarter);
-                    const snap = await getDoc(ref);
-                    const data = snap.exists() ? snap.data() : {};
-                    const items = Array.isArray(data.items) ? [...data.items] : [];
-
-                    dataToSave.forEach((r) => {
-                        const itemIdx = items.findIndex(
-                            (item) => item.id === r.id || (item.description && normalize(item.description) === normalize(r.label))
+                // Logic cập nhật projects/years/quarters (giữ nguyên)
+                await Promise.all(
+                    visibleProjects.map(async (p) => {
+                        const ref = doc(
+                            db,
+                            "projects",
+                            p.id,
+                            "years",
+                            String(year),
+                            "quarters",
+                            quarter
                         );
-                        if (itemIdx >= 0) {
-                            items[itemIdx].allocated = String(r[p.id] ?? 0);
-                        }
-                    });
-                    await setDoc(ref, { items }, { merge: true });
-                })
-            );
+                        const snap = await getDoc(ref);
+                        const data = snap.exists() ? snap.data() : {};
+                        const items = Array.isArray(data.items)
+                            ? [...data.items]
+                            : [];
 
-            resolve("Đã lưu & cập nhật phân bổ dự án!");
-        } catch (err) {
-            console.error("Save error: ", err);
-            reject(err);
-        }
-    });
+                        dataToSave.forEach((r) => {
+                            const itemIdx = items.findIndex(
+                                (item) =>
+                                    item.id === r.id ||
+                                    (item.description &&
+                                        normalize(item.description) ===
+                                            normalize(r.label))
+                            );
+                            if (itemIdx >= 0) {
+                                items[itemIdx].allocated = String(r[p.id] ?? 0);
+                            }
+                        });
+                        await setDoc(ref, { items }, { merge: true });
+                    })
+                );
 
-    toast
-        .promise(savePromise, {
-            loading: "Đang lưu dữ liệu...",
-            success: (msg) => msg,
-            error: "Lỗi khi lưu dữ liệu!",
-        })
-        .then(() => {
-            setDirtyCells(new Set());
-        })
-        .finally(() => {
-            setSaving(false);
+                resolve("Đã lưu & cập nhật phân bổ dự án!");
+            } catch (err) {
+                console.error("Save error: ", err);
+                reject(err);
+            }
         });
-}, [
-    rowsInit,
-    typeFilter,
-    year,
-    quarter,
-    visibleProjects,
-    projData,
-    getDC,
-    valKey,
-    manualLimits,
-]);
+
+        toast
+            .promise(savePromise, {
+                loading: "Đang lưu dữ liệu...",
+                success: (msg) => msg,
+                error: "Lỗi khi lưu dữ liệu!",
+            })
+            .then(() => {
+                setDirtyCells(new Set());
+            })
+            .finally(() => {
+                setSaving(false);
+            });
+    }, [
+        rowsInit,
+        typeFilter,
+        year,
+        quarter,
+        visibleProjects,
+        projData,
+        getDC,
+        valKey,
+        manualLimits,
+    ]);
     useEffect(() => {
         const onKeyDown = (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === "s") {
@@ -1376,8 +1406,7 @@ export default function CostAllocationQuarter() {
                 }}
             >
                 <DataGrid
-                        key={`${year}_${quarter}_${typeFilter}`} // <--- THÊM DÒNG NÀY
-
+                    key={`${year}_${quarter}_${typeFilter}`} // <--- THÊM DÒNG NÀY
                     rows={rowsWithTotal}
                     columns={columns}
                     loading={loading || saving}

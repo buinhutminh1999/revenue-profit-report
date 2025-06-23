@@ -64,7 +64,7 @@ import AddIcon from "@mui/icons-material/Add";
 
 import AdjustmentModal from "./AdjustmentModal";
 
-// --- CÁC COMPONENT PHỤ (KHÔNG THAY ĐỔI) ---
+// --- CÁC COMPONENT PHỤ ---
 const StatCard = ({ title, value, icon, color }) => {
     const theme = useTheme();
     return (
@@ -291,26 +291,18 @@ export default function PlanningTab({ projectId }) {
     const [contractValue, setContractValue] = useState(0);
     const [adjustmentsData, setAdjustmentsData] = useState({});
     const [loadingAdjustments, setLoadingAdjustments] = useState(new Set());
-
-    // State cho Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentItemForModal, setCurrentItemForModal] = useState(null);
     const [adjustmentToEdit, setAdjustmentToEdit] = useState(null);
-
-    // State cho chức năng thêm nhanh từ Excel
     const [pasteData, setPasteData] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [previewData, setPreviewData] = useState(null);
-
-    // State cho chức năng thêm nhóm mới
     const [newGroup, setNewGroup] = useState({ name: "", amount: "" });
     const [isAdding, setIsAdding] = useState(false);
-
-    // State cho việc giả lập Tree View
     const [expandedGroups, setExpandedGroups] = useState(new Set());
-    const [expandedRows, setExpandedRows] = useState(new Set()); // Vẫn giữ cho adjustments
-
+    const [expandedRows, setExpandedRows] = useState(new Set());
     const initialSetupDone = useRef(false);
+    const adjustmentUnsubscribes = useRef(new Map());
 
     // --- LOGIC FUNCTIONS (useCallback) ---
     const populateInitialPlanningItems = useCallback(
@@ -415,9 +407,18 @@ export default function PlanningTab({ projectId }) {
             const newExpanded = new Set(expandedRows);
             if (newExpanded.has(itemId)) {
                 newExpanded.delete(itemId);
+
+                const unsubscribe = adjustmentUnsubscribes.current.get(itemId);
+                if (unsubscribe) {
+                    unsubscribe();
+                    adjustmentUnsubscribes.current.delete(itemId);
+                }
             } else {
                 newExpanded.add(itemId);
-                if (!adjustmentsData[itemId]) {
+                if (
+                    !adjustmentsData[itemId] &&
+                    !adjustmentUnsubscribes.current.has(itemId)
+                ) {
                     setLoadingAdjustments((prev) => new Set(prev).add(itemId));
                     const adjQuery = query(
                         collection(
@@ -430,21 +431,39 @@ export default function PlanningTab({ projectId }) {
                         ),
                         orderBy("createdAt", "desc")
                     );
-                    onSnapshot(adjQuery, (snapshot) => {
-                        const adjs = snapshot.docs.map((d) => ({
-                            id: d.id,
-                            ...d.data(),
-                        }));
-                        setAdjustmentsData((prev) => ({
-                            ...prev,
-                            [itemId]: adjs,
-                        }));
-                        setLoadingAdjustments((prev) => {
-                            const s = new Set(prev);
-                            s.delete(itemId);
-                            return s;
-                        });
-                    });
+
+                    const unsubscribe = onSnapshot(
+                        adjQuery,
+                        (snapshot) => {
+                            const adjs = snapshot.docs.map((d) => ({
+                                id: d.id,
+                                ...d.data(),
+                            }));
+                            setAdjustmentsData((prev) => ({
+                                ...prev,
+                                [itemId]: adjs,
+                            }));
+                            setLoadingAdjustments((prev) => {
+                                const s = new Set(prev);
+                                s.delete(itemId);
+                                return s;
+                            });
+                        },
+                        (error) => {
+                            console.error(
+                                `Error listening to adjustments for item ${itemId}:`,
+                                error
+                            );
+                            toast.error(`Lỗi tải chi tiết cho mục ${itemId}.`);
+                            setLoadingAdjustments((prev) => {
+                                const s = new Set(prev);
+                                s.delete(itemId);
+                                return s;
+                            });
+                        }
+                    );
+
+                    adjustmentUnsubscribes.current.set(itemId, unsubscribe);
                 }
             }
             setExpandedRows(newExpanded);
@@ -561,7 +580,6 @@ export default function PlanningTab({ projectId }) {
     // --- DATA PROCESSING (useMemo) ---
     const processedRows = useMemo(() => {
         const groups = new Map();
-
         planningItems.forEach((item) => {
             const groupName = item.itemGroup || "Chưa phân loại";
             if (!groups.has(groupName)) {
@@ -569,16 +587,26 @@ export default function PlanningTab({ projectId }) {
             }
             groups.get(groupName).push(item);
         });
-
         const flatRows = [];
         const sortedGroupKeys = Array.from(groups.keys()).sort((a, b) =>
             a.localeCompare(b)
         );
-
         sortedGroupKeys.forEach((groupName) => {
             const children = groups.get(groupName);
             const isGroupExpanded = expandedGroups.has(groupName);
-
+            const isStandaloneGroup =
+                children.length === 1 && children[0].isCustom;
+            let totalIncreaseForGroup = 0;
+            let totalDecreaseForGroup = 0;
+            children.forEach((child) => {
+                const adjs = adjustmentsData[child.id] || [];
+                totalIncreaseForGroup += adjs
+                    .filter((a) => a.type === "increase")
+                    .reduce((sum, a) => sum + a.amount, 0);
+                totalDecreaseForGroup += adjs
+                    .filter((a) => a.type === "decrease")
+                    .reduce((sum, a) => sum + a.amount, 0);
+            });
             flatRows.push({
                 id: groupName,
                 rowType: "groupHeader",
@@ -589,9 +617,11 @@ export default function PlanningTab({ projectId }) {
                 ),
                 isExpanded: isGroupExpanded,
                 childrenCount: children.length,
+                isStandalone: isStandaloneGroup,
+                increaseAmount: totalIncreaseForGroup,
+                decreaseAmount: totalDecreaseForGroup,
             });
-
-            if (isGroupExpanded) {
+            if (!isStandaloneGroup && isGroupExpanded) {
                 children.forEach((childItem) => {
                     const itemAdjustments = adjustmentsData[childItem.id] || [];
                     const totalIncrease = itemAdjustments
@@ -600,7 +630,6 @@ export default function PlanningTab({ projectId }) {
                     const totalDecrease = itemAdjustments
                         .filter((a) => a.type === "decrease")
                         .reduce((sum, a) => sum + a.amount, 0);
-
                     flatRows.push({
                         ...childItem,
                         id: childItem.id,
@@ -608,10 +637,9 @@ export default function PlanningTab({ projectId }) {
                         increaseAmount: totalIncrease,
                         decreaseAmount: totalDecrease,
                     });
-
-                    // Xử lý thêm các hàng adjustments nếu hàng parent được mở
                     if (expandedRows.has(childItem.id)) {
-                        if (itemAdjustments.length > 0) {
+                        if (loadingAdjustments.has(childItem.id)) {
+                        } else if (itemAdjustments.length > 0) {
                             itemAdjustments.forEach((adj) => {
                                 flatRows.push({
                                     ...adj,
@@ -633,7 +661,13 @@ export default function PlanningTab({ projectId }) {
             }
         });
         return flatRows;
-    }, [planningItems, expandedGroups, adjustmentsData, expandedRows]);
+    }, [
+        planningItems,
+        expandedGroups,
+        adjustmentsData,
+        expandedRows,
+        loadingAdjustments,
+    ]);
 
     const columns = useMemo(
         () => [
@@ -644,6 +678,7 @@ export default function PlanningTab({ projectId }) {
                 minWidth: 450,
                 renderCell: (params) => {
                     if (params.row.rowType === "groupHeader") {
+                        const isStandalone = params.row.isStandalone;
                         return (
                             <Stack
                                 direction="row"
@@ -651,21 +686,27 @@ export default function PlanningTab({ projectId }) {
                                 spacing={1}
                                 sx={{ pl: 1, height: "100%" }}
                             >
-                                <IconButton
-                                    size="small"
-                                    onClick={() =>
-                                        handleToggleGroup(params.row.id)
-                                    }
-                                >
-                                    {params.row.isExpanded ? (
-                                        <ExpandMoreIcon />
-                                    ) : (
-                                        <ChevronRightIcon />
-                                    )}
-                                </IconButton>
+                                {!isStandalone ? (
+                                    <IconButton
+                                        size="small"
+                                        onClick={() =>
+                                            handleToggleGroup(params.row.id)
+                                        }
+                                        sx={{ p: 0.5 }}
+                                    >
+                                        {params.row.isExpanded ? (
+                                            <ExpandMoreIcon />
+                                        ) : (
+                                            <ChevronRightIcon />
+                                        )}
+                                    </IconButton>
+                                ) : (
+                                    <Box sx={{ width: 32, height: 32 }} />
+                                )}
                                 <Typography fontWeight="bold">
-                                    {params.row.description} (
-                                    {params.row.childrenCount} mục)
+                                    {params.row.description}
+                                    {!isStandalone &&
+                                        ` (${params.row.childrenCount} mục)`}
                                 </Typography>
                             </Stack>
                         );
@@ -721,7 +762,11 @@ export default function PlanningTab({ projectId }) {
                                 sx={{ pl: 10, height: "100%" }}
                             >
                                 <Typography
-                                    sx={{ mr: 1, fontFamily: "monospace" }}
+                                    sx={{
+                                        mr: 1,
+                                        fontFamily: "monospace",
+                                        color: "text.secondary",
+                                    }}
                                 >
                                     └─
                                 </Typography>
@@ -745,6 +790,15 @@ export default function PlanningTab({ projectId }) {
                                 alignItems="center"
                                 sx={{ pl: 10, height: "100%" }}
                             >
+                                <Typography
+                                    sx={{
+                                        mr: 1,
+                                        fontFamily: "monospace",
+                                        color: "text.secondary",
+                                    }}
+                                >
+                                    └─
+                                </Typography>
                                 <InfoOutlinedIcon
                                     fontSize="small"
                                     sx={{ mr: 1, color: "text.secondary" }}
@@ -942,7 +996,6 @@ export default function PlanningTab({ projectId }) {
     const { totalPlannedAmount, totalFinalAmount } = useMemo(() => {
         let totalPlanned = 0;
         let totalFinal = 0;
-
         planningItems.forEach((item) => {
             const itemAdjustments = adjustmentsData[item.id] || [];
             const totalIncrease = itemAdjustments
@@ -955,7 +1008,6 @@ export default function PlanningTab({ projectId }) {
             totalFinal +=
                 (Number(item.amount) || 0) + totalIncrease - totalDecrease;
         });
-
         return {
             totalPlannedAmount: totalPlanned,
             totalFinalAmount: totalFinal,
@@ -964,7 +1016,7 @@ export default function PlanningTab({ projectId }) {
 
     const estimatedProfit = contractValue - totalFinalAmount;
 
-    // --- MAIN useEffect FOR DATA LOADING ---
+    // --- MAIN useEffect FOR DATA LOADING AND CLEANUP ---
     useEffect(() => {
         if (!projectId) {
             setLoading(false);
@@ -975,7 +1027,8 @@ export default function PlanningTab({ projectId }) {
             collection(db, "projects", projectId, "planningItems"),
             orderBy("order")
         );
-        const unsubscribe = onSnapshot(
+
+        const unsubscribeItems = onSnapshot(
             itemsQuery,
             (snapshot) => {
                 setPlanningItems(
@@ -984,15 +1037,14 @@ export default function PlanningTab({ projectId }) {
                 setLoading(false);
             },
             (error) => {
-                console.error("Snapshot error:", error);
+                console.error("Snapshot error for planning items:", error);
                 setLoading(false);
-                toast.error("Lỗi khi lắng nghe thay đổi dữ liệu.");
+                toast.error("Lỗi khi tải dữ liệu kế hoạch.");
             }
         );
 
         if (initialSetupDone.current === false) {
             initialSetupDone.current = true;
-
             const runInitialSetup = async () => {
                 try {
                     const planningItemsSnapshot = await getDocs(
@@ -1055,9 +1107,13 @@ export default function PlanningTab({ projectId }) {
         }
 
         return () => {
-            unsubscribe();
+            unsubscribeItems();
+            adjustmentUnsubscribes.current.forEach((unsubscribe) =>
+                unsubscribe()
+            );
+            adjustmentUnsubscribes.current.clear();
         };
-    }, [projectId, populateInitialPlanningItems, handleAddNewGroup]);
+    }, [projectId]);
 
     // --- JSX RETURN ---
     return (
