@@ -51,6 +51,7 @@ import {
     AccountBalanceWallet as AccountBalanceWalletIcon,
     AttachMoney as AttachMoneyIcon,
     Calculate as CalculateIcon,
+    ReceiptLong as ReceiptLongIcon,
     TrendingUp as TrendingUpIcon,
     FactCheck as FactCheckIcon,
     PlaylistAddCheck as PlaylistAddCheckIcon,
@@ -402,73 +403,18 @@ export default function PlanningTab({ projectId }) {
         [expandedGroups]
     );
 
+    // CẬP NHẬT: Đã xóa logic lazy-loading khỏi hàm này
     const handleToggleRow = useCallback(
         (itemId) => {
             const newExpanded = new Set(expandedRows);
             if (newExpanded.has(itemId)) {
                 newExpanded.delete(itemId);
-
-                const unsubscribe = adjustmentUnsubscribes.current.get(itemId);
-                if (unsubscribe) {
-                    unsubscribe();
-                    adjustmentUnsubscribes.current.delete(itemId);
-                }
             } else {
                 newExpanded.add(itemId);
-                if (
-                    !adjustmentsData[itemId] &&
-                    !adjustmentUnsubscribes.current.has(itemId)
-                ) {
-                    setLoadingAdjustments((prev) => new Set(prev).add(itemId));
-                    const adjQuery = query(
-                        collection(
-                            db,
-                            "projects",
-                            projectId,
-                            "planningItems",
-                            itemId,
-                            "adjustments"
-                        ),
-                        orderBy("createdAt", "desc")
-                    );
-
-                    const unsubscribe = onSnapshot(
-                        adjQuery,
-                        (snapshot) => {
-                            const adjs = snapshot.docs.map((d) => ({
-                                id: d.id,
-                                ...d.data(),
-                            }));
-                            setAdjustmentsData((prev) => ({
-                                ...prev,
-                                [itemId]: adjs,
-                            }));
-                            setLoadingAdjustments((prev) => {
-                                const s = new Set(prev);
-                                s.delete(itemId);
-                                return s;
-                            });
-                        },
-                        (error) => {
-                            console.error(
-                                `Error listening to adjustments for item ${itemId}:`,
-                                error
-                            );
-                            toast.error(`Lỗi tải chi tiết cho mục ${itemId}.`);
-                            setLoadingAdjustments((prev) => {
-                                const s = new Set(prev);
-                                s.delete(itemId);
-                                return s;
-                            });
-                        }
-                    );
-
-                    adjustmentUnsubscribes.current.set(itemId, unsubscribe);
-                }
             }
             setExpandedRows(newExpanded);
         },
-        [expandedRows, adjustmentsData, projectId]
+        [expandedRows]
     );
 
     const handleOpenModalForAdd = (item) => {
@@ -993,30 +939,38 @@ export default function PlanningTab({ projectId }) {
         ]
     );
 
-    const { totalPlannedAmount, totalFinalAmount } = useMemo(() => {
+    const { totalPlannedAmount, totalFinalAmount, totalIncurredAmount } = useMemo(() => {
         let totalPlanned = 0;
         let totalFinal = 0;
+        let totalIncurred = 0; 
+
         planningItems.forEach((item) => {
             const itemAdjustments = adjustmentsData[item.id] || [];
+            
             const totalIncrease = itemAdjustments
                 .filter((a) => a.type === "increase")
                 .reduce((sum, a) => sum + a.amount, 0);
+                
             const totalDecrease = itemAdjustments
                 .filter((a) => a.type === "decrease")
                 .reduce((sum, a) => sum + a.amount, 0);
+
+            totalIncurred += (totalIncrease - totalDecrease);
+
             totalPlanned += Number(item.amount) || 0;
-            totalFinal +=
-                (Number(item.amount) || 0) + totalIncrease - totalDecrease;
+            totalFinal += (Number(item.amount) || 0) + totalIncrease - totalDecrease;
         });
+
         return {
             totalPlannedAmount: totalPlanned,
             totalFinalAmount: totalFinal,
+            totalIncurredAmount: totalIncurred,
         };
     }, [planningItems, adjustmentsData]);
 
     const estimatedProfit = contractValue - totalFinalAmount;
 
-    // --- MAIN useEffect FOR DATA LOADING AND CLEANUP ---
+    // CẬP NHẬT: Toàn bộ useEffect này đã được thay đổi để tải dữ liệu ngay từ đầu
     useEffect(() => {
         if (!projectId) {
             setLoading(false);
@@ -1031,10 +985,32 @@ export default function PlanningTab({ projectId }) {
         const unsubscribeItems = onSnapshot(
             itemsQuery,
             (snapshot) => {
-                setPlanningItems(
-                    snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
-                );
+                const newItems = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+                setPlanningItems(newItems);
                 setLoading(false);
+
+                adjustmentUnsubscribes.current.forEach((unsub) => unsub());
+                adjustmentUnsubscribes.current.clear();
+
+                newItems.forEach(item => {
+                    const adjQuery = query(
+                        collection(db, "projects", projectId, "planningItems", item.id, "adjustments"),
+                        orderBy("createdAt", "desc")
+                    );
+
+                    const unsubscribeAdjustments = onSnapshot(adjQuery, (adjSnapshot) => {
+                        const fetchedAdjustments = adjSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                        
+                        setAdjustmentsData(prevData => ({
+                            ...prevData,
+                            [item.id]: fetchedAdjustments,
+                        }));
+                    }, (error) => {
+                        console.error(`Error loading adjustments for item ${item.id}:`, error);
+                    });
+
+                    adjustmentUnsubscribes.current.set(item.id, unsubscribeAdjustments);
+                });
             },
             (error) => {
                 console.error("Snapshot error for planning items:", error);
@@ -1113,7 +1089,7 @@ export default function PlanningTab({ projectId }) {
             );
             adjustmentUnsubscribes.current.clear();
         };
-    }, [projectId]);
+    }, [projectId, populateInitialPlanningItems]);
 
     // --- JSX RETURN ---
     return (
@@ -1135,7 +1111,7 @@ export default function PlanningTab({ projectId }) {
                         color="warning"
                     />
                     <StatCard
-                        title="Tổng tiền Kế hoạch"
+                        title="Giá trị Kế hoạch"
                         value={
                             <NumericFormat
                                 value={totalPlannedAmount}
@@ -1149,7 +1125,21 @@ export default function PlanningTab({ projectId }) {
                         color="primary"
                     />
                     <StatCard
-                        title="Tổng Thành tiền"
+                        title="Tổng chi phí phát sinh"
+                        value={
+                            <NumericFormat
+                                value={totalIncurredAmount}
+                                displayType={"text"}
+                                thousandSeparator="."
+                                decimalSeparator=","
+                                suffix=" ₫"
+                            />
+                        }
+                        icon={<ReceiptLongIcon />}
+                        color="info"
+                    />
+                    <StatCard
+                        title="Tổng chi phí dự kiến"
                         value={
                             <NumericFormat
                                 value={totalFinalAmount}
@@ -1160,7 +1150,7 @@ export default function PlanningTab({ projectId }) {
                             />
                         }
                         icon={<CalculateIcon />}
-                        color="info"
+                        color="secondary"
                     />
                     <StatCard
                         title="Lợi nhuận dự kiến"

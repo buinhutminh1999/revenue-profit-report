@@ -415,12 +415,23 @@ export default function ActualCostsTab({ projectId }) {
             return;
         }
 
-        const requiredCategories = categories.filter((cat) => {
-            if (projectData.type === "Thi công" && cat.isThiCong) {
-                return true;
-            }
-            return false;
-        });
+       const requiredCategories = categories.filter((cat) => {
+    const { type } = projectData; // Lấy type của dự án
+
+    // Kiểm tra cho từng loại dự án
+    if (type === "Thi công" && cat.isThiCong) {
+        return true;
+    }
+    if (type === "Nhà máy" && cat.isNhaMay) { // <-- THÊM ĐIỀU KIỆN cho Nhà máy
+        return true;
+    }
+    if (type === "KH-ĐT" && cat.isKhdt) {     // <-- THÊM ĐIỀU KIỆN cho KH-ĐT
+        return true;
+    }
+
+    // Trường hợp mặc định
+    return false;
+});
 
         const transformedProjName = transformProjectName(projectData.name);
 

@@ -16,7 +16,7 @@ import {
     Alert as MuiAlert,
     Stack,
     Breadcrumbs,
-    Link as MuiLink,
+    Link as MuiLink, // <--- SỬA LẠI THÀNH DÒNG NÀY
     Skeleton,
     alpha,
     Checkbox,
@@ -32,6 +32,7 @@ import {
     Search as SearchIcon,
     Home as HomeIcon,
     Category as CategoryIcon,
+    FileDownload as FileDownloadIcon, // <<< THÊM MỚI 1: Import icon
 } from "@mui/icons-material";
 import { DataGrid } from "@mui/x-data-grid";
 import { db } from "../services/firebase-config";
@@ -71,13 +72,11 @@ export default function CategoryConfig() {
     const [search, setSearch] = useState("");
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
-    // BẮT ĐẦU THAY ĐỔI: Thêm state cho filters
     const [filters, setFilters] = useState({
         isThiCong: false,
         isNhaMay: false,
         isKhdt: false,
     });
-    // KẾT THÚC THAY ĐỔI
     const [editRow, setEditRow] = useState(null);
     const [delId, setDelId] = useState(null);
     const [snackbar, setSnackbar] = useState({
@@ -115,12 +114,10 @@ export default function CategoryConfig() {
         return unsub;
     }, []);
 
-    // BẮT ĐẦU THAY ĐỔI: Cập nhật logic lọc
     const filteredCategories = useMemo(() => {
         const validCategories = Array.isArray(categories) ? categories : [];
         const s = search.trim().toLowerCase();
 
-        // 1. Lọc theo text search trước
         const searched = !s
             ? validCategories
             : validCategories.filter(
@@ -131,24 +128,18 @@ export default function CategoryConfig() {
                       c.label.toLowerCase().includes(s)
               );
 
-        // 2. Lọc tiếp theo các checkbox filter
         const activeFilters = Object.keys(filters).filter(
             (key) => filters[key]
         );
 
-        // Nếu không có filter nào được chọn, trả về kết quả search
         if (activeFilters.length === 0) {
             return searched;
         }
 
-        // Nếu có filter được chọn, lọc tiếp
         return searched.filter((category) => {
-            // "every" đảm bảo khoản mục phải thỏa mãn TẤT CẢ các filter đang được chọn
-            // (ví dụ: vừa là Thi công VÀ vừa là Nhà máy)
             return activeFilters.every((filterKey) => !!category[filterKey]);
         });
-    }, [categories, search, filters]); // <-- Thêm 'filters' vào dependency array
-    // KẾT THÚC THAY ĐỔI
+    }, [categories, search, filters]);
 
     const rows = useMemo(() => {
         return filteredCategories.map((row, index) => ({
@@ -171,7 +162,85 @@ export default function CategoryConfig() {
         }
     };
 
+    // <<< THÊM MỚI 2: Hàm xử lý xuất file Excel
+    const handleExportExcel = () => {
+        if (filteredCategories.length === 0) {
+            setSnackbar({
+                open: true,
+                message: "Không có dữ liệu để xuất!",
+                severity: "warning",
+            });
+            return;
+        }
+
+        toast.success("Đang chuẩn bị file Excel...");
+
+        // 1. Chuẩn bị dữ liệu để xuất
+        const dataToExport = filteredCategories.map((category, index) => ({
+            STT: index + 1,
+            "Tên Khoản Mục": category.label,
+            "Thi công": category.isThiCong ? "x" : "",
+            "Nhà máy": category.isNhaMay ? "x" : "",
+            "KH-ĐT": category.isKhdt ? "x" : "",
+        }));
+
+        // 2. Tạo worksheet từ mảng dữ liệu
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+        // 3. Định dạng (làm đẹp và kẻ ô)
+        const cellBorder = {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" },
+        };
+
+        const headerStyle = {
+            font: { bold: true },
+            fill: { fgColor: { rgb: "E0E0E0" } }, // Màu xám nhạt
+            alignment: { horizontal: "center", vertical: "center" },
+            border: cellBorder,
+        };
+
+        // Lấy phạm vi của worksheet
+        const range = XLSX.utils.decode_range(ws["!ref"]);
+
+        // Định dạng header
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const address = XLSX.utils.encode_cell({ r: range.s.r, c: C });
+            if (!ws[address]) continue;
+            ws[address].s = headerStyle;
+        }
+
+        // Kẻ ô cho toàn bộ bảng dữ liệu
+        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cell_address = { c: C, r: R };
+                const address = XLSX.utils.encode_cell(cell_address);
+                if (!ws[address]) continue;
+                ws[address].s = { border: cellBorder };
+            }
+        }
+
+        // Tự động điều chỉnh độ rộng cột
+        const colWidths = [
+            { wch: 5 }, // STT
+            { wch: 50 }, // Tên Khoản Mục
+            { wch: 10 }, // Thi công
+            { wch: 10 }, // Nhà máy
+            { wch: 10 }, // KH-ĐT
+        ];
+        ws["!cols"] = colWidths;
+
+        // 4. Tạo workbook và tải file
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Danh mục khoản mục");
+        XLSX.writeFile(wb, "Danh-muc-khoan-muc.xlsx");
+    };
+    // <<< KẾT THÚC HÀM XUẤT EXCEL
+
     const columns = [
+        // ... (Giữ nguyên phần columns của bạn)
         {
             field: "stt",
             headerName: "STT",
@@ -289,6 +358,7 @@ export default function CategoryConfig() {
         },
     ];
 
+    // ... (Giữ nguyên các hàm handleAdd, handleUpdate, handleDelete, handleExcel của bạn)
     const handleAdd = async () => {
         const label = newCategoryName.trim();
         if (!label) return;
@@ -517,6 +587,15 @@ export default function CategoryConfig() {
                         </Breadcrumbs>
                     </Box>
                     <Stack direction="row" spacing={1}>
+                        {/* <<< THÊM MỚI 3: Thêm nút Xuất Excel */}
+                        <Button
+                            variant="outlined"
+                            color="success"
+                            startIcon={<FileDownloadIcon />}
+                            onClick={handleExportExcel} // Gọi hàm đã tạo
+                        >
+                            Xuất Excel
+                        </Button>
                         <Button
                             variant="outlined"
                             color="primary"
@@ -536,6 +615,7 @@ export default function CategoryConfig() {
                 </Stack>
             </motion.div>
 
+            {/* ... (Phần còn lại của component giữ nguyên) ... */}
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
