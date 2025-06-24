@@ -751,103 +751,102 @@ export default function CostAllocation() {
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
             >
-                <Paper
-                    elevation={0}
-                    sx={{
-                        p: 2.5,
-                        mb: 3,
-                        borderRadius: 4,
-                        boxShadow:
-                            "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px",
-                    }}
+
+<Paper
+    elevation={0}
+    sx={{
+        p: { xs: 2, md: 2.5 },
+        mb: 3,
+        borderRadius: 4,
+        boxShadow: "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px",
+    }}
+>
+    {/* ✨ [UI/UX] Sắp xếp lại header với layout justifyContent="space-between" */}
+    <Stack
+        direction={{ xs: "column", md: "row" }}
+        justifyContent="space-between"
+        alignItems={{ xs: "flex-start", md: "center" }}
+        spacing={2}
+    >
+        {/* Cụm Tiêu đề và Breadcrumb bên trái */}
+        <Box>
+            <Typography variant="h5" fontWeight={700}>
+                Bảng Kế Hoạch Chi Phí
+            </Typography>
+            <Breadcrumbs separator="›" sx={{ mt: 0.5 }}>
+                <MuiLink
+                    component="button"
+                    underline="hover"
+                    color="text.secondary"
+                    onClick={() => navigate("/")}
+                    sx={{ display: 'flex', alignItems: 'center' }}
                 >
-                    <Stack
-                        direction={{ xs: "column", md: "row" }}
-                        justifyContent="space-between"
-                        alignItems="center"
-                        spacing={2}
-                    >
-                        <Box>
-                            <Typography variant="h5" fontWeight={700}>
-                                Phân bổ chi phí
-                            </Typography>
-                            <Breadcrumbs separator="›" sx={{ mt: 0.5 }}>
-                                <MuiLink
-                                    component="button"
-                                    color="text.secondary"
-                                    onClick={() => navigate("/")}
-                                >
-                                    <HomeIcon
-                                        sx={{ mr: 0.5 }}
-                                        fontSize="inherit"
-                                    />
-                                    Trang chủ
-                                </MuiLink>
-                                <Typography color="text.primary">
-                                    Allocations
-                                </Typography>
-                            </Breadcrumbs>
-                        </Box>
-                        <Stack
-                            direction="row"
-                            spacing={1.5}
-                            alignItems="center"
-                        >
-                            <TextField
-                                select
-                                label="Năm"
-                                size="small"
-                                sx={{ width: 120, bgcolor: "background.paper" }}
-                                value={year}
-                                onChange={(e) => setYear(+e.target.value)}
-                            >
-                                {[2023, 2024, 2025, 2026].map((y) => (
-                                    <MenuItem key={y} value={y}>
-                                        {y}
-                                    </MenuItem>
-                                ))}
-                            </TextField>
-                            <TextField
-                                select
-                                label="Quý"
-                                size="small"
-                                sx={{ width: 120, bgcolor: "background.paper" }}
-                                value={quarter}
-                                onChange={(e) => setQuarter(e.target.value)}
-                            >
-                                {Object.entries(quarterMap).map(([q, cfg]) => (
-                                    <MenuItem key={q} value={q}>
-                                        {cfg.label}
-                                    </MenuItem>
-                                ))}
-                            </TextField>
+                    <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
+                    Trang chủ
+                </MuiLink>
+                <Typography color="text.primary">
+                    Phân bổ chi phí
+                </Typography>
+            </Breadcrumbs>
+        </Box>
 
-                            <Button
-                                variant="outlined"
-                                color="primary"
-                                startIcon={<FileDownload />}
-                                onClick={handleExport}
-                                sx={{ height: "40px" }}
-                            >
-                                Xuất Excel
-                            </Button>
+        {/* ✨ [UI/UX] Nhóm các bộ lọc và hành động lại với nhau */}
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+            {/* Nhóm Filters */}
+            <TextField
+                select
+                label="Quý"
+                size="small"
+                sx={{ width: 120, bgcolor: "background.paper" }}
+                value={quarter}
+                onChange={(e) => setQuarter(e.target.value)}
+            >
+                {Object.entries(quarterMap).map(([q, cfg]) => (
+                    <MenuItem key={q} value={q}>
+                        {cfg.label}
+                    </MenuItem>
+                ))}
+            </TextField>
+            <TextField
+                select
+                label="Năm"
+                size="small"
+                sx={{ width: 120, bgcolor: "background.paper" }}
+                value={year}
+                onChange={(e) => setYear(+e.target.value)}
+            >
+                {[2023, 2024, 2025, 2026].map((y) => (
+                    <MenuItem key={y} value={y}>
+                        {y}
+                    </MenuItem>
+                ))}
+            </TextField>
 
-                            <Button
-                                variant="contained"
-                                color="success"
-                                startIcon={<Save />}
-                                onClick={handleSave}
-                                sx={{
-                                    height: "40px",
-                                    boxShadow:
-                                        "0 8px 16px 0 rgba(0,171,85,0.24)",
-                                }}
-                            >
-                                Lưu thay đổi
-                            </Button>
-                        </Stack>
-                    </Stack>
-                </Paper>
+            {/* Nhóm Actions */}
+            <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<FileDownload />}
+                onClick={handleExport}
+                sx={{ height: "40px" }}
+            >
+                Xuất Excel
+            </Button>
+            <Button
+                variant="contained"
+                color="primary" // Đổi thành màu primary cho nhất quán
+                startIcon={<Save />}
+                onClick={handleSave}
+                sx={{
+                    height: "40px",
+                    boxShadow: "0 8px 16px 0 rgba(0, 123, 255, 0.24)",
+                }}
+            >
+                Lưu
+            </Button>
+        </Stack>
+    </Stack>
+</Paper>
             </motion.div>
 
             <motion.div

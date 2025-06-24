@@ -1,240 +1,280 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
-  Box, Alert, Paper, Grid, Typography, CardActionArea,
-  Skeleton, Chip, AlertTitle, Divider, styled,
+    Box, Paper, Grid, Typography, CardActionArea,
+    Skeleton, Chip, styled, Divider,
+    Stack,
 } from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
 import { motion } from "framer-motion";
 import {
-  LineChart, FolderKanban, PieChart, Construction, Building,
-  Settings, BarChart3, TrendingUp, BookCheck, ArrowRight,
+    LineChart, FolderKanban, PieChart, Construction, Building,
+    Settings, BarChart3, TrendingUp, BookCheck, ArrowRight, Sun, Moon, Coffee
 } from "lucide-react";
 
-// --- DỮ LIỆU CẤU HÌNH ---
+// --- DỮ LIỆU CẤU HÌNH (Không đổi) ---
 const mainFunctions = [
-  { icon: <Construction size={32} />, text: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ các dự án" },
-  { icon: <Building size={32} />, text: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết, quản lý từng công trình", isNew: true },
-  { icon: <BookCheck size={32} />, text: "Phân bổ chi phí", to: "/allocations", desc: "Nhập và quản lý chi phí cho dự án" },
+    { icon: <Construction size={32} />, text: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ các dự án" },
+    { icon: <Building size={32} />, text: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết, quản lý từng công trình", isNew: true },
+    { icon: <BookCheck size={32} />, text: "Phân bổ chi phí", to: "/allocations", desc: "Nhập và quản lý chi phí cho dự án" },
 ];
 const reportFunctions = [
-  { icon: <BarChart3 size={24} />, text: "Báo Cáo Lợi Nhuận", to: "/profit-report-quarter", desc: "Phân tích doanh thu - chi phí" },
-  { icon: <PieChart size={24} />, text: "Chi Phí Theo Quý", to: "/cost-allocation-quarter", desc: "Theo dõi phân bổ quý" },
-  { icon: <LineChart size={24} />, text: "Lợi Nhuận Theo Năm", to: "/profit-report-year", desc: "Báo cáo doanh thu - chi phí cả năm" },
-  { icon: <TrendingUp size={24} />, text: "Tăng Giảm Lợi Nhuận", to: "/profit-change", desc: "Phát sinh ảnh hưởng lợi nhuận" },
+    { icon: <BarChart3 size={24} />, text: "Báo Cáo Lợi Nhuận", to: "/profit-report-quarter", desc: "Phân tích doanh thu - chi phí" },
+    { icon: <PieChart size={24} />, text: "Chi Phí Theo Quý", to: "/cost-allocation-quarter", desc: "Theo dõi phân bổ quý" },
+    { icon: <LineChart size={24} />, text: "Lợi Nhuận Theo Năm", to: "/profit-report-year", desc: "Báo cáo doanh thu - chi phí cả năm" },
+    { icon: <TrendingUp size={24} />, text: "Tăng Giảm Lợi Nhuận", to: "/profit-change", desc: "Phát sinh ảnh hưởng lợi nhuận" },
 ];
 const settingsFunctions = [
-  { icon: <Settings size={24} />, text: "Quản Trị Khoản Mục", to: "/categories", desc: "Cấu hình các khoản mục chi phí" },
+    { icon: <Settings size={24} />, text: "Quản Trị Khoản Mục", to: "/categories", desc: "Cấu hình các khoản mục chi phí" },
 ];
 
 const formatVND = (v) =>
-  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(v);
+    new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(v);
 
-// --- CÁC STYLED COMPONENTS CHO NỘI DUNG TRANG HOME ---
+// --- ✨ [UI/UX] CÁC STYLED COMPONENTS ĐÃ ĐƯỢC NÂNG CẤP ---
+
+// Component gốc cho toàn bộ trang với hiệu ứng Aurora
+const StyledRoot = styled(Box)(({ theme }) => ({
+    position: 'relative',
+    overflow: 'hidden',
+    padding: theme.spacing(3),
+    '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: '-20%',
+        left: '-20%',
+        width: '400px',
+        height: '400px',
+        background: `radial-gradient(circle, ${alpha(theme.palette.primary.light, 0.2)} 0%, transparent 70%)`,
+        filter: 'blur(100px)',
+        zIndex: -1,
+    },
+    '&::after': {
+        content: '""',
+        position: 'absolute',
+        bottom: '-20%',
+        right: '-15%',
+        width: '400px',
+        height: '400px',
+        background: `radial-gradient(circle, ${alpha(theme.palette.secondary.light, 0.2)} 0%, transparent 70%)`,
+        filter: 'blur(120px)',
+        zIndex: -1,
+    }
+}));
+
 const KpiCard = styled(Paper)(({ theme, color = 'primary' }) => ({
-  padding: theme.spacing(3),
-  borderRadius: theme.shape.borderRadius * 4,
-  position: 'relative',
-  overflow: 'hidden',
-  backgroundColor: 'rgba(255, 255, 255, 0.7)',
-  backdropFilter: 'blur(10px)',
-  border: `1px solid rgba(224, 224, 224, 0.6)`,
-  transition: 'all 300ms ease-in-out',
-  boxShadow: 'rgba(149, 157, 165, 0.1) 0px 8px 24px',
-  display: 'flex',
-  alignItems: 'center',
-  '&:hover': {
-    transform: 'translateY(-4px)',
-    boxShadow: `0 0 25px -5px ${theme.palette[color].light}`,
-  }
+    padding: theme.spacing(3),
+    borderRadius: theme.shape.borderRadius * 4,
+    position: 'relative',
+    overflow: 'hidden',
+    border: `1px solid ${theme.palette.divider}`,
+    transition: 'all 300ms ease-in-out',
+    boxShadow: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    '&:hover': {
+        transform: 'translateY(-5px)',
+        boxShadow: `0 20px 40px -15px ${alpha(theme.palette[color].main, 0.3)}`,
+    },
+    // Vầng sáng phía sau icon
+    '& .icon-glow': {
+        width: 64,
+        height: 64,
+        position: 'absolute',
+        top: -8,
+        left: -8,
+        borderRadius: '50%',
+        background: alpha(theme.palette[color].main, 0.15),
+        filter: 'blur(12px)',
+        zIndex: 1,
+    },
+    '& .icon-wrapper': {
+        zIndex: 2,
+        position: 'relative',
+    }
 }));
 
 const MainFunctionCard = styled(CardActionArea)(({ theme }) => ({
-  padding: theme.spacing(3),
-  borderRadius: theme.shape.borderRadius * 4,
-  backgroundColor: 'rgba(255, 255, 255, 0.8)',
-  backdropFilter: 'blur(12px)',
-  border: `1px solid white`,
-  boxShadow: `rgba(145, 158, 171, 0.15) 0px 10px 30px -5px`,
-  textAlign: 'center',
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  position: 'relative',
-  transition: 'all 0.3s ease-in-out',
-  '& .icon-wrapper': {
-    color: theme.palette.primary.dark,
-    marginBottom: theme.spacing(2),
-    transition: 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-  },
-  '&::after': {
-    content: '""',
-    position: 'absolute', top: -2, left: -2, right: -2, bottom: -2,
-    borderRadius: 'inherit',
-    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-    zIndex: -1,
-    opacity: 0,
-    transition: 'opacity 0.4s ease',
-  },
-  '&:hover': {
-    transform: 'translateY(-8px)',
-    color: 'white',
+    padding: theme.spacing(3),
+    borderRadius: theme.shape.borderRadius * 4,
+    backgroundColor: alpha(theme.palette.background.paper, 0.7),
+    backdropFilter: 'blur(10px)',
+    border: `1px solid ${theme.palette.divider}`,
+    boxShadow: 'rgba(145, 158, 171, 0.1) 0px 4px 12px',
+    textAlign: 'center',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.3s ease-in-out',
     '& .icon-wrapper': {
-      color: 'white',
-      transform: 'scale(1.1) rotate(-5deg)'
+        color: theme.palette.primary.main,
+        marginBottom: theme.spacing(2),
+        transition: 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
     },
-    '& .MuiTypography-body2': {
-      color: 'rgba(255, 255, 255, 0.8)'
+    '&:hover': {
+        transform: 'translateY(-8px) scale(1.02)',
+        boxShadow: `rgba(145, 158, 171, 0.2) 0px 20px 40px -10px`,
+        borderColor: theme.palette.primary.main,
     },
-    '&::after': { opacity: 1 },
-  },
 }));
 
 const SubFunctionCard = styled(CardActionArea)(({ theme }) => ({
     padding: theme.spacing(2),
     borderRadius: theme.shape.borderRadius * 3,
-    backgroundColor: 'transparent',
     textAlign: 'left',
     height: '100%',
     display: 'flex',
     alignItems: 'center',
-    color: theme.palette.text.secondary,
-    border: '1px solid transparent',
-    transition: 'all 0.3s ease-in-out',
+    color: theme.palette.text.primary,
+    borderLeft: '3px solid transparent',
+    transition: 'all 0.3s ease',
     '& .arrow-icon': {
         opacity: 0,
         marginLeft: 'auto',
-        transition: 'opacity 0.3s ease-in-out',
+        transform: 'translateX(-10px)',
+        transition: 'opacity 0.3s ease, transform 0.3s ease',
     },
     '&:hover': {
-        backgroundColor: theme.palette.action.hover,
-        borderColor: theme.palette.divider,
-        color: theme.palette.text.primary,
+        backgroundColor: alpha(theme.palette.primary.light, 0.08),
+        borderLeft: `3px solid ${theme.palette.primary.main}`,
         '& .arrow-icon': {
             opacity: 1,
+            transform: 'translateX(0)',
         },
     },
 }));
 
 const Section = ({ title, children }) => (
-  <Box mb={6}>
-    <Divider sx={{ mb: 4, '&::before, &::after': { borderColor: 'rgba(0, 0, 0, 0.08)' } }}>
-      <Typography variant="overline" color="text.secondary" sx={{ px: 2, fontSize: '0.8rem', letterSpacing: '1px' }}>{title}</Typography>
-    </Divider>
-    {children}
-  </Box>
+    <Box component="section" mb={6}>
+        <Typography variant="h5" fontWeight={600} mb={3}>{title}</Typography>
+        {children}
+    </Box>
 );
 
+// --- COMPONENT CHÍNH ĐÃ ĐƯỢC TỐI ƯU ---
 export default function Home() {
-  const [showAlert, setShowAlert] = useState(true);
-  const [summary, setSummary] = useState(null);
+    const [summary, setSummary] = useState(null); // Dữ liệu KPI
+    const [greeting, setGreeting] = useState({ icon: <Coffee />, text: "Chào mừng bạn" });
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setSummary({ totalProjects: 12, totalRevenue: 1500000, totalCost: 800000 });
-    }, 800);
-    return () => clearTimeout(t);
-  }, []);
+    // ✨ [UX] Lời chào cá nhân hóa theo thời gian
+    useEffect(() => {
+        const hour = new Date().getHours();
+        if (hour < 12) setGreeting({ icon: <Sun size={24} />, text: "Chào buổi sáng" });
+        else if (hour < 18) setGreeting({ icon: <Coffee size={24} />, text: "Chào buổi chiều" });
+        else setGreeting({ icon: <Moon size={24} />, text: "Chào buổi tối" });
 
-  const kpis = [
-    { label: "Tổng Dự Án", value: summary?.totalProjects, icon: <FolderKanban size={32} />, color: 'primary' },
-    { label: "Tổng Doanh Thu", value: summary ? formatVND(summary.totalRevenue) : undefined, icon: <LineChart size={32} />, color: 'success' },
-    { label: "Tổng Chi Phí", value: summary ? formatVND(summary.totalCost) : undefined, icon: <PieChart size={32} />, color: 'error' },
-  ];
+        // Giả lập tải dữ liệu KPI
+        const timer = setTimeout(() => {
+            setSummary({ totalProjects: 12, totalRevenue: 1585000000, totalCost: 834000000 });
+        }, 800);
+        return () => clearTimeout(timer);
+    }, []);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.07 } }
-  };
+    const kpis = [
+        { label: "Tổng Dự Án", value: summary?.totalProjects, icon: <FolderKanban size={28} />, color: 'primary' },
+        { label: "Tổng Doanh Thu", value: summary ? formatVND(summary.totalRevenue) : undefined, icon: <LineChart size={28} />, color: 'success' },
+        { label: "Tổng Chi Phí", value: summary ? formatVND(summary.totalCost) : undefined, icon: <PieChart size={28} />, color: 'error' },
+    ];
 
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1 }
-  };
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } }
+    };
+    const itemVariants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: { y: 0, opacity: 1, transition: { type: 'spring', stiffness: 100 } }
+    };
 
-  return (
-    <React.Fragment>
-      {showAlert && (
-        <Alert severity="info" onClose={() => setShowAlert(false)} sx={{ mb: 4, borderRadius: 2, bgcolor: 'info.lighter', color: 'info.darker', border: '1px solid', borderColor: 'info.light' }}>
-          <AlertTitle sx={{ fontWeight: 'bold' }}>Thông báo</AlertTitle>
-          Hệ thống đã cập nhật tính năng phân tích lợi nhuận theo quý!
-        </Alert>
-      )}
+    return (
+        <StyledRoot>
+            {/* ✨ [UX] Lời chào và tiêu đề */}
+            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+                <Stack direction="row" spacing={1.5} alignItems="center" mb={1}>
+                    {greeting.icon}
+                    <Typography variant="h4" fontWeight={700}>{greeting.text}!</Typography>
+                </Stack>
+                <Typography color="text.secondary" mb={4}>Đây là tổng quan hệ thống của bạn hôm nay.</Typography>
+            </motion.div>
 
-      <motion.div variants={containerVariants} initial="hidden" animate={!!summary ? "visible" : "hidden"}>
-        <Grid container spacing={3} sx={{ mb: 6 }}>
-          {kpis.map((k) => (
-            <Grid item xs={12} sm={6} md={4} key={k.label}>
-              <motion.div variants={itemVariants}>
-                <KpiCard color={k.color}>
-                  <Box sx={{ color: `${k.color}.main`, mr: 2 }}>{k.icon}</Box>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">{k.label}</Typography>
-                    <Typography variant="h5" fontWeight={700}>{summary ? k.value : <Skeleton width={120} />}</Typography>
-                  </Box>
-                </KpiCard>
-              </motion.div>
-            </Grid>
-          ))}
-        </Grid>
-        
-        <Section title="Không gian làm việc">
-          <motion.div variants={containerVariants}>
-            <Grid container spacing={{ xs: 2, md: 3 }}>
-              {mainFunctions.map((item) => (
-                <Grid item xs={12} sm={6} md={4} key={item.to}>
-                  <motion.div variants={itemVariants} style={{ height: '100%' }}>
-                    <MainFunctionCard component={Link} to={item.to}>
-                      <Box className="icon-wrapper">{item.icon}</Box>
-                      <Typography variant="h6" fontWeight={600}>
-                        {item.text}
-                        {item.isNew && <Chip label="New" size="small" color="warning" sx={{ ml: 1 }} />}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">{item.desc}</Typography>
-                    </MainFunctionCard>
-                  </motion.div>
+            {/* ✨ [PERF] Hiển thị Skeleton khi đang tải */}
+            <motion.div variants={containerVariants} initial="hidden" animate="visible">
+                <Grid container spacing={3} sx={{ mb: 6 }}>
+                    {kpis.map((k) => (
+                        <Grid item xs={12} sm={6} md={4} key={k.label}>
+                            <motion.div variants={itemVariants}>
+                                <KpiCard color={k.color}>
+                                    <Box className="icon-glow" />
+                                    <Box className="icon-wrapper" sx={{ color: `${k.color}.dark`, mr: 2.5 }}>{k.icon}</Box>
+                                    <Box>
+                                        <Typography variant="body1" color="text.secondary">{k.label}</Typography>
+                                        {summary ? (
+                                            <Typography variant="h5" fontWeight={700}>{k.value}</Typography>
+                                        ) : (
+                                            <Skeleton width={150} height={32} sx={{ mt: 0.5 }}/>
+                                        )}
+                                    </Box>
+                                </KpiCard>
+                            </motion.div>
+                        </Grid>
+                    ))}
                 </Grid>
-              ))}
-            </Grid>
-          </motion.div>
-        </Section>
-
-        <motion.div variants={containerVariants}>
-          <Grid container spacing={{ xs: 4, md: 8 }} mt={2}>
-            <Grid item xs={12} md={6}>
-              <Section title="Báo cáo & Phân tích">
-                {reportFunctions.map((item) => (
-                  <motion.div variants={itemVariants} key={item.to}>
-                    <SubFunctionCard component={Link} to={item.to}>
-                      {item.icon}
-                      <Box ml={1.5}><Typography variant="body1" fontWeight={500}>{item.text}</Typography></Box>
-                      <ArrowRight className="arrow-icon" />
-                    </SubFunctionCard>
-                  </motion.div>
-                ))}
-              </Section>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Section title="Thiết lập hệ thống">
-                {settingsFunctions.map((item) => (
-                  <motion.div variants={itemVariants} key={item.to}>
-                    <SubFunctionCard component={Link} to={item.to}>
-                      {item.icon}
-                      <Box ml={1.5}><Typography variant="body1" fontWeight={500}>{item.text}</Typography></Box>
-                      <ArrowRight className="arrow-icon" />
-                    </SubFunctionCard>
-                  </motion.div>
-                ))}
-              </Section>
-            </Grid>
-          </Grid>
-        </motion.div>
-      </motion.div>
-
-      <Typography variant="body2" textAlign="center" mt={8} color="text.secondary">
-        Cần hỗ trợ? Liên hệ <strong>buinhutminh1999@gmail.com</strong>
-      </Typography>
-    </React.Fragment>
-  );
+                
+                <Section title="Không gian làm việc">
+                    <motion.div variants={containerVariants} initial="hidden" animate="visible">
+                        <Grid container spacing={{ xs: 2, md: 3 }}>
+                            {mainFunctions.map((item) => (
+                                <Grid item xs={12} sm={6} md={4} key={item.to}>
+                                    <motion.div variants={itemVariants} style={{ height: '100%' }}>
+                                        <MainFunctionCard component={Link} to={item.to}>
+                                            <Box className="icon-wrapper">{item.icon}</Box>
+                                            <Typography variant="h6" fontWeight={600} gutterBottom>
+                                                {item.text}
+                                                {item.isNew && <Chip label="New" size="small" color="secondary" sx={{ ml: 1, height: 20 }} />}
+                                            </Typography>
+                                            <Typography variant="body2" color="text.secondary">{item.desc}</Typography>
+                                        </MainFunctionCard>
+                                    </motion.div>
+                                </Grid>
+                            ))}
+                        </Grid>
+                    </motion.div>
+                </Section>
+                
+                <Grid container spacing={{ xs: 4, md: 5 }} mt={2}>
+                    <Grid item xs={12} md={6}>
+                        <Section title="Báo cáo & Phân tích">
+                            <Stack spacing={1.5}>
+                            {reportFunctions.map((item) => (
+                                <motion.div variants={itemVariants} key={item.to}>
+                                    <SubFunctionCard component={Link} to={item.to}>
+                                        {item.icon}
+                                        <Box ml={2}><Typography variant="body1" fontWeight={500}>{item.text}</Typography></Box>
+                                        <ArrowRight className="arrow-icon" size={20} />
+                                    </SubFunctionCard>
+                                </motion.div>
+                            ))}
+                            </Stack>
+                        </Section>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                        <Section title="Thiết lập hệ thống">
+                            <Stack spacing={1.5}>
+                            {settingsFunctions.map((item) => (
+                                <motion.div variants={itemVariants} key={item.to}>
+                                    <SubFunctionCard component={Link} to={item.to}>
+                                        {item.icon}
+                                        <Box ml={2}><Typography variant="body1" fontWeight={500}>{item.text}</Typography></Box>
+                                        <ArrowRight className="arrow-icon" size={20}/>
+                                    </SubFunctionCard>
+                                </motion.div>
+                            ))}
+                            </Stack>
+                        </Section>
+                    </Grid>
+                </Grid>
+            </motion.div>
+        </StyledRoot>
+    );
 }
