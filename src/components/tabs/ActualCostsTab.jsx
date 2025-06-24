@@ -415,23 +415,25 @@ export default function ActualCostsTab({ projectId }) {
             return;
         }
 
-       const requiredCategories = categories.filter((cat) => {
-    const { type } = projectData; // Lấy type của dự án
+        const requiredCategories = categories.filter((cat) => {
+            const { type } = projectData; // Lấy type của dự án
 
-    // Kiểm tra cho từng loại dự án
-    if (type === "Thi công" && cat.isThiCong) {
-        return true;
-    }
-    if (type === "Nhà máy" && cat.isNhaMay) { // <-- THÊM ĐIỀU KIỆN cho Nhà máy
-        return true;
-    }
-    if (type === "KH-ĐT" && cat.isKhdt) {     // <-- THÊM ĐIỀU KIỆN cho KH-ĐT
-        return true;
-    }
+            // Kiểm tra cho từng loại dự án
+            if (type === "Thi công" && cat.isThiCong) {
+                return true;
+            }
+            if (type === "Nhà máy" && cat.isNhaMay) {
+                // <-- THÊM ĐIỀU KIỆN cho Nhà máy
+                return true;
+            }
+            if (type === "KH-ĐT" && cat.isKhdt) {
+                // <-- THÊM ĐIỀU KIỆN cho KH-ĐT
+                return true;
+            }
 
-    // Trường hợp mặc định
-    return false;
-});
+            // Trường hợp mặc định
+            return false;
+        });
 
         const transformedProjName = transformProjectName(projectData.name);
 
@@ -486,7 +488,20 @@ export default function ActualCostsTab({ projectId }) {
                         } else {
                             newVal = parseNumber(val.trim() === "" ? "0" : val);
                         }
+
                         const newRow = { ...row, [field]: newVal };
+
+                        // ✨ BẮT ĐẦU THAY ĐỔI ✨
+                        // Logic bật/tắt cờ ưu tiên nhập tay
+                        if (field === "revenue") {
+                            // Nếu người dùng sửa trực tiếp ô "Doanh Thu", bật cờ ưu tiên nhập tay
+                            newRow.isRevenueManual = true;
+                        } else if (field === "hskh") {
+                            // Nếu người dùng sửa ô "HSKH", tắt cờ để hệ thống tự tính lại Doanh thu
+                            newRow.isRevenueManual = false;
+                        }
+                        // ✨ KẾT THÚC THAY ĐỔI ✨
+
                         calcAllFields(newRow, {
                             isUserEditingNoPhaiTraCK: field === "noPhaiTraCK",
                             overallRevenue,
@@ -636,7 +651,7 @@ export default function ActualCostsTab({ projectId }) {
                     quarter={quarter}
                     onQuarterChange={(e) => setQuarter(e.target.value)}
                 />
-                  <SummaryPanel
+                <SummaryPanel
                     overallRevenue={overallRevenue}
                     overallRevenueEditing={overallRevenueEditing}
                     setOverallRevenue={setOverallRevenue}
@@ -660,7 +675,6 @@ export default function ActualCostsTab({ projectId }) {
                     projectTotalAmount={projectTotalAmount}
                     categories={categories}
                 />
-              
             </Box>
             <ColumnSelector
                 columnsAll={columnsAll}

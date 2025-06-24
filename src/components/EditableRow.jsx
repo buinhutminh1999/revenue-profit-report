@@ -47,10 +47,7 @@ const EditableRow = ({
                 }
 
                 /* 3️⃣ chỉ-đọc */
-                if (
-                    col.key === "carryoverEnd" ||
-                    (row.project.includes("-CP") && col.key === "revenue")
-                ) {
+                if (col.key === "carryoverEnd") {
                     const tooltip =
                         col.key === "carryoverEnd"
                             ? "Chỉ đọc – Giá trị tự động"
