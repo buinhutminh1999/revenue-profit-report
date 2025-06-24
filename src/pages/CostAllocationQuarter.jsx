@@ -209,15 +209,37 @@ export default function CostAllocationQuarter() {
     }, []);
 
     const projects = useProjects(typeFilter);
-    const baseProjects = useMemo(() => {
+// --- THAY THẾ TOÀN BỘ KHỐI useMemo CŨ BẰNG KHỐI NÀY ---
+
+const baseProjects = useMemo(() => {
+    // Tạo key cho quý đang được chọn trên giao diện, ví dụ: "2025-Q2"
+    const allocationKey = `${year}-${quarter}`; 
+
+    return projects.filter((p) => {
+        // --- BẮT ĐẦU LOGIC LỌC MỚI ---
+
+        // 1. Lấy ra danh sách các kỳ phân bổ của công trình. 
+        //    Nếu không có, coi như là một object rỗng.
+        const periods = p.allocationPeriods || {};
+
+        // 2. Kiểm tra xem công trình có được phân bổ trong quý này không.
+        //    Nếu giá trị của key là `false` hoặc `undefined`, loại bỏ công trình này.
+        if (!periods[allocationKey]) {
+            return false;
+        }
+
+        // --- KẾT THÚC LOGIC LỌC MỚI ---
+
+        // Giữ lại logic cũ về việc kiểm tra ngày đóng công trình nếu có
         const compQ = toComparableQuarter(`${year}_${quarter}`);
-        return projects.filter((p) => {
-            if (p.isAllocated !== true) return false;
-            if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom))
-                return false;
-            return true;
-        });
-    }, [projects, year, quarter]);
+        if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom)) {
+            return false;
+        }
+
+        // Nếu qua được hết các điều kiện, giữ lại công trình này.
+        return true;
+    });
+}, [projects, year, quarter]); // Dependency array không đổi
     const { projData, loading } = useProjectData(baseProjects, year, quarter);
     const visibleProjects = useMemo(() => {
         const compQ = toComparableQuarter(`${year}_${quarter}`);

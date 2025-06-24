@@ -26,7 +26,7 @@ import { Toaster } from 'react-hot-toast';
 import CustomThemeProvider from './ThemeContext';
 import Layout from './components/Layout';
 import Home from './components/Home';
-import ConstructionPlan from './components/ConstructionPlan';
+import ConstructionPlan from './components/ConstructionPlan/ConstructionPlan';
 import ProjectDetailsLayout from './pages/ProjectDetailsLayout';
 import CostAllocation from './pages/CostAllocation';
 import CostAllocationQuarter from './pages/CostAllocationQuarter';
