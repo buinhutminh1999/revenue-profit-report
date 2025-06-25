@@ -14,9 +14,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 // Icons và các Context/Hook
 import { Search, Moon, Sun, Settings, LogOut, User as UserIcon, LayoutDashboard, FolderOpen, BarChart2, Menu as MenuIcon, ChevronRight } from 'lucide-react';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { ColorModeContext } from '../ThemeContext';
-import { useAuth } from '../App';
-import BreadcrumbsNav from './Breadcrumbs';
+import { ColorModeContext } from '../../styles/ThemeContext';
+import { useAuth } from '../../App';
+import BreadcrumbsNav from '../ui/Breadcrumbs';
 
 // --- STYLED COMPONENTS & HELPERS ---
 
