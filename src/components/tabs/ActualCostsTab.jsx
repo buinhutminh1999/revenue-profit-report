@@ -261,7 +261,14 @@ export default function ActualCostsTab({ projectId }) {
             },
             { key: "carryoverEnd", label: "Cuối Kỳ", editable: false },
             { key: "tonKhoUngKH", label: "Tồn Kho/Ứng KH", editable: true },
-            { key: "noPhaiTraCK", label: "Nợ Phải Trả CK", editable: false },
+            {
+                key: "noPhaiTraCK",
+                label: "Nợ Phải Trả CK", // Thay thế 'editable: false' bằng hàm isCellEditable
+                isCellEditable: (row) => {
+                    const project = row.project || "";
+                    return project.includes("-VT") || project.includes("-NC");
+                },
+            },
             { key: "totalCost", label: "Tổng Chi Phí", editable: false },
             { key: "revenue", label: "Doanh Thu", editable: true },
             { key: "hskh", label: "HSKH", editable: true },

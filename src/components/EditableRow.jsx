@@ -27,6 +27,7 @@ const EditableRow = ({
 }) => {
     const hiddenCols = getHiddenColumnsForProject(row.project);
     const catLabels = categories.map((c) => c.label ?? c); // đảm bảo mảng string
+    const isCellActuallyEditable = (col) => col.isCellEditable ? col.isCellEditable(row) : col.editable;
 
     return (
         <TableRow
@@ -189,38 +190,41 @@ const EditableRow = ({
                     );
                 }
 
-                /* 6️⃣ mặc định: hiển thị, dbl-click để edit */
-                return (
-                    <TableCell key={col.key} align="center">
-                        <Tooltip
-                            title={
-                                col.editable
-                                    ? "Double click để chỉnh sửa"
-                                    : "Chỉ đọc"
-                            }
-                        >
-                            <Typography
-                                variant="body2"
-                                sx={{
-                                    cursor: col.editable
-                                        ? "pointer"
-                                        : "default",
-                                }}
-                                onDoubleClick={() =>
-                                    col.editable &&
-                                    setEditingCell({
-                                        id: row.id,
-                                        colKey: col.key,
-                                    })
-                                }
-                            >
-                                {row[col.key]
-                                    ? formatNumber(row[col.key])
-                                    : "Double click để nhập"}
-                            </Typography>
-                        </Tooltip>
-                    </TableCell>
-                );
+               /* 6️⃣ mặc định: hiển thị, dbl-click để edit */
+return (
+    <TableCell key={col.key} align="center">
+        <Tooltip
+            title={
+                // ✅ SỬA Ở ĐÂY
+                isCellActuallyEditable(col)
+                    ? "Double click để chỉnh sửa"
+                    : "Chỉ đọc"
+            }
+        >
+            <Typography
+                variant="body2"
+                sx={{
+                    // ✅ SỬA Ở ĐÂY
+                    cursor: isCellActuallyEditable(col)
+                        ? "pointer"
+                        : "default",
+                }}
+                onDoubleClick={() =>
+                    // ✅ SỬA Ở ĐÂY
+                    isCellActuallyEditable(col) &&
+                    setEditingCell({
+                        id: row.id,
+                        colKey: col.key,
+                    })
+                }
+            >
+                {row[col.key]
+                    ? formatNumber(row[col.key])
+                    : 0} 
+            </Typography>
+        </Tooltip>
+    </TableCell>
+);
             })}
 
             {/* 7️⃣ nút xoá */}
