@@ -60,6 +60,7 @@ import {
     CheckCircleOutline as CheckCircleOutlineIcon,
     ErrorOutline as ErrorOutlineIcon,
     InfoOutlined as InfoOutlinedIcon,
+    SyncAlt as SyncAltIcon, // Icon cho việc cập nhật
 } from "@mui/icons-material";
 import AddIcon from "@mui/icons-material/Add";
 
@@ -132,57 +133,89 @@ const StatCard = ({ title, value, icon, color }) => {
     );
 };
 
-const parseAndValidatePastedData = (pasteData, existingDescriptions) => {
+// Bên ngoài component
+const parseAndValidatePastedData = (pasteData, planningItems) => {
+    // Tạo một Map để tra cứu nhanh hơn, key là tên diễn giải đã chuẩn hóa
+    const existingItemsMap = new Map(
+        planningItems.map((item) => [
+            item.description.trim().toLowerCase(),
+            item,
+        ])
+    );
+
     const pastedLines = pasteData
         .trim()
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean);
-    const itemsToAdd = [];
+
+    const itemsToUpdate = [];
     const previewRows = [];
+
     pastedLines.forEach((line) => {
         const parts = line.split("\t");
         const description = parts[0]?.trim();
         const amountString = (parts.length > 1 ? parts[1] : "0")?.trim();
+
         if (!description) return;
-        const amount = parseInt(amountString.replace(/[^\d]/g, ""), 10) || 0;
+
+        const newAmount = parseInt(amountString.replace(/[^\d]/g, ""), 10) || 0;
         const normalizedDescription = description.toLowerCase();
-        if (existingDescriptions.has(normalizedDescription)) {
+
+        if (existingItemsMap.has(normalizedDescription)) {
+            // TÌM THẤY HẠNG MỤC -> ĐÂY LÀ TRƯỜNG HỢP CẬP NHẬT
+            const existingItem = existingItemsMap.get(normalizedDescription);
+
+            // Chuẩn bị dữ liệu để hiển thị cho người dùng
             previewRows.push({
-                description,
-                amount,
-                status: "skipped",
-                reason: "Hạng mục đã tồn tại.",
+                description: existingItem.description, // Giữ lại tên gốc
+                amount: newAmount,
+                oldAmount: existingItem.amount,
+                status: "update", // Trạng thái mới: 'update'
+                reason: `Số tiền cũ: ${existingItem.amount.toLocaleString(
+                    "vi-VN"
+                )} ₫`,
+            });
+
+            // Chuẩn bị dữ liệu để gửi lên DB
+            itemsToUpdate.push({
+                id: existingItem.id, // Rất quan trọng: lấy ID của mục cần cập nhật
+                description: existingItem.description,
+                amount: newAmount,
             });
         } else {
+            // KHÔNG TÌM THẤY -> BỎ QUA
             previewRows.push({
                 description,
-                amount,
-                status: "valid",
-                reason: "",
+                amount: newAmount,
+                status: "skipped",
+                reason: "Hạng mục không tồn tại, sẽ được bỏ qua.",
             });
-            itemsToAdd.push({ description, amount, order: 0 });
         }
     });
-    return { itemsToAdd, previewRows };
+
+    // Trả về một object với cấu trúc mới
+    return { itemsToUpdate, previewRows };
 };
 
 const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
     const theme = useTheme();
-    const validCount = previewRows.filter((r) => r.status === "valid").length;
-    const errorCount = previewRows.filter((r) => r.status === "error").length;
+
+    // TÍNH TOÁN CÁC SỐ LƯỢNG MỚI
+    const updateCount = previewRows.filter((r) => r.status === "update").length;
     const skippedCount = previewRows.filter(
         (r) => r.status === "skipped"
     ).length;
 
     const getStatusChip = (status) => {
-        if (status === "valid")
+        // THÊM TRẠNG THÁI "UPDATE"
+        if (status === "update")
             return (
                 <Chip
-                    label="Hợp lệ"
-                    color="success"
+                    label="Cập nhật"
+                    color="info" // Màu xanh dương cho cảm giác thông tin, hành động
                     size="small"
-                    icon={<CheckCircleOutlineIcon />}
+                    icon={<SyncAltIcon />}
                 />
             );
         if (status === "skipped")
@@ -194,25 +227,19 @@ const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
                     icon={<WarningAmberIcon />}
                 />
             );
-        return (
-            <Chip
-                label="Lỗi"
-                color="error"
-                size="small"
-                icon={<ErrorOutlineIcon />}
-            />
-        );
+        // Các trạng thái khác nếu có
+        return null;
     };
 
     return (
         <Box>
             <Typography variant="h6" fontWeight={700} gutterBottom>
-                Xem trước Kết quả
+                Xem trước Kết quả Cập nhật
             </Typography>
             <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                <Chip label={`${validCount} hợp lệ`} color="success" />
-                <Chip label={`${errorCount} lỗi`} color="error" />
-                <Chip label={`${skippedCount} đã tồn tại`} color="warning" />
+                {/* HIỂN THỊ CHIP MỚI */}
+                <Chip label={`${updateCount} sẽ cập nhật`} color="info" />
+                <Chip label={`${skippedCount} sẽ bỏ qua`} color="warning" />
             </Stack>
             <Paper
                 variant="outlined"
@@ -237,12 +264,23 @@ const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
                                         </Typography>
                                     }
                                     secondary={
-                                        row.status !== "valid"
-                                            ? row.reason
-                                            : `Số tiền: ${row.amount.toLocaleString(
+                                        // HIỂN THỊ THAY ĐỔI RÕ RÀNG
+                                        row.status === "update"
+                                            ? `Cập nhật từ ${row.oldAmount.toLocaleString(
+                                                  "vi-VN"
+                                              )} ₫  ->  ${row.amount.toLocaleString(
                                                   "vi-VN"
                                               )} ₫`
+                                            : row.reason
                                     }
+                                    secondaryTypographyProps={{
+                                        color:
+                                            row.status === "update"
+                                                ? "info.dark"
+                                                : "text.secondary",
+                                        fontWeight:
+                                            row.status === "update" ? 500 : 400,
+                                    }}
                                 />
                             </ListItem>
                             {index < previewRows.length - 1 && (
@@ -266,7 +304,8 @@ const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
                     fullWidth
                     variant="contained"
                     onClick={onConfirm}
-                    disabled={isLoading || validCount === 0}
+                    // Vô hiệu hóa nếu không có gì để cập nhật
+                    disabled={isLoading || updateCount === 0}
                     startIcon={
                         isLoading ? (
                             <CircularProgress size={20} color="inherit" />
@@ -276,12 +315,27 @@ const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
                     }
                 >
                     {isLoading
-                        ? "Đang lưu..."
-                        : `Xác nhận & Thêm ${validCount} mục`}
+                        ? "Đang cập nhật..."
+                        : // NỘI DUNG NÚT MỚI
+                          `Xác nhận & Cập nhật ${updateCount} mục`}
                 </Button>
             </Stack>
         </Box>
     );
+};
+const getHighestPrefix = (items) => {
+    const prefixes = items
+        .map(item => item.itemGroup?.match(/^[A-Z](?=\.)/)) // Lấy ký tự A-Z đứng trước dấu "."
+        .filter(Boolean) // Lọc bỏ những nhóm không có tiền tố
+        .map(match => match[0]) // Lấy ký tự
+        .sort(); // Sắp xếp theo thứ tự A, B, C...
+
+    return prefixes.length > 0 ? prefixes[prefixes.length - 1] : null; // Lấy ký tự cuối cùng (lớn nhất)
+};
+const getNextPrefix = (char) => {
+    if (!char) return "A. "; // Nếu chưa có nhóm nào, bắt đầu bằng A
+    const nextCharCode = char.charCodeAt(0) + 1;
+    return String.fromCharCode(nextCharCode) + ". ";
 };
 
 // --- COMPONENT CHÍNH ---
@@ -299,12 +353,16 @@ export default function PlanningTab({ projectId }) {
     const [isProcessing, setIsProcessing] = useState(false);
     const [previewData, setPreviewData] = useState(null);
     const [newGroup, setNewGroup] = useState({ name: "", amount: "" });
+
     const [isAdding, setIsAdding] = useState(false);
     const [expandedGroups, setExpandedGroups] = useState(new Set());
     const [expandedRows, setExpandedRows] = useState(new Set());
     const initialSetupDone = useRef(false);
     const adjustmentUnsubscribes = useRef(new Map());
-
+  const suggestedPrefix = useMemo(() => {
+        const highestChar = getHighestPrefix(planningItems);
+        return getNextPrefix(highestChar);
+    }, [planningItems]); // Chỉ tính lại khi planningItems thay đổi
     // --- LOGIC FUNCTIONS (useCallback) ---
     const populateInitialPlanningItems = useCallback(
         async (projectId, categoriesToPopulate) => {
@@ -351,44 +409,71 @@ export default function PlanningTab({ projectId }) {
     );
 
     const handleAddNewGroup = useCallback(async () => {
-        if (!newGroup.name || !newGroup.amount) {
-            toast.error("Vui lòng nhập đầy đủ Tên nhóm và Số tiền.");
-            return;
-        }
-        setIsAdding(true);
-        try {
-            const planningItemsRef = collection(
-                db,
-                "projects",
-                projectId,
-                "planningItems"
-            );
-            const lastOrder =
-                planningItems.length > 0
-                    ? Math.max(...planningItems.map((item) => item.order || 0))
-                    : 0;
-            const trimmedGroupName = newGroup.name.trim();
+    // 1. Phần kiểm tra rỗng: GIỮ NGUYÊN
+    if (!newGroup.name || !newGroup.amount) {
+        toast.error("Vui lòng nhập đầy đủ Tên nhóm và Số tiền.");
+        return;
+    }
 
-            const batch = writeBatch(db);
-            const newItemRef = doc(planningItemsRef);
-            batch.set(newItemRef, {
-                description: trimmedGroupName,
-                itemGroup: trimmedGroupName,
-                amount: Number(newGroup.amount),
-                order: lastOrder + 1,
-                createdAt: new Date(),
-                isCustom: true,
-            });
-            await batch.commit();
-            toast.success(`Đã thêm nhóm "${trimmedGroupName}"`);
-            setNewGroup({ name: "", amount: "" });
-        } catch (error) {
-            console.error("Error adding new group: ", error);
-            toast.error("Thêm nhóm mới thất bại.");
-        } finally {
-            setIsAdding(false);
+    // =======================================================
+    // ==> 2. BẠN CHỈ CẦN CHÈN ĐOẠN KIỂM TRA TRÙNG LẶP VÀO ĐÂY <==
+
+    const trimmedGroupName = newGroup.name.trim();
+    // Dùng biểu thức chính quy (regex) để tìm tiền tố dạng "A." hoặc "B."
+    const match = trimmedGroupName.match(/^[A-Z](?=\.)/); 
+    
+    // Chỉ kiểm tra nếu người dùng có nhập tiền tố
+    if (match) {
+        const newPrefix = match[0]; // Lấy ra tiền tố, ví dụ: "C"
+        // Dùng `some` để kiểm tra xem có item nào trong mảng đã có tiền tố này chưa
+        const isDuplicate = planningItems.some(item => 
+            item.itemGroup?.trim().startsWith(newPrefix + ".")
+        );
+
+        if (isDuplicate) {
+            // Nếu tìm thấy trùng lặp, báo lỗi và dừng hàm ngay lập tức
+            toast.error(`Lỗi: Tiền tố "${newPrefix}." đã tồn tại. Vui lòng dùng tiền tố khác.`);
+            return; 
         }
-    }, [projectId, newGroup, planningItems]);
+    }
+    // =======================================================
+
+    // 3. Phần xử lý thêm mới: GIỮ NGUYÊN
+    setIsAdding(true);
+    try {
+        const planningItemsRef = collection(
+            db,
+            "projects",
+            projectId,
+            "planningItems"
+        );
+        const lastOrder =
+            planningItems.length > 0
+                ? Math.max(...planningItems.map((item) => item.order || 0))
+                : 0;
+        
+        // Lưu ý: trimmedGroupName đã được khai báo ở trên
+        const batch = writeBatch(db);
+        const newItemRef = doc(planningItemsRef);
+        batch.set(newItemRef, {
+            description: trimmedGroupName,
+            itemGroup: trimmedGroupName,
+            amount: Number(newGroup.amount),
+            order: lastOrder + 1,
+            createdAt: new Date(),
+            isCustom: true,
+        });
+
+        await batch.commit();
+        toast.success(`Đã thêm nhóm "${trimmedGroupName}"`);
+        setNewGroup({ name: "", amount: "" });
+    } catch (error) {
+        console.error("Error adding new group: ", error);
+        toast.error("Thêm nhóm mới thất bại.");
+    } finally {
+        setIsAdding(false);
+    }
+}, [projectId, newGroup, planningItems]);
 
     const handleToggleGroup = useCallback(
         (groupName) => {
@@ -454,35 +539,45 @@ export default function PlanningTab({ projectId }) {
             }
         }
     };
-
+    // Trong component PlanningTab
     const handleParseAndPreview = useCallback(() => {
         if (!pasteData.trim()) {
             toast.error("Vui lòng dán dữ liệu vào ô trống.");
             return;
         }
         setIsProcessing(true);
-        const existingDescriptions = new Set(
-            planningItems.map((item) => item.description.trim().toLowerCase())
-        );
-        const result = parseAndValidatePastedData(
-            pasteData,
-            existingDescriptions
-        );
+
+        // THAY ĐỔI Ở ĐÂY: Truyền cả mảng `planningItems` vào
+        const result = parseAndValidatePastedData(pasteData, planningItems);
+
         setPreviewData(result);
         setIsProcessing(false);
+
         if (result.previewRows.length === 0) {
             toast("Không tìm thấy dữ liệu hợp lệ để phân tích.");
             setPreviewData(null);
         } else {
-            toast.success("Phân tích hoàn tất. Vui lòng xem lại và xác nhận.");
+            const updateCount = result.itemsToUpdate.length;
+            if (updateCount > 0) {
+                toast.success(
+                    `Phân tích hoàn tất. Tìm thấy ${updateCount} mục để cập nhật.`
+                );
+            } else {
+                toast.info(
+                    `Phân tích hoàn tất. Không tìm thấy mục nào để cập nhật.`
+                );
+            }
         }
-    }, [pasteData, planningItems]);
+    }, [pasteData, planningItems]); // Thêm planningItems vào dependencies
 
+    // Trong component PlanningTab
     const handleConfirmSave = useCallback(async () => {
-        if (!previewData || previewData.itemsToAdd.length === 0) {
-            toast.error("Không có mục hợp lệ nào để thêm.");
+        // THAY ĐỔI Ở ĐÂY: Kiểm tra `itemsToUpdate`
+        if (!previewData || previewData.itemsToUpdate.length === 0) {
+            toast.error("Không có mục nào hợp lệ để cập nhật.");
             return;
         }
+
         setIsProcessing(true);
         try {
             const batch = writeBatch(db);
@@ -492,31 +587,31 @@ export default function PlanningTab({ projectId }) {
                 projectId,
                 "planningItems"
             );
-            let lastOrder =
-                planningItems.length > 0
-                    ? Math.max(...planningItems.map((item) => item.order || 0))
-                    : 0;
-            previewData.itemsToAdd.forEach((item) => {
-                const newItemRef = doc(planningItemsRef);
-                batch.set(newItemRef, {
-                    ...item,
-                    order: ++lastOrder,
-                    isCustom: true,
-                    itemGroup: "C. Chi phí Khác",
-                });
+
+            // Lặp qua các mục cần CẬP NHẬT
+            previewData.itemsToUpdate.forEach((item) => {
+                // Tạo tham chiếu đến document cụ thể bằng ID
+                const docRef = doc(planningItemsRef, item.id);
+                // Dùng lệnh update
+                batch.update(docRef, { amount: item.amount });
             });
+
             await batch.commit();
+
             toast.success(
-                `Đã thêm thành công ${previewData.itemsToAdd.length} mục mới.`
+                `Đã cập nhật thành công ${previewData.itemsToUpdate.length} mục.`
             );
+
             setPasteData("");
             setPreviewData(null);
         } catch (error) {
-            toast.error("Lưu dữ liệu thất bại!");
+            toast.error("Cập nhật dữ liệu thất bại!");
+            console.error("Error updating items: ", error);
         } finally {
             setIsProcessing(false);
         }
-    }, [projectId, planningItems, previewData]);
+        // THAY ĐỔI Ở ĐÂY: Cập nhật dependencies
+    }, [projectId, previewData]);
 
     const handleCancelPreview = () => {
         setPreviewData(null);
@@ -527,7 +622,7 @@ export default function PlanningTab({ projectId }) {
     const processedRows = useMemo(() => {
         const groups = new Map();
         planningItems.forEach((item) => {
-            const groupName = item.itemGroup || "Chưa phân loại";
+            const groupName = item.itemGroup || "C. Chi phí khác";
             if (!groups.has(groupName)) {
                 groups.set(groupName, []);
             }
@@ -939,34 +1034,36 @@ export default function PlanningTab({ projectId }) {
         ]
     );
 
-    const { totalPlannedAmount, totalFinalAmount, totalIncurredAmount } = useMemo(() => {
-        let totalPlanned = 0;
-        let totalFinal = 0;
-        let totalIncurred = 0; 
+    const { totalPlannedAmount, totalFinalAmount, totalIncurredAmount } =
+        useMemo(() => {
+            let totalPlanned = 0;
+            let totalFinal = 0;
+            let totalIncurred = 0;
 
-        planningItems.forEach((item) => {
-            const itemAdjustments = adjustmentsData[item.id] || [];
-            
-            const totalIncrease = itemAdjustments
-                .filter((a) => a.type === "increase")
-                .reduce((sum, a) => sum + a.amount, 0);
-                
-            const totalDecrease = itemAdjustments
-                .filter((a) => a.type === "decrease")
-                .reduce((sum, a) => sum + a.amount, 0);
+            planningItems.forEach((item) => {
+                const itemAdjustments = adjustmentsData[item.id] || [];
 
-            totalIncurred += (totalIncrease - totalDecrease);
+                const totalIncrease = itemAdjustments
+                    .filter((a) => a.type === "increase")
+                    .reduce((sum, a) => sum + a.amount, 0);
 
-            totalPlanned += Number(item.amount) || 0;
-            totalFinal += (Number(item.amount) || 0) + totalIncrease - totalDecrease;
-        });
+                const totalDecrease = itemAdjustments
+                    .filter((a) => a.type === "decrease")
+                    .reduce((sum, a) => sum + a.amount, 0);
 
-        return {
-            totalPlannedAmount: totalPlanned,
-            totalFinalAmount: totalFinal,
-            totalIncurredAmount: totalIncurred,
-        };
-    }, [planningItems, adjustmentsData]);
+                totalIncurred += totalIncrease - totalDecrease;
+
+                totalPlanned += Number(item.amount) || 0;
+                totalFinal +=
+                    (Number(item.amount) || 0) + totalIncrease - totalDecrease;
+            });
+
+            return {
+                totalPlannedAmount: totalPlanned,
+                totalFinalAmount: totalFinal,
+                totalIncurredAmount: totalIncurred,
+            };
+        }, [planningItems, adjustmentsData]);
 
     const estimatedProfit = contractValue - totalFinalAmount;
 
@@ -985,31 +1082,53 @@ export default function PlanningTab({ projectId }) {
         const unsubscribeItems = onSnapshot(
             itemsQuery,
             (snapshot) => {
-                const newItems = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+                const newItems = snapshot.docs.map((d) => ({
+                    id: d.id,
+                    ...d.data(),
+                }));
                 setPlanningItems(newItems);
                 setLoading(false);
 
                 adjustmentUnsubscribes.current.forEach((unsub) => unsub());
                 adjustmentUnsubscribes.current.clear();
 
-                newItems.forEach(item => {
+                newItems.forEach((item) => {
                     const adjQuery = query(
-                        collection(db, "projects", projectId, "planningItems", item.id, "adjustments"),
+                        collection(
+                            db,
+                            "projects",
+                            projectId,
+                            "planningItems",
+                            item.id,
+                            "adjustments"
+                        ),
                         orderBy("createdAt", "desc")
                     );
 
-                    const unsubscribeAdjustments = onSnapshot(adjQuery, (adjSnapshot) => {
-                        const fetchedAdjustments = adjSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                        
-                        setAdjustmentsData(prevData => ({
-                            ...prevData,
-                            [item.id]: fetchedAdjustments,
-                        }));
-                    }, (error) => {
-                        console.error(`Error loading adjustments for item ${item.id}:`, error);
-                    });
+                    const unsubscribeAdjustments = onSnapshot(
+                        adjQuery,
+                        (adjSnapshot) => {
+                            const fetchedAdjustments = adjSnapshot.docs.map(
+                                (d) => ({ id: d.id, ...d.data() })
+                            );
 
-                    adjustmentUnsubscribes.current.set(item.id, unsubscribeAdjustments);
+                            setAdjustmentsData((prevData) => ({
+                                ...prevData,
+                                [item.id]: fetchedAdjustments,
+                            }));
+                        },
+                        (error) => {
+                            console.error(
+                                `Error loading adjustments for item ${item.id}:`,
+                                error
+                            );
+                        }
+                    );
+
+                    adjustmentUnsubscribes.current.set(
+                        item.id,
+                        unsubscribeAdjustments
+                    );
                 });
             },
             (error) => {
@@ -1189,7 +1308,7 @@ export default function PlanningTab({ projectId }) {
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                         <TextField
                             label="Tên Nhóm Chi Phí"
-                            placeholder="VD: A. Chi phí nhân công"
+                    placeholder={`Gợi ý: ${suggestedPrefix}Tên nhóm`}
                             value={newGroup.name}
                             onChange={(e) =>
                                 setNewGroup({
