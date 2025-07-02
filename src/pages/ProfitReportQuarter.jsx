@@ -316,44 +316,86 @@ export default function ProfitReportQuarter() {
     };
     // Đặt hàm này cùng với các hàm update... khác của bạn
 
-    const updateVuotCPRows = (inputRows) => {
-        const rows = [...inputRows];
+ const updateVuotCPRows = (inputRows) => {
+    const rows = [...inputRows];
 
-        // Tìm các giá trị nguồn từ cột "CP VƯỢT QUÝ"
-        const costOverXD =
-            rows.find((r) => (r.name || "").toUpperCase() === "I. XÂY DỰNG")
-                ?.costOverQuarter || 0;
-        const costOverSX =
-            rows.find((r) => (r.name || "").toUpperCase() === "II. SẢN XUẤT")
-                ?.costOverQuarter || 0;
-        const costOverDT =
-            rows.find((r) => (r.name || "").toUpperCase() === "III. ĐẦU TƯ")
-                ?.costOverQuarter || 0;
+    // 1. Lấy giá trị chi phí vượt quý từ các nhóm ngành lớn
+    const costOverXD =
+        rows.find((r) => (r.name || "").toUpperCase() === "I. XÂY DỰNG")
+            ?.costOverQuarter || 0;
+    const costOverSX =
+        rows.find((r) => (r.name || "").toUpperCase() === "II. SẢN XUẤT")
+            ?.costOverQuarter || 0;
+    const costOverDT =
+        rows.find((r) => (r.name || "").toUpperCase() === "III. ĐẦU TƯ")
+            ?.costOverQuarter || 0;
 
-        // Tìm chỉ số (index) của các hàng mục tiêu
-        const idxVuotBPXD = rows.findIndex(
-            (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPXD"
-        );
-        const idxVuotBPSX = rows.findIndex(
-            (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPSX"
-        );
-        const idxVuotBPDT = rows.findIndex(
-            (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPĐT"
-        );
+    // 2. Tìm chỉ số của các hàng con
+    const idxVuotBPXD = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPXD"
+    );
+    const idxVuotBPSX = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPSX"
+    );
+    const idxVuotBPDT = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPĐT"
+    );
 
-        // Cập nhật giá trị "profit" cho các hàng mục tiêu
-        if (idxVuotBPXD !== -1) {
-            rows[idxVuotBPXD].profit = toNum(costOverXD);
-        }
-        if (idxVuotBPSX !== -1) {
-            rows[idxVuotBPSX].profit = toNum(costOverSX);
-        }
-        if (idxVuotBPDT !== -1) {
-            rows[idxVuotBPDT].profit = toNum(costOverDT);
-        }
+    // 3. Cập nhật lợi nhuận cho các hàng con (như cũ)
+    let profitBPXD = 0, profitBPSX = 0, profitBPDT = 0;
 
-        return rows;
-    };
+    if (idxVuotBPXD !== -1) {
+        profitBPXD = toNum(costOverXD);
+        rows[idxVuotBPXD].profit = profitBPXD;
+    }
+    if (idxVuotBPSX !== -1) {
+        profitBPSX = toNum(costOverSX);
+        rows[idxVuotBPSX].profit = profitBPSX;
+    }
+    if (idxVuotBPDT !== -1) {
+        profitBPDT = toNum(costOverDT);
+        rows[idxVuotBPDT].profit = profitBPDT;
+    }
+
+    // 4. ✨ TÍNH TOÁN MỚI: Tìm hàng "CP VƯỢT DỰ KẾ" và tính tổng lợi nhuận
+    const idxCpVuotDuKe = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === "CP VƯỢT DỰ KẾ"
+    );
+
+    if (idxCpVuotDuKe !== -1) {
+        // Cộng tổng lợi nhuận từ 3 hàng con
+        rows[idxCpVuotDuKe].profit = profitBPXD + profitBPSX + profitBPDT;
+    }
+
+    return rows;
+};
+const updateChiPhiTraTruocRow = (inputRows, finalProfitRowName) => {
+    const rows = [...inputRows];
+
+    // Tìm chỉ số của các hàng liên quan
+    const idxFinalProfit = rows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === finalProfitRowName.toUpperCase()
+    );
+    const idxCpVuotDuKe = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === "CP VƯỢT DỰ KẾ"
+    );
+    const idxChiPhiTraTruoc = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === "+ CHI PHÍ ĐÃ TRẢ TRƯỚC"
+    );
+
+    // Nếu tìm thấy tất cả các hàng cần thiết
+    if (idxFinalProfit !== -1 && idxCpVuotDuKe !== -1 && idxChiPhiTraTruoc !== -1) {
+        // Lấy giá trị lợi nhuận từ các hàng nguồn
+        const finalProfit = toNum(rows[idxFinalProfit].profit);
+        const cpVuotDuKeProfit = toNum(rows[idxCpVuotDuKe].profit);
+
+        // Thực hiện phép tính và gán kết quả
+        rows[idxChiPhiTraTruoc].profit = finalProfit - cpVuotDuKeProfit;
+        
+    }
+
+    return rows;
+};
     // Helper lấy revenue 3 dòng nhóm
     const summaryRowsGroupRevenue = (rows) => {
         // Chuyển về chữ hoa, bỏ khoảng trắng để tránh lỗi chính tả
@@ -499,7 +541,40 @@ export default function ProfitReportQuarter() {
                 Array.isArray(saved.data().rows) &&
                 saved.data().rows.length > 0
             ) {
+                    console.log("DỮ LIỆU GỐC TỪ FIREBASE:", JSON.stringify(saved.data().rows, null, 2));
+
                 let updatedRows = [...saved.data().rows];
+                // ================== BẮT ĐẦU PHẦN CHỈNH SỬA ==================
+                // 1. Luôn fetch lại giá trị CP Vượt Quý mới nhất
+                const [cpVuotCurr, cpVuotNhaMay, cpVuotKhdt] =
+                    await Promise.all([
+                        getCostOverQuarter("totalThiCongCumQuarterOnly"),
+                        getCostOverQuarter("totalNhaMayCumQuarterOnly"),
+                        getCostOverQuarter("totalKhdtCumQuarterOnly"),
+                    ]);
+
+                // 2. Tìm index của các hàng cần cập nhật trong dữ liệu vừa tải
+                const idxXD = updatedRows.findIndex(
+                    (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+                );
+                const idxSX = updatedRows.findIndex(
+                    (r) =>
+                        (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
+                );
+                const idxDT = updatedRows.findIndex(
+                    (r) => (r.name || "").trim().toUpperCase() === "III. ĐẦU TƯ"
+                );
+
+                // 3. Ghi đè giá trị `costOverQuarter` cũ bằng giá trị mới nhất
+                if (idxXD !== -1)
+                    updatedRows[idxXD].costOverQuarter = cpVuotCurr || 0;
+                if (idxSX !== -1)
+                    updatedRows[idxSX].costOverQuarter = cpVuotNhaMay || 0;
+                if (idxDT !== -1)
+                    updatedRows[idxDT].costOverQuarter = cpVuotKhdt || 0;
+                // ================== KẾT THÚC PHẦN CHỈNH SỬA ==================
+
+                // 1. Định nghĩa các hàng cần chèn
                 const newRowsTemplate = [
                     {
                         name: "CP VƯỢT DỰ KẾ",
@@ -531,23 +606,24 @@ export default function ProfitReportQuarter() {
                     },
                 ];
 
-                // 2. Kiểm tra xem các hàng mới đã tồn tại chưa
+                // 2. Kiểm tra xem các hàng này đã tồn tại chưa
                 const cpVuotDuKeExists = updatedRows.some(
                     (row) => (row.name || "").toUpperCase() === "CP VƯỢT DỰ KẾ"
                 );
-
-                // 3. Nếu chưa tồn tại, hãy chèn chúng vào đúng vị trí
+                // 3. Nếu chưa tồn tại, hãy chèn chúng vào vị trí mới
                 if (!cpVuotDuKeExists) {
-                    const insertionIndex = updatedRows.findIndex((row) =>
-                        (row.name || "")
-                            .toUpperCase()
-                            .startsWith(`IV. LỢI NHUẬN`)
+                    // TÌM VỊ TRÍ CỦA HÀNG "LỢI NHUẬN SAU GIẢM TRỪ"
+                    const insertionIndex = updatedRows.findIndex(
+                        (row) =>
+                            (row.name || "")
+                                .toUpperCase()
+                                .startsWith(`=> LỢI NHUẬN SAU GIẢM TRỪ`) // <<-- VỊ TRÍ MỚI
                     );
 
+                    // Nếu tìm thấy, chèn các hàng mới ngay sau nó
                     if (insertionIndex !== -1) {
-                        // Chèn các hàng mới vào ngay sau hàng "IV. LỢI NHUẬN..."
                         updatedRows.splice(
-                            insertionIndex + 1,
+                            insertionIndex + 1, // <<-- Chèn ngay sau hàng "LỢI NHUẬN SAU GIẢM TRỪ"
                             0,
                             ...newRowsTemplate
                         );
@@ -952,6 +1028,7 @@ export default function ProfitReportQuarter() {
                                 "+VƯỢT CP BPSX",
                                 "+VƯỢT CP BPĐT",
                                 `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase(),
+                                '+ CHI PHÍ ĐÃ TRẢ TRƯỚC'
                             ].includes(nameUpper)
                         ) {
                             return true;
@@ -968,6 +1045,7 @@ export default function ProfitReportQuarter() {
 
                 // ——————————————————————————————————————————————————————————
                 updatedRows = updateVuotCPRows(updatedRows); // <<< THÊM DÒNG NÀY
+          updatedRows = updateChiPhiTraTruocRow(updatedRows, finalProfitRowName);
 
                 setRows(updatedRows);
                 setLoading(false);
@@ -975,234 +1053,42 @@ export default function ProfitReportQuarter() {
             }
 
             // 4. Build lại defaultRows
-            let defaultRows = [
-                {
-                    name: "I. XÂY DỰNG",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    costOverQuarter: null,
-                },
-                {
-                    name: "I.1. Dân Dụng + Giao Thông",
-                    ...sumGroup(groupI1),
-                    percent: (() => {
-                        const profit = groupI1.reduce(
-                            (s, r) => s + toNum(r.profit),
-                            0
-                        );
-                        const target = groupI1.reduce(
-                            (s, r) => s + toNum(r.target),
-                            0
-                        );
-                        return target ? (profit / target) * 100 : null;
-                    })(),
-                },
-                ...groupI1,
-                { name: "I.2. KÈ", ...sumGroup(groupI2), percent: null },
-                ...groupI2,
-                { name: "I.3. CÔNG TRÌNH CÔNG TY CĐT", ...sumGroup(groupI3) },
-                {
-                    name: "II. SẢN XUẤT",
-                    revenue: null,
-                    cost: null,
-                    profit: 0,
-                    percent: null,
-                },
-                {
-                    name: "II.1. SẢN XUẤT",
-                    ...sumGroup(groupII),
-                    costOverQuarter: null,
-                },
-                ...groupII.map((p) => ({
-                    ...p,
-                    editable: false,
-                })),
-                {
-                    name: "II.2. DT + LN ĐƯỢC CHIA TỪ LDX",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                },
-                {
-                    name: "LỢI NHUẬN LIÊN DOANH (LDX)",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "GIẢM LN LDX",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                },
-                {
-                    name: "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                },
-                {
-                    name: "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "III. ĐẦU TƯ",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    costOverQuarter: null,
-                },
-                {
-                    name: `DOANH THU BLX ${selectedQuarter} N${selectedYear} - D21`, // <--- Đã sửa thành động
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "TỔNG",
-                    ...sumGroup([
-                        ...groupI1,
-                        ...groupI2,
-                        ...groupI3,
-                        ...groupII,
-                        ...others,
-                    ]),
-                },
-                {
-                    name: `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`,
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                },
-
-                {
-                    name: "CP VƯỢT DO KO ĐỦ DT",
-                    revenue: null,
-                    cost: null,
-                    profit: null,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "+Vượt CP BPXD",
-                    revenue: null,
-                    cost: null,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "+Vượt CP BPSX",
-                    revenue: null,
-                    cost: null,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "+Vượt CP BPĐT",
-                    revenue: null,
-                    cost: null,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "V. GIẢM LỢI NHUẬN",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: false,
-                },
-                {
-                    name: "VI. THU NHẬP KHÁC",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: false,
-                },
-                {
-                    name: `VII. KHTSCĐ NĂM ${selectedYear}`,
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: "VIII. GIẢM LÃI ĐT DỰ ÁN",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-                {
-                    name: finalProfitRowName,
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                },
-          
-                {
-                    name: "+ Chi phí đã trả trước",
-                    revenue: 0,
-                    cost: 0,
-                    profit: 0,
-                    percent: null,
-                    editable: true,
-                },
-            ];
+           let defaultRows = [
+        { name: "I. XÂY DỰNG", revenue: 0, cost: 0, profit: 0, percent: null, costOverQuarter: null },
+        { name: "I.1. Dân Dụng + Giao Thông", ...sumGroup(groupI1), /*... */ },
+        ...groupI1,
+        { name: "I.2. KÈ", ...sumGroup(groupI2), percent: null },
+        ...groupI2,
+        { name: "I.3. CÔNG TRÌNH CÔNG TY CĐT", ...sumGroup(groupI3) },
+        { name: "II. SẢN XUẤT", revenue: null, cost: null, profit: 0, percent: null },
+        { name: "II.1. SẢN XUẤT", ...sumGroup(groupII), costOverQuarter: null },
+        ...groupII.map((p) => ({ ...p, editable: false })),
+        { name: "II.2. DT + LN ĐƯỢC CHIA TỪ LDX", revenue: 0, cost: 0, profit: 0, percent: null },
+        { name: "LỢI NHUẬN LIÊN DOANH (LDX)", revenue: 0, cost: 0, profit: 0, percent: null, editable: true },
+        { name: "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)", revenue: 0, cost: 0, profit: 0, percent: null, editable: true },
+        { name: "GIẢM LN LDX", revenue: 0, cost: 0, profit: 0, percent: null, editable: true },
+        { name: "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)", revenue: 0, cost: 0, profit: 0, percent: null },
+        { name: "LỢI NHUẬN LIÊN DOANH (SÀ LAN)", revenue: 0, cost: 0, profit: 0, percent: null, editable: true },
+        { name: "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)", revenue: 0, cost: 0, profit: 0, percent: null, editable: true },
+        { name: "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY", revenue: 0, cost: 0, profit: 0, percent: null },
+        { name: "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)", revenue: 0, cost: 0, profit: 0, percent: null, editable: true },
+        { name: "III. ĐẦU TƯ", revenue: 0, cost: 0, profit: 0, percent: null, costOverQuarter: null },
+        { name: `DOANH THU BLX ${selectedQuarter} N${selectedYear} - D21`, revenue: 0, cost: 0, profit: 0, percent: null, editable: true },
+        { name: "TỔNG", ...sumGroup([...groupI1, ...groupI2, ...groupI3, ...groupII, ...others]) },
+        { name: `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`, revenue: 0, cost: 0, profit: 0, percent: null },
+        { name: "V. GIẢM LỢI NHUẬN", revenue: 0, cost: 0, profit: 0, percent: null, editable: false },
+        { name: "VI. THU NHẬP KHÁC", revenue: 0, cost: 0, profit: 0, percent: null, editable: false },
+        { name: `VII. KHTSCĐ NĂM ${selectedYear}`, revenue: 0, cost: 0, profit: 0, percent: null, editable: true },
+        { name: "VIII. GIẢM LÃI ĐT DỰ ÁN", revenue: 0, cost: 0, profit: 0, percent: null, editable: true },
+        { name: finalProfitRowName, revenue: 0, cost: 0, profit: 0, percent: null },
+        
+        // --- KHỐI ĐÃ SẮP XẾP LẠI ĐÚNG VỊ TRÍ ---
+        { name: "CP VƯỢT DỰ KẾ", revenue: null, cost: null, profit: null, percent: null, editable: true },
+        { name: "+Vượt CP BPXD", revenue: null, cost: null, profit: 0, percent: null, editable: true },
+        { name: "+Vượt CP BPSX", revenue: null, cost: null, profit: 0, percent: null, editable: true },
+        { name: "+Vượt CP BPĐT", revenue: null, cost: null, profit: 0, percent: null, editable: true },
+        { name: "+ Chi phí đã trả trước", revenue: 0, cost: 0, profit: 0, percent: null},
+    ];
 
             // 5. Lấy costOverQuarter cho các nhóm (gom lại 1 lần)
             const [cpVuotCurr, cpVuotNhaMay, cpVuotKhdt] = await Promise.all([
@@ -1308,6 +1194,7 @@ export default function ProfitReportQuarter() {
             updatedRows = updateDauTuRow(updatedRows);
             updatedRows = updateGroupI3(updatedRows);
             updatedRows = updateVuotCPRows(updatedRows); // <<< THÊM DÒNG NÀY
+          updatedRows = updateChiPhiTraTruocRow(updatedRows, finalProfitRowName);
 
             // 9. Tính lại II. SẢN XUẤT (sum các nhóm con)
             const idxII = updatedRows.findIndex(
@@ -1928,6 +1815,7 @@ export default function ProfitReportQuarter() {
             `+ Vượt CP BPXN do ko đạt DT ${selectedQuarter}`,
             `V. GIẢM LỢI NHUẬN`,
             "VI. THU NHẬP KHÁC",
+             "+ CHI PHÍ ĐÃ TRẢ TRƯỚC",
         ].includes(nameUpper);
         const isNoEditDetailI1 =
             ["revenue", "cost", "profit"].includes(field) &&

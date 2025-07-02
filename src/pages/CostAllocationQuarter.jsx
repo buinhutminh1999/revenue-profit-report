@@ -117,24 +117,24 @@ const StatCard = ({ title, value, icon, color, isLoading }) => {
 
 const LimitDialog = ({ open, onClose, onSave, cellInfo, initialData }) => {
     const [limit, setLimit] = useState(100);
-    const [mode, setMode] = useState('limitOnly');
+    const [mode, setMode] = useState("limitOnly");
 
     // ✅ FIX: Nâng cấp useEffect để xử lý cả hai định dạng dữ liệu
     useEffect(() => {
         if (open) {
             let initialLimitValue = 100;
-            let initialModeValue = 'limitOnly';
+            let initialModeValue = "limitOnly";
 
             // Kiểm tra xem initialData có phải là object không (định dạng mới)
-            if (typeof initialData === 'object' && initialData !== null) {
+            if (typeof initialData === "object" && initialData !== null) {
                 initialLimitValue = initialData.limit ?? 100;
-                initialModeValue = initialData.mode ?? 'limitOnly';
-            } 
+                initialModeValue = initialData.mode ?? "limitOnly";
+            }
             // Kiểm tra xem initialData có phải là số không (định dạng cũ)
-            else if (typeof initialData === 'number') {
+            else if (typeof initialData === "number") {
                 initialLimitValue = initialData;
                 // Dữ liệu cũ mặc định không có mode "dồn phần dư"
-                initialModeValue = 'limitOnly';
+                initialModeValue = "limitOnly";
             }
 
             setLimit(initialLimitValue);
@@ -192,11 +192,15 @@ const LimitDialog = ({ open, onClose, onSave, cellInfo, initialData }) => {
                     fullWidth
                     sx={{ mt: 2 }}
                 >
-                    <MenuItem value="limitOnly">Chỉ giới hạn trong quý</MenuItem>
-                    <MenuItem value="carryOver">Dồn phần dư sang quý sau</MenuItem>
+                    <MenuItem value="limitOnly">
+                        Chỉ giới hạn trong quý
+                    </MenuItem>
+                    <MenuItem value="carryOver">
+                        Dồn phần dư sang quý sau
+                    </MenuItem>
                 </TextField>
-                <FormHelperText sx={{pl: '14px', pr: '14px'}}>
-                    {mode === 'carryOver'
+                <FormHelperText sx={{ pl: "14px", pr: "14px" }}>
+                    {mode === "carryOver"
                         ? "Phần chi phí không sử dụng trong quý này sẽ được cộng dồn vào nhu cầu của quý tiếp theo."
                         : "Phần chi phí không sử dụng sẽ không được chuyển tiếp."}
                 </FormHelperText>
@@ -246,37 +250,37 @@ export default function CostAllocationQuarter() {
     }, []);
 
     const projects = useProjects(typeFilter);
-// --- THAY THẾ TOÀN BỘ KHỐI useMemo CŨ BẰNG KHỐI NÀY ---
+    // --- THAY THẾ TOÀN BỘ KHỐI useMemo CŨ BẰNG KHỐI NÀY ---
 
-const baseProjects = useMemo(() => {
-    // Tạo key cho quý đang được chọn trên giao diện, ví dụ: "2025-Q2"
-    const allocationKey = `${year}-${quarter}`; 
+    const baseProjects = useMemo(() => {
+        // Tạo key cho quý đang được chọn trên giao diện, ví dụ: "2025-Q2"
+        const allocationKey = `${year}-${quarter}`;
 
-    return projects.filter((p) => {
-        // --- BẮT ĐẦU LOGIC LỌC MỚI ---
+        return projects.filter((p) => {
+            // --- BẮT ĐẦU LOGIC LỌC MỚI ---
 
-        // 1. Lấy ra danh sách các kỳ phân bổ của công trình. 
-        //    Nếu không có, coi như là một object rỗng.
-        const periods = p.allocationPeriods || {};
+            // 1. Lấy ra danh sách các kỳ phân bổ của công trình.
+            //    Nếu không có, coi như là một object rỗng.
+            const periods = p.allocationPeriods || {};
 
-        // 2. Kiểm tra xem công trình có được phân bổ trong quý này không.
-        //    Nếu giá trị của key là `false` hoặc `undefined`, loại bỏ công trình này.
-        if (!periods[allocationKey]) {
-            return false;
-        }
+            // 2. Kiểm tra xem công trình có được phân bổ trong quý này không.
+            //    Nếu giá trị của key là `false` hoặc `undefined`, loại bỏ công trình này.
+            if (!periods[allocationKey]) {
+                return false;
+            }
 
-        // --- KẾT THÚC LOGIC LỌC MỚI ---
+            // --- KẾT THÚC LOGIC LỌC MỚI ---
 
-        // Giữ lại logic cũ về việc kiểm tra ngày đóng công trình nếu có
-        const compQ = toComparableQuarter(`${year}_${quarter}`);
-        if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom)) {
-            return false;
-        }
+            // Giữ lại logic cũ về việc kiểm tra ngày đóng công trình nếu có
+            const compQ = toComparableQuarter(`${year}_${quarter}`);
+            if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom)) {
+                return false;
+            }
 
-        // Nếu qua được hết các điều kiện, giữ lại công trình này.
-        return true;
-    });
-}, [projects, year, quarter]); // Dependency array không đổi
+            // Nếu qua được hết các điều kiện, giữ lại công trình này.
+            return true;
+        });
+    }, [projects, year, quarter]); // Dependency array không đổi
     const { projData, loading } = useProjectData(baseProjects, year, quarter);
     const visibleProjects = useMemo(() => {
         const compQ = toComparableQuarter(`${year}_${quarter}`);
@@ -320,124 +324,189 @@ const baseProjects = useMemo(() => {
         () => new Map(extraRows.map((e) => [e.id, e.prevOver || {}])),
         [extraRows]
     );
-   // 📍 THAY THẾ TOÀN BỘ HÀM recomputeRow CŨ BẰNG HÀM NÀY
+    // 📍 THAY THẾ TOÀN BỘ HÀM recomputeRow CŨ BẰNG HÀM NÀY
 
-const recomputeRow = useCallback(
-    (draftRow) => {
-        // --- BƯỚC 1: KHỞI TẠO (Không đổi) ---
-        const label = (draftRow.label || "").trim().toUpperCase();
-        if (label === "DOANH THU") return draftRow;
+    const recomputeRow = useCallback(
+        (draftRow) => {
+            // --- BƯỚC 1: KHỞI TẠO (Không đổi) ---
+            const label = (draftRow.label || "").trim().toUpperCase();
+            if (label === "DOANH THU") return draftRow;
 
-        const revenuePercent = parseFloat(draftRow.pct) || 0;
-        const carryOverValue = toNum(String(draftRow.carryOver).replace(",", "."));
-        const projectDebtFromPrevQuarter = draftRow.prevOver || prevOverMapById.get(draftRow.id) || {};
-        const originalMainRow = mainRows.find((m) => m.id === draftRow.id);
-        const totalAllocatedForPeriod = toNum(draftRow.allocated ?? originalMainRow?.[valKey] ?? 0);
-        const budgetForNewCosts = totalAllocatedForPeriod;
+            const revenuePercent = parseFloat(draftRow.pct) || 0;
+            const carryOverValue = toNum(
+                String(draftRow.carryOver).replace(",", ".")
+            );
+            const projectDebtFromPrevQuarter =
+                draftRow.prevOver || prevOverMapById.get(draftRow.id) || {};
+            const originalMainRow = mainRows.find((m) => m.id === draftRow.id);
+            const totalAllocatedForPeriod = toNum(
+                draftRow.allocated ?? originalMainRow?.[valKey] ?? 0
+            );
+            const budgetForNewCosts = totalAllocatedForPeriod;
 
-        // --- BƯỚC 2: TÍNH NHU CẦU GỐC (Không đổi) ---
-        const originalCalculatedNeeds = {};
-        visibleProjects.forEach((p) => {
-            const revenue = toNum(projData[p.id]?.overallRevenue);
-            const directCost = getDC(p.id, draftRow.label);
-            originalCalculatedNeeds[p.id] = Math.max(0, Math.round((revenue * revenuePercent) / 100 - directCost));
-        });
-
-        // --- BƯỚC 3: PHÂN BỔ TIỀN (Phần được sửa lỗi) ---
-        let finalAllocation = {};
-        let shouldRepayOldDebt = false;
-        const rowLimits = manualLimits[draftRow.id] || {};
-        const hasManualLimits = Object.keys(rowLimits).length > 0;
-
-        if (hasManualLimits) {
-            const limitedProjects = visibleProjects.filter((p) => rowLimits[p.id] !== undefined);
-            const unlimitedProjects = visibleProjects.filter((p) => rowLimits[p.id] === undefined);
-            let remainingBudget = budgetForNewCosts;
-
-            limitedProjects.forEach((p) => {
-                // ✅ FIX: Xử lý an toàn để đọc `limitPercent` từ cả cấu trúc dữ liệu cũ và mới
-                const limitSetting = rowLimits[p.id]; // Có thể là số (cũ) hoặc object (mới)
-                
-                // Nếu là object thì lấy .limit, nếu là số thì lấy chính nó
-                const limitPercent = typeof limitSetting === 'object' && limitSetting !== null
-                    ? limitSetting.limit
-                    : limitSetting;
-
-                // Tính toán phân bổ
-                const allocation = Math.round(originalCalculatedNeeds[p.id] * (limitPercent / 100));
-
-                // ✅ FIX: Kiểm tra kết quả là một số hợp lệ trước khi gán
-                if (!isNaN(allocation)) {
-                    finalAllocation[p.id] = allocation;
-                    remainingBudget -= allocation;
-                } else {
-                    // Nếu có lỗi (ví dụ limitPercent không hợp lệ), gán giá trị an toàn là 0
-                    finalAllocation[p.id] = 0;
-                }
+            // --- BƯỚC 2: TÍNH NHU CẦU GỐC (Không đổi) ---
+            const originalCalculatedNeeds = {};
+            visibleProjects.forEach((p) => {
+                const revenue = toNum(projData[p.id]?.overallRevenue);
+                const directCost = getDC(p.id, draftRow.label);
+                originalCalculatedNeeds[p.id] = Math.max(
+                    0,
+                    Math.round((revenue * revenuePercent) / 100 - directCost)
+                );
             });
 
-            // Logic cho các project không bị giới hạn (không đổi)
-            const totalNeedOfUnlimited = unlimitedProjects.reduce((sum, p) => sum + originalCalculatedNeeds[p.id], 0);
-            unlimitedProjects.forEach((p) => {
-                if (totalNeedOfUnlimited > 0) {
-                    const budgetForUnlimited = Math.max(0, remainingBudget);
-                    const allocationRatio = budgetForUnlimited >= totalNeedOfUnlimited ? 1 : budgetForUnlimited / totalNeedOfUnlimited;
-                    finalAllocation[p.id] = Math.round(originalCalculatedNeeds[p.id] * allocationRatio);
-                } else {
-                    finalAllocation[p.id] = 0;
-                }
-            });
+            // --- BƯỚC 3: PHÂN BỔ TIỀN (Phần được sửa lỗi) ---
+            let finalAllocation = {};
+            let shouldRepayOldDebt = false;
+            const rowLimits = manualLimits[draftRow.id] || {};
+            const hasManualLimits = Object.keys(rowLimits).length > 0;
 
-            const totalUsedBeforeDebt = Object.values(finalAllocation).reduce((s, v) => s + v, 0);
-            const totalOldDebt = Object.values(projectDebtFromPrevQuarter).reduce((s, v) => s + v, 0);
-            if (totalUsedBeforeDebt + totalOldDebt <= budgetForNewCosts) {
-                shouldRepayOldDebt = true;
-            }
-        } else {
-            // Logic cũ khi không có điều chỉnh (không đổi)
-            const totalOriginalNeed = Object.values(originalCalculatedNeeds).reduce((sum, need) => sum + need, 0);
-            const allocatedForCalc = totalAllocatedForPeriod - carryOverValue;
-            const doScale = totalOriginalNeed > allocatedForCalc && allocatedForCalc > 0;
-            let scaledNeed = { ...originalCalculatedNeeds };
-            if (doScale) {
-                visibleProjects.forEach((p) => {
-                    scaledNeed[p.id] = Math.round((originalCalculatedNeeds[p.id] / totalOriginalNeed) * allocatedForCalc);
+            if (hasManualLimits) {
+                const limitedProjects = visibleProjects.filter(
+                    (p) => rowLimits[p.id] !== undefined
+                );
+                const unlimitedProjects = visibleProjects.filter(
+                    (p) => rowLimits[p.id] === undefined
+                );
+                let remainingBudget = budgetForNewCosts;
+
+                limitedProjects.forEach((p) => {
+                    // ✅ FIX: Xử lý an toàn để đọc `limitPercent` từ cả cấu trúc dữ liệu cũ và mới
+                    const limitSetting = rowLimits[p.id]; // Có thể là số (cũ) hoặc object (mới)
+
+                    // Nếu là object thì lấy .limit, nếu là số thì lấy chính nó
+                    const limitPercent =
+                        typeof limitSetting === "object" &&
+                        limitSetting !== null
+                            ? limitSetting.limit
+                            : limitSetting;
+
+                    // Tính toán phân bổ
+                    const allocation = Math.round(
+                        originalCalculatedNeeds[p.id] * (limitPercent / 100)
+                    );
+
+                    // ✅ FIX: Kiểm tra kết quả là một số hợp lệ trước khi gán
+                    if (!isNaN(allocation)) {
+                        finalAllocation[p.id] = allocation;
+                        remainingBudget -= allocation;
+                    } else {
+                        // Nếu có lỗi (ví dụ limitPercent không hợp lệ), gán giá trị an toàn là 0
+                        finalAllocation[p.id] = 0;
+                    }
                 });
+
+                // Logic cho các project không bị giới hạn (không đổi)
+                const totalNeedOfUnlimited = unlimitedProjects.reduce(
+                    (sum, p) => sum + originalCalculatedNeeds[p.id],
+                    0
+                );
+                unlimitedProjects.forEach((p) => {
+                    if (totalNeedOfUnlimited > 0) {
+                        const budgetForUnlimited = Math.max(0, remainingBudget);
+                        const allocationRatio =
+                            budgetForUnlimited >= totalNeedOfUnlimited
+                                ? 1
+                                : budgetForUnlimited / totalNeedOfUnlimited;
+                        finalAllocation[p.id] = Math.round(
+                            originalCalculatedNeeds[p.id] * allocationRatio
+                        );
+                    } else {
+                        finalAllocation[p.id] = 0;
+                    }
+                });
+
+                const totalUsedBeforeDebt = Object.values(
+                    finalAllocation
+                ).reduce((s, v) => s + v, 0);
+                const totalOldDebt = Object.values(
+                    projectDebtFromPrevQuarter
+                ).reduce((s, v) => s + v, 0);
+                if (totalUsedBeforeDebt + totalOldDebt <= budgetForNewCosts) {
+                    shouldRepayOldDebt = true;
+                }
+            } else {
+                // Logic cũ khi không có điều chỉnh (không đổi)
+                const totalOriginalNeed = Object.values(
+                    originalCalculatedNeeds
+                ).reduce((sum, need) => sum + need, 0);
+                const allocatedForCalc =
+                    totalAllocatedForPeriod - carryOverValue;
+                const doScale =
+                    totalOriginalNeed > allocatedForCalc &&
+                    allocatedForCalc > 0;
+                let scaledNeed = { ...originalCalculatedNeeds };
+                if (doScale) {
+                    visibleProjects.forEach((p) => {
+                        scaledNeed[p.id] = Math.round(
+                            (originalCalculatedNeeds[p.id] /
+                                totalOriginalNeed) *
+                                allocatedForCalc
+                        );
+                    });
+                }
+                const usedIfAdd =
+                    Object.values(scaledNeed).reduce((s, v) => s + v, 0) +
+                    Object.values(projectDebtFromPrevQuarter).reduce(
+                        (s, v) => s + v,
+                        0
+                    );
+                shouldRepayOldDebt = !doScale && usedIfAdd <= allocatedForCalc;
+                finalAllocation = { ...scaledNeed };
             }
-            const usedIfAdd = Object.values(scaledNeed).reduce((s, v) => s + v, 0) + Object.values(projectDebtFromPrevQuarter).reduce((s, v) => s + v, 0);
-            shouldRepayOldDebt = !doScale && usedIfAdd <= allocatedForCalc;
-            finalAllocation = { ...scaledNeed };
-        }
 
-        // --- BƯỚC 4: TÍNH TOÁN CÁC GIÁ TRỊ CUỐI CÙNG (Không đổi) ---
-        draftRow.usedRaw = Object.values(originalCalculatedNeeds).reduce((sum, need) => sum + need, 0);
-        draftRow.prevIncluded = shouldRepayOldDebt && Object.keys(projectDebtFromPrevQuarter).length > 0;
-        
-        let totalUsedInPeriod = 0;
-        visibleProjects.forEach((p) => {
-            const oldDebt = projectDebtFromPrevQuarter[p.id] || 0;
-            const finalValue = (finalAllocation[p.id] || 0) + (shouldRepayOldDebt ? oldDebt : 0);
-            draftRow[p.id] = finalValue;
-            totalUsedInPeriod += finalValue;
-        });
+            // --- BƯỚC 4: TÍNH TOÁN CÁC GIÁ TRỊ CUỐI CÙNG (Không đổi) ---
+            draftRow.usedRaw = Object.values(originalCalculatedNeeds).reduce(
+                (sum, need) => sum + need,
+                0
+            );
+            draftRow.prevIncluded =
+                shouldRepayOldDebt &&
+                Object.keys(projectDebtFromPrevQuarter).length > 0;
 
-        draftRow.used = totalUsedInPeriod;
-        draftRow.carryOver = carryOverValue;
-        draftRow.cumQuarterOnly = totalUsedInPeriod - totalAllocatedForPeriod;
-        
-        const totalNeedAfterLimits = Object.values(finalAllocation).reduce((sum, need) => sum + need, 0);
-        if (hasManualLimits && totalNeedAfterLimits < totalAllocatedForPeriod) {
-            draftRow.cumCurrent = totalAllocatedForPeriod - totalNeedAfterLimits;
-        } else {
-            draftRow.cumCurrent = draftRow.cumQuarterOnly + carryOverValue;
-        }
-        
-        draftRow.surplusCumCurrent = draftRow.cumCurrent;
+            let totalUsedInPeriod = 0;
+            visibleProjects.forEach((p) => {
+                const oldDebt = projectDebtFromPrevQuarter[p.id] || 0;
+                const finalValue =
+                    (finalAllocation[p.id] || 0) +
+                    (shouldRepayOldDebt ? oldDebt : 0);
+                draftRow[p.id] = finalValue;
+                totalUsedInPeriod += finalValue;
+            });
 
-        return draftRow;
-    },
-    [visibleProjects, projData, getDC, mainRows, valKey, prevOverMapById, manualLimits]
-);
+            draftRow.used = totalUsedInPeriod;
+            draftRow.carryOver = carryOverValue;
+            draftRow.cumQuarterOnly =
+                totalUsedInPeriod - totalAllocatedForPeriod;
+
+            const totalNeedAfterLimits = Object.values(finalAllocation).reduce(
+                (sum, need) => sum + need,
+                0
+            );
+            if (
+                hasManualLimits &&
+                totalNeedAfterLimits < totalAllocatedForPeriod
+            ) {
+                draftRow.cumCurrent =
+                    totalAllocatedForPeriod - totalNeedAfterLimits;
+            } else {
+                draftRow.cumCurrent = draftRow.cumQuarterOnly + carryOverValue;
+            }
+
+            draftRow.surplusCumCurrent = draftRow.cumCurrent;
+
+            return draftRow;
+        },
+        [
+            visibleProjects,
+            projData,
+            getDC,
+            mainRows,
+            valKey,
+            prevOverMapById,
+            manualLimits,
+        ]
+    );
     const processRowUpdate = useCallback(
         (newRow, oldRow) => {
             const pctVal = parseFloat(newRow.pct) || 0;
@@ -996,7 +1065,7 @@ const recomputeRow = useCallback(
                             byType: {},
                         };
 
-                          const overrun = {};
+                        const overrun = {};
                         // Lấy toàn bộ thiết lập giới hạn cho hàng hiện tại
                         const rowLimits = manualLimits[currentRow.id] || {};
 
@@ -1004,17 +1073,19 @@ const recomputeRow = useCallback(
                             // --- [LOGIC TRUNG TÂM CỦA TÍNH NĂNG MỚI] ---
                             const limitInfo = rowLimits[p.id]; // Lấy object {limit, mode}
                             const hasLimit = limitInfo !== undefined;
-                            const mode = limitInfo?.mode || 'limitOnly'; // Mặc định là chế độ cũ
+                            const mode = limitInfo?.mode || "limitOnly"; // Mặc định là chế độ cũ
 
                             // Tính "Giá trị ban đầu chưa giảm" (need)
                             const rev = toNum(projData[p.id]?.overallRevenue);
                             const dc = getDC(p.id, currentRow.label);
-                            const need = Math.round((rev * (currentRow.pct || 0)) / 100 - dc);
+                            const need = Math.round(
+                                (rev * (currentRow.pct || 0)) / 100 - dc
+                            );
 
                             // Lấy "Giá trị thực tế được sử dụng" (shown)
                             const shown = currentRow[p.id] ?? 0;
-                            
-                            if (hasLimit && mode === 'carryOver') {
+
+                            if (hasLimit && mode === "carryOver") {
                                 // CASE 1: Có giới hạn VÀ chọn chế độ "Dồn phần dư".
                                 // Phần dư = Giá trị ban đầu - Giá trị thực tế.
                                 overrun[p.id] = Math.max(0, need - shown);
@@ -1033,9 +1104,10 @@ const recomputeRow = useCallback(
                         const prevOver = allPrevOverrun[baseId] || {};
                         const fullNeed = {};
                         visibleProjects.forEach((p) => {
-                            fullNeed[p.id] = (prevOver[p.id] || 0) + (overrun[p.id] || 0);
+                            fullNeed[p.id] =
+                                (prevOver[p.id] || 0) + (overrun[p.id] || 0);
                         });
-                        
+
                         const typeSpecificData = {
                             pct: currentRow.pct ?? 0,
                             value: currentRow[valKey] ?? 0,
@@ -1066,29 +1138,44 @@ const recomputeRow = useCallback(
 
                 const dataToSave = Array.from(mainRowsMap.values());
 
-                // Phần còn lại của hàm giữ nguyên, chỉ thay đổi nguồn dữ liệu
-                const totalCumQuarterOnlySave = dataToSave.reduce((sum, r) => {
-                    return (
-                        sum +
-                        (toNum(r.byType?.[typeFilter]?.cumQuarterOnly) || 0)
-                    );
-                }, 0);
-
                 const totalFieldMap = {
                     "Thi công": "totalThiCongCumQuarterOnly",
                     "Nhà máy": "totalNhaMayCumQuarterOnly",
                     "KH-ĐT": "totalKhdtCumQuarterOnly",
                 };
-                const totalField = totalFieldMap[typeFilter.trim()];
+            const totalField = totalFieldMap[typeFilter.trim()];
+                // ================================================================
+                // ✨ BẮT ĐẦU PHẦN THÊM MỚI ✨
+                // ================================================================
+                const totalsData = {};
+                const fieldNameMap = {
+                    "Thi công": "ThiCong",
+                    "Nhà máy": "NhaMay",
+                    "KH-ĐT": "KHDT",
+                };
+                const typeKey = fieldNameMap[typeFilter];
 
+                if (typeKey) {
+                    // Tạo tên trường động, ví dụ: "totalSurplusThiCong"
+                    const surplusField = `totalSurplus${typeKey}`;
+                    const deficitField = `totalDeficit${typeKey}`;
+
+                    // Gán các giá trị đã được tính toán bởi useMemo
+                    totalsData[surplusField] = totalSurplus;
+                    totalsData[deficitField] = totalDeficit;
+                }
+                // ================================================================
+                // ✨ KẾT THÚC PHẦN THÊM MỚI ✨
+                // ================================================================
                 await setDoc(
                     docRef,
                     {
                         mainRows: dataToSave, // Dùng mảng đã được merge
                         manualLimits: manualLimits,
                         ...(totalField
-                            ? { [totalField]: totalCumQuarterOnlySave }
+                            ? { [totalField]: totalCumQuarterOnly  }
                             : {}),
+                        ...totalsData,
                         updated_at: serverTimestamp(),
                     },
                     { merge: true }
@@ -1207,6 +1294,7 @@ const recomputeRow = useCallback(
         getDC,
         valKey,
         manualLimits,
+        totalCumQuarterOnly
     ]);
     useEffect(() => {
         const onKeyDown = (e) => {
@@ -1239,7 +1327,7 @@ const recomputeRow = useCallback(
         }
     };
 
-   // 🚀 [NÂNG CẤP] Hàm này giờ nhận cả mode và lưu cấu trúc mới
+    // 🚀 [NÂNG CẤP] Hàm này giờ nhận cả mode và lưu cấu trúc mới
     const handleSetManualLimit = (rowId, projectId, limit, mode) => {
         setManualLimits((prev) => {
             const newLimits = JSON.parse(JSON.stringify(prev));
