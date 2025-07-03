@@ -508,6 +508,8 @@ export default function ProfitReportQuarter() {
                 (r.name || "").toUpperCase().includes("KÈ")
             );
             const groupI3 = groupBy(projects, (r) => r.type === "CĐT");
+                    const groupI4 = groupBy(projects, (r) => r.type === "XNII"); 
+
             const groupII = projects.filter((r) =>
                 (r.type || "").toLowerCase().includes("nhà máy")
             );
@@ -1099,6 +1101,7 @@ export default function ProfitReportQuarter() {
                     profit: 0,
                     percent: null,
                 },
+                { name: "I.4. Xí nghiệp XD II", ...sumGroup(groupI4) },
                 {
                     name: "II.1. SẢN XUẤT",
                     ...sumGroup(groupII),
@@ -1475,6 +1478,8 @@ export default function ProfitReportQuarter() {
                     (r.name || "").trim().toUpperCase() ===
                     "I.3. CÔNG TRÌNH CÔNG TY CĐT"
             );
+                    const idxI4 = updatedRows.findIndex(r => (r.name || "").trim().toUpperCase() === "I.4. Xí nghiệp XD II"); 
+
             const idxIISX = updatedRows.findIndex(
                 (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
             );
@@ -2646,6 +2651,7 @@ export default function ProfitReportQuarter() {
                                         "I.1. Dân Dụng + Giao Thông",
                                         "I.2. KÈ",
                                         "I.3. CÔNG TRÌNH CÔNG TY CĐT",
+                                        "I.4. Xí nghiệp XD II",
                                         "III. ĐẦU TƯ",
                                     ].map((g) => (
                                         <MenuItem key={g} value={g}>

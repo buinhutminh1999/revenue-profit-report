@@ -667,6 +667,10 @@ export default function ActualCostsTab({ projectId }) {
                     summarySumKeys={summarySumKeys}
                     columnsAll={columnsAll}
                     groupedData={groupedData}
+                    // ✅ THÊM 3 PROPS SAU
+                    projectData={projectData}
+                    year={year}
+                    quarter={quarter}
                 />
                 <CostTable
                     columnsAll={columnsAll}

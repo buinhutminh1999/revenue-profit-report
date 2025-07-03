@@ -11,7 +11,7 @@ import {
     orderBy as firestoreOrderBy,
     getDocs,
 } from "firebase/firestore";
-import { db } from "../../services/firebase-config"; // Sửa lại đường dẫn nếu cần
+import { db } from "../../services/firebase-config";
 import toast from "react-hot-toast";
 import {
     Chip,
@@ -52,15 +52,11 @@ import {
     TaskAlt,
 } from "@mui/icons-material";
 import { DataGrid } from "@mui/x-data-grid";
-import {
-    motion,
-    AnimatePresence,
-    useSpring,
-    useTransform,
-} from "framer-motion";
+import { motion, useSpring, useTransform } from "framer-motion";
 import AllocationTimelineModal, {
     getCurrentYear,
-} from "./AllocationTimelineModal"; // <-- SỬA LẠI DÒNG NÀY
+} from "./AllocationTimelineModal";
+
 // --- CÁC HÀM VÀ BIẾN HỖ TRỢ (Không thay đổi) ---
 const PROJECT_TYPES = ["Thi công", "Nhà máy", "KH-ĐT", "LDX", "Sà Lan"];
 const chipColorByType = {
@@ -74,20 +70,13 @@ const formatNumber = (val) =>
     val != null && !isNaN(Number(val))
         ? Number(val).toLocaleString("vi-VN")
         : val;
-// ✅ DÁN HÀM NÀY VÀO ĐÂY
-const getCurrentQuarter = () => {
-    const month = new Date().getMonth(); // 0-11
-    return `Q${Math.floor(month / 3) + 1}`;
-};
+const getCurrentQuarter = () => `Q${Math.floor(new Date().getMonth() / 3) + 1}`;
+
 function useDebounce(value, delay) {
     const [debouncedValue, setDebouncedValue] = useState(value);
     useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedValue(value);
-        }, delay);
-        return () => {
-            clearTimeout(handler);
-        };
+        const handler = setTimeout(() => setDebouncedValue(value), delay);
+        return () => clearTimeout(handler);
     }, [value, delay]);
     return debouncedValue;
 }
@@ -103,15 +92,13 @@ function AnimatedCounter({ value, isCurrency = false }) {
             ? `${formatNumber(Math.round(current))} ₫`
             : formatNumber(Math.round(current))
     );
-
     useEffect(() => {
         spring.set(Number(value) || 0);
     }, [spring, value]);
-
     return <motion.span>{display}</motion.span>;
 }
 
-// --- CÁC COMPONENT CON (Đã sửa đổi ProjectFormDrawer) ---
+// --- COMPONENT CON (Không cần sửa đổi nhiều) ---
 const StatCard = ({
     title,
     value,
@@ -189,91 +176,74 @@ const StatCard = ({
     );
 };
 
-const ProjectFormDrawer = ({
-    open,
-    onClose,
-    project,
-    setProject,
-    onSave,
-    isEdit,
-}) => (
-    <Drawer
-        anchor="right"
-        open={open}
-        onClose={onClose}
-        PaperProps={{
-            sx: {
-                width: { xs: "100vw", sm: 480 },
-                borderRadius: "16px 0 0 16px",
-            },
-        }}
-    >
-        <Box
-            sx={{
-                p: { xs: 2, sm: 3 },
-                display: "flex",
-                flexDirection: "column",
-                height: "100%",
-            }}
+const ProjectFormDrawer = ({ open, onClose, project, setProject, onSave, isEdit }) => {
+    // Tự động kiểm tra xem có phải là loại "Nhà máy" không
+    const isFactoryType = project?.type === "Nhà máy";
+
+    return (
+        <Drawer
+            anchor="right"
+            open={open}
+            onClose={onClose}
+            PaperProps={{ sx: { width: { xs: "100vw", sm: 480 }, borderRadius: "16px 0 0 16px" } }}
         >
-            <Typography variant="h5" fontWeight={700} sx={{ mb: 4 }}>
-                {isEdit ? "Chỉnh Sửa Công Trình" : "Thêm Công Trình Mới"}
-            </Typography>
-            <Box sx={{ flexGrow: 1, overflowY: "auto", px: 1 }}>
-                <Stack spacing={3} mt={1}>
-                    <TextField
-                        variant="filled"
-                        label="Tên Công Trình"
-                        value={project.name}
-                        onChange={(e) =>
-                            setProject((p) => ({ ...p, name: e.target.value }))
-                        }
-                        fullWidth
-                        autoFocus
-                    />
-                    <TextField
-                        variant="filled"
-                        label="Doanh Thu Dự Kiến"
-                        type="number"
-                        value={project.totalAmount}
-                        onChange={(e) =>
-                            setProject((p) => ({
-                                ...p,
-                                totalAmount: e.target.value,
-                            }))
-                        }
-                        fullWidth
-                    />
-                    <TextField
-                        variant="filled"
-                        select
-                        label="Loại Công Trình"
-                        value={project.type}
-                        onChange={(e) =>
-                            setProject((p) => ({ ...p, type: e.target.value }))
-                        }
-                        fullWidth
-                    >
-                        {PROJECT_TYPES.map((opt) => (
-                            <MenuItem key={opt} value={opt}>
-                                {opt}
-                            </MenuItem>
-                        ))}
-                    </TextField>
-                    {/* ĐÃ XÓA CHECKBOX "Đã phân bổ" VÌ LOGIC NÀY ĐÃ ĐƯỢC QUẢN LÝ BẰNG MODAL MỚI */}
-                </Stack>
+            <Box sx={{ p: { xs: 2, sm: 3 }, display: "flex", flexDirection: "column", height: "100%" }}>
+                <Typography variant="h5" fontWeight={700} sx={{ mb: 4 }}>
+                    {isEdit ? "Chỉnh Sửa Công Trình" : "Thêm Công Trình Mới"}
+                </Typography>
+                <Box sx={{ flexGrow: 1, overflowY: "auto", px: 1 }}>
+                    <Stack spacing={3} mt={1}>
+                        <TextField
+                            variant="filled"
+                            label="Tên Công Trình"
+                            value={project.name}
+                            onChange={(e) => setProject((p) => ({ ...p, name: e.target.value }))}
+                            fullWidth
+                            autoFocus
+                        />
+                        
+                        <TextField
+                            variant="filled"
+                            // ✅ GIỮ NGUYÊN LABEL theo yêu cầu của bạn
+                            label="Doanh Thu Dự Kiến"
+                            type="number"
+                            value={project.totalAmount}
+                            onChange={(e) => setProject((p) => ({ ...p, totalAmount: e.target.value }))}
+                            fullWidth
+                            // Vẫn giữ lại helperText để làm rõ ý nghĩa cho người dùng
+                            helperText={
+                                isFactoryType
+                                    ? "Doanh thu theo từng quý được phân bổ trong 'Lịch Phân Bổ'."
+                                    : ""
+                            }
+                        />
+
+                        <TextField
+                            variant="filled"
+                            select
+                            label="Loại Công Trình"
+                            value={project.type}
+                            onChange={(e) => setProject((p) => ({ ...p, type: e.target.value }))}
+                            fullWidth
+                        >
+                            {PROJECT_TYPES.map((opt) => (
+                                <MenuItem key={opt} value={opt}>
+                                    {opt}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                    </Stack>
+                </Box>
+                <DialogActions sx={{ p: 0, pt: 3 }}>
+                    <Button onClick={onClose} sx={{ mr: 1 }}>Hủy</Button>
+                    <Button onClick={onSave} variant="contained" size="large">
+                        {isEdit ? "Lưu Thay Đổi" : "Tạo Mới"}
+                    </Button>
+                </DialogActions>
             </Box>
-            <DialogActions sx={{ p: 0, pt: 3 }}>
-                <Button onClick={onClose} sx={{ mr: 1 }}>
-                    Hủy
-                </Button>
-                <Button onClick={onSave} variant="contained" size="large">
-                    {isEdit ? "Lưu Thay Đổi" : "Tạo Mới"}
-                </Button>
-            </DialogActions>
-        </Box>
-    </Drawer>
-);
+        </Drawer>
+    );
+};
 
 const ProjectActionsMenu = ({ onEdit, onDelete }) => {
     const [anchorEl, setAnchorEl] = useState(null);
@@ -331,7 +301,7 @@ const itemVariants = {
     visible: { y: 0, opacity: 1 },
 };
 
-// --- COMPONENT CHÍNH ĐÃ CẬP NHẬT ---
+// --- COMPONENT CHÍNH ---
 export default function ConstructionPlan() {
     const navigate = useNavigate();
     const theme = useTheme();
@@ -343,32 +313,27 @@ export default function ConstructionPlan() {
     const [openEditDrawer, setOpenEditDrawer] = useState(false);
     const [projectToEdit, setProjectToEdit] = useState(null);
     const [selectionModel, setSelectionModel] = useState([]);
-
-    // --- State cho modal dòng thời gian ---
     const [isTimelineModalOpen, setTimelineModalOpen] = useState(false);
     const [projectForTimeline, setProjectForTimeline] = useState(null);
-
-    // --- State cho công trình mới, đã bỏ isAllocated ---
     const [newProject, setNewProject] = useState({
         name: "",
         totalAmount: "",
         type: "Thi công",
-        allocationPeriods: {}, // <-- SỬA ĐỔI
+        allocationPeriods: {},
     });
 
-    // Hàm kiểm tra một project có đang được phân bổ trong quý hiện tại không
     const isProjectCurrentlyAllocated = (project) => {
         const periods = project.allocationPeriods || {};
         const currentKey = `${getCurrentYear()}-${getCurrentQuarter()}`;
-        return !!periods[currentKey];
+        return (
+            periods[currentKey] !== undefined && periods[currentKey] !== null
+        );
     };
 
-    // --- Lắng nghe dữ liệu công trình từ Firestore ---
     useEffect(() => {
         setIsLoading(true);
         const projectsCollection = collection(db, "projects");
         const q = query(projectsCollection, firestoreOrderBy("name", "asc"));
-
         const unsub = onSnapshot(
             q,
             async (projectsSnapshot) => {
@@ -410,17 +375,13 @@ export default function ConstructionPlan() {
                 toast.error("Không thể tải dữ liệu công trình.");
             }
         );
-
         return () => unsub();
     }, []);
 
-    // --- Các hàm xử lý cho Modal dòng thời gian ---
     const handleOpenTimelineModal = useCallback((project) => {
         setProjectForTimeline(project);
         setTimelineModalOpen(true);
     }, []);
-
-    const handleCloseTimelineModal = () => setTimelineModalOpen(false);
 
     const handleSaveAllocationTimeline = useCallback(
         async (projectId, newPeriods) => {
@@ -437,7 +398,6 @@ export default function ConstructionPlan() {
         []
     );
 
-    // --- Các hàm CRUD cho công trình ---
     const handleCreateProject = useCallback(async () => {
         if (!newProject.name || !newProject.totalAmount) {
             return toast.error("Vui lòng điền đầy đủ tên và doanh thu.");
@@ -505,7 +465,6 @@ export default function ConstructionPlan() {
         setProjectToDelete(null);
     }, [projectToDelete]);
 
-    // --- Dữ liệu tính toán (useMemo) ---
     const filteredProjects = useMemo(() => {
         return projects.filter((p) =>
             p.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
@@ -519,13 +478,33 @@ export default function ConstructionPlan() {
                 (sum, p) => sum + Number(p.totalAmount || 0),
                 0
             ),
-            // Đếm số dự án được phân bổ trong quý HIỆN TẠI
             allocatedCount: projects.filter((p) =>
                 isProjectCurrentlyAllocated(p)
             ).length,
         }),
         [projects]
     );
+
+    // ✅ CẢI TIẾN 1: GỘP CỘT DOANH THU
+    const columnGroupingModel = useMemo(
+        () => [
+            {
+                groupId: "Doanh Thu",
+                headerName: "DOANH THU",
+                headerAlign: "center",
+                children: [{ field: "totalAmount" }, { field: "revenueHSKH" }],
+            },
+        ],
+        []
+    );
+
+    // ✅ CẢI TIẾN 2: THÊM CLASSNAME CHO DÒNG "NHÀ MÁY"
+    const getRowClassName = (params) => {
+        if (params.row.type === "Nhà máy") {
+            return "project-row--factory";
+        }
+        return "";
+    };
 
     const columns = useMemo(
         () => [
@@ -542,24 +521,42 @@ export default function ConstructionPlan() {
             },
             {
                 field: "totalAmount",
-                headerName: "Doanh Thu Dự Kiến",
-                width: 200,
+                // ✅ CẢI TIẾN 1B: ĐỔI TÊN CỘT CHO RÕ NGHĨA
+                headerName: "DT Dự Kiến",
+                width: 180,
                 type: "number",
                 align: "right",
                 headerAlign: "right",
-                renderCell: (params) => (
-                    <Typography
-                        variant="body2"
-                        sx={{ fontFamily: "Roboto Mono, monospace" }}
-                    >
-                        {formatNumber(params.value)} ₫
-                    </Typography>
-                ),
+                renderCell: (params) => {
+                    const { row } = params;
+                    let displayValue;
+                    let isDynamic = false;
+                    if (row.type === "Nhà máy") {
+                        isDynamic = true;
+                        const currentKey = `${getCurrentYear()}-${getCurrentQuarter()}`;
+                        displayValue = row.allocationPeriods?.[currentKey] || 0;
+                    } else {
+                        displayValue = row.totalAmount;
+                    }
+                    return (
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                fontFamily: "Roboto Mono, monospace",
+                                fontWeight: isDynamic ? 600 : "inherit",
+                                color: isDynamic ? "success.dark" : "inherit",
+                                fontStyle: isDynamic ? "italic" : "normal",
+                            }}
+                        >
+                            {formatNumber(displayValue)} ₫
+                        </Typography>
+                    );
+                },
             },
             {
                 field: "revenueHSKH",
                 headerName: "Doanh thu HSKH",
-                width: 200,
+                width: 180,
                 type: "number",
                 align: "right",
                 headerAlign: "right",
@@ -600,7 +597,6 @@ export default function ConstructionPlan() {
                 },
             },
             {
-                // <-- CỘT PHÂN BỔ ĐÃ ĐƯỢC THAY THẾ HOÀN TOÀN
                 field: "allocationPeriods",
                 headerName: `Trạng Thái (${getCurrentQuarter()}-${getCurrentYear()})`,
                 width: 180,
@@ -608,23 +604,19 @@ export default function ConstructionPlan() {
                 headerAlign: "center",
                 sortable: false,
                 renderCell: (params) => {
-                    const isCurrentlyAllocated = isProjectCurrentlyAllocated(
-                        params.row
-                    );
+                    const isAllocated = isProjectCurrentlyAllocated(params.row);
                     return (
                         <Tooltip title="Click để xem & sửa lịch phân bổ">
                             <Chip
                                 icon={
-                                    isCurrentlyAllocated ? (
+                                    isAllocated ? (
                                         <CheckCircleOutline />
                                     ) : (
                                         <HighlightOff />
                                     )
                                 }
                                 label={
-                                    isCurrentlyAllocated
-                                        ? "Đang Phân Bổ"
-                                        : "Tạm Ngưng"
+                                    isAllocated ? "Đang Phân Bổ" : "Tạm Ngưng"
                                 }
                                 size="medium"
                                 onClick={(e) => {
@@ -636,10 +628,10 @@ export default function ConstructionPlan() {
                                     fontWeight: 600,
                                     borderRadius: "8px",
                                     px: 1,
-                                    color: isCurrentlyAllocated
+                                    color: isAllocated
                                         ? "success.dark"
                                         : "error.dark",
-                                    backgroundColor: isCurrentlyAllocated
+                                    backgroundColor: isAllocated
                                         ? alpha(theme.palette.success.main, 0.2)
                                         : alpha(theme.palette.error.main, 0.15),
                                 }}
@@ -675,7 +667,7 @@ export default function ConstructionPlan() {
         <Box
             sx={{
                 p: { xs: 2, md: 3, lg: 4 },
-                bgcolor: "#F8F9FC",
+                bgcolor: "grey.100",
                 minHeight: "100vh",
             }}
         >
@@ -698,8 +690,9 @@ export default function ConstructionPlan() {
                         color="primary"
                         theme={theme}
                     />
+                    {/* ✅ CẢI TIẾN 3: ĐỔI TÊN THẺ THỐNG KÊ */}
                     <StatCard
-                        title="Tổng Doanh Thu"
+                        title="Tổng Giá Trị Hợp Đồng"
                         isLoading={isLoading}
                         value={stats.totalRevenue}
                         isCurrency={true}
@@ -777,14 +770,12 @@ export default function ConstructionPlan() {
                             </Button>
                         </Stack>
 
-                        {/* Thanh bulk actions cũ đã bị xóa vì logic không còn phù hợp */}
-
                         <Box sx={{ height: 650, width: "100%" }}>
                             <DataGrid
                                 rows={filteredProjects}
                                 columns={columns}
                                 loading={isLoading}
-                                rowHeight={72}
+                                rowHeight={68}
                                 checkboxSelection
                                 onRowSelectionModelChange={(newModel) =>
                                     setSelectionModel(newModel)
@@ -800,6 +791,10 @@ export default function ConstructionPlan() {
                                         return;
                                     navigate(`/project-details/${params.id}`);
                                 }}
+                                // ✅ THÊM CÁC PROPS CẢI TIẾN
+                                experimentalFeatures={{ columnGrouping: true }}
+                                columnGroupingModel={columnGroupingModel}
+                                getRowClassName={getRowClassName}
                                 sx={{
                                     border: "none",
                                     "& .MuiDataGrid-columnHeaders": {
@@ -812,6 +807,18 @@ export default function ConstructionPlan() {
                                         textTransform: "uppercase",
                                         fontSize: "0.8rem",
                                     },
+                                    "& .MuiDataGrid-columnHeader--filledGroup":
+                                        {
+                                            backgroundColor: alpha(
+                                                theme.palette.primary.main,
+                                                0.08
+                                            ),
+                                        },
+                                    "& .MuiDataGrid-columnHeader--filledGroup .MuiDataGrid-columnHeaderTitle":
+                                        {
+                                            color: "primary.dark",
+                                            fontWeight: "800",
+                                        },
                                     "& .MuiDataGrid-row": {
                                         cursor: "pointer",
                                         "&:hover": {
@@ -831,6 +838,19 @@ export default function ConstructionPlan() {
                                     "& .MuiDataGrid-footerContainer": {
                                         borderTop: `1px solid ${theme.palette.divider}`,
                                     },
+                                    // ✅ THÊM STYLE CHO DÒNG NHÀ MÁY
+                                    "& .project-row--factory": {
+                                        backgroundColor: alpha(
+                                            theme.palette.success.main,
+                                            0.04
+                                        ),
+                                        "&:hover": {
+                                            backgroundColor: alpha(
+                                                theme.palette.success.main,
+                                                0.08
+                                            ),
+                                        },
+                                    },
                                 }}
                             />
                         </Box>
@@ -838,6 +858,7 @@ export default function ConstructionPlan() {
                 </motion.div>
             </motion.div>
 
+            {/* Các Modal và Drawer khác */}
             <ProjectFormDrawer
                 open={openAddDrawer}
                 onClose={() => setOpenAddDrawer(false)}
@@ -846,7 +867,6 @@ export default function ConstructionPlan() {
                 onSave={handleCreateProject}
                 isEdit={false}
             />
-
             {projectToEdit && (
                 <ProjectFormDrawer
                     open={openEditDrawer}
@@ -857,7 +877,6 @@ export default function ConstructionPlan() {
                     isEdit={true}
                 />
             )}
-
             <Dialog
                 open={!!projectToDelete}
                 onClose={() => setProjectToDelete(null)}
@@ -884,12 +903,10 @@ export default function ConstructionPlan() {
                     </Button>
                 </DialogActions>
             </Dialog>
-
-            {/* --- Render Modal Dòng thời gian --- */}
             {projectForTimeline && (
                 <AllocationTimelineModal
                     open={isTimelineModalOpen}
-                    onClose={handleCloseTimelineModal}
+                    onClose={() => setTimelineModalOpen(false)}
                     project={projectForTimeline}
                     onSave={handleSaveAllocationTimeline}
                 />
