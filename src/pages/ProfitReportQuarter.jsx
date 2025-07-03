@@ -315,44 +315,117 @@ export default function ProfitReportQuarter() {
         return newRows;
     };
     // Hàm tổng hợp lại dòng I.4. Xí nghiệp XD II
-const updateGroupI4 = (rows) => {
-    const idxI4 = rows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "I.4. XÍ NGHIỆP XD II"
-    );
+    const updateGroupI4 = (rows) => {
+        const idxI4 = rows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() === "I.4. XÍ NGHIỆP XD II"
+        );
 
-    // Nếu không tìm thấy dòng I.4 thì thoát
-    if (idxI4 === -1) return rows;
+        // Nếu không tìm thấy dòng I.4 thì thoát
+        if (idxI4 === -1) return rows;
 
-    let i = idxI4 + 1;
-    const childRows = [];
-    
-    // Lặp qua các dòng con bên dưới, dừng lại khi gặp mục "II. SẢN XUẤT"
-    while (
-        i < rows.length &&
-        !(rows[i].name || "").trim().toUpperCase().startsWith("II.")
-    ) {
-        childRows.push(rows[i]);
-        i++;
-    }
+        let i = idxI4 + 1;
+        const childRows = [];
 
-    // Tính tổng từ các dòng con
-    const revenue = childRows.reduce((s, r) => s + toNum(r.revenue), 0);
-    const cost = childRows.reduce((s, r) => s + toNum(r.cost), 0);
-    const profit = revenue - cost;
-    const percent = revenue ? (profit / revenue) * 100 : null;
-    
-    // Cập nhật giá trị vào dòng I.4
-    const newRows = [...rows];
-    newRows[idxI4] = {
-        ...newRows[idxI4],
-        revenue,
-        cost,
-        profit,
-        percent,
+        // Lặp qua các dòng con bên dưới, dừng lại khi gặp mục "II. SẢN XUẤT"
+        while (
+            i < rows.length &&
+            !(rows[i].name || "").trim().toUpperCase().startsWith("II.")
+        ) {
+            childRows.push(rows[i]);
+            i++;
+        }
+
+        // Tính tổng từ các dòng con
+        const revenue = childRows.reduce((s, r) => s + toNum(r.revenue), 0);
+        const cost = childRows.reduce((s, r) => s + toNum(r.cost), 0);
+        const profit = revenue - cost;
+        const percent = revenue ? (profit / revenue) * 100 : null;
+
+        // Cập nhật giá trị vào dòng I.4
+        const newRows = [...rows];
+        newRows[idxI4] = {
+            ...newRows[idxI4],
+            revenue,
+            cost,
+            profit,
+            percent,
+        };
+
+        return newRows;
     };
+    // === HÀM TÍNH TỔNG MỚI (DÁN VÀO ĐÂY) ===
+    const calculateTotals = (currentRows) => {
+        const updatedRows = [...currentRows];
 
-    return newRows;
-};
+        // 1. Tìm chỉ số của tất cả các hàng cần thiết
+        const idxTotal = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
+        );
+        const idxIXD = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+        );
+        const idxII1 = updatedRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
+        );
+        const idxII2 = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "II.2. DT + LN ĐƯỢC CHIA TỪ LDX"
+        );
+        const idxII3 = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)"
+        );
+        const idxII4 = updatedRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY"
+        );
+
+        // 2. Kiểm tra và tính toán nếu tìm thấy tất cả các hàng
+        if (
+            idxTotal !== -1 &&
+            idxIXD !== -1 &&
+            idxII1 !== -1 &&
+            idxII2 !== -1 &&
+            idxII3 !== -1 &&
+            idxII4 !== -1
+        ) {
+            const totalRevenue =
+                toNum(updatedRows[idxIXD]?.revenue) +
+                toNum(updatedRows[idxII1]?.revenue) +
+                toNum(updatedRows[idxII2]?.revenue) +
+                toNum(updatedRows[idxII3]?.revenue) +
+                toNum(updatedRows[idxII4]?.revenue);
+
+            const totalCost =
+                toNum(updatedRows[idxIXD]?.cost) +
+                toNum(updatedRows[idxII1]?.cost) +
+                toNum(updatedRows[idxII2]?.cost) +
+                toNum(updatedRows[idxII3]?.cost) +
+                toNum(updatedRows[idxII4]?.cost);
+
+            const totalProfit =
+                toNum(updatedRows[idxIXD]?.profit) +
+                toNum(updatedRows[idxII1]?.profit) +
+                toNum(updatedRows[idxII2]?.profit) +
+                toNum(updatedRows[idxII3]?.profit) +
+                toNum(updatedRows[idxII4]?.profit);
+
+            // 3. Cập nhật dòng TỔNG
+            updatedRows[idxTotal] = {
+                ...updatedRows[idxTotal],
+                revenue: totalRevenue === 0 ? null : totalRevenue,
+                cost: totalCost === 0 ? null : totalCost,
+                profit: totalProfit === 0 ? null : totalProfit,
+                percent: null,
+            };
+        }
+
+        return updatedRows;
+    };
     // Đặt hàm này cùng với các hàm update... khác của bạn
 
     const updateVuotCPRows = (inputRows) => {
@@ -602,42 +675,51 @@ const updateGroupI4 = (rows) => {
                     // Chỉ giữ lại các dòng project có ID nằm trong danh sách project còn tồn tại
                     return existingProjectIds.includes(row.projectId);
                 });
-// =================================================================
-// ✨ BẮT ĐẦU ĐOẠN CODE SỬA LỖI ✨
-// Kiểm tra xem I.4 đã tồn tại trong dữ liệu đã lưu chưa
-const i4Exists = updatedRows.some(
-    (r) => (r.name || "").trim().toUpperCase() === "I.4. XÍ NGHIỆP XD II"
-);
+                // =================================================================
+                // ✨ BẮT ĐẦU ĐOẠN CODE SỬA LỖI ✨
+                // Kiểm tra xem I.4 đã tồn tại trong dữ liệu đã lưu chưa
+                const i4Exists = updatedRows.some(
+                    (r) =>
+                        (r.name || "").trim().toUpperCase() ===
+                        "I.4. XÍ NGHIỆP XD II"
+                );
 
-// Nếu chưa tồn tại, hãy chèn nó vào
-if (!i4Exists) {
-    // Tìm vị trí của dòng I.3 để chèn I.4 vào ngay sau nó
-    let insertionIndex = updatedRows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "I.3. CÔNG TRÌNH CÔNG TY CĐT"
-    );
+                // Nếu chưa tồn tại, hãy chèn nó vào
+                if (!i4Exists) {
+                    // Tìm vị trí của dòng I.3 để chèn I.4 vào ngay sau nó
+                    let insertionIndex = updatedRows.findIndex(
+                        (r) =>
+                            (r.name || "").trim().toUpperCase() ===
+                            "I.3. CÔNG TRÌNH CÔNG TY CĐT"
+                    );
 
-    if (insertionIndex !== -1) {
-        // Đi tới cuối các dòng con của I.3
-        insertionIndex++;
-        while (
-            insertionIndex < updatedRows.length &&
-            !/^[IVX]+\./.test(updatedRows[insertionIndex].name || "")
-        ) {
-            insertionIndex++;
-        }
+                    if (insertionIndex !== -1) {
+                        // Đi tới cuối các dòng con của I.3
+                        insertionIndex++;
+                        while (
+                            insertionIndex < updatedRows.length &&
+                            !/^[IVX]+\./.test(
+                                updatedRows[insertionIndex].name || ""
+                            )
+                        ) {
+                            insertionIndex++;
+                        }
 
-        // Tạo cấu trúc cho dòng I.4 mới
-        const groupI4Data = [
-            { name: "I.4. Xí nghiệp XD II", ...sumGroup(groupI4) },
-            ...groupI4, // Thêm các dự án con của I.4 nếu có
-        ];
+                        // Tạo cấu trúc cho dòng I.4 mới
+                        const groupI4Data = [
+                            {
+                                name: "I.4. Xí nghiệp XD II",
+                                ...sumGroup(groupI4),
+                            },
+                            ...groupI4, // Thêm các dự án con của I.4 nếu có
+                        ];
 
-        // Chèn cấu trúc I.4 vào đúng vị trí
-        updatedRows.splice(insertionIndex, 0, ...groupI4Data);
-    }
-}
-// ✨ KẾT THÚC ĐOẠN CODE SỬA LỖI ✨
-// =================================================================
+                        // Chèn cấu trúc I.4 vào đúng vị trí
+                        updatedRows.splice(insertionIndex, 0, ...groupI4Data);
+                    }
+                }
+                // ✨ KẾT THÚC ĐOẠN CODE SỬA LỖI ✨
+                // =================================================================
                 // Phần code còn lại của bạn giữ nguyên từ đây...
                 // ================== BẮT ĐẦU PHẦN CHỈNH SỬA ==================
                 // 1. Luôn fetch lại giá trị CP Vượt Quý mới nhất
@@ -1140,6 +1222,8 @@ if (!i4Exists) {
                 // ——————————————————————————————————————————————————————————
 
                 // ——————————————————————————————————————————————————————————
+                updatedRows = updateGroupI4(updatedRows); // ✨ THÊM DÒNG NÀY
+
                 updatedRows = updateVuotCPRows(updatedRows); // <<< THÊM DÒNG NÀY
                 updatedRows = updateChiPhiTraTruocRow(
                     updatedRows,
@@ -1541,61 +1625,10 @@ if (!i4Exists) {
                     target !== 0 ? (profit / target) * 100 : null;
             }
 
-            // Tìm đến đoạn tính lại TỔNG trong `fetchData` và `handleCellChange`
-
-// 1. Tìm chỉ số của tất cả các dòng cần thiết
-const idxTotal = updatedRows.findIndex(r => (r.name || "").trim().toUpperCase() === "TỔNG");
-const idxIXD = updatedRows.findIndex(r => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG");
-const idxI3CDT = updatedRows.findIndex(r => (r.name || "").trim().toUpperCase() === "I.3. CÔNG TRÌNH CÔNG TY CĐT");
-const idxI4 = updatedRows.findIndex(r => (r.name || "").trim().toUpperCase() === "I.4. Xí nghiệp XD II"); // Tìm dòng I.4
-const idxIISX = updatedRows.findIndex(r => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT");
-const idxIIIDT = updatedRows.findIndex(r => (r.name || "").trim().toUpperCase() === "III. ĐẦU TƯ");
-const idxThuNhapKhac = updatedRows.findIndex(r => (r.name || "").trim().toUpperCase() === "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY");
-
-// 2. Kiểm tra và tính toán lại
-if (
-    idxTotal !== -1 &&
-    idxIXD !== -1 &&
-    idxI3CDT !== -1 &&
-    idxI4 !== -1 &&    // Đảm bảo đã tìm thấy I.4
-    idxIISX !== -1 &&
-    idxIIIDT !== -1 &&
-    idxThuNhapKhac !== -1
-) {
-    // TÍNH LẠI TỔNG DOANH THU
-    const doanhThu =
-        toNum(updatedRows[idxIXD]?.revenue) +
-        toNum(updatedRows[idxI3CDT]?.revenue) +
-        toNum(updatedRows[idxI4]?.revenue) +      // ✨ THÊM VÀO
-        toNum(updatedRows[idxIISX]?.revenue) +
-        toNum(updatedRows[idxIIIDT]?.revenue);
-
-    // TÍNH LẠI TỔNG CHI PHÍ
-    const chiPhi =
-        toNum(updatedRows[idxIXD]?.cost) +
-        toNum(updatedRows[idxI3CDT]?.cost) +
-        toNum(updatedRows[idxI4]?.cost) +          // ✨ THÊM VÀO
-        toNum(updatedRows[idxIISX]?.cost) +
-        toNum(updatedRows[idxIIIDT]?.cost);
-
-    // TÍNH LẠI TỔNG LỢI NHUẬN
-    const loiNhuan =
-        toNum(updatedRows[idxIXD]?.profit) +
-        toNum(updatedRows[idxI3CDT]?.profit) +
-        toNum(updatedRows[idxI4]?.profit) +        // ✨ THÊM VÀO
-        toNum(updatedRows[idxIISX]?.profit) +
-        toNum(updatedRows[idxIIIDT]?.profit) +
-        toNum(updatedRows[idxThuNhapKhac]?.profit);
-
-    // 3. Cập nhật giá trị cho dòng TỔNG
-    updatedRows[idxTotal] = {
-        ...updatedRows[idxTotal],
-        revenue: doanhThu === 0 ? null : doanhThu,
-        cost: chiPhi === 0 ? null : chiPhi,
-        profit: loiNhuan === 0 ? null : loiNhuan,
-        percent: null,
-    };
-}
+            updatedRows = calculateTotals(updatedRows); // Gọi hàm tính tổng mới
+            const idxTotal = updatedRows.findIndex(
+                (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
+            );
 
             // 12. Tính lại IV. LỢI NHUẬN ... = profit của TỔNG
             const idxIV = updatedRows.findIndex(
@@ -1826,7 +1859,7 @@ if (
         updatedRows = updateThuNhapKhacRow(updatedRows);
         updatedRows = updateDauTuRow(updatedRows);
         updatedRows = updateGroupI3(updatedRows);
-updatedRows = updateGroupI4(updatedRows); // ✨ THÊM DÒNG NÀY
+        updatedRows = updateGroupI4(updatedRows); // ✨ THÊM DÒNG NÀY
 
         // === TÍNH LẠI DÒNG II. SẢN XUẤT ===
         const idxII = updatedRows.findIndex(
@@ -1909,83 +1942,10 @@ updatedRows = updateGroupI4(updatedRows); // ✨ THÊM DÒNG NÀY
                 target !== 0 ? (profit / target) * 100 : null;
         }
 
-        // === TÍNH LẠI DÒNG TỔNG, IV, FINAL LN ===
+        updatedRows = calculateTotals(updatedRows);
         const idxTotal = updatedRows.findIndex(
             (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
         );
-        const idxIXD = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
-        );
-        const idxI2KE = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
-        );
-        const idxI3CDT = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "I.3. CÔNG TRÌNH CÔNG TY CĐT"
-        );
-        // ✨ THÊM MỚI
-        const idxI4 = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() === "I.4. Xí nghiệp XD II"
-        );
-        const idxIISX = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
-        );
-        const idxIIIDT = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "III. ĐẦU TƯ"
-        );
-
-        if (
-            idxTotal !== -1 &&
-            idxIXD !== -1 &&
-            idxI2KE !== -1 &&
-            idxI3CDT !== -1 &&
-            idxIISX !== -1 &&
-            idxIIIDT !== -1
-        ) {
-            const doanhThu =
-                toNum(updatedRows[idxIXD]?.revenue) +
-                toNum(updatedRows[idxI2KE]?.revenue) +
-                toNum(updatedRows[idxI3CDT]?.revenue) +
-                toNum(updatedRows[idxIISX]?.revenue) +
-                toNum(updatedRows[idxIIIDT]?.revenue);
-
-            const chiPhi =
-                toNum(updatedRows[idxIXD]?.cost) +
-                toNum(updatedRows[idxI2KE]?.cost) +
-                toNum(updatedRows[idxI3CDT]?.cost) +
-                toNum(updatedRows[idxIISX]?.cost) +
-                toNum(updatedRows[idxIIIDT]?.cost);
-
-            const idxThuNhapKhac = updatedRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() ===
-                    "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY"
-            );
-
-            let loiNhuan = doanhThu - chiPhi;
-            if (
-                idxIXD !== -1 &&
-                idxIISX !== -1 &&
-                idxIIIDT !== -1 &&
-                idxThuNhapKhac !== -1
-            ) {
-                loiNhuan =
-                    toNum(updatedRows[idxIXD]?.profit) +
-                    toNum(updatedRows[idxIISX]?.profit) +
-                    toNum(updatedRows[idxIIIDT]?.profit) +
-                    toNum(updatedRows[idxThuNhapKhac]?.profit);
-            }
-
-            updatedRows[idxTotal] = {
-                ...updatedRows[idxTotal],
-                revenue: doanhThu === 0 ? null : doanhThu,
-                cost: chiPhi === 0 ? null : chiPhi,
-                profit: loiNhuan === 0 ? null : loiNhuan,
-                percent: null,
-            };
-        }
 
         const idxIV = updatedRows.findIndex(
             (r) =>
