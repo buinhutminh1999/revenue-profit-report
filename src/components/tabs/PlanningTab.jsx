@@ -337,11 +337,98 @@ const getNextPrefix = (char) => {
     const nextCharCode = char.charCodeAt(0) + 1;
     return String.fromCharCode(nextCharCode) + ". ";
 };
+// Đặt bên ngoài component PlanningTab
 
+/**
+ * So sánh các hạng mục trong collection 'categories' với 'planningItems' của một dự án
+ * và tự động thêm những hạng mục còn thiếu vào dự án đó.
+ * @param {string} projectId - ID của dự án cần đồng bộ.
+ * @param {string} projectType - Loại của dự án (ví dụ: 'Thi công', 'Nhà máy').
+ */
+const syncPlanningItems = async (projectId, projectType) => {
+    // 1. Kiểm tra đầu vào
+    if (!projectId || !projectType) {
+        toast.error("Thiếu thông tin dự án để đồng bộ.");
+        return;
+    }
+
+    const toastId = toast.loading("Đang đồng bộ hóa danh mục...");
+
+    try {
+        // Ánh xạ projectType sang trường boolean trong collection 'categories'
+        const typeToFieldMap = {
+            "KH-ĐT": "isKhdt",
+            "Nhà máy": "isNhaMay",
+            "Thi công": "isThiCong",
+        };
+        const fieldToFilter = typeToFieldMap[projectType];
+        if (!fieldToFilter) {
+            toast.dismiss(toastId);
+            toast.error(`Loại dự án "${projectType}" không hợp lệ.`);
+            return;
+        }
+
+        // 2. Lấy TẤT CẢ các hạng mục "chuẩn" từ collection 'categories'
+        const categoriesQuery = query(
+            collection(db, "categories"),
+            where(fieldToFilter, "==", true)
+        );
+        const categoriesSnapshot = await getDocs(categoriesQuery);
+        // Dùng Map để tra cứu nhanh hơn, key là tên (description) của hạng mục
+        const standardCategories = new Map(
+            categoriesSnapshot.docs.map(doc => [doc.data().label, { id: doc.id, ...doc.data() }])
+        );
+
+        // 3. Lấy TẤT CẢ các hạng mục 'planningItems' HIỆN CÓ trong dự án này
+        const planningItemsRef = collection(db, "projects", projectId, "planningItems");
+        const planningItemsSnapshot = await getDocs(planningItemsRef);
+        // Dùng Set để chứa tên của các hạng mục đã có, giúp kiểm tra trùng lặp hiệu quả
+        const existingItems = new Set(
+            planningItemsSnapshot.docs.map(doc => doc.data().description)
+        );
+
+        // 4. So sánh và tìm ra những hạng mục còn thiếu để thêm vào batch
+        const batch = writeBatch(db);
+        let itemsAddedCount = 0;
+
+        standardCategories.forEach((category, label) => {
+            if (!existingItems.has(label)) {
+                // Hạng mục này có trong 'categories' nhưng chưa có trong dự án -> Thêm vào!
+                const newItemRef = doc(planningItemsRef);
+                batch.set(newItemRef, {
+                    description: category.label,
+                    amount: 0,
+                    order: category.key || 0, // Dùng 'key' để sắp xếp
+                    createdAt: new Date(),
+                    isCustom: false, // Đây là mục mặc định
+                    categoryId: category.id,
+                    itemGroup: "C. Chi phí Khác", // Mặc định cho vào nhóm này
+                });
+                itemsAddedCount++;
+            }
+        });
+
+        // 5. Commit batch nếu có mục cần thêm
+        if (itemsAddedCount > 0) {
+            await batch.commit();
+            toast.success(`Đồng bộ hoàn tất. Đã thêm ${itemsAddedCount} mục mới.`);
+        } else {
+            toast.success("Đồng bộ hoàn tất. Dữ liệu đã được cập nhật đầy đủ.");
+        }
+
+    } catch (error) {
+        console.error("Error syncing planning items:", error);
+        toast.error("Lỗi khi đồng bộ hóa danh mục.");
+    } finally {
+        toast.dismiss(toastId);
+    }
+};
 // --- COMPONENT CHÍNH ---
 export default function PlanningTab({ projectId }) {
     // --- STATE MANAGEMENT ---
     const [planningItems, setPlanningItems] = useState([]);
+    const [projectData, setProjectData] = useState(null); // <== THÊM DÒNG NÀY
+
     const [loading, setLoading] = useState(true);
     const [contractValue, setContractValue] = useState(0);
     const [adjustmentsData, setAdjustmentsData] = useState({});
@@ -407,53 +494,66 @@ export default function PlanningTab({ projectId }) {
         },
         []
     );
-
-    const handleAddNewGroup = useCallback(async () => {
-    // 1. Phần kiểm tra rỗng: GIỮ NGUYÊN
+const handleAddNewGroup = useCallback(async () => {
     if (!newGroup.name || !newGroup.amount) {
         toast.error("Vui lòng nhập đầy đủ Tên nhóm và Số tiền.");
         return;
     }
 
-    // =======================================================
-    // ==> 2. BẠN CHỈ CẦN CHÈN ĐOẠN KIỂM TRA TRÙNG LẶP VÀO ĐÂY <==
-
-    const trimmedGroupName = newGroup.name.trim();
-    // Dùng biểu thức chính quy (regex) để tìm tiền tố dạng "A." hoặc "B."
-    const match = trimmedGroupName.match(/^[A-Z](?=\.)/); 
-    
-    // Chỉ kiểm tra nếu người dùng có nhập tiền tố
-    if (match) {
-        const newPrefix = match[0]; // Lấy ra tiền tố, ví dụ: "C"
-        // Dùng `some` để kiểm tra xem có item nào trong mảng đã có tiền tố này chưa
-        const isDuplicate = planningItems.some(item => 
-            item.itemGroup?.trim().startsWith(newPrefix + ".")
-        );
-
-        if (isDuplicate) {
-            // Nếu tìm thấy trùng lặp, báo lỗi và dừng hàm ngay lập tức
-            toast.error(`Lỗi: Tiền tố "${newPrefix}." đã tồn tại. Vui lòng dùng tiền tố khác.`);
-            return; 
-        }
-    }
-    // =======================================================
-
-    // 3. Phần xử lý thêm mới: GIỮ NGUYÊN
     setIsAdding(true);
+    const batch = writeBatch(db);
+    const planningItemsRef = collection(db, "projects", projectId, "planningItems");
+
     try {
-        const planningItemsRef = collection(
-            db,
-            "projects",
-            projectId,
-            "planningItems"
-        );
+        const trimmedGroupName = newGroup.name.trim();
+        const match = trimmedGroupName.match(/^[A-Z](?=\.)/);
+
+        // =======================================================
+        // ==> LOGIC HOÀN CHỈNH <==
+        if (match) {
+            const newPrefix = match[0];
+            const oldDefaultGroupName = `${newPrefix}. Chi phí Khác`;
+
+            const itemsToRename = planningItems.filter(
+                (item) => item.itemGroup === oldDefaultGroupName && !item.isCustom
+            );
+
+            if (itemsToRename.length > 0) {
+                // Tự tính toán tiền tố mới ngay tại đây, không phụ thuộc vào `suggestedPrefix` nữa
+                
+                // 1. Tạo một danh sách các tiền tố đã tồn tại, BAO GỒM cả tiền tố của nhóm sắp thêm
+                const existingPrefixes = planningItems.map(item => item.itemGroup?.match(/^[A-Z](?=\.)/))
+                                                      .filter(Boolean)
+                                                      .map(m => m[0]);
+                
+                const allPrefixes = [...new Set([...existingPrefixes, newPrefix])].sort();
+                
+                // 2. Tìm tiền tố cao nhất trong danh sách mới này
+                const highestPrefix = allPrefixes[allPrefixes.length - 1];
+
+                // 3. Tạo ra tiền tố tiếp theo (ví dụ: nếu cao nhất là 'C', nó sẽ là 'D.')
+                const nextNewPrefix = getNextPrefix(highestPrefix); // Dùng lại helper function
+                
+                // 4. Tạo tên nhóm mới hoàn chỉnh
+                const newDefaultGroupName = `${nextNewPrefix.trim()} Chi phí Khác`;
+                
+toast(`Nhóm "${oldDefaultGroupName}" sẽ được đổi tên thành "${newDefaultGroupName}".`);
+
+                itemsToRename.forEach(itemToRename => {
+                    const itemRef = doc(planningItemsRef, itemToRename.id);
+                    batch.update(itemRef, {
+                        itemGroup: newDefaultGroupName,
+                    });
+                });
+            }
+        }
+        // =======================================================
+
         const lastOrder =
             planningItems.length > 0
                 ? Math.max(...planningItems.map((item) => item.order || 0))
                 : 0;
-        
-        // Lưu ý: trimmedGroupName đã được khai báo ở trên
-        const batch = writeBatch(db);
+
         const newItemRef = doc(planningItemsRef);
         batch.set(newItemRef, {
             description: trimmedGroupName,
@@ -465,16 +565,20 @@ export default function PlanningTab({ projectId }) {
         });
 
         await batch.commit();
-        toast.success(`Đã thêm nhóm "${trimmedGroupName}"`);
+
+        toast.success(`Đã thêm thành công nhóm "${trimmedGroupName}"`);
         setNewGroup({ name: "", amount: "" });
+
     } catch (error) {
-        console.error("Error adding new group: ", error);
-        toast.error("Thêm nhóm mới thất bại.");
+        console.error("Error adding new group with renaming: ", error);
+        // Lỗi này có thể là do trùng tên nhóm (ví dụ: đã có 'D. ABC' và bạn lại thêm 'D. XYZ')
+        // Hoặc do lỗi bảo mật của Firestore.
+        toast.error("Thao tác thất bại. Có thể do trùng tên hoặc lỗi hệ thống.");
     } finally {
         setIsAdding(false);
     }
+    // Bỏ `suggestedPrefix` ra khỏi dependencies
 }, [projectId, newGroup, planningItems]);
-
     const handleToggleGroup = useCallback(
         (groupName) => {
             const newExpanded = new Set(expandedGroups);
@@ -622,7 +726,7 @@ export default function PlanningTab({ projectId }) {
     const processedRows = useMemo(() => {
         const groups = new Map();
         planningItems.forEach((item) => {
-            const groupName = item.itemGroup || "C. Chi phí khác";
+            const groupName = item.itemGroup || "C. Chi phí Khác";
             if (!groups.has(groupName)) {
                 groups.set(groupName, []);
             }
@@ -1067,149 +1171,81 @@ export default function PlanningTab({ projectId }) {
 
     const estimatedProfit = contractValue - totalFinalAmount;
 
-    // CẬP NHẬT: Toàn bộ useEffect này đã được thay đổi để tải dữ liệu ngay từ đầu
-    useEffect(() => {
+useEffect(() => {
         if (!projectId) {
             setLoading(false);
             return;
         }
 
+        // 1. Lắng nghe các thay đổi trên 'planningItems' của dự án trong thời gian thực
         const itemsQuery = query(
             collection(db, "projects", projectId, "planningItems"),
             orderBy("order")
         );
 
-        const unsubscribeItems = onSnapshot(
-            itemsQuery,
-            (snapshot) => {
-                const newItems = snapshot.docs.map((d) => ({
-                    id: d.id,
-                    ...d.data(),
-                }));
-                setPlanningItems(newItems);
-                setLoading(false);
+        const unsubscribeItems = onSnapshot(itemsQuery, (snapshot) => {
+            const newItems = snapshot.docs.map((d) => ({
+                id: d.id,
+                ...d.data(),
+            }));
+            
+            setPlanningItems(newItems);
+            setLoading(false);
 
-                adjustmentUnsubscribes.current.forEach((unsub) => unsub());
-                adjustmentUnsubscribes.current.clear();
+            // 2. Lắng nghe các thay đổi trên 'adjustments' (chi tiết phát sinh) cho mỗi item
+            // Hủy các listener cũ trước khi tạo mới để tránh memory leak
+            adjustmentUnsubscribes.current.forEach((unsub) => unsub());
+            adjustmentUnsubscribes.current.clear();
 
-                newItems.forEach((item) => {
-                    const adjQuery = query(
-                        collection(
-                            db,
-                            "projects",
-                            projectId,
-                            "planningItems",
-                            item.id,
-                            "adjustments"
-                        ),
-                        orderBy("createdAt", "desc")
-                    );
+            newItems.forEach((item) => {
+                const adjQuery = query(
+                    collection(db, "projects", projectId, "planningItems", item.id, "adjustments"),
+                    orderBy("createdAt", "desc")
+                );
 
-                    const unsubscribeAdjustments = onSnapshot(
-                        adjQuery,
-                        (adjSnapshot) => {
-                            const fetchedAdjustments = adjSnapshot.docs.map(
-                                (d) => ({ id: d.id, ...d.data() })
-                            );
-
-                            setAdjustmentsData((prevData) => ({
-                                ...prevData,
-                                [item.id]: fetchedAdjustments,
-                            }));
-                        },
-                        (error) => {
-                            console.error(
-                                `Error loading adjustments for item ${item.id}:`,
-                                error
-                            );
-                        }
-                    );
-
-                    adjustmentUnsubscribes.current.set(
-                        item.id,
-                        unsubscribeAdjustments
-                    );
+                const unsubscribeAdjustments = onSnapshot(adjQuery, (adjSnapshot) => {
+                    const fetchedAdjustments = adjSnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+                    setAdjustmentsData((prevData) => ({
+                        ...prevData,
+                        [item.id]: fetchedAdjustments,
+                    }));
                 });
-            },
-            (error) => {
-                console.error("Snapshot error for planning items:", error);
-                setLoading(false);
-                toast.error("Lỗi khi tải dữ liệu kế hoạch.");
+
+                adjustmentUnsubscribes.current.set(item.id, unsubscribeAdjustments);
+            });
+        }, (error) => {
+            console.error("Snapshot error for planning items:", error);
+            setLoading(false);
+            toast.error("Lỗi khi tải dữ liệu kế hoạch.");
+        });
+        
+        // 3. Lấy thông tin chính của dự án (chỉ một lần)
+        const fetchProjectData = async () => {
+            const projectRef = doc(db, "projects", projectId);
+            const projectSnap = await getDoc(projectRef);
+
+            if (projectSnap.exists()) {
+                const data = projectSnap.data();
+                setProjectData(data); // Lưu loại dự án, tên, v.v.
+                setContractValue(data.totalAmount || 0);
+            } else {
+                toast.error("Lỗi: Không tìm thấy thông tin dự án.");
             }
-        );
+        };
 
-        if (initialSetupDone.current === false) {
+        // Chạy hàm lấy thông tin dự án chỉ một lần khi component được mount
+        if (!initialSetupDone.current) {
             initialSetupDone.current = true;
-            const runInitialSetup = async () => {
-                try {
-                    const planningItemsSnapshot = await getDocs(
-                        collection(db, "projects", projectId, "planningItems")
-                    );
-                    if (planningItemsSnapshot.empty) {
-                        const projectSnap = await getDoc(
-                            doc(db, "projects", projectId)
-                        );
-                        if (!projectSnap.exists()) return;
-
-                        const projectData = projectSnap.data();
-                        const fetchedProjectType = projectData.type;
-                        setContractValue(projectData.totalAmount || 0);
-
-                        if (fetchedProjectType) {
-                            const typeToFieldMap = {
-                                "KH-ĐT": "isKhdt",
-                                "Nhà máy": "isNhaMay",
-                                "Thi công": "isThiCong",
-                            };
-                            const fieldToFilter =
-                                typeToFieldMap[fetchedProjectType];
-                            if (fieldToFilter) {
-                                const categoriesQuery = query(
-                                    collection(db, "categories"),
-                                    where(fieldToFilter, "==", true),
-                                    orderBy("key")
-                                );
-                                const categoriesSnapshot = await getDocs(
-                                    categoriesQuery
-                                );
-                                const fetchedCategories =
-                                    categoriesSnapshot.docs.map((d) => ({
-                                        id: d.id,
-                                        ...d.data(),
-                                    }));
-                                await populateInitialPlanningItems(
-                                    projectId,
-                                    fetchedCategories
-                                );
-                            }
-                        }
-                    } else {
-                        const projectSnap = await getDoc(
-                            doc(db, "projects", projectId)
-                        );
-                        if (projectSnap.exists()) {
-                            setContractValue(
-                                projectSnap.data().totalAmount || 0
-                            );
-                        }
-                    }
-                } catch (error) {
-                    console.error("Error during initial setup:", error);
-                    toast.error("Đã xảy ra lỗi khi thiết lập dự án.");
-                }
-            };
-            runInitialSetup();
+            fetchProjectData();
         }
 
+        // Hàm dọn dẹp khi component unmount
         return () => {
             unsubscribeItems();
-            adjustmentUnsubscribes.current.forEach((unsubscribe) =>
-                unsubscribe()
-            );
+            adjustmentUnsubscribes.current.forEach((unsubscribe) => unsubscribe());
             adjustmentUnsubscribes.current.clear();
         };
-    }, [projectId, populateInitialPlanningItems]);
-
+    }, [projectId]); // Dependency chỉ là projectId
     // --- JSX RETURN ---
     return (
         <Box sx={{ p: { xs: 1, sm: 2 } }}>
@@ -1421,9 +1457,22 @@ export default function PlanningTab({ projectId }) {
                 </Paper>
 
                 <Box>
-                    <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>
-                        Danh sách Kế hoạch & Chi tiết Phát sinh
-                    </Typography>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+        <Typography variant="h5" fontWeight={700}>
+            Danh sách Kế hoạch & Chi tiết Phát sinh
+        </Typography>
+
+        {/* ==> THÊM NÚT BẤM NÀY VÀO <== */}
+        <Button
+            variant="outlined"
+            startIcon={<SyncAltIcon />}
+            onClick={() => syncPlanningItems(projectId, projectData.type)}
+            // Vô hiệu hóa nút khi chưa có dữ liệu dự án để tránh lỗi
+            disabled={!projectData} 
+        >
+            Đồng bộ danh mục
+        </Button>
+    </Stack>
                     <Paper
                         sx={{
                             height: "70vh",
