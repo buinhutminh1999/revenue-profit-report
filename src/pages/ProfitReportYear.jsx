@@ -124,9 +124,6 @@ const runAllCalculations = useCallback(
             };
         }
 
-        // =================================================================================
-        // ✨ BẮT ĐẦU: TÍNH TOÁN CHO HÀNG V. LỢI NHUẬN NĂM (LN & CP VƯỢT LŨY KẾ)
-        // =================================================================================
         const idxRowV = updatedRows.findIndex(
             (r) => r.name === `V. LỢI NHUẬN NĂM ${selectedYear}`
         );
@@ -141,7 +138,6 @@ const runAllCalculations = useCallback(
         );
 
         if (idxTotal !== -1 && idxRowV !== -1 && idxRowBPXD !== -1 && idxRowTNK !== -1 && idxRowCTLN !== -1) {
-            // ✨ CẬP NHẬT: Thêm 'costOverCumulative' vào danh sách các trường cần tính
             const fieldsToCalculateV = [
                 "profit", "profitQ1", "profitQ2", "profitQ3", "profitQ4",
                 "costOverCumulative"
@@ -154,7 +150,6 @@ const runAllCalculations = useCallback(
                 const tnkValue = toNum(updatedRows[idxRowTNK][field]);
                 const ctlnValue = toNum(updatedRows[idxRowCTLN][field]);
 
-                // Áp dụng công thức: V = IV - BPXD - TNK - CTLN
                 totalsV[field] = totalValue - bpXdValue - tnkValue - ctlnValue;
             });
 
@@ -165,9 +160,6 @@ const runAllCalculations = useCallback(
                 ...totalsV,
             };
         }
-        // =================================================================================
-        // ✨ KẾT THÚC: TÍNH TOÁN CHO HÀNG V. LỢI NHUẬN NĂM
-        // =================================================================================
 
         const idxRowVI = updatedRows.findIndex(
             (r) => r.name === "VI. LỢI NHUẬN PHÁT SINH"
@@ -194,24 +186,78 @@ const runAllCalculations = useCallback(
             };
         }
 
-       const idxRowA = updatedRows.findIndex(
-    (r) => r.name === `A. LỢI NHUẬN NĂM ${selectedYear}`
-);
-if (idxRowA !== -1 && idxRowV !== -1 && idxRowVI !== -1) {
-    // 👇 THÊM 'costOverCumulative' VÀO ĐÂY
-    const fieldsToSumA = [
-        "profit", "profitQ1", "profitQ2", "profitQ3", "profitQ4",
-        "costOverCumulative" 
-    ];
-    const totalsA = {};
-    fieldsToSumA.forEach((field) => {
-        // Công thức A[field] = V[field] + VI[field] sẽ được áp dụng cho tất cả các trường trong mảng trên
-        totalsA[field] =
-            toNum(updatedRows[idxRowV][field]) +
-            toNum(updatedRows[idxRowVI][field]);
-    });
-    updatedRows[idxRowA] = { ...updatedRows[idxRowA], ...totalsA };
-}
+        const idxRowA = updatedRows.findIndex(
+            (r) => r.name === `A. LỢI NHUẬN NĂM ${selectedYear}`
+        );
+        if (idxRowA !== -1 && idxRowV !== -1 && idxRowVI !== -1) {
+            const fieldsToSumA = [
+                "profit", "profitQ1", "profitQ2", "profitQ3", "profitQ4",
+                "costOverCumulative"
+            ];
+            const totalsA = {};
+            fieldsToSumA.forEach((field) => {
+                totalsA[field] =
+                    toNum(updatedRows[idxRowV][field]) +
+                    toNum(updatedRows[idxRowVI][field]);
+            });
+            updatedRows[idxRowA] = { ...updatedRows[idxRowA], ...totalsA };
+        }
+
+        // =================================================================================
+        // ✨ BẮT ĐẦU: TÍNH TOÁN CHO HÀNG "=> TỔNG LỢI NHUẬN NĂM" (ĐÃ CẬP NHẬT)
+        // =================================================================================
+        const idxTongLoiNhuanNam = updatedRows.findIndex(
+            (r) => r.name === `=> TỔNG LỢI NHUẬN NĂM ${selectedYear}`
+        );
+        const idxGiamGiaTaiSan = updatedRows.findIndex(
+            (r) => r.name === `GIẢM GIÁ TRỊ TÀI SẢN NĂM ${selectedYear}`
+        );
+        const idxQuyPhucLoi = updatedRows.findIndex(
+            (r) => r.name === `TRÍCH QUỸ PHÚC LỢI NĂM ${selectedYear}`
+        );
+        const idxTrichLaiDuAn = updatedRows.findIndex(
+            (r) => r.name === 'TRÍCH LN TRỪ LÃI DỰ ÁN'
+        );
+
+        if (idxTongLoiNhuanNam !== -1 && idxRowA !== -1 && idxGiamGiaTaiSan !== -1 && idxQuyPhucLoi !== -1 && idxTrichLaiDuAn !== -1) {
+            const fieldsToCalculateTotal = ["profit", "profitQ1", "profitQ2", "profitQ3", "profitQ4", "costOverCumulative"];
+            const totalsLoiNhuan = {};
+
+            fieldsToCalculateTotal.forEach((field) => {
+                if (field === 'profit') {
+                    // Công thức cho cột "TỔNG LN NĂM"
+                    const valueA = toNum(updatedRows[idxRowA]['profit']);
+                    const valueGiamGia = toNum(updatedRows[idxGiamGiaTaiSan]['profit']);
+                    const valuePhucLoi = toNum(updatedRows[idxQuyPhucLoi]['profit']);
+                    const valueLaiDuAn = toNum(updatedRows[idxTrichLaiDuAn]['profit']);
+                    
+                    totalsLoiNhuan['profit'] = valueA - valueGiamGia - valuePhucLoi - valueLaiDuAn;
+
+                } else if (field === 'costOverCumulative') {
+                    // Công thức mới cho cột "CP VƯỢT LŨY KẾ"
+                    const valueA = toNum(updatedRows[idxRowA]['costOverCumulative']);
+                    const valueGiamGia = toNum(updatedRows[idxGiamGiaTaiSan]['costOverCumulative']);
+                    const valuePhucLoi = toNum(updatedRows[idxQuyPhucLoi]['costOverCumulative']);
+                    
+                    totalsLoiNhuan['costOverCumulative'] = valueA - valueGiamGia - valuePhucLoi;
+
+                } else {
+                    // Công thức cho các cột LN Quý (Q1, Q2, Q3, Q4)
+                    const valueA = toNum(updatedRows[idxRowA][field]);
+                    const valueGiamGia = toNum(updatedRows[idxGiamGiaTaiSan][field]);
+                    
+                    totalsLoiNhuan[field] = valueA - valueGiamGia;
+                }
+            });
+
+            updatedRows[idxTongLoiNhuanNam] = {
+                ...updatedRows[idxTongLoiNhuanNam],
+                ...totalsLoiNhuan,
+            };
+        }
+        // =================================================================================
+        // ✨ KẾT THÚC: TÍNH TOÁN CHO HÀNG "=> TỔNG LỢI NHUẬN NĂM"
+        // =================================================================================
 
         return updatedRows;
     },
@@ -438,7 +484,81 @@ useEffect(() => {
                 ...rowTemplate[idxTang],
                 ...increaseProfitData,
             };
+// =================================================================================
+// ✨ BẮT ĐẦU: LẤY DỮ LIỆU CHO HÀNG "TRÍCH LN TRỪ LÃI DỰ ÁN"
+// =================================================================================
+const projectInterestData = {};
+for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+    try {
+        const docId = `${selectedYear}_${quarter}`;
+        const profitReportSnap = await getDoc(doc(db, "profitReports", docId));
+        if (profitReportSnap.exists()) {
+            const reportData = profitReportSnap.data();
+            if (Array.isArray(reportData.rows)) {
+                const interestRow = reportData.rows.find(
+                    (row) => row.name === "VIII. GIẢM LÃI ĐT DỰ ÁN"
+                );
+                if (interestRow) {
+                    projectInterestData[`profit${quarter}`] = toNum(interestRow.profit);
+                }
+            }
+        }
+    } catch (error) {
+        console.error(`Lỗi khi lấy dữ liệu "GIẢM LÃI ĐT DỰ ÁN" cho ${quarter}/${selectedYear}:`, error);
+    }
+}
+// Tính tổng lợi nhuận từ các quý
+projectInterestData.profit = Object.values(projectInterestData).reduce((s, v) => s + v, 0);
 
+// Cập nhật dữ liệu vào rowTemplate
+const idxInterest = rowTemplate.findIndex((r) => r.name === "TRÍCH LN TRỪ LÃI DỰ ÁN");
+if (idxInterest > -1) {
+    rowTemplate[idxInterest] = {
+        ...rowTemplate[idxInterest],
+        ...projectInterestData,
+    };
+}
+// =================================================================================
+// ✨ KẾT THÚC: LẤY DỮ LIỆU CHO HÀNG "TRÍCH LN TRỪ LÃI DỰ ÁN"
+// =================================================================================
+// =================================================================================
+// ✨ BẮT ĐẦU: LẤY DỮ LIỆU CHO HÀNG "GIẢM GIÁ TRỊ TÀI SẢN"
+// =================================================================================
+const assetDepreciationData = {};
+for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+    try {
+        const docId = `${selectedYear}_${quarter}`;
+        const profitReportSnap = await getDoc(doc(db, "profitReports", docId));
+        if (profitReportSnap.exists()) {
+            const reportData = profitReportSnap.data();
+            if (Array.isArray(reportData.rows)) {
+                // Tìm đến hàng có tên "VII. KHTSCĐ NĂM [Năm được chọn]"
+                const assetRow = reportData.rows.find(
+                    (row) => row.name === `VII. KHTSCĐ NĂM ${selectedYear}`
+                );
+                if (assetRow) {
+                    assetDepreciationData[`profit${quarter}`] = toNum(assetRow.profit);
+                }
+            }
+        }
+    } catch (error) {
+        console.error(`Lỗi khi lấy dữ liệu "KHTSCĐ" cho ${quarter}/${selectedYear}:`, error);
+    }
+}
+// Tính tổng lợi nhuận từ các quý
+assetDepreciationData.profit = Object.values(assetDepreciationData).reduce((s, v) => s + v, 0);
+
+// Cập nhật dữ liệu vào rowTemplate cho hàng "GIẢM GIÁ TRỊ TÀI SẢN NĂM [Năm được chọn]"
+const idxAsset = rowTemplate.findIndex((r) => r.name === `GIẢM GIÁ TRỊ TÀI SẢN NĂM ${selectedYear}`);
+if (idxAsset > -1) {
+    rowTemplate[idxAsset] = {
+        ...rowTemplate[idxAsset],
+        ...assetDepreciationData,
+    };
+}
+// =================================================================================
+// ✨ KẾT THÚC: LẤY DỮ LIỆU CHO HÀNG "GIẢM GIÁ TRỊ TÀI SẢN"
+// =================================================================================
         projects.forEach((p) => {
             const index = rowTemplate.findIndex((r) => r.name === p.name);
             if (index > -1) {
