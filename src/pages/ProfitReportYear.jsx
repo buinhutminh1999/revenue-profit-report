@@ -194,19 +194,24 @@ const runAllCalculations = useCallback(
             };
         }
 
-        const idxRowA = updatedRows.findIndex(
-            (r) => r.name === `A. LỢI NHUẬN NĂM ${selectedYear}`
-        );
-        if (idxRowA !== -1 && idxRowV !== -1 && idxRowVI !== -1) {
-            const profitFields = ["profit", "profitQ1", "profitQ2", "profitQ3", "profitQ4"];
-            const totalsA = {};
-            profitFields.forEach((field) => {
-                totalsA[field] =
-                    toNum(updatedRows[idxRowV][field]) +
-                    toNum(updatedRows[idxRowVI][field]);
-            });
-            updatedRows[idxRowA] = { ...updatedRows[idxRowA], ...totalsA };
-        }
+       const idxRowA = updatedRows.findIndex(
+    (r) => r.name === `A. LỢI NHUẬN NĂM ${selectedYear}`
+);
+if (idxRowA !== -1 && idxRowV !== -1 && idxRowVI !== -1) {
+    // 👇 THÊM 'costOverCumulative' VÀO ĐÂY
+    const fieldsToSumA = [
+        "profit", "profitQ1", "profitQ2", "profitQ3", "profitQ4",
+        "costOverCumulative" 
+    ];
+    const totalsA = {};
+    fieldsToSumA.forEach((field) => {
+        // Công thức A[field] = V[field] + VI[field] sẽ được áp dụng cho tất cả các trường trong mảng trên
+        totalsA[field] =
+            toNum(updatedRows[idxRowV][field]) +
+            toNum(updatedRows[idxRowVI][field]);
+    });
+    updatedRows[idxRowA] = { ...updatedRows[idxRowA], ...totalsA };
+}
 
         return updatedRows;
     },
