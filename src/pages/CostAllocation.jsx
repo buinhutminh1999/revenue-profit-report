@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     Box,
     Button,
@@ -29,11 +30,9 @@ import {
     Construction,
     BarChart,
     Layers,
-    NewReleases,
     FileDownload,
 } from "@mui/icons-material";
 import * as XLSX from "xlsx";
-import { useNavigate } from "react-router-dom";
 import {
     doc,
     setDoc,
@@ -41,6 +40,7 @@ import {
     serverTimestamp,
     collection,
     query,
+    orderBy,
 } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 import { motion } from "framer-motion";
@@ -87,6 +87,7 @@ const getQuarterValue = (r) => {
     return qMonthly > 0 ? qMonthly : parseValue(r.quarterManual);
 };
 
+// <<< THAY ĐỔI 1: Thêm các trường order vào hàm normalize
 const normalizeRow = (row) => ({
     id: row.id,
     name: row.name ?? "",
@@ -104,6 +105,10 @@ const normalizeRow = (row) => ({
     thiCongValue: row.thiCongValue ?? 0,
     nhaMayValue: row.nhaMayValue ?? 0,
     khdtValue: row.khdtValue ?? 0,
+    order: row.order,
+    orderThiCong: row.orderThiCong,
+    orderNhaMay: row.orderNhaMay,
+    orderKhdt: row.orderKhdt,
 });
 
 function EditableCell({
@@ -113,7 +118,7 @@ function EditableCell({
     isNumeric = false,
     disabled = false,
 }) {
-    const theme = useTheme(); // Thêm dòng này để sử dụng theme
+    const theme = useTheme();
     const [edit, setEdit] = useState(false);
     const handleDoubleClick = () => {
         if (!disabled) setEdit(true);
@@ -206,20 +211,27 @@ export default function CostAllocation() {
         setSnack({ open: true, msg, sev });
     }, []);
 
-    // ... (useEffect hooks không thay đổi)
+    // <<< THAY ĐỔI 2: Lấy tất cả các trường (bao gồm các trường order) từ danh mục
     useEffect(() => {
-        const q = query(collection(db, "categories"));
+        const q = query(collection(db, "categories"), orderBy("order", "asc"));
         const unsub = onSnapshot(
             q,
             (snap) => {
-                const templates = snap.docs.map((d) => ({
-                    id: d.id,
-                    name: d.data().label,
-                    fixed: false,
-                    isThiCong: d.data().isThiCong,
-                    isNhaMay: d.data().isNhaMay,
-                    isKhdt: d.data().isKhdt,
-                }));
+                const templates = snap.docs.map((d) => {
+                    const data = d.data();
+                    return {
+                        id: d.id,
+                        name: data.label,
+                        fixed: false,
+                        isThiCong: data.isThiCong,
+                        isNhaMay: data.isNhaMay,
+                        isKhdt: data.isKhdt,
+                        order: data.order,
+                        orderThiCong: data.orderThiCong,
+                        orderNhaMay: data.orderNhaMay,
+                        orderKhdt: data.orderKhdt,
+                    };
+                });
                 setDynamicRowTemplates(templates);
             },
             (e) => showSnack(`Lỗi tải danh mục: ${e.message}`, "error")
@@ -285,9 +297,13 @@ export default function CostAllocation() {
                         groups.chung.push(row);
                     }
                 });
-                Object.values(groups).forEach((g) =>
-                    g.sort((a, b) => a.name.localeCompare(b.name, "vi"))
-                );
+
+                // <<< THAY ĐỔI 3: Sắp xếp từng nhóm theo đúng trường order của nó
+                groups.nhaMay.sort((a, b) => (a.orderNhaMay ?? Infinity) - (b.orderNhaMay ?? Infinity));
+                groups.thiCong.sort((a, b) => (a.orderThiCong ?? Infinity) - (b.orderThiCong ?? Infinity));
+                groups.khdt.sort((a, b) => (a.orderKhdt ?? Infinity) - (b.orderKhdt ?? Infinity));
+                groups.chung.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+
                 setGroupedRows(groups);
             },
             (e) => showSnack(`Lỗi tải dữ liệu phân bổ: ${e.message}`, "error")
@@ -344,24 +360,18 @@ export default function CostAllocation() {
         try {
             const dataToSave = allRowsToSave.map((r) => {
                 const qv = getQuarterValue(r);
-
-                // THAY ĐỔI TẠI ĐÂY
-                // CŨ: const isSalaryRow = (r.name || "").toLowerCase().includes("chi phí lương");
-                // MỚI: Chỉ áp dụng cho dòng có tên chính xác là "Chi phí lương"
                 const isSalaryRow =
                     (r.name || "").trim().toLowerCase() === "chi phí lương";
 
-                // *** THAY ĐỔI 1: Logic lưu cho dòng Chi phí lương ***
                 if (isSalaryRow) {
                     return {
-                        ...normalizeRow(r), // Giữ lại các giá trị khác
+                        ...normalizeRow(r),
                         thiCongValue: fixedSum.thiCong,
                         nhaMayValue: fixedSum.factory,
                         khdtValue: fixedSum.khdt,
                     };
                 }
 
-                // Logic cũ cho các dòng khác
                 return {
                     id: r.id,
                     name: r.name,
@@ -499,13 +509,9 @@ export default function CostAllocation() {
             groupItems.forEach((r) => {
                 const qv = getQuarterValue(r);
 
-                // THAY ĐỔI TẠI ĐÂY
-                // CŨ: const isSalaryRow = (r.name || "").toLowerCase().includes("chi phí lương");
-                // MỚI: Chỉ áp dụng cho dòng có tên chính xác là "Chi phí lương"
                 const isSalaryRow =
                     (r.name || "").trim().toLowerCase() === "chi phí lương";
 
-                // *** THAY ĐỔI 2 (Tương tự): Logic xuất Excel cho dòng Chi phí lương ***
                 const nhaMayValue = isSalaryRow
                     ? fixedSum.factory
                     : Math.round((qv * parseValue(r.percentage)) / 100);
@@ -605,13 +611,9 @@ export default function CostAllocation() {
     const renderRow = (r) => {
         const qv = getQuarterValue(r);
 
-        // THAY ĐỔI TẠI ĐÂY
-        // CŨ: const isSalaryRow = (r.name || "").toLowerCase().includes("chi phí lương");
-        // MỚI: Chỉ áp dụng cho dòng có tên chính xác là "Chi phí lương"
         const isSalaryRow =
             (r.name || "").trim().toLowerCase() === "chi phí lương";
 
-        // *** THAY ĐỔI 3: Logic hiển thị cho dòng Chi phí lương ***
         const nhaMayValue = isSalaryRow
             ? fixedSum.factory
             : Math.round((qv * parseValue(r.percentage)) / 100);
@@ -752,101 +754,96 @@ export default function CostAllocation() {
                 animate={{ opacity: 1, y: 0 }}
             >
 
-<Paper
-    elevation={0}
-    sx={{
-        p: { xs: 2, md: 2.5 },
-        mb: 3,
-        borderRadius: 4,
-        boxShadow: "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px",
-    }}
->
-    {/* ✨ [UI/UX] Sắp xếp lại header với layout justifyContent="space-between" */}
-    <Stack
-        direction={{ xs: "column", md: "row" }}
-        justifyContent="space-between"
-        alignItems={{ xs: "flex-start", md: "center" }}
-        spacing={2}
-    >
-        {/* Cụm Tiêu đề và Breadcrumb bên trái */}
-        <Box>
-            <Typography variant="h5" fontWeight={700}>
-                Bảng Kế Hoạch Chi Phí
-            </Typography>
-            <Breadcrumbs separator="›" sx={{ mt: 0.5 }}>
-                <MuiLink
-                    component="button"
-                    underline="hover"
-                    color="text.secondary"
-                    onClick={() => navigate("/")}
-                    sx={{ display: 'flex', alignItems: 'center' }}
+                <Paper
+                    elevation={0}
+                    sx={{
+                        p: { xs: 2, md: 2.5 },
+                        mb: 3,
+                        borderRadius: 4,
+                        boxShadow: "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px",
+                    }}
                 >
-                    <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-                    Trang chủ
-                </MuiLink>
-                <Typography color="text.primary">
-                    Phân bổ chi phí
-                </Typography>
-            </Breadcrumbs>
-        </Box>
+                    <Stack
+                        direction={{ xs: "column", md: "row" }}
+                        justifyContent="space-between"
+                        alignItems={{ xs: "flex-start", md: "center" }}
+                        spacing={2}
+                    >
+                        <Box>
+                            <Typography variant="h5" fontWeight={700}>
+                                Bảng Kế Hoạch Chi Phí
+                            </Typography>
+                            <Breadcrumbs separator="›" sx={{ mt: 0.5 }}>
+                                <MuiLink
+                                    component="button"
+                                    underline="hover"
+                                    color="text.secondary"
+                                    onClick={() => navigate("/")}
+                                    sx={{ display: 'flex', alignItems: 'center' }}
+                                >
+                                    <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
+                                    Trang chủ
+                                </MuiLink>
+                                <Typography color="text.primary">
+                                    Phân bổ chi phí
+                                </Typography>
+                            </Breadcrumbs>
+                        </Box>
 
-        {/* ✨ [UI/UX] Nhóm các bộ lọc và hành động lại với nhau */}
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
-            {/* Nhóm Filters */}
-            <TextField
-                select
-                label="Quý"
-                size="small"
-                sx={{ width: 120, bgcolor: "background.paper" }}
-                value={quarter}
-                onChange={(e) => setQuarter(e.target.value)}
-            >
-                {Object.entries(quarterMap).map(([q, cfg]) => (
-                    <MenuItem key={q} value={q}>
-                        {cfg.label}
-                    </MenuItem>
-                ))}
-            </TextField>
-            <TextField
-                select
-                label="Năm"
-                size="small"
-                sx={{ width: 120, bgcolor: "background.paper" }}
-                value={year}
-                onChange={(e) => setYear(+e.target.value)}
-            >
-                {[2023, 2024, 2025, 2026].map((y) => (
-                    <MenuItem key={y} value={y}>
-                        {y}
-                    </MenuItem>
-                ))}
-            </TextField>
+                        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                            <TextField
+                                select
+                                label="Quý"
+                                size="small"
+                                sx={{ width: 120, bgcolor: "background.paper" }}
+                                value={quarter}
+                                onChange={(e) => setQuarter(e.target.value)}
+                            >
+                                {Object.entries(quarterMap).map(([q, cfg]) => (
+                                    <MenuItem key={q} value={q}>
+                                        {cfg.label}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            <TextField
+                                select
+                                label="Năm"
+                                size="small"
+                                sx={{ width: 120, bgcolor: "background.paper" }}
+                                value={year}
+                                onChange={(e) => setYear(+e.target.value)}
+                            >
+                                {[2023, 2024, 2025, 2026].map((y) => (
+                                    <MenuItem key={y} value={y}>
+                                        {y}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
 
-            {/* Nhóm Actions */}
-            <Button
-                variant="outlined"
-                color="primary"
-                startIcon={<FileDownload />}
-                onClick={handleExport}
-                sx={{ height: "40px" }}
-            >
-                Xuất Excel
-            </Button>
-            <Button
-                variant="contained"
-                color="primary" // Đổi thành màu primary cho nhất quán
-                startIcon={<Save />}
-                onClick={handleSave}
-                sx={{
-                    height: "40px",
-                    boxShadow: "0 8px 16px 0 rgba(0, 123, 255, 0.24)",
-                }}
-            >
-                Lưu
-            </Button>
-        </Stack>
-    </Stack>
-</Paper>
+                            <Button
+                                variant="outlined"
+                                color="primary"
+                                startIcon={<FileDownload />}
+                                onClick={handleExport}
+                                sx={{ height: "40px" }}
+                            >
+                                Xuất Excel
+                            </Button>
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                startIcon={<Save />}
+                                onClick={handleSave}
+                                sx={{
+                                    height: "40px",
+                                    boxShadow: "0 8px 16px 0 rgba(0, 123, 255, 0.24)",
+                                }}
+                            >
+                                Lưu
+                            </Button>
+                        </Stack>
+                    </Stack>
+                </Paper>
             </motion.div>
 
             <motion.div
@@ -1074,5 +1071,5 @@ export default function CostAllocation() {
                 </Alert>
             </Snackbar>
         </Box>
-    );
+    )
 }

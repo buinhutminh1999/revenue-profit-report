@@ -41,6 +41,8 @@ import {
     onSnapshot,
     getDocs,
     collection,
+    query,
+    orderBy,
 } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 import { toNum, formatNumber, normalize } from "../utils/numberUtils";
@@ -69,7 +71,12 @@ const valueFieldMap = {
     "Nhà máy": { pctKey: "percentage", valKey: "nhaMayValue" },
     "KH-ĐT": { pctKey: "percentKHDT", valKey: "khdtValue" },
 };
-
+// <<< THÊM MỚI 1: Cấu hình sắp xếp cho từng loại, tương tự trang CategoryConfig
+const SORT_CONFIG = {
+    "Thi công": { key: "orderThiCong" },
+    "Nhà máy": { key: "orderNhaMay" },
+    "KH-ĐT": { key: "orderKhdt" },
+};
 // --- Component con: Thẻ thống kê ---
 const StatCard = ({ title, value, icon, color, isLoading }) => {
     const theme = useTheme();
@@ -236,10 +243,16 @@ export default function CostAllocationQuarter() {
     const [limitDialogOpen, setLimitDialogOpen] = useState(false);
     const [currentLimitCell, setCurrentLimitCell] = useState(null);
     const [dataVersion, setDataVersion] = useState(Date.now());
-
+   // <<< THAY ĐỔI 2: Lấy ra trường sắp xếp tương ứng với bộ lọc đang chọn
+    const activeSortKey = useMemo(() => {
+        return SORT_CONFIG[typeFilter]?.key || "order"; // Mặc định là 'order' nếu không khớp
+    }, [typeFilter]);
+    // <<< THAY ĐỔI 3: Cập nhật useEffect để lấy danh mục đã được sắp xếp theo `activeSortKey`
     useEffect(() => {
         const fetchCategories = async () => {
-            const querySnapshot = await getDocs(collection(db, "categories"));
+            // Sử dụng `activeSortKey` để sắp xếp dữ liệu ngay từ Firestore
+            const q = query(collection(db, "categories"), orderBy(activeSortKey, "asc"));
+            const querySnapshot = await getDocs(q);
             const catList = querySnapshot.docs.map((doc) => ({
                 id: doc.id,
                 ...doc.data(),
@@ -247,7 +260,7 @@ export default function CostAllocationQuarter() {
             setCategories(catList);
         };
         fetchCategories();
-    }, []);
+    }, [activeSortKey]); // Chạy lại mỗi khi bộ lọc thay đổi -> `activeSortKey` thay đổi
 
     const projects = useProjects(typeFilter);
     // --- THAY THẾ TOÀN BỘ KHỐI useMemo CŨ BẰNG KHỐI NÀY ---
@@ -854,10 +867,31 @@ export default function CostAllocationQuarter() {
     }, [rowsInit]);
     // --- THAY THẾ rowsWithTotal BẰNG PHIÊN BẢN NÀY ---
 
-    const rowsWithTotal = useMemo(() => {
+  const rowsWithTotal = useMemo(() => {
         const dataRows = rowsInit.filter(
             (r) => (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
         );
+
+        // Tạo map để tra cứu thứ tự của khoản mục.
+        // Vì `categories` đã được sắp xếp từ Firestore, chúng ta chỉ cần dùng index của nó.
+        const categoryOrderMap = new Map(
+            categories.map((cat, index) => [cat.label, index])
+        );
+
+        // Sắp xếp các hàng dữ liệu dựa trên thứ tự đã lấy về
+        dataRows.sort((a, b) => {
+            const labelA = (a.label || "").trim().toUpperCase();
+            const labelB = (b.label || "").trim().toUpperCase();
+
+            // Ưu tiên đưa hàng DOANH THU lên đầu tiên
+            if (labelA === "DOANH THU") return -1;
+            if (labelB === "DOANH THU") return 1;
+
+            // Lấy thứ tự từ map
+            const orderA = categoryOrderMap.get(a.label) ?? Infinity;
+            const orderB = categoryOrderMap.get(b.label) ?? Infinity;
+            return orderA - orderB;
+        });
 
         const totalRow = {
             id: "TOTAL_ROW",
@@ -869,10 +903,8 @@ export default function CostAllocationQuarter() {
             allocated: totalAllocated,
             carryOver: totalCarryOver,
             cumQuarterOnly: totalCumQuarterOnly,
-
-            // ✨ SỬ DỤNG 2 BIẾN TỔNG MỚI TẠI ĐÂY ✨
-            cumCurrent: totalDeficit, // Gán tổng thiếu hụt vào cột "Thiếu hụt"
-            surplusCumCurrent: totalSurplus, // Gán tổng thặng dư vào cột "Thặng dư"
+            cumCurrent: totalDeficit,
+            surplusCumCurrent: totalSurplus,
         };
 
         return [...dataRows, totalRow];
@@ -883,9 +915,9 @@ export default function CostAllocationQuarter() {
         totalAllocated,
         totalCarryOver,
         totalCumQuarterOnly,
-        // ✨ Cập nhật dependency array ✨
         totalSurplus,
         totalDeficit,
+        categories, // Thêm categories vào dependency array
     ]);
     const { totalOverrun } = useMemo(
         () => ({ totalOverrun: totalCumQuarterOnly }),

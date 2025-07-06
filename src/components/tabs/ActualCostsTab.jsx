@@ -8,6 +8,8 @@ import {
     setDoc,
     collection,
     onSnapshot,
+    query,
+    orderBy,
 } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
 import { parseNumber } from "../../utils/numberUtils";
@@ -21,7 +23,14 @@ import ColumnSelector from "../ColumnSelector";
 import CostTable from "../CostTable";
 import SummaryPanel from "../ui/SummaryPanel";
 
-// ---------- Default Data ----------
+// ---------- Cấu hình sắp xếp ----------
+const SORT_CONFIG = {
+    "Thi công": { key: "orderThiCong" },
+    "Nhà máy": { key: "orderNhaMay" },
+    "KH-ĐT": { key: "orderKhdt" },
+};
+
+// ---------- Dữ liệu mặc định ----------
 export const defaultRow = {
     id: generateUniqueId(),
     project: "",
@@ -129,8 +138,8 @@ export const handleFileUpload = (
                     const key = `${(row["Công Trình"] || "")
                         .trim()
                         .toUpperCase()}|||${(
-                        row["Khoản Mục Chi Phí"] || ""
-                    ).trim()}`;
+                            row["Khoản Mục Chi Phí"] || ""
+                        ).trim()}`;
                     newDataMap[key] = row;
                 }
 
@@ -144,7 +153,7 @@ export const handleFileUpload = (
                         if (excelRow.hasOwnProperty(excelKey)) {
                             newRow[excelToField[excelKey]] = String(
                                 excelRow[excelKey] ??
-                                    oldRow[excelToField[excelKey]]
+                                oldRow[excelToField[excelKey]]
                             );
                         }
                     }
@@ -160,11 +169,11 @@ export const handleFileUpload = (
                         return !costItems.some(
                             (oldRow) =>
                                 oldRow.project ===
-                                    (row["Công Trình"] || "")
-                                        .trim()
-                                        .toUpperCase() &&
+                                (row["Công Trình"] || "")
+                                    .trim()
+                                    .toUpperCase() &&
                                 oldRow.description ===
-                                    (row["Khoản Mục Chi Phí"] || "").trim()
+                                (row["Khoản Mục Chi Phí"] || "").trim()
                         );
                     })
                     .map((row) => {
@@ -263,7 +272,7 @@ export default function ActualCostsTab({ projectId }) {
             { key: "tonKhoUngKH", label: "Tồn Kho/Ứng KH", editable: true },
             {
                 key: "noPhaiTraCK",
-                label: "Nợ Phải Trả CK", // Thay thế 'editable: false' bằng hàm isCellEditable
+                label: "Nợ Phải Trả CK",
                 isCellEditable: (row) => {
                     const project = row.project || "";
                     return project.includes("-VT") || project.includes("-NC");
@@ -284,12 +293,18 @@ export default function ActualCostsTab({ projectId }) {
     useEffect(() => {
         setLoading(true);
         setInitialDbLoadComplete(false);
-        // FIX: Không reset projectData khi chỉ đổi quý/năm
-        // setProjectData(null);
     }, [id, year, quarter]);
 
+    // <<< THAY ĐỔI 1: Xác định trường sắp xếp dựa trên loại dự án
+    const activeSortKey = useMemo(() => {
+        const projectType = projectData?.type;
+        return SORT_CONFIG[projectType]?.key || "order"; // Mặc định là "order"
+    }, [projectData]);
+
+    // <<< THAY ĐỔI 2: Lấy danh mục đã được sắp xếp theo `activeSortKey`
     useEffect(() => {
-        const unsub = onSnapshot(collection(db, "categories"), (snap) => {
+        const q = query(collection(db, "categories"), orderBy(activeSortKey, "asc"));
+        const unsub = onSnapshot(q, (snap) => {
             const fetchedCategories = snap.docs.map((d) => ({
                 id: d.id,
                 ...d.data(),
@@ -297,7 +312,7 @@ export default function ActualCostsTab({ projectId }) {
             setCategories(fetchedCategories);
         });
         return () => unsub();
-    }, []);
+    }, [activeSortKey]); // Chạy lại khi trường sắp xếp thay đổi
 
     useEffect(() => {
         localStorage.setItem(
@@ -388,7 +403,7 @@ export default function ActualCostsTab({ projectId }) {
     // Step 2: Load project details (chỉ chạy khi id thay đổi)
     useEffect(() => {
         if (!id) return;
-        setProjectData(null); // Reset khi đổi hẳn project
+        setProjectData(null);
         const loadProjectData = async () => {
             try {
                 const projectDocRef = doc(db, "projects", id);
@@ -411,7 +426,6 @@ export default function ActualCostsTab({ projectId }) {
     // Step 3: Sync categories after initial data is loaded
     useEffect(() => {
         if (!initialDbLoadComplete || !projectData || categories.length === 0) {
-            // Nếu chưa tải xong, nhưng không có categories để đồng bộ, cũng tắt loading
             if (
                 initialDbLoadComplete &&
                 projectData &&
@@ -423,28 +437,20 @@ export default function ActualCostsTab({ projectId }) {
         }
 
         const requiredCategories = categories.filter((cat) => {
-            const { type } = projectData; // Lấy type của dự án
-
-            // Kiểm tra cho từng loại dự án
+            const { type } = projectData;
             if (type === "Thi công" && cat.isThiCong) {
                 return true;
             }
             if (type === "Nhà máy" && cat.isNhaMay) {
-                // <-- THÊM ĐIỀU KIỆN cho Nhà máy
                 return true;
             }
             if (type === "KH-ĐT" && cat.isKhdt) {
-                // <-- THÊM ĐIỀU KIỆN cho KH-ĐT
                 return true;
             }
-
-            // Trường hợp mặc định
             return false;
         });
 
         const transformedProjName = transformProjectName(projectData.name);
-
-        // Dùng một bản sao của costItems để tránh lỗi stale state
         const currentCostItems = [...costItems];
 
         const newItemsToAdd = requiredCategories
@@ -482,6 +488,27 @@ export default function ActualCostsTab({ projectId }) {
         );
     }, [overallRevenue, projectTotalAmount, loading]);
 
+    // <<< THAY ĐỔI 3: Tạo một state đã được sắp xếp để hiển thị
+    const sortedCostItems = useMemo(() => {
+        if (categories.length === 0 || costItems.length === 0) {
+            return costItems; // Trả về danh sách gốc nếu chưa có danh mục hoặc chi phí
+        }
+        // `categories` đã được sắp xếp theo đúng loại.
+        // Tạo map để tra cứu thứ tự (dựa trên index) nhanh hơn.
+        const categoryOrderMap = new Map(
+            categories.map((cat, index) => [cat.label, index])
+        );
+
+        // Sắp xếp danh sách chi phí dựa trên thứ tự của danh mục
+        return [...costItems].sort((a, b) => {
+            // Lấy thứ tự từ map. Khoản mục không tìm thấy sẽ bị đẩy xuống cuối.
+            const orderA = categoryOrderMap.get(a.description) ?? Infinity;
+            const orderB = categoryOrderMap.get(b.description) ?? Infinity;
+            return orderA - orderB;
+        });
+    }, [costItems, categories]);
+
+
     const handleChangeField = useCallback(
         (id, field, val) => {
             setCostItems((prev) =>
@@ -498,16 +525,11 @@ export default function ActualCostsTab({ projectId }) {
 
                         const newRow = { ...row, [field]: newVal };
 
-                        // ✨ BẮT ĐẦU THAY ĐỔI ✨
-                        // Logic bật/tắt cờ ưu tiên nhập tay
                         if (field === "revenue") {
-                            // Nếu người dùng sửa trực tiếp ô "Doanh Thu", bật cờ ưu tiên nhập tay
                             newRow.isRevenueManual = true;
                         } else if (field === "hskh") {
-                            // Nếu người dùng sửa ô "HSKH", tắt cờ để hệ thống tự tính lại Doanh thu
                             newRow.isRevenueManual = false;
                         }
-                        // ✨ KẾT THÚC THAY ĐỔI ✨
 
                         calcAllFields(newRow, {
                             isUserEditingNoPhaiTraCK: field === "noPhaiTraCK",
@@ -537,7 +559,7 @@ export default function ActualCostsTab({ projectId }) {
             await setDoc(
                 doc(db, "projects", id, "years", year, "quarters", quarter),
                 {
-                    items: costItems,
+                    items: costItems, // Luôn lưu `costItems` gốc, không phải list đã sắp xếp
                     overallRevenue: Number(overallRevenue),
                     updated_at: new Date().toISOString(),
                 }
@@ -611,9 +633,11 @@ export default function ActualCostsTab({ projectId }) {
             ]),
         []
     );
+
+    // <<< THAY ĐỔI 4: Sử dụng `sortedCostItems` để lọc và hiển thị
     const filtered = useMemo(
         () =>
-            costItems.filter(
+            sortedCostItems.filter(
                 (x) =>
                     (x.project || "")
                         .toLowerCase()
@@ -622,8 +646,9 @@ export default function ActualCostsTab({ projectId }) {
                         .toLowerCase()
                         .includes(search.toLowerCase())
             ),
-        [costItems, search]
+        [sortedCostItems, search]
     );
+
     const groupedData = useMemo(() => groupByProject(filtered), [filtered]);
 
     return (
@@ -667,7 +692,6 @@ export default function ActualCostsTab({ projectId }) {
                     summarySumKeys={summarySumKeys}
                     columnsAll={columnsAll}
                     groupedData={groupedData}
-                    // ✅ THÊM 3 PROPS SAU
                     projectData={projectData}
                     year={year}
                     quarter={quarter}
