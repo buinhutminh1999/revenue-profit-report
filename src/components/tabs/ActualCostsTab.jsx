@@ -45,6 +45,8 @@ export const defaultRow = {
     tonKhoUngKH: "0",
     noPhaiTraCK: "0",
     totalCost: "0",
+    cpVuot: "0",
+
     revenue: "0",
     hskh: "0",
 };
@@ -99,6 +101,7 @@ export const handleFileUpload = (
         "Tổng Chi Phí": "totalCost",
         "Doanh Thu": "revenue",
         HSKH: "hskh",
+        "CP Vượt": "cpVuot",
     };
 
     const reader = new FileReader();
@@ -138,8 +141,8 @@ export const handleFileUpload = (
                     const key = `${(row["Công Trình"] || "")
                         .trim()
                         .toUpperCase()}|||${(
-                            row["Khoản Mục Chi Phí"] || ""
-                        ).trim()}`;
+                        row["Khoản Mục Chi Phí"] || ""
+                    ).trim()}`;
                     newDataMap[key] = row;
                 }
 
@@ -153,7 +156,7 @@ export const handleFileUpload = (
                         if (excelRow.hasOwnProperty(excelKey)) {
                             newRow[excelToField[excelKey]] = String(
                                 excelRow[excelKey] ??
-                                oldRow[excelToField[excelKey]]
+                                    oldRow[excelToField[excelKey]]
                             );
                         }
                     }
@@ -169,11 +172,11 @@ export const handleFileUpload = (
                         return !costItems.some(
                             (oldRow) =>
                                 oldRow.project ===
-                                (row["Công Trình"] || "")
-                                    .trim()
-                                    .toUpperCase() &&
+                                    (row["Công Trình"] || "")
+                                        .trim()
+                                        .toUpperCase() &&
                                 oldRow.description ===
-                                (row["Khoản Mục Chi Phí"] || "").trim()
+                                    (row["Khoản Mục Chi Phí"] || "").trim()
                         );
                     })
                     .map((row) => {
@@ -225,6 +228,7 @@ const numericFields = [
     "tonKhoUngKH",
     "noPhaiTraCK",
     "totalCost",
+    "cpVuot",
     "revenue",
     "hskh",
 ];
@@ -279,6 +283,8 @@ export default function ActualCostsTab({ projectId }) {
                 },
             },
             { key: "totalCost", label: "Tổng Chi Phí", editable: false },
+            { key: "cpVuot", label: "CP Vượt", editable: false },
+
             { key: "revenue", label: "Doanh Thu", editable: true },
             { key: "hskh", label: "HSKH", editable: true },
         ],
@@ -289,6 +295,18 @@ export default function ActualCostsTab({ projectId }) {
             JSON.parse(localStorage.getItem("columnsVisibility")) ||
             columnsAll.reduce((acc, col) => ({ ...acc, [col.key]: true }), {})
     );
+    const displayedColumns = useMemo(() => {
+        // Lọc ra các cột dựa trên điều kiện
+        return columnsAll.filter((col) => {
+            // Nếu là cột "CP Vượt"
+            if (col.key === "cpVuot") {
+                // thì chỉ trả về true (hiển thị) nếu loại dự án là "Nhà máy"
+                return projectData?.type === "Nhà máy";
+            }
+            // Với tất cả các cột khác, luôn trả về true
+            return true;
+        });
+    }, [columnsAll, projectData]); // Phụ thuộc vào columnsAll và projectData
 
     useEffect(() => {
         setLoading(true);
@@ -303,7 +321,10 @@ export default function ActualCostsTab({ projectId }) {
 
     // <<< THAY ĐỔI 2: Lấy danh mục đã được sắp xếp theo `activeSortKey`
     useEffect(() => {
-        const q = query(collection(db, "categories"), orderBy(activeSortKey, "asc"));
+        const q = query(
+            collection(db, "categories"),
+            orderBy(activeSortKey, "asc")
+        );
         const unsub = onSnapshot(q, (snap) => {
             const fetchedCategories = snap.docs.map((d) => ({
                 id: d.id,
@@ -350,6 +371,7 @@ export default function ActualCostsTab({ projectId }) {
             "totalCost",
             "revenue",
             "hskh",
+            "cpVuot",
         ],
         []
     );
@@ -482,11 +504,15 @@ export default function ActualCostsTab({ projectId }) {
         setCostItems((prev) =>
             prev.map((row) => {
                 const newRow = { ...row };
-                calcAllFields(newRow, { overallRevenue, projectTotalAmount });
+                calcAllFields(newRow, {
+                    overallRevenue,
+                    projectTotalAmount,
+                    projectType: projectData?.type, // <-- Thêm dòng này
+                });
                 return newRow;
             })
         );
-    }, [overallRevenue, projectTotalAmount, loading]);
+    }, [overallRevenue, projectTotalAmount, loading, projectData]);
 
     // <<< THAY ĐỔI 3: Tạo một state đã được sắp xếp để hiển thị
     const sortedCostItems = useMemo(() => {
@@ -507,7 +533,6 @@ export default function ActualCostsTab({ projectId }) {
             return orderA - orderB;
         });
     }, [costItems, categories]);
-
 
     const handleChangeField = useCallback(
         (id, field, val) => {
@@ -535,6 +560,7 @@ export default function ActualCostsTab({ projectId }) {
                             isUserEditingNoPhaiTraCK: field === "noPhaiTraCK",
                             overallRevenue,
                             projectTotalAmount,
+                            projectType: projectData?.type, // <-- Thêm dòng này
                         });
                         return newRow;
                     }
@@ -690,14 +716,14 @@ export default function ActualCostsTab({ projectId }) {
                     setOverallRevenueEditing={setOverallRevenueEditing}
                     projectTotalAmount={projectTotalAmount}
                     summarySumKeys={summarySumKeys}
-                    columnsAll={columnsAll}
+                    columnsAll={displayedColumns}
                     groupedData={groupedData}
                     projectData={projectData}
                     year={year}
                     quarter={quarter}
                 />
                 <CostTable
-                    columnsAll={columnsAll}
+                    columnsAll={displayedColumns}
                     columnsVisibility={columnsVisibility}
                     loading={loading}
                     filtered={filtered}

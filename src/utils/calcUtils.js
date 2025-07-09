@@ -11,7 +11,24 @@ const calcCarryoverMinus = ({ directCost, allocated, revenue, carryover }) => {
     return String(remain < car ? remain : car);
 };
 
-const calcCarryoverEnd = (row) => {
+// ✨ BƯỚC 2.2: CẬP NHẬT HÀM NÀY
+const calcCarryoverEnd = (row, projectType) => {
+    // Thêm projectType
+    // Nếu là dự án "Nhà máy", áp dụng công thức mới
+    if (projectType === "Nhà máy") {
+        const carryover = Number(parseNumber(row.carryover || "0")); // Chuyển Tiếp ĐK
+        const carryoverMinus = Number(parseNumber(row.carryoverMinus || "0")); // Được Trừ Quý Này
+        const cpVuot = Number(parseNumber(row.cpVuot || "0")); // CP Vượt
+        console.log(
+            "calcCarryoverEnd Nhà máy",
+            carryover,
+            carryoverMinus,
+            cpVuot
+        );
+        return String(carryover - carryoverMinus + cpVuot);
+    }
+
+    // Nếu không, giữ nguyên công thức cũ cho các loại dự án khác
     const dc = Number(parseNumber(row.directCost)),
         al = Number(parseNumber(row.allocated)),
         rev = Number(parseNumber(row.revenue)),
@@ -44,21 +61,39 @@ const calcTotalCost = (row) => {
         ? String(inv - debt + dc + al + noCK - ton)
         : String(rev === 0 ? dc + al : rev);
 };
+const calcCpVuot = (row) => {
+    // Lấy các giá trị cần thiết từ dòng
+    const directCost = Number(parseNumber(row.directCost || "0")); // Chi Phí Trực Tiếp
+    const allocated = Number(parseNumber(row.allocated || "0")); // Phân Bổ
+    const debt = Number(parseNumber(row.debt || "0")); // Nợ Phải Trả ĐK
+    const revenue = Number(parseNumber(row.revenue || "0")); // Doanh Thu
 
+    // Tính toán vế 'W' theo công thức mới
+    const W = directCost + allocated - debt;
+
+    // Vế 'I' chính là Doanh thu
+    const I = revenue;
+
+    // Áp dụng điều kiện và trả về kết quả
+    if (W > I) {
+        return String(W - I);
+    }
+
+    return "0";
+};
 export const calcAllFields = (
     row,
     {
         isUserEditingNoPhaiTraCK = false,
         overallRevenue = "0",
         projectTotalAmount = "0",
+        projectType = "", // Thêm projectType
     } = {}
 ) => {
     if (!row.project) return;
     if (row.project.includes("-VT") || row.project.includes("-NC")) {
         row.revenue = "0"; // ép doanh thu về 0 cho -VT, -NC
     } else if (row.project.includes("-CP")) {
-        // ✨ BẮT ĐẦU THAY ĐỔI ✨
-        // Kiểm tra xem dòng này có đang được ưu tiên nhập tay không
         if (row.isRevenueManual) {
             // Nếu có, thì không làm gì cả, giữ nguyên giá trị revenue người dùng đã nhập
         } else {
@@ -68,15 +103,19 @@ export const calcAllFields = (
             const pta = Number(parseNumber(projectTotalAmount));
             row.revenue = pta === 0 ? "0" : String((hskh * orv) / pta);
         }
-        // ✨ KẾT THÚC THAY ĐỔI ✨
     }
+
+    // ✨ SỬA LẠI THỨ TỰ TÍNH TOÁN Ở ĐÂY ✨
     row.carryoverMinus = calcCarryoverMinus(row);
-    row.carryoverEnd = calcCarryoverEnd(row);
+    row.totalCost = calcTotalCost(row);
+    row.cpVuot = calcCpVuot(row); // Phải tính CP Vượt trước
+
+    // Sau đó mới tính các giá trị phụ thuộc vào CP Vượt
+    row.carryoverEnd = calcCarryoverEnd(row, projectType); 
+    
     if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP"))
         row.noPhaiTraCK = calcNoPhaiTraCK(row);
-    row.totalCost = calcTotalCost(row);
 };
-
 // ---------- Hidden Columns Helper (cho -VT, -NC) ----------
 export const getHiddenColumnsForProject = (project) =>
     project.includes("-VT") || project.includes("-NC")
