@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
     TableContainer,
     Paper,
@@ -16,10 +16,9 @@ import { sumColumnOfGroup } from "../utils/groupingUtils";
 import { formatNumber } from "../utils/numberUtils";
 import { getHiddenColumnsForProject } from "../utils/calcUtils";
 
-// --- COMPONENT CHÍNH: CostTable ---
 export default function CostTable({
-    columnsAll = [], // Thêm giá trị mặc định
-    columnsVisibility = {},
+    columnsAll,
+    columnsVisibility,
     loading,
     filtered,
     groupedData,
@@ -27,45 +26,10 @@ export default function CostTable({
     setEditingCell,
     handleChangeField,
     handleRemoveRow,
-    // ... các props khác
+    overallRevenue,
+    projectTotalAmount,
+    categories,
 }) {
-    // Cải thiện logic tính toán vị trí cột cố định
-    const stickyColumnStyles = useMemo(() => {
-        const styles = {};
-        let leftOffset = 0;
-        
-        const visibleColumns = columnsAll.filter(col => columnsVisibility[col.key]);
-
-        if (visibleColumns.length > 0) {
-            const firstColKey = visibleColumns[0].key;
-            styles[firstColKey] = {
-                position: 'sticky',
-                left: leftOffset,
-            };
-            leftOffset += visibleColumns[0].width || 150;
-        }
-        if (visibleColumns.length > 1) {
-            const secondColKey = visibleColumns[1].key;
-            styles[secondColKey] = {
-                position: 'sticky',
-                left: leftOffset,
-                // ✅ THÊM: Đường viền để phân tách trực quan
-                borderRight: '2px solid #e0e0e0',
-            };
-        }
-
-        styles['deleteAction'] = {
-            position: 'sticky',
-            right: 0,
-            // ✅ THÊM: Đường viền để phân tách trực quan
-            borderLeft: '2px solid #e0e0e0',
-        };
-
-        return styles;
-    }, [columnsAll, columnsVisibility]);
-
-
-    // --- RENDER ---
     return (
         <Box sx={{ width: "100%", overflowX: "auto" }}>
             <TableContainer
@@ -76,126 +40,127 @@ export default function CostTable({
                     border: "1px solid #e0e0e0",
                     maxHeight: 600,
                     bgcolor: "#fff",
-                    "&::-webkit-scrollbar": { height: "8px", width: "8px" },
+                    "&::-webkit-scrollbar": { height: "8px" },
                     "&::-webkit-scrollbar-thumb": {
                         backgroundColor: "#c1c1c1",
                         borderRadius: "4px",
                     },
+                    scrollbarColor: "#c1c1c1 #f1f1f1",
+                    scrollbarWidth: "thin",
                 }}
             >
-                <Table size="small" stickyHeader sx={{ width: "100%" }}>
+                <Table
+                    size="small"
+                    stickyHeader
+                    sx={{
+                        width: "100%",
+                        // ✨ Bỏ textAlign: "center" ở đây để mỗi TableCell có thể tự quyết định
+                        "& thead th": {
+                            backgroundColor: "#f9f9f9",
+                            borderBottom: "1px solid #ddd",
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                            fontSize: "0.85rem",
+                        },
+                    }}
+                >
                     <TableHead>
                         <TableRow>
-                            {columnsAll.map((col) => {
-                                if (!columnsVisibility[col.key]) return null;
-                                // ✅ SỬA LỖI: Xác định cột có đang được cố định hay không
-                                const isSticky = !!stickyColumnStyles[col.key];
+                            {columnsAll.map((col, index) => {
+                                // Xác định hướng căn lề: 2 cột đầu căn trái, còn lại căn phải
+                                const alignment = index < 2 ? "left" : "right";
+
                                 return (
-                                    <TableCell
-                                        key={col.key}
-                                        align="center"
-                                        sx={{
-                                            width: col.width,
-                                            minWidth: col.width,
-                                            fontWeight: 600,
-                                            whiteSpace: "nowrap",
-                                            fontSize: "0.85rem",
-                                            bgcolor: '#f9f9f9',
-                                            borderBottom: "1px solid #ddd",
-                                            ...(isSticky ? stickyColumnStyles[col.key] : {}),
-                                            // ✅ SỬA LỖI: Tăng zIndex cho cột cố định để nó luôn ở trên
-                                            zIndex: isSticky ? 11 : 10,
-                                        }}
-                                    >
-                                        {col.label}
-                                    </TableCell>
+                                    columnsVisibility[col.key] && (
+                                        <TableCell
+                                            key={col.key}
+                                            align={alignment} // ✨ Áp dụng căn lề
+                                            sx={{
+                                                ...(index < 2 && { paddingLeft: "16px" }),
+                                                ...(index === 0 && {
+                                                    position: "sticky", left: 0, zIndex: 999,
+                                                    minWidth: "150px",
+                                                }),
+                                                ...(index === 1 && {
+                                                    position: "sticky", left: "150px", zIndex: 999,
+                                                    minWidth: "200px",
+                                                    boxShadow: "2px 0 5px -2px #ccc",
+                                                }),
+                                            }}
+                                        >
+                                            {col.label}
+                                        </TableCell>
+                                    )
                                 );
                             })}
-                            <TableCell
-                                align="center"
-                                sx={{
-                                    ...stickyColumnStyles['deleteAction'],
-                                    fontWeight: 600,
-                                    fontSize: "0.85rem",
-                                    bgcolor: '#f9f9f9',
-                                    borderBottom: "1px solid #ddd",
-                                    // ✅ SỬA LỖI: Tăng zIndex cho cột cố định
-                                    zIndex: 11,
-                                }}
-                            >
-                                Xoá
-                            </TableCell>
+                            <TableCell align="center">Xoá</TableCell>
                         </TableRow>
                     </TableHead>
-
                     <TableBody>
                         {loading ? (
                             Array.from({ length: 5 }).map((_, i) => (
                                 <TableRow key={`skeleton-${i}`}>
-                                    {columnsAll.map((col, j) => columnsVisibility[col.key] && (
-                                        <TableCell key={j} align="center"><Skeleton variant="text" /></TableCell>
-                                    ))}
-                                    <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                                    {/* Skeleton loading... */}
                                 </TableRow>
                             ))
                         ) : filtered.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={Object.values(columnsVisibility).filter(v => v).length + 1} align="center">
+                                <TableCell colSpan={columnsAll.length + 1} align="center">
                                     Không có dữ liệu
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            Object.entries(groupedData).map(([projectName, groupItems]) => (
-                                <React.Fragment key={projectName}>
-                                    <GroupHeader
-                                        projectName={projectName}
-                                        colSpan={Object.values(columnsVisibility).filter(v => v).length + 1}
-                                    />
-
-                                    {groupItems.map((row) => (
-                                        <EditableRow
-                                            key={row.id}
-                                            row={row}
-                                            columnsAll={columnsAll}
-                                            columnsVisibility={columnsVisibility}
-                                            stickyColumnStyles={stickyColumnStyles}
-                                            handleChangeField={handleChangeField}
-                                            handleRemoveRow={handleRemoveRow}
-                                            editingCell={editingCell}
-                                            setEditingCell={setEditingCell}
-                                            // ... các props khác
+                            Object.entries(groupedData).map(
+                                ([projectName, groupItems]) => (
+                                    <React.Fragment key={projectName}>
+                                        <GroupHeader
+                                            projectName={projectName}
+                                            colSpan={columnsAll.length + 1}
                                         />
-                                    ))}
 
-                                    <TableRow sx={{ bgcolor: "#fafafa", borderTop: '2px solid #ddd' }}>
-                                        <TableCell
-                                            align="right"
-                                            colSpan={2}
-                                            sx={{
-                                                fontWeight: 600,
-                                                position: 'sticky',
-                                                left: 0,
-                                                bgcolor: '#fafafa',
-                                                zIndex: 6,
-                                                borderRight: '2px solid #e0e0e0',
-                                            }}
-                                        >
-                                            Tổng {projectName}
-                                        </TableCell>
+                                        {groupItems.map((row) => (
+                                            <EditableRow
+                                                key={row.id}
+                                                row={row}
+                                                columnsAll={columnsAll}
+                                                columnsVisibility={columnsVisibility}
+                                                handleChangeField={handleChangeField}
+                                                handleRemoveRow={handleRemoveRow}
+                                                editingCell={editingCell}
+                                                setEditingCell={setEditingCell}
+                                                categories={categories}
+                                            />
+                                        ))}
 
-                                        {columnsAll.slice(2).map((col) => {
-                                            if (!columnsVisibility[col.key]) return null;
-                                            const val = sumColumnOfGroup(groupItems, col.key);
-                                            return <TableCell key={col.key} align="center" sx={{ fontWeight: 600 }}>{formatNumber(val)}</TableCell>
-                                        })}
-                                        <TableCell sx={{
-                                            ...stickyColumnStyles['deleteAction'],
-                                            bgcolor: '#fafafa',
-                                            zIndex: 6,
-                                        }} />
-                                    </TableRow>
-                                </React.Fragment>
-                            ))
+                                        {/* --- ✨ HÀNG TỔNG ĐÃ SỬA --- */}
+                                        <TableRow sx={{ bgcolor: "#f0f0f0", "& td": { fontWeight: 600 } }}>
+                                            {/* Ô 1: Cột "Công Trình" - để trống */}
+                                            <TableCell />
+
+                                            {/* Ô 2: Cột "Khoản Mục" - chứa nhãn và căn trái */}
+                                            <TableCell align="left" sx={{ paddingLeft: '16px' }}>
+                                                Tổng {projectName}
+                                            </TableCell>
+
+                                            {/* Các ô tổng số */}
+                                            {columnsAll.slice(2).map((col) => {
+                                                if (!columnsVisibility[col.key] || getHiddenColumnsForProject(projectName).includes(col.key)) {
+                                                    return <TableCell key={col.key} />;
+                                                }
+                                                const val = sumColumnOfGroup(groupItems, col.key);
+                                                return (
+                                                    <TableCell key={col.key} align="right">
+                                                        {formatNumber(val)}
+                                                    </TableCell>
+                                                );
+                                            })}
+
+                                            {/* Ô cuối: Cột "Xoá" - để trống */}
+                                            <TableCell />
+                                        </TableRow>
+                                    </React.Fragment>
+                                )
+                            )
                         )}
                     </TableBody>
                 </Table>

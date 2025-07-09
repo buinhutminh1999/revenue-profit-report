@@ -1,226 +1,192 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import {
-  Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, Paper,
-  Typography, Link, CircularProgress, Alert,
-  TextField, Button, Stack
-} from '@mui/material';
+// import React, { useState, useEffect, useMemo, useCallback } from 'react';
+// import axios from 'axios';
+// import {
+//     Table, TableBody, TableCell, TableContainer,
+//     TableHead, TableRow, Paper, Typography, Link,
+//     TextField, Box, Stack, Pagination, Skeleton, Alert
+// } from '@mui/material';
+// import { useDebounce } from 'use-debounce'; // Thư viện tiện ích, cài bằng: npm install use-debounce
 
-const itemsPerPage = 20; // Số văn bản mỗi trang
+// const ITEMS_PER_PAGE = 20; // Số văn bản mỗi trang
 
-const Office = () => {
-  // Dữ liệu phân trang (khi không filter)
-  const [documents, setDocuments] = useState([]);
-  // Dữ liệu toàn bộ (để lọc khi filter có giá trị)
-  const [allDocuments, setAllDocuments] = useState([]);
-  const [filter, setFilter] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalDocs, setTotalDocs] = useState(0); // Tổng số văn bản theo API
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+// // Component hiển thị khung xương khi tải dữ liệu
+// const TableSkeleton = () => (
+//     <TableContainer component={Paper}>
+//         <Table>
+//             <TableHead>
+//                 <TableRow>
+//                     {["STT", "Tên văn bản", "Số văn bản", "Ngày ban hành", "File đính kèm"].map(header => (
+//                         <TableCell key={header}><b>{header}</b></TableCell>
+//                     ))}
+//                 </TableRow>
+//             </TableHead>
+//             <TableBody>
+//                 {Array.from(new Array(5)).map((_, index) => (
+//                     <TableRow key={index}>
+//                         <TableCell><Skeleton variant="text" /></TableCell>
+//                         <TableCell><Skeleton variant="text" /></TableCell>
+//                         <TableCell><Skeleton variant="text" /></TableCell>
+//                         <TableCell><Skeleton variant="text" /></TableCell>
+//                         <TableCell><Skeleton variant="text" /></TableCell>
+//                     </TableRow>
+//                 ))}
+//             </TableBody>
+//         </Table>
+//     </TableContainer>
+// );
 
-  // Access token và URL API theo yêu cầu của bạn
-  const accessToken = "6902-HMQUZUAS76BYWRHF5K3DXFD3ZNRX6CVKCEYPB4RVC5BYD5PAAY8SEZ3KB3G96QCJ-ZJR4NEH5YZSZTM4TK42866CEWXTRJ78C5JF6TW6R2HC72TDREREW63DQAT7BX8LD";
-  // Sử dụng proxy: thay vì URL gốc, dùng đường dẫn có prefix "/api"
-  const apiUrl = "/api/extapi/v1/docs/get";
+// const Office = () => {
+//     const [allDocuments, setAllDocuments] = useState([]);
+//     const [loading, setLoading] = useState(true);
+//     const [error, setError] = useState(null);
+//     const [filter, setFilter] = useState('');
+//     const [debouncedFilter] = useDebounce(filter, 500); // Debounce giá trị filter
+//     const [page, setPage] = useState(1);
+    
+//     // API credentials
+//     const accessToken = "6902-HMQUZUAS76BYWRHF5K3DXFD3ZNRX6CVKCEYPB4RVC5BYD5PAAY8SEZ3KB3G96QCJ-ZJR4NEH5YZSZTM4TK42866CEWXTRJ78C5JF6TW6R2HC72TDREREW63DQAT7BX8LD";
+//     const apiUrl = "/api/extapi/v1/docs/get"; // Sử dụng proxy
 
-  // Lấy dữ liệu theo phân trang (mỗi trang 20 bản ghi) khi không có filter
-  const fetchDocuments = async (pageNumber) => {
-    try {
-      setLoading(true);
-      const response = await axios.get(apiUrl, {
-        params: {
-          access_token: accessToken,
-          page: pageNumber
-        }
-      });
-      // Ví dụ API trả về: { code: 1, message: "", total: "125", docs: [ ... ] }
-      setDocuments(response.data.docs || []);
-      if (response.data.total) {
-        setTotalDocs(Number(response.data.total));
-      }
-    } catch (err) {
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+//     // Hàm tải toàn bộ văn bản từ API
+//     const fetchAllDocuments = useCallback(async () => {
+//         if (allDocuments.length > 0) return; // Không tải lại nếu đã có dữ liệu
 
-  // Lấy toàn bộ dữ liệu từ tất cả các trang (để lọc toàn bộ)
-  const fetchAllDocuments = async () => {
-    try {
-      setLoading(true);
-      // Lấy trang 1 trước để có totalDocs và dữ liệu trang 1
-      const firstResponse = await axios.get(apiUrl, {
-        params: {
-          access_token: accessToken,
-          page: 1
-        }
-      });
-      let allDocs = firstResponse.data.docs || [];
-      const total = Number(firstResponse.data.total) || allDocs.length;
-      setTotalDocs(total);
-      const totalPages = Math.ceil(total / itemsPerPage);
-      
-      // Nếu có nhiều trang hơn 1, lấy dữ liệu của các trang còn lại
-      if (totalPages > 1) {
-        const requests = [];
-        for (let p = 2; p <= totalPages; p++) {
-          requests.push(
-            axios.get(apiUrl, {
-              params: {
-                access_token: accessToken,
-                page: p
-              }
-            })
-          );
-        }
-        const responses = await Promise.all(requests);
-        responses.forEach(resp => {
-          allDocs = allDocs.concat(resp.data.docs || []);
-        });
-      }
-      setAllDocuments(allDocs);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+//         setLoading(true);
+//         setError(null);
+//         try {
+//             const firstResponse = await axios.get(apiUrl, { params: { access_token: accessToken, page: 1 } });
+//             let docs = firstResponse.data.docs || [];
+//             const total = Number(firstResponse.data.total) || 0;
+//             const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
-  // Khi không có filter, dùng dữ liệu phân trang
-  useEffect(() => {
-    if (filter.trim() === '') {
-      fetchDocuments(page);
-      setAllDocuments([]); // reset toàn bộ dữ liệu khi không lọc
-    }
-  }, [page, filter]);
+//             if (totalPages > 1) {
+//                 const promises = [];
+//                 for (let p = 2; p <= totalPages; p++) {
+//                     promises.push(axios.get(apiUrl, { params: { access_token: accessToken, page: p } }));
+//                 }
+//                 const responses = await Promise.all(promises);
+//                 responses.forEach(res => {
+//                     docs = docs.concat(res.data.docs || []);
+//                 });
+//             }
+//             setAllDocuments(docs);
+//         } catch (err) {
+//             setError(err.message || 'Đã xảy ra lỗi khi tải dữ liệu');
+//         } finally {
+//             setLoading(false);
+//         }
+//     }, [allDocuments, accessToken, apiUrl]);
 
-  // Khi có từ khóa lọc, tải toàn bộ dữ liệu (nếu chưa có)
-  useEffect(() => {
-    if (filter.trim() !== '') {
-      fetchAllDocuments();
-    }
-  }, [filter]);
+//     // Tải dữ liệu lần đầu tiên
+//     useEffect(() => {
+//         fetchAllDocuments();
+//     }, [fetchAllDocuments]);
 
-  const handlePrevPage = () => {
-    if (page > 1) setPage(page - 1);
-  };
+//     // Lọc dữ liệu dựa trên debouncedFilter
+//     const filteredDocuments = useMemo(() => {
+//         if (!debouncedFilter) return allDocuments;
+//         return allDocuments.filter(doc =>
+//             doc.name.toLowerCase().includes(debouncedFilter.toLowerCase())
+//         );
+//     }, [allDocuments, debouncedFilter]);
 
-  const handleNextPage = () => {
-    if (documents.length === itemsPerPage) {
-      setPage(page + 1);
-    }
-  };
+//     // Phân trang cho dữ liệu đã lọc
+//     const paginatedDocuments = useMemo(() => {
+//         const startIndex = (page - 1) * ITEMS_PER_PAGE;
+//         return filteredDocuments.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+//     }, [filteredDocuments, page]);
 
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', marginTop: 40 }}>
-        <CircularProgress />
-      </div>
-    );
-  }
+//     const handlePageChange = (event, value) => {
+//         setPage(value);
+//     };
+    
+//     // Reset về trang 1 mỗi khi filter thay đổi
+//     useEffect(() => {
+//         setPage(1);
+//     }, [debouncedFilter]);
 
-  if (error) {
-    return (
-      <div style={{ margin: 20 }}>
-        <Alert severity="error">Lỗi: {error.message}</Alert>
-      </div>
-    );
-  }
+//     return (
+//         <Box sx={{ margin: { xs: 2, md: 3 } }}>
+//             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
+//                 <Typography variant="h5" fontWeight="bold">
+//                     Văn bản đã phát hành
+//                 </Typography>
+//             </Stack>
 
-  // Chọn nguồn dữ liệu để lọc:
-  // Nếu filter không rỗng và allDocuments đã được tải, lọc trên allDocuments.
-  // Ngược lại, nếu không có filter, lọc trên dữ liệu phân trang (documents).
-  const docsToFilter = filter.trim() !== '' && allDocuments.length > 0 ? allDocuments : documents;
-  const filteredDocuments = docsToFilter.filter(doc =>
-    doc.name.toLowerCase().includes(filter.toLowerCase())
-  );
+//             <TextField
+//                 label="Lọc theo tên công trình, văn bản..."
+//                 variant="outlined"
+//                 fullWidth
+//                 value={filter}
+//                 onChange={(e) => setFilter(e.target.value)}
+//                 sx={{ marginBottom: 3 }}
+//             />
 
-  return (
-    <div style={{ margin: 20 }}>
-      <Typography variant="h5" gutterBottom>
-        Văn bản đã được phát hành
-      </Typography>
+//             {loading ? (
+//                 <TableSkeleton />
+//             ) : error ? (
+//                 <Alert severity="error">{error}</Alert>
+//             ) : paginatedDocuments.length > 0 ? (
+//                 <>
+//                     <TableContainer component={Paper}>
+//                         <Table sx={{ minWidth: 650 }} aria-label="document table">
+//                             <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+//                                 <TableRow>
+//                                     <TableCell sx={{ fontWeight: 'bold' }}>STT</TableCell>
+//                                     <TableCell sx={{ fontWeight: 'bold' }}>Tên văn bản</TableCell>
+//                                     <TableCell sx={{ fontWeight: 'bold' }}>Số văn bản</TableCell>
+//                                     <TableCell sx={{ fontWeight: 'bold' }}>Ngày ban hành</TableCell>
+//                                     <TableCell sx={{ fontWeight: 'bold' }}>File đính kèm</TableCell>
+//                                 </TableRow>
+//                             </TableHead>
+//                             <TableBody>
+//                                 {paginatedDocuments.map((doc, index) => {
+//                                     const stt = (page - 1) * ITEMS_PER_PAGE + index + 1;
+//                                     const releasedDate = doc.date?.released_date
+//                                         ? new Date(doc.date.released_date * 1000).toLocaleDateString('vi-VN')
+//                                         : 'N/A';
+//                                     const fileUrl = doc.files?.[0]?.url;
 
-      <TextField
-        label="Lọc theo công trình"
-        variant="outlined"
-        fullWidth
-        value={filter}
-        onChange={(e) => {
-          setFilter(e.target.value);
-          if (e.target.value.trim() === '') {
-            setPage(1);
-          }
-        }}
-        style={{ marginBottom: 20 }}
-      />
+//                                     return (
+//                                         <TableRow hover key={doc.id} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+//                                             <TableCell>{stt}</TableCell>
+//                                             <TableCell>{doc.name || 'Chưa có tiêu đề'}</TableCell>
+//                                             <TableCell>{doc.scode || ''}</TableCell>
+//                                             <TableCell>{releasedDate}</TableCell>
+//                                             <TableCell>
+//                                                 {fileUrl ? (
+//                                                     <Link href={fileUrl} target="_blank" rel="noopener" underline="hover">
+//                                                         Xem file
+//                                                     </Link>
+//                                                 ) : (
+//                                                     'Không có'
+//                                                 )}
+//                                             </TableCell>
+//                                         </TableRow>
+//                                     );
+//                                 })}
+//                             </TableBody>
+//                         </Table>
+//                     </TableContainer>
+//                     <Stack spacing={2} sx={{ mt: 3, alignItems: 'center' }}>
+//                         <Pagination
+//                             count={Math.ceil(filteredDocuments.length / ITEMS_PER_PAGE)}
+//                             page={page}
+//                             onChange={handlePageChange}
+//                             color="primary"
+//                             showFirstButton
+//                             showLastButton
+//                         />
+//                     </Stack>
+//                 </>
+//             ) : (
+//                 <Paper sx={{ textAlign: 'center', padding: 5 }}>
+//                      <Typography variant="h6">Không tìm thấy văn bản</Typography>
+//                      <Typography color="text.secondary">Vui lòng thử lại với từ khóa khác hoặc xóa bộ lọc.</Typography>
+//                 </Paper>
+//             )}
+//         </Box>
+//     );
+// };
 
-      {filteredDocuments.length > 0 ? (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell><b>STT</b></TableCell>
-                <TableCell><b>Tên văn bản</b></TableCell>
-                <TableCell><b>Số văn bản</b></TableCell>
-                <TableCell><b>Ngày ban hành</b></TableCell>
-                <TableCell><b>File đính kèm</b></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredDocuments.map((doc, index) => {
-                const releasedDate = doc.date?.released_date
-                  ? new Date(doc.date.released_date * 1000).toLocaleDateString('vi-VN')
-                  : '-';
-                const fileUrl = doc.files && doc.files.length > 0 ? doc.files[0].url : null;
-                // Nếu đang lọc toàn bộ, tính STT dựa trên vị trí trong allDocuments; nếu không, tính theo phân trang.
-                const stt = filter.trim() !== '' && allDocuments.length > 0
-                  ? allDocuments.findIndex(d => d.id === doc.id) + 1
-                  : (page - 1) * itemsPerPage + index + 1;
-                return (
-                  <TableRow key={doc.id}>
-                    <TableCell>{stt}</TableCell>
-                    <TableCell>{doc.name || 'Chưa có tiêu đề'}</TableCell>
-                    <TableCell>{doc.scode || ''}</TableCell>
-                    <TableCell>{releasedDate}</TableCell>
-                    <TableCell>
-                      {fileUrl ? (
-                        <Link href={fileUrl} target="_blank" rel="noopener">
-                          Xem file
-                        </Link>
-                      ) : (
-                        'Không có file'
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      ) : (
-        <Typography>Không có văn bản nào phù hợp.</Typography>
-      )}
-
-      {/* Điều hướng trang chỉ khi không có filter */}
-      {filter.trim() === '' && (
-        <Stack direction="row" spacing={2} justifyContent="center" style={{ marginTop: 20 }}>
-          <Button variant="contained" onClick={handlePrevPage} disabled={page === 1}>
-            Trang Trước
-          </Button>
-          <Button variant="contained" onClick={handleNextPage} disabled={documents.length < itemsPerPage}>
-            Trang Tiếp
-          </Button>
-          <Typography variant="body2" align="center" style={{ marginTop: 10 }}>
-            Trang {page}
-          </Typography>
-        </Stack>
-      )}
-    </div>
-  );
-};
-
-export default Office;
+// export default Office;

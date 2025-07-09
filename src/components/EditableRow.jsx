@@ -15,54 +15,81 @@ import EditableSelect from "./EditableSelect";
 
 const EditableRow = ({
     row,
-    columnsAll = [], // ✅ SỬA LỖI: Thêm giá trị mặc định
-    columnsVisibility = {}, // Thêm giá trị mặc định để an toàn
+    columnsAll,
+    columnsVisibility,
     handleChangeField,
     handleRemoveRow,
     editingCell,
     setEditingCell,
-    categories = [], // ✅ SỬA LỖI: Thêm giá trị mặc định
-    stickyColumnStyles = {}, // Thêm giá trị mặc định để an toàn
+    categories,
 }) => {
     const hiddenCols = getHiddenColumnsForProject(row.project);
     const catLabels = categories.map((c) => c.label ?? c);
-    const isCellActuallyEditable = (col) => col.isCellEditable ? col.isCellEditable(row) : col.editable;
+    const isCellActuallyEditable = (col) =>
+        col.isCellEditable ? col.isCellEditable(row) : col.editable;
 
     return (
         <TableRow
-            sx={{
-                "&:hover": { backgroundColor: "#f9f9f9" },
-                transition: "background-color 0.3s",
-            }}
+              sx={{
+        // ✨ Áp dụng màu nền cho các dòng ở vị trí lẻ (1, 3, 5, ...)
+        '&:nth-of-type(odd)': {
+            backgroundColor: '#fafafa', // Một màu xám rất nhẹ, tiêu chuẩn và hiệu quả
+        },
+        // Giữ lại và có thể làm rõ hơn hiệu ứng hover
+        "&:hover > .MuiTableCell-root": { 
+            backgroundColor: '#e8f4fd', // Dùng màu xanh nhạt để nổi bật trên cả nền trắng và xám
+            transition: 'background-color 0.2s ease-in-out',
+        },
+    }}
         >
-            {columnsAll.map((col) => {
-                // Lấy style cho cột hiện tại
-                const cellStyle = stickyColumnStyles[col.key] || {};
-                const isSticky = cellStyle.position === 'sticky';
-
-                // Hàm hợp nhất style
-                const getCellStyle = (existingSx = {}) => ({
-                    ...existingSx,
-                    ...cellStyle,
-                    // Quan trọng: Thêm màu nền để không bị trong suốt khi cuộn
-                    bgcolor: 'background.paper',
-                    // zIndex thấp hơn header để header đè lên khi cuộn
-                    zIndex: isSticky ? 5 : 'auto',
-                });
-
-                /* 1️⃣ cột bị tắt */
+            {columnsAll.map((col, index) => {
+                /* 1️⃣ Cột bị tắt */
                 if (!columnsVisibility[col.key]) return null;
 
-                /* 2️⃣ cột ẩn theo project */
+                /* 2️⃣ Cột ẩn theo project */
                 if (hiddenCols.includes(col.key)) {
-                    return <TableCell key={col.key} align="center" sx={getCellStyle({ p: 1 })} />;
+                    return <TableCell key={col.key} align="center" sx={{ p: 1 }} />;
                 }
 
-                /* 3️⃣ chỉ-đọc */
+                // --- BẮT ĐẦU LOGIC CĂN LỀ & STYLE ---
+                const isFirstColumn = index === 0;
+                const isSecondColumn = index === 1;
+
+                // ✨ Xác định hướng căn lề
+                const alignment = (isFirstColumn || isSecondColumn) ? 'left' : 'right';
+
+                // Chuẩn bị object sx cho TableCell
+                const cellSx = {};
+
+                // Áp dụng style cho các cột sticky
+                if (isFirstColumn || isSecondColumn) {
+                    Object.assign(cellSx, {
+                        position: "sticky",
+                        backgroundColor: "white",
+                        zIndex: 1,
+                    });
+                    if (isFirstColumn) {
+                        Object.assign(cellSx, { left: 0, minWidth: "150px" });
+                    } else {
+                        Object.assign(cellSx, {
+                            left: "150px",
+                            minWidth: "200px",
+                            boxShadow: "2px 0 5px -2px #ccc",
+                        });
+                    }
+                }
+
+                // ✨ Thêm padding cho các cột căn trái để không dính sát lề
+                if (alignment === 'left') {
+                    cellSx.paddingLeft = '16px';
+                }
+                // --- KẾT THÚC LOGIC CĂN LỀ & STYLE ---
+
+                /* 3️⃣ Cột chỉ-đọc (ví dụ: carryoverEnd) */
                 if (col.key === "carryoverEnd") {
                     const tooltip = "Chỉ đọc – Giá trị tự động";
                     return (
-                        <TableCell key={col.key} align="center" sx={getCellStyle()}>
+                        <TableCell key={col.key} align={alignment} sx={cellSx}>
                             <Tooltip title={tooltip}>
                                 <Typography variant="body2">
                                     {formatNumber(row[col.key])}
@@ -72,23 +99,27 @@ const EditableRow = ({
                     );
                 }
 
-                /* 4️⃣ xác định ô đang edit */
-                const isEditing = editingCell.id === row.id && editingCell.colKey === col.key;
+                /* 4️⃣ Xác định ô đang edit */
+                const isEditing =
+                    editingCell.id === row.id && editingCell.colKey === col.key;
 
-                /* 4a. đang edit (trừ description) */
+                /* 4a. Đang edit (trừ description) */
                 if (isEditing && col.key !== "description") {
                     const isNumeric = !["project", "description"].includes(col.key);
                     const val = row[col.key] ?? "";
                     const parsed = parseNumber(val);
                     const hasErr = isNumeric && val !== "" && isNaN(Number(parsed));
+
                     return (
-                        <TableCell key={col.key} align="center" sx={getCellStyle()}>
+                        <TableCell key={col.key} align={alignment} sx={cellSx}>
                             <TextField
                                 variant="outlined"
                                 size="small"
                                 fullWidth
                                 value={val}
-                                onChange={(e) => handleChangeField(row.id, col.key, e.target.value)}
+                                onChange={(e) =>
+                                    handleChangeField(row.id, col.key, e.target.value)
+                                }
                                 onBlur={() => setEditingCell({ id: null, colKey: null })}
                                 autoFocus
                                 error={hasErr}
@@ -102,15 +133,17 @@ const EditableRow = ({
                     );
                 }
 
-                /* 5️⃣ cột description */
+                /* 5️⃣ Cột description */
                 if (col.key === "description") {
                     if (row.project.includes("-CP")) {
                         return (
-                            <TableCell key="description" align="center" sx={getCellStyle()}>
+                            <TableCell key="description" align={alignment} sx={cellSx}>
                                 <EditableSelect
                                     value={row.description || ""}
                                     options={catLabels}
-                                    onChange={(v) => handleChangeField(row.id, "description", v)}
+                                    onChange={(v) =>
+                                        handleChangeField(row.id, "description", v)
+                                    }
                                     placeholder="Chọn khoản mục"
                                     trigger="double"
                                     sx={{ minWidth: 180 }}
@@ -118,28 +151,42 @@ const EditableRow = ({
                             </TableCell>
                         );
                     }
-                    if (editingCell.id === row.id && editingCell.colKey === "description") {
+
+                    if (
+                        editingCell.id === row.id &&
+                        editingCell.colKey === "description"
+                    ) {
                         return (
-                            <TableCell key="description" align="center" sx={getCellStyle()}>
+                            <TableCell key="description" align={alignment} sx={cellSx}>
                                 <TextField
                                     variant="outlined"
                                     size="small"
                                     fullWidth
                                     value={row.description || ""}
-                                    onChange={(e) => handleChangeField(row.id, "description", e.target.value)}
-                                    onBlur={() => setEditingCell({ id: null, colKey: null })}
+                                    onChange={(e) =>
+                                        handleChangeField(row.id, "description", e.target.value)
+                                    }
+                                    onBlur={() =>
+                                        setEditingCell({ id: null, colKey: null })
+                                    }
                                     autoFocus
-                                    sx={{ border: "1px solid #0288d1", borderRadius: 1 }}
+                                    sx={{
+                                        border: "1px solid #0288d1",
+                                        borderRadius: 1,
+                                    }}
                                 />
                             </TableCell>
                         );
                     }
+
                     return (
-                        <TableCell key="description" align="center" sx={getCellStyle()}>
+                        <TableCell key="description" align={alignment} sx={cellSx}>
                             <Typography
                                 variant="body2"
                                 sx={{ cursor: "pointer" }}
-                                onDoubleClick={() => setEditingCell({ id: row.id, colKey: "description" })}
+                                onDoubleClick={() =>
+                                    setEditingCell({ id: row.id, colKey: "description" })
+                                }
                             >
                                 {row.description || "Double click để nhập"}
                             </Typography>
@@ -147,9 +194,9 @@ const EditableRow = ({
                     );
                 }
 
-                /* 6️⃣ mặc định: hiển thị, dbl-click để edit */
+                /* 6️⃣ Mặc định: hiển thị, dbl-click để edit */
                 return (
-                    <TableCell key={col.key} align="center" sx={getCellStyle()}>
+                    <TableCell key={col.key} align={alignment} sx={cellSx}>
                         <Tooltip
                             title={
                                 isCellActuallyEditable(col)
@@ -159,7 +206,9 @@ const EditableRow = ({
                         >
                             <Typography
                                 variant="body2"
-                                sx={{ cursor: isCellActuallyEditable(col) ? "pointer" : "default" }}
+                                sx={{
+                                    cursor: isCellActuallyEditable(col) ? "pointer" : "default",
+                                }}
                                 onDoubleClick={() =>
                                     isCellActuallyEditable(col) &&
                                     setEditingCell({ id: row.id, colKey: col.key })
@@ -172,21 +221,14 @@ const EditableRow = ({
                 );
             })}
 
-            {/* 7️⃣ nút xoá */}
-            <TableCell
-                align="center"
-                sx={{
-                    ...(stickyColumnStyles['deleteAction'] || {}),
-                    bgcolor: 'background.paper',
-                    zIndex: 5,
-                }}
-            >
+            {/* 7️⃣ Nút xoá */}
+            <TableCell align="center">
                 <IconButton
                     color="error"
-                    size="small"
                     onClick={() => handleRemoveRow(row.id)}
+                    size="small"
                 >
-                    <CloseIcon fontSize="inherit" />
+                    <CloseIcon fontSize="small" />
                 </IconButton>
             </TableCell>
         </TableRow>

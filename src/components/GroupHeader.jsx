@@ -1,53 +1,51 @@
 // src/components/GroupHeader.jsx
 import React, { memo } from "react";
 import { TableRow, TableCell, useTheme } from "@mui/material";
+import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined'; // ✨ Dùng icon để tăng tính trực quan
 
 /**
- * Header nhóm trong bảng
+ * Header nhóm trong bảng - Phiên bản tối ưu
  * @param {string}  projectName - tên nhóm
  * @param {number}  colSpan     - tổng cột cần chiếm
  * @param {boolean} sticky      - có sticky top hay không
  */
 const GroupHeader = ({ projectName, colSpan = 2, sticky = false }) => {
-  const theme    = useTheme();
-  const spanSafe = Math.max(colSpan, 1);
+  const theme = useTheme();
 
   return (
     <TableRow
       sx={{
-        bgcolor: "#e8f4fd",
-        "&:hover": { bgcolor: "#d8ecfc" },
-        transition: "background-color 0.3s",
+        // ✨ Dùng border để tạo ranh giới rõ ràng
+        borderTop: '2px solid #e0e0e0', 
+        borderBottom: '1px solid #e0e0e0',
+        backgroundColor: '#f8f9fa', // ✨ Một màu nền xám rất nhẹ, chuyên nghiệp hơn
         ...(sticky && {
           position: "sticky",
           top: 0,
-          zIndex: theme.zIndex.appBar, // cao hơn body
+          zIndex: theme.zIndex.appBar,
         }),
       }}
     >
-      {/* ô tiêu đề */}
+      {/* ✨ Gộp lại thành 1 TableCell duy nhất cho đơn giản */}
       <TableCell
-        align="center"
+        colSpan={colSpan}
+        // ✨ Căn trái để nhất quán với các dòng dữ liệu
+        align="left" 
         sx={{
-          fontWeight: "bold",
-          p: 1,
-          borderBottom: "1px solid #ccc",
-          color: "primary.main",
-          whiteSpace: "nowrap",
-          textOverflow: "ellipsis",
-          overflow: "hidden",
+          padding: '8px 16px !important', // ✨ Tăng padding cho thoáng
+          fontWeight: '600 !important', // ✨ Tăng độ đậm
+          fontSize: '0.9rem !important', // ✨ Tăng kích thước chữ
+          color: '#343a40', // ✨ Màu chữ tối, không đen hẳn
+          borderBottom: 'none', // ✨ Bỏ border của cell để tạo thành một dải liền mạch
+          // ✨ Dùng flex để căn icon và chữ
+          display: 'flex',
+          alignItems: 'center', 
+          gap: 1, 
         }}
       >
+        <FolderOpenOutlinedIcon sx={{ fontSize: '1.1rem', color: '#495057' }} />
         {projectName}
       </TableCell>
-
-      {/* ô “fill” để tràn bảng */}
-      {spanSafe > 1 && (
-        <TableCell
-          colSpan={spanSafe - 1}
-          sx={{ p: 1, borderBottom: "1px solid #ccc" }}
-        />
-      )}
     </TableRow>
   );
 };
