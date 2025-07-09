@@ -496,17 +496,22 @@ export default function CostAllocationQuarter() {
                 (sum, need) => sum + need,
                 0
             );
-            if (
-                hasManualLimits &&
-                totalNeedAfterLimits < totalAllocatedForPeriod
-            ) {
-                draftRow.cumCurrent =
-                    totalAllocatedForPeriod - totalNeedAfterLimits;
-            } else {
-                draftRow.cumCurrent = draftRow.cumQuarterOnly + carryOverValue;
-            }
+            // if (
+            //     hasManualLimits &&
+            //     totalNeedAfterLimits < totalAllocatedForPeriod
+            // ) {
+            //     draftRow.cumCurrent =
+            //         totalAllocatedForPeriod - totalNeedAfterLimits;
+            // } else {
+            //     draftRow.cumCurrent = draftRow.cumQuarterOnly + carryOverValue;
+            // }
+// ... bên trong hàm recomputeRow
 
-            draftRow.surplusCumCurrent = draftRow.cumCurrent;
+// ✅ MÃ SAU KHI SỬA
+// Luôn tính toán lũy kế theo một công thức nhất quán
+draftRow.cumCurrent = draftRow.cumQuarterOnly + carryOverValue;
+
+draftRow.surplusCumCurrent = draftRow.cumCurrent;
 
             return draftRow;
         },
