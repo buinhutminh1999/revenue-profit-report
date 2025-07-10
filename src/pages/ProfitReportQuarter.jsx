@@ -269,7 +269,7 @@ export default function ProfitReportQuarter() {
         }
         return rows;
     };
-const updateGroupI1 = (rows) => {
+    const updateGroupI1 = (rows) => {
         const idxI1 = rows.findIndex(
             (r) =>
                 (r.name || "").trim().toUpperCase() ===
@@ -283,7 +283,12 @@ const updateGroupI1 = (rows) => {
         // Lặp qua các hàng con cho đến khi gặp mục I.2 hoặc mục lớn tiếp theo
         while (
             i < rows.length &&
-            !(rows[i].name && (rows[i].name.toUpperCase().startsWith("I.2") || rows[i].name.match(/^[IVX]+\./) && !rows[i].name.toUpperCase().startsWith("I.1")))
+            !(
+                rows[i].name &&
+                (rows[i].name.toUpperCase().startsWith("I.2") ||
+                    (rows[i].name.match(/^[IVX]+\./) &&
+                        !rows[i].name.toUpperCase().startsWith("I.1")))
+            )
         ) {
             // Chỉ thêm vào các hàng con không phải là tiêu đề nhóm
             if (rows[i].name && !rows[i].name.match(/^[IVX]+\./)) {
@@ -696,57 +701,57 @@ const updateGroupI1 = (rows) => {
             let processedRows; // Khai báo biến ở ngoài để có thể truy cập trong cả if/else
 
             if (
-    saved.exists() &&
-    Array.isArray(saved.data().rows) &&
-    saved.data().rows.length > 0
-) {
-    // BƯỚC 1: Lấy các hàng không phải là công trình (tiêu đề, tổng, v.v.) từ báo cáo đã lưu.
-    // Điều này giúp giữ lại các giá trị được nhập thủ công ở các hàng tổng hợp.
-    processedRows = saved.data().rows.filter(
-        (savedRow) => !savedRow.projectId
-    );
+                saved.exists() &&
+                Array.isArray(saved.data().rows) &&
+                saved.data().rows.length > 0
+            ) {
+                // BƯỚC 1: Lấy các hàng không phải là công trình (tiêu đề, tổng, v.v.) từ báo cáo đã lưu.
+                // Điều này giúp giữ lại các giá trị được nhập thủ công ở các hàng tổng hợp.
+                processedRows = saved
+                    .data()
+                    .rows.filter((savedRow) => !savedRow.projectId);
 
-    // BƯỚC 2: Coi TẤT CẢ công trình từ database là "dự án mới" cần được chèn lại.
-    const newProjects = projects; // Lấy toàn bộ danh sách công trình mới nhất
+                // BƯỚC 2: Coi TẤT CẢ công trình từ database là "dự án mới" cần được chèn lại.
+                const newProjects = projects; // Lấy toàn bộ danh sách công trình mới nhất
 
-    // BƯỚC 3: Chạy lại logic chèn công trình vào các nhóm tương ứng.
-    // (Giữ nguyên đoạn code này như cũ)
-    if (newProjects.length > 0) {
-        const groupMapping = {
-            "Thi cong": "I.1. DÂN DỤNG + GIAO THÔNG",
-            "Thi công": "I.1. DÂN DỤNG + GIAO THÔNG",
-            CĐT: "I.3. CÔNG TRÌNH CÔNG TY CĐT",
-            XNII: "I.4. XÍ NGHIỆP XD II",
-            "KH-ĐT": "III. ĐẦU TƯ",
-            "Nhà máy": "II.1. SẢN XUẤT",
-        };
+                // BƯỚC 3: Chạy lại logic chèn công trình vào các nhóm tương ứng.
+                // (Giữ nguyên đoạn code này như cũ)
+                if (newProjects.length > 0) {
+                    const groupMapping = {
+                        "Thi cong": "I.1. DÂN DỤNG + GIAO THÔNG",
+                        "Thi công": "I.1. DÂN DỤNG + GIAO THÔNG",
+                        CĐT: "I.3. CÔNG TRÌNH CÔNG TY CĐT",
+                        XNII: "I.4. XÍ NGHIỆP XD II",
+                        "KH-ĐT": "III. ĐẦU TƯ",
+                        "Nhà máy": "II.1. SẢN XUẤT",
+                    };
 
-        Object.entries(groupMapping).forEach(
-            ([type, groupName]) => {
-                const projectsToAdd = newProjects.filter(
-                    (p) => p.type === type
-                );
-                if (projectsToAdd.length > 0) {
-                    const groupIndex = processedRows.findIndex(
-                        (r) =>
-                            (r.name || "").trim().toUpperCase() ===
-                            groupName.toUpperCase()
+                    Object.entries(groupMapping).forEach(
+                        ([type, groupName]) => {
+                            const projectsToAdd = newProjects.filter(
+                                (p) => p.type === type
+                            );
+                            if (projectsToAdd.length > 0) {
+                                const groupIndex = processedRows.findIndex(
+                                    (r) =>
+                                        (r.name || "").trim().toUpperCase() ===
+                                        groupName.toUpperCase()
+                                );
+                                if (groupIndex !== -1) {
+                                    processedRows.splice(
+                                        groupIndex + 1,
+                                        0,
+                                        ...projectsToAdd.map((p) => ({
+                                            ...p,
+                                            editable: true,
+                                        }))
+                                    );
+                                }
+                            }
+                        }
                     );
-                    if (groupIndex !== -1) {
-                        processedRows.splice(
-                            groupIndex + 1,
-                            0,
-                            ...projectsToAdd.map((p) => ({
-                                ...p,
-                                editable: true,
-                            }))
-                        );
-                    }
                 }
-            }
-        );
-    }
-} else {
+            } else {
                 // Logic để tạo báo cáo mới khi chưa có dữ liệu lưu
                 const groupBy = (arr, cond) => arr.filter(cond);
                 const sumGroup = (group) => {
@@ -1031,11 +1036,11 @@ const updateGroupI1 = (rows) => {
             );
             if (idxVI_update !== -1)
                 finalRows[idxVI_update].profit = totalIncreaseProfit;
-          finalRows = updateGroupI1(finalRows); 
+            finalRows = updateGroupI1(finalRows);
 
             finalRows = updateGroupI3(finalRows);
             finalRows = updateGroupI4(finalRows);
-            
+
             finalRows = updateXayDungRow(finalRows);
             finalRows = updateLDXRow(finalRows);
             finalRows = updateDTLNLDXRow(finalRows);
@@ -1247,31 +1252,27 @@ const updateGroupI1 = (rows) => {
         newRows[idx][field] = newValue;
 
         const name = (newRows[idx].name || "").trim().toUpperCase();
+        // Đoạn code mới để dán vào
+        // ----------------------------------------------------------------
+        // ✅ BẮT ĐẦU LOGIC MỚI: TỰ ĐỘNG TÍNH LỢI NHUẬN
+        // Một hàng được tự động tính lợi nhuận nếu nó là một công trình có thể chỉnh sửa.
+        // Thuộc tính `editable: true` đã được thiết lập cho các công trình mới và các hàng cần chỉnh sửa.
+        const isEditableProjectRow = newRows[idx].editable === true;
 
-        // Danh sách các hàng sẽ áp dụng công thức Lợi nhuận = Doanh thu - Chi phí
-        const autoProfitRowNames = [
-            "LỢI NHUẬN LIÊN DOANH (LDX)",
-            "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
-            "GIẢM LN LDX",
-            "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
-            "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
-            "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
-        ];
-
-        const isAutoProfitRow = autoProfitRowNames.includes(name);
-
-        // Khi thay đổi Doanh thu hoặc Chi phí của các hàng trong danh sách trên,
-        // tự động tính lại Lợi nhuận.
-        if (["revenue", "cost"].includes(field) && isAutoProfitRow) {
+        // Khi người dùng thay đổi "Doanh thu" hoặc "Chi phí" của một hàng có thể chỉnh sửa,
+        // tự động tính lại "Lợi nhuận" cho hàng đó.
+        if (["revenue", "cost"].includes(field) && isEditableProjectRow) {
             const rev = toNum(newRows[idx].revenue);
             const cost = toNum(newRows[idx].cost);
             newRows[idx].profit = rev - cost;
         }
+        // ✅ KẾT THÚC LOGIC MỚI
+        // ----------------------------------------------------------------
 
         // --- TÍNH TOÁN LẠI CÁC DÒNG TỔNG HỢP ---
         // (Đoạn này giữ nguyên các hàm update của bạn)
         let finalRows = newRows;
-              finalRows = updateGroupI1(finalRows); 
+        finalRows = updateGroupI1(finalRows);
 
         finalRows = updateGroupI3(finalRows);
         finalRows = updateGroupI4(finalRows);
@@ -1374,20 +1375,30 @@ const updateGroupI1 = (rows) => {
             "VI. THU NHẬP KHÁC",
             "+ CHI PHÍ ĐÃ TRẢ TRƯỚC",
         ].includes(nameUpper);
-        const isNoEditDetailI1 =
-            !r.editable && // <-- THÊM ĐIỀU KIỆN NÀY
-            ["revenue", "cost", "profit"].includes(field) &&
-            (isDetailUnderI1(idx) ||
-                isDetailUnderII1(idx) ||
-                nameUpper === "II.1. SẢN XUẤT");
+        // THÊM ĐOẠN CODE MỚI NÀY VÀO
+        // ----------------------------------------------------------------
+        // ✅ BẮT ĐẦU LOGIC MỚI: KIỂM TRA QUYỀN CHỈNH SỬA
+        const isProjectDetailRow = !!r.projectId; // Hàng này là chi tiết của một dự án nếu có projectId
 
-        const allowEdit =
-            !disallowedFields.includes(field) &&
-            !isCalcRow &&
-            !isNoEditDetailI1 &&
-            ((["revenue", "cost", "profit"].includes(field) && r.editable) ||
-                ["target", "note", "suggest"].includes(field));
-
+        const allowEdit = (() => {
+            // Không bao giờ cho phép sửa các cột tính toán hoặc bị cấm
+            if (disallowedFields.includes(field) || isCalcRow) {
+                return false;
+            }
+            // Cho phép sửa các cột target, note, suggest
+            if (["target", "note", "suggest"].includes(field)) {
+                return true;
+            }
+            // Đối với các cột còn lại (revenue, cost, profit):
+            // Chỉ cho phép sửa nếu hàng đó được đánh dấu là "editable" VÀ không phải là hàng chi tiết của dự án.
+            if (["revenue", "cost", "profit"].includes(field)) {
+                return r.editable && !isProjectDetailRow;
+            }
+            // Mặc định không cho sửa
+            return false;
+        })();
+        // ✅ KẾT THÚC LOGIC MỚI
+        // ----------------------------------------------------------------
         if (field === "costOverQuarter") {
             if (nameUpper === "III. ĐẦU TƯ") {
                 return (

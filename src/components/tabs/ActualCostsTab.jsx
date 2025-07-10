@@ -256,8 +256,67 @@ export default function ActualCostsTab({ projectId }) {
     const [projectTotalAmount, setProjectTotalAmount] = useState("");
     const [categories, setCategories] = useState([]);
     const [projectData, setProjectData] = useState(null);
-    const [initialDbLoadComplete, setInitialDbLoadComplete] = useState(false);
+    const [costAllocations, setCostAllocations] = useState(null); // <--- THÊM DÒNG NÀY
 
+    const [initialDbLoadComplete, setInitialDbLoadComplete] = useState(false);
+// Tải dữ liệu từ costAllocations
+useEffect(() => {
+    const fetchCostAllocations = async () => {
+        if (!year || !quarter) return;
+        const docId = `${year}_${quarter}`;
+        const docRef = doc(db, "costAllocations", docId);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            // Lấy đúng mảng mainRows từ document
+            setCostAllocations(docSnap.data().mainRows || []);
+        } else {
+            console.warn(`Không tìm thấy dữ liệu phân bổ cho ${docId}`);
+            setCostAllocations([]); // Reset về mảng rỗng nếu không có dữ liệu
+        }
+    };
+
+    fetchCostAllocations();
+}, [year, quarter]);
+// Step 5: Tự động đồng bộ nhaMayValue vào cột Phân bổ cho dự án Nhà máy
+useEffect(() => {
+    if (
+        projectData?.type !== "Nhà máy" ||
+        costItems.length === 0 ||
+        costAllocations.length === 0 // Kiểm tra nếu mảng rỗng
+    ) {
+        return;
+    }
+
+    let hasChanges = false;
+    const updatedCostItems = costItems.map(item => {
+        // Dùng .find() để tìm khoản mục có 'name' trùng với 'description'
+        const allocationData = costAllocations.find(
+            allocItem => allocItem.name === item.description
+        );
+
+        if (allocationData && allocationData.nhaMayValue !== undefined) {
+            const newAllocatedValue = String(allocationData.nhaMayValue);
+            if (item.allocated !== newAllocatedValue) {
+                hasChanges = true;
+                const newItem = { ...item, allocated: newAllocatedValue };
+                calcAllFields(newItem, {
+                    overallRevenue,
+                    projectTotalAmount,
+                    projectType: projectData?.type,
+                });
+                return newItem;
+            }
+        }
+        return item;
+    });
+
+    if (hasChanges) {
+        setCostItems(updatedCostItems);
+    }
+}, [costItems, costAllocations, projectData, overallRevenue, projectTotalAmount]);
+
+// ... (các useEffect và hàm khác)
     const columnsAll = useMemo(
         () => [
             { key: "project", label: "Công Trình", editable: true },

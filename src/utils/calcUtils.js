@@ -19,12 +19,7 @@ const calcCarryoverEnd = (row, projectType) => {
         const carryover = Number(parseNumber(row.carryover || "0")); // Chuyển Tiếp ĐK
         const carryoverMinus = Number(parseNumber(row.carryoverMinus || "0")); // Được Trừ Quý Này
         const cpVuot = Number(parseNumber(row.cpVuot || "0")); // CP Vượt
-        console.log(
-            "calcCarryoverEnd Nhà máy",
-            carryover,
-            carryoverMinus,
-            cpVuot
-        );
+    
         return String(carryover - carryoverMinus + cpVuot);
     }
 
@@ -70,7 +65,7 @@ const calcCpVuot = (row) => {
 
     // Tính toán vế 'W' theo công thức mới
     const W = directCost + allocated - debt;
-
+    console.log(' W', directCost, allocated, debt, row.description )
     // Vế 'I' chính là Doanh thu
     const I = revenue;
 

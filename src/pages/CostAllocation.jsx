@@ -281,7 +281,42 @@ export default function CostAllocation() {
                         });
                     }
                 );
+                // --- LOGIC MỚI: Tự động cập nhật "Chi phí thưởng" theo "Lương Sale" ---
 
+                // 1. Tìm hàng "Lương Sale" trong các hàng cố định
+                const luongSaleRow = finalFixedRows.find(
+                    (r) => r.id === "fixed-sale"
+                );
+
+                // 2. Nếu tìm thấy hàng "Lương Sale"
+                if (luongSaleRow) {
+                    // 3. Tìm chỉ mục (index) của hàng "Chi phí thưởng" với tên đầy đủ
+                    const chiPhiThuongIndex = finalDynamicRows.findIndex(
+                        (r) =>
+                            (r.name || "").trim().toLowerCase() ===
+                            "chi phí thưởng (abcd/abcd) cuối năm kinh doanh nm (nếu ln không đạt mức 2 thì chi phí này được cộng vào ln đến đạt mức 2, phần dư còn lại sẽ được khấu trừ lại lương cho kinh doanh nm và chia thưởng, trường họp không đủ tiền để khấu trừ lương thì công ty chịu phần lương đã chi trả vượt đó, riêng thưởng thì giao nm tự căng đối quỹ bp mà xử lý)"
+                    );
+
+                    // 4. Nếu tìm thấy hàng "Chi phí thưởng"
+                    if (chiPhiThuongIndex > -1) {
+                        // Lấy các giá trị cần sao chép từ "Lương Sale"
+                        const sourceMonthly = luongSaleRow.monthly;
+                        const sourcePercentage = luongSaleRow.percentage;
+                        const sourcePercentThiCong =
+                            luongSaleRow.percentThiCong;
+                        const sourcePercentKHDT = luongSaleRow.percentKHDT;
+
+                        // 5. Cập nhật lại toàn bộ hàng "Chi phí thưởng"
+                        finalDynamicRows[chiPhiThuongIndex] = {
+                            ...finalDynamicRows[chiPhiThuongIndex],
+                            monthly: { ...sourceMonthly },
+                            percentage: sourcePercentage,
+                            percentThiCong: sourcePercentThiCong,
+                            percentKHDT: sourcePercentKHDT,
+                        };
+                    }
+                }
+                // --- KẾT THÚC LOGIC MỚI ---
                 const groups = { nhaMay: [], thiCong: [], khdt: [], chung: [] };
                 finalDynamicRows.forEach((row) => {
                     const { isNhaMay, isThiCong, isKhdt } = row;
@@ -299,10 +334,23 @@ export default function CostAllocation() {
                 });
 
                 // <<< THAY ĐỔI 3: Sắp xếp từng nhóm theo đúng trường order của nó
-                groups.nhaMay.sort((a, b) => (a.orderNhaMay ?? Infinity) - (b.orderNhaMay ?? Infinity));
-                groups.thiCong.sort((a, b) => (a.orderThiCong ?? Infinity) - (b.orderThiCong ?? Infinity));
-                groups.khdt.sort((a, b) => (a.orderKhdt ?? Infinity) - (b.orderKhdt ?? Infinity));
-                groups.chung.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+                groups.nhaMay.sort(
+                    (a, b) =>
+                        (a.orderNhaMay ?? Infinity) -
+                        (b.orderNhaMay ?? Infinity)
+                );
+                groups.thiCong.sort(
+                    (a, b) =>
+                        (a.orderThiCong ?? Infinity) -
+                        (b.orderThiCong ?? Infinity)
+                );
+                groups.khdt.sort(
+                    (a, b) =>
+                        (a.orderKhdt ?? Infinity) - (b.orderKhdt ?? Infinity)
+                );
+                groups.chung.sort(
+                    (a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)
+                );
 
                 setGroupedRows(groups);
             },
@@ -753,14 +801,14 @@ export default function CostAllocation() {
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
             >
-
                 <Paper
                     elevation={0}
                     sx={{
                         p: { xs: 2, md: 2.5 },
                         mb: 3,
                         borderRadius: 4,
-                        boxShadow: "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px",
+                        boxShadow:
+                            "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px",
                     }}
                 >
                     <Stack
@@ -779,9 +827,15 @@ export default function CostAllocation() {
                                     underline="hover"
                                     color="text.secondary"
                                     onClick={() => navigate("/")}
-                                    sx={{ display: 'flex', alignItems: 'center' }}
+                                    sx={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                    }}
                                 >
-                                    <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
+                                    <HomeIcon
+                                        sx={{ mr: 0.5 }}
+                                        fontSize="inherit"
+                                    />
                                     Trang chủ
                                 </MuiLink>
                                 <Typography color="text.primary">
@@ -790,7 +844,12 @@ export default function CostAllocation() {
                             </Breadcrumbs>
                         </Box>
 
-                        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                        <Stack
+                            direction="row"
+                            spacing={1.5}
+                            alignItems="center"
+                            flexWrap="wrap"
+                        >
                             <TextField
                                 select
                                 label="Quý"
@@ -836,7 +895,8 @@ export default function CostAllocation() {
                                 onClick={handleSave}
                                 sx={{
                                     height: "40px",
-                                    boxShadow: "0 8px 16px 0 rgba(0, 123, 255, 0.24)",
+                                    boxShadow:
+                                        "0 8px 16px 0 rgba(0, 123, 255, 0.24)",
                                 }}
                             >
                                 Lưu
@@ -1071,5 +1131,5 @@ export default function CostAllocation() {
                 </Alert>
             </Snackbar>
         </Box>
-    )
+    );
 }

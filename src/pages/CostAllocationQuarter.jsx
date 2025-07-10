@@ -243,7 +243,7 @@ export default function CostAllocationQuarter() {
     const [limitDialogOpen, setLimitDialogOpen] = useState(false);
     const [currentLimitCell, setCurrentLimitCell] = useState(null);
     const [dataVersion, setDataVersion] = useState(Date.now());
-   // <<< THAY ĐỔI 2: Lấy ra trường sắp xếp tương ứng với bộ lọc đang chọn
+    // <<< THAY ĐỔI 2: Lấy ra trường sắp xếp tương ứng với bộ lọc đang chọn
     const activeSortKey = useMemo(() => {
         return SORT_CONFIG[typeFilter]?.key || "order"; // Mặc định là 'order' nếu không khớp
     }, [typeFilter]);
@@ -251,7 +251,10 @@ export default function CostAllocationQuarter() {
     useEffect(() => {
         const fetchCategories = async () => {
             // Sử dụng `activeSortKey` để sắp xếp dữ liệu ngay từ Firestore
-            const q = query(collection(db, "categories"), orderBy(activeSortKey, "asc"));
+            const q = query(
+                collection(db, "categories"),
+                orderBy(activeSortKey, "asc")
+            );
             const querySnapshot = await getDocs(q);
             const catList = querySnapshot.docs.map((doc) => ({
                 id: doc.id,
@@ -505,13 +508,13 @@ export default function CostAllocationQuarter() {
             // } else {
             //     draftRow.cumCurrent = draftRow.cumQuarterOnly + carryOverValue;
             // }
-// ... bên trong hàm recomputeRow
+            // ... bên trong hàm recomputeRow
 
-// ✅ MÃ SAU KHI SỬA
-// Luôn tính toán lũy kế theo một công thức nhất quán
-draftRow.cumCurrent = draftRow.cumQuarterOnly + carryOverValue;
+            // ✅ MÃ SAU KHI SỬA
+            // Luôn tính toán lũy kế theo một công thức nhất quán
+            draftRow.cumCurrent = draftRow.cumQuarterOnly + carryOverValue;
 
-draftRow.surplusCumCurrent = draftRow.cumCurrent;
+            draftRow.surplusCumCurrent = draftRow.cumCurrent;
 
             return draftRow;
         },
@@ -872,7 +875,7 @@ draftRow.surplusCumCurrent = draftRow.cumCurrent;
     }, [rowsInit]);
     // --- THAY THẾ rowsWithTotal BẰNG PHIÊN BẢN NÀY ---
 
-  const rowsWithTotal = useMemo(() => {
+    const rowsWithTotal = useMemo(() => {
         const dataRows = rowsInit.filter(
             (r) => (r.label || "").trim().toUpperCase() !== "TỔNG CHI PHÍ"
         );
@@ -1180,7 +1183,7 @@ draftRow.surplusCumCurrent = draftRow.cumCurrent;
                     "Nhà máy": "totalNhaMayCumQuarterOnly",
                     "KH-ĐT": "totalKhdtCumQuarterOnly",
                 };
-            const totalField = totalFieldMap[typeFilter.trim()];
+                const totalField = totalFieldMap[typeFilter.trim()];
                 // ================================================================
                 // ✨ BẮT ĐẦU PHẦN THÊM MỚI ✨
                 // ================================================================
@@ -1210,7 +1213,7 @@ draftRow.surplusCumCurrent = draftRow.cumCurrent;
                         mainRows: dataToSave, // Dùng mảng đã được merge
                         manualLimits: manualLimits,
                         ...(totalField
-                            ? { [totalField]: totalCumQuarterOnly  }
+                            ? { [totalField]: totalCumQuarterOnly }
                             : {}),
                         ...totalsData,
                         updated_at: serverTimestamp(),
@@ -1268,39 +1271,47 @@ draftRow.surplusCumCurrent = draftRow.cumCurrent;
                     { merge: true }
                 );
 
-                // Logic cập nhật projects/years/quarters (giữ nguyên)
-                await Promise.all(
-                    visibleProjects.map(async (p) => {
-                        const ref = doc(
-                            db,
-                            "projects",
-                            p.id,
-                            "years",
-                            String(year),
-                            "quarters",
-                            quarter
-                        );
-                        const snap = await getDoc(ref);
-                        const data = snap.exists() ? snap.data() : {};
-                        const items = Array.isArray(data.items)
-                            ? [...data.items]
-                            : [];
-
-                        dataToSave.forEach((r) => {
-                            const itemIdx = items.findIndex(
-                                (item) =>
-                                    item.id === r.id ||
-                                    (item.description &&
-                                        normalize(item.description) ===
-                                            normalize(r.label))
+                // Logic cập nhật projects/years/quarters
+                // ✅ Chỉ chạy khi loại dự án KHÔNG PHẢI là "Nhà máy"
+                if (typeFilter !== "Nhà máy") {
+                    await Promise.all(
+                        visibleProjects.map(async (p) => {
+                            const ref = doc(
+                                db,
+                                "projects",
+                                p.id,
+                                "years",
+                                String(year),
+                                "quarters",
+                                quarter
                             );
-                            if (itemIdx >= 0) {
-                                items[itemIdx].allocated = String(r[p.id] ?? 0);
-                            }
-                        });
-                        await setDoc(ref, { items }, { merge: true });
-                    })
-                );
+                            const snap = await getDoc(ref);
+                            const data = snap.exists() ? snap.data() : {};
+                            const items = Array.isArray(data.items)
+                                ? [...data.items]
+                                : [];
+
+                            dataToSave.forEach((r) => {
+                                const itemIdx = items.findIndex(
+                                    (item) =>
+                                        item.id === r.id ||
+                                        (item.description &&
+                                            normalize(item.description) ===
+                                                normalize(r.label))
+                                );
+                                if (itemIdx >= 0) {
+                                    // Cập nhật trường allocated như cũ
+                                    items[itemIdx].allocated = String(
+                                        r[p.id] ?? 0
+                                    );
+                                }
+                            });
+                            await setDoc(ref, { items }, { merge: true });
+                        })
+                    );
+                }
+
+                // ... (phần còn lại của hàm)
 
                 resolve("Đã lưu & cập nhật phân bổ dự án!");
             } catch (err) {
@@ -1331,7 +1342,7 @@ draftRow.surplusCumCurrent = draftRow.cumCurrent;
         getDC,
         valKey,
         manualLimits,
-        totalCumQuarterOnly
+        totalCumQuarterOnly,
     ]);
     useEffect(() => {
         const onKeyDown = (e) => {
