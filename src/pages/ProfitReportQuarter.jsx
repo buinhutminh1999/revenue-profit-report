@@ -331,14 +331,18 @@ export default function ProfitReportQuarter() {
         return newRows;
     };
 
+    // DÁN TOÀN BỘ HÀM MỚI NÀY VÀO
+    // ----------------------------------------------------------------
     const updateGroupI4 = (rows) => {
         const idxI4 = rows.findIndex(
             (r) =>
                 (r.name || "").trim().toUpperCase() === "I.4. XÍ NGHIỆP XD II"
         );
         if (idxI4 === -1) return rows;
+
         let i = idxI4 + 1;
         const childRows = [];
+        // Lặp để lấy tất cả các hàng con của nhóm I.4
         while (
             i < rows.length &&
             !(rows[i].name || "").trim().toUpperCase().startsWith("II.")
@@ -346,14 +350,20 @@ export default function ProfitReportQuarter() {
             childRows.push(rows[i]);
             i++;
         }
+
+        // Vẫn tính tổng Doanh thu và Chi phí để hiển thị
         const revenue = childRows.reduce((s, r) => s + toNum(r.revenue), 0);
         const cost = childRows.reduce((s, r) => s + toNum(r.cost), 0);
-        const profit = revenue - cost;
+
+        // ✅ LOGIC MỚI: Tính lợi nhuận bằng cách SUM trực tiếp cột Lợi nhuận của các hàng con
+        const profit = childRows.reduce((s, r) => s + toNum(r.profit), 0);
+
         const percent = revenue ? (profit / revenue) * 100 : null;
         const newRows = [...rows];
         newRows[idxI4] = { ...newRows[idxI4], revenue, cost, profit, percent };
         return newRows;
     };
+    // ----------------------------------------------------------------
 
     const updateXayDungRow = (inputRows) => {
         const rows = [...inputRows];
@@ -1479,6 +1489,8 @@ export default function ProfitReportQuarter() {
             "DOANH THU",
             "CHI PHÍ ĐÃ CHI",
             "LỢI NHUẬN",
+            "% LN / GIÁ VỐN", // Thêm vào đây
+
             "% CHỈ TIÊU LN KH",
             "% LN QUÍ",
             "CP VƯỢT QUÝ",
@@ -1509,6 +1521,9 @@ export default function ProfitReportQuarter() {
                 r.revenue,
                 r.cost,
                 r.profit,
+                r.projectId && toNum(r.cost) > 0
+                    ? toNum(r.profit) / toNum(r.cost)
+                    : "",
                 r.percent != null ? +r.percent : "",
                 r.revenue ? +(r.profit / r.revenue) * 100 : "",
                 r.costOverQuarter,
@@ -1569,6 +1584,8 @@ export default function ProfitReportQuarter() {
             { width: 18 },
             { width: 18 },
             { width: 18 },
+            { width: 16 }, // % LN / GIÁ VỐN
+
             { width: 16 },
             { width: 14 },
             { width: 18 },
@@ -1760,6 +1777,8 @@ export default function ProfitReportQuarter() {
                                     "DOANH THU",
                                     "CHI PHÍ ĐÃ CHI",
                                     "LỢI NHUẬN",
+                                    "% LN / GIÁ VỐN",
+
                                     "% CHỈ TIÊU LN KH",
                                     "% LN QUÍ",
                                     cpVuotLabel,
@@ -1850,6 +1869,19 @@ export default function ProfitReportQuarter() {
                                     {renderEditableCell(r, idx, "revenue")}
                                     {renderEditableCell(r, idx, "cost")}
                                     {renderEditableCell(r, idx, "profit")}
+                                    {/* ✅ DÁN TOÀN BỘ ĐOẠN CODE NÀY VÀO ĐÂY */}
+                                    <TableCell align="center" sx={cellStyle}>
+                                        {
+                                            // Chỉ tính toán khi là hàng dự án chi tiết và có chi phí > 0
+                                            r.projectId && toNum(r.cost) > 0
+                                                ? `${(
+                                                      (toNum(r.profit) /
+                                                          toNum(r.cost)) *
+                                                      100
+                                                  ).toFixed(2)}%`
+                                                : "–" // Hiển thị gạch ngang cho các trường hợp khác
+                                        }
+                                    </TableCell>
                                     {isDTLNLDX(r) ? (
                                         <TableCell
                                             align="center"
