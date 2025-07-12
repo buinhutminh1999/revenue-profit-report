@@ -47,110 +47,111 @@ import ProfitChange from './pages/ProfitChange';
 import AdminDashboard from './pages/AdminDashboard';
 import ProfitReportYear from './pages/ProfitReportYear';
 import AdminAuditLog from './pages/AdminAuditLog';
+import VersionChecker from './components/VersionChecker';
 
-// --- Component kiểm tra phiên bản ---
-const VersionChecker = () => {
-    const [newVersionAvailable, setNewVersionAvailable] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
+// // --- Component kiểm tra phiên bản ---
+// const VersionChecker = () => {
+//     const [newVersionAvailable, setNewVersionAvailable] = useState(false);
+//     const [isLoading, setIsLoading] = useState(false);
 
-    useEffect(() => {
-        // Lấy HASH của phiên bản hiện tại được nhúng vào lúc build
-        const currentVersion = process.env.REACT_APP_GIT_SHA;
+//     useEffect(() => {
+//         // Lấy HASH của phiên bản hiện tại được nhúng vào lúc build
+//         const currentVersion = process.env.REACT_APP_GIT_SHA;
 
-        const checkVersion = () => {
-            // Fetch file version.json để tránh caching
-            fetch(`/version.json?t=${new Date().getTime()}`)
-                .then((res) => {
-                    if (res.ok) return res.json();
-                    return Promise.resolve(null); // Trả về null nếu file không tồn tại
-                })
-                .then((data) => {
-                    if (!data) return; // Bỏ qua nếu không có file version.json
-                    const latestVersion = data.version;
-                    // Chỉ thông báo nếu có phiên bản mới và khác với phiên bản hiện tại
-                    if (latestVersion && currentVersion && latestVersion !== currentVersion) {
-                        setNewVersionAvailable(true);
-                    }
-                })
-                .catch(console.error);
-        };
+//         const checkVersion = () => {
+//             // Fetch file version.json để tránh caching
+//             fetch(`/version.json?t=${new Date().getTime()}`)
+//                 .then((res) => {
+//                     if (res.ok) return res.json();
+//                     return Promise.resolve(null); // Trả về null nếu file không tồn tại
+//                 })
+//                 .then((data) => {
+//                     if (!data) return; // Bỏ qua nếu không có file version.json
+//                     const latestVersion = data.version;
+//                     // Chỉ thông báo nếu có phiên bản mới và khác với phiên bản hiện tại
+//                     if (latestVersion && currentVersion && latestVersion !== currentVersion) {
+//                         setNewVersionAvailable(true);
+//                     }
+//                 })
+//                 .catch(console.error);
+//         };
 
-        // Kiểm tra ngay khi component được mount
-        checkVersion();
+//         // Kiểm tra ngay khi component được mount
+//         checkVersion();
 
-        // Thiết lập kiểm tra định kỳ mỗi 5 phút
-        const interval = setInterval(checkVersion, 300000); // 5 phút
+//         // Thiết lập kiểm tra định kỳ mỗi 5 phút
+//         const interval = setInterval(checkVersion, 300000); // 5 phút
 
-        return () => clearInterval(interval);
-    }, []);
+//         return () => clearInterval(interval);
+//     }, []);
 
-    const handleUpdate = () => {
-        setIsLoading(true);
-        // Chờ một chút để người dùng thấy hiệu ứng loading trước khi tải lại
-        setTimeout(() => {
-            window.location.reload();
-        }, 500);
-    };
+//     const handleUpdate = () => {
+//         setIsLoading(true);
+//         // Chờ một chút để người dùng thấy hiệu ứng loading trước khi tải lại
+//         setTimeout(() => {
+//             window.location.reload();
+//         }, 500);
+//     };
 
-    return (
-        <AnimatePresence>
-            {newVersionAvailable && (
-                <motion.div
-                    initial={{ opacity: 0, y: 50 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 50 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                    style={{
-                        position: 'fixed',
-                        bottom: '24px',
-                        right: '24px',
-                        zIndex: 2000,
-                    }}
-                >
-                    <Paper
-                        elevation={8}
-                        sx={{
-                            p: 2,
-                            borderRadius: '12px',
-                            bgcolor: 'background.paper',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 2,
-                            boxShadow: '0 16px 40px -12px rgba(145, 158, 171, 0.2)',
-                            border: '1px solid rgba(145, 158, 171, 0.12)'
-                        }}
-                    >
-                        <UpdateIcon color="primary" sx={{ fontSize: 28 }} />
-                        <Box>
-                            <Typography variant="subtitle2" fontWeight="600">
-                                Đã có phiên bản mới!
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                Tải lại trang để cập nhật.
-                            </Typography>
-                        </Box>
-                        <Button
-                            variant="contained"
-                            size="small"
-                            onClick={handleUpdate}
-                            disabled={isLoading}
-                            sx={{
-                                ml: 1,
-                                textTransform: 'none',
-                                boxShadow: 'none',
-                                '&:hover': {
-                                    boxShadow: '0 4px 8px rgba(0, 123, 255, 0.24)',
-                                }
-                            }}
-                        >
-                            {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Cập nhật'}
-                        </Button>
-                    </Paper>
-                </motion.div>
-            )}
-        </AnimatePresence>
-    );
-};
+//     return (
+//         <AnimatePresence>
+//             {newVersionAvailable && (
+//                 <motion.div
+//                     initial={{ opacity: 0, y: 50 }}
+//                     animate={{ opacity: 1, y: 0 }}
+//                     exit={{ opacity: 0, y: 50 }}
+//                     transition={{ type: "spring", stiffness: 400, damping: 25 }}
+//                     style={{
+//                         position: 'fixed',
+//                         bottom: '24px',
+//                         right: '24px',
+//                         zIndex: 2000,
+//                     }}
+//                 >
+//                     <Paper
+//                         elevation={8}
+//                         sx={{
+//                             p: 2,
+//                             borderRadius: '12px',
+//                             bgcolor: 'background.paper',
+//                             display: 'flex',
+//                             alignItems: 'center',
+//                             gap: 2,
+//                             boxShadow: '0 16px 40px -12px rgba(145, 158, 171, 0.2)',
+//                             border: '1px solid rgba(145, 158, 171, 0.12)'
+//                         }}
+//                     >
+//                         <UpdateIcon color="primary" sx={{ fontSize: 28 }} />
+//                         <Box>
+//                             <Typography variant="subtitle2" fontWeight="600">
+//                                 Đã có phiên bản mới!
+//                             </Typography>
+//                             <Typography variant="body2" color="text.secondary">
+//                                 Tải lại trang để cập nhật.
+//                             </Typography>
+//                         </Box>
+//                         <Button
+//                             variant="contained"
+//                             size="small"
+//                             onClick={handleUpdate}
+//                             disabled={isLoading}
+//                             sx={{
+//                                 ml: 1,
+//                                 textTransform: 'none',
+//                                 boxShadow: 'none',
+//                                 '&:hover': {
+//                                     boxShadow: '0 4px 8px rgba(0, 123, 255, 0.24)',
+//                                 }
+//                             }}
+//                         >
+//                             {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Cập nhật'}
+//                         </Button>
+//                     </Paper>
+//                 </motion.div>
+//             )}
+//         </AnimatePresence>
+//     );
+// };
 
 const auth = getAuth();
 const db = getFirestore();
@@ -306,7 +307,7 @@ function LayoutRoutes() {
                         </RequireRole>
                     }
                 />
-                <Route path="office" element={<Office />} />
+                {/* <Route path="office" element={<Office />} /> */}
                 <Route path="project-manager" element={<ProjectsList />} />
                 <Route path="*" element={<NotFound />} />
             </Route>

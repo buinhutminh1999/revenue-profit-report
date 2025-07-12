@@ -14,13 +14,19 @@ const customShadows = {
 export default function CustomThemeProvider({ children }) {
     const [mode, setMode] = useState(() => localStorage.getItem('themeMode') || 'light');
 
-    const colorMode = useMemo(() => ({
+    // Đoạn code đã sửa
+const colorMode = useMemo(
+    () => ({
         toggleColorMode: () => {
-            const next = mode === 'light' ? 'dark' : 'light';
-            localStorage.setItem('themeMode', next);
-            setMode(next);
+            setMode((prevMode) => {
+                const nextMode = prevMode === 'light' ? 'dark' : 'light';
+                localStorage.setItem('themeMode', nextMode);
+                return nextMode;
+            });
         },
-    }), [mode]);
+    }),
+    [], // Dependency rỗng vì setMode đã đảm bảo lấy được prevMode mới nhất
+);
 
     const theme = useMemo(() => {
         const isLight = mode === 'light';

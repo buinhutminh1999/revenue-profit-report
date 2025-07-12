@@ -68,10 +68,10 @@ export default function ProfitReportQuarter() {
     const cpVuotLabel = `CP VƯỢT QUÝ ${selectedQuarter} ${selectedYear}`;
 
     const cellStyle = {
-        minWidth: tvMode ? 80 : 120,
-        fontSize: tvMode ? 16 : { xs: 12, sm: 14, md: 16 },
+        minWidth: tvMode ? 120 : 80,
+        fontSize: tvMode ? "1.1rem" : "0.9rem", // Cỡ chữ to hơn đáng kể
         px: tvMode ? 1 : 2,
-        py: tvMode ? 0.5 : 1,
+        py: tvMode ? 2 : 1, // Tăng khoảng cách dọc
         whiteSpace: "nowrap",
         verticalAlign: "middle",
         overflow: "hidden",
@@ -574,39 +574,70 @@ export default function ProfitReportQuarter() {
             profitBPDT = toNum(costOverDT);
             rows[idxVuotBPDT].profit = profitBPDT;
         }
-        const idxCpVuotDuKe = rows.findIndex(
-            (r) => (r.name || "").toUpperCase() === "CP VƯỢT DỰ KẾ"
-        );
-        if (idxCpVuotDuKe !== -1) {
-            rows[idxCpVuotDuKe].profit = profitBPXD + profitBPSX + profitBPDT;
-        }
-        return rows;
-    };
 
-    const updateChiPhiTraTruocRow = (inputRows, finalProfitRowName) => {
-        const rows = [...inputRows];
-        const idxFinalProfit = rows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                finalProfitRowName.toUpperCase()
+        // --- BẮT ĐẦU THAY ĐỔI ---
+        const vuotQuarterName = `VƯỢT ${selectedQuarter}`.toUpperCase();
+        const idxCpVuot = rows.findIndex(
+            (r) => (r.name || "").toUpperCase() === vuotQuarterName
         );
-        const idxCpVuotDuKe = rows.findIndex(
-            (r) => (r.name || "").toUpperCase() === "CP VƯỢT DỰ KẾ"
-        );
-        const idxChiPhiTraTruoc = rows.findIndex(
-            (r) => (r.name || "").toUpperCase() === "+ CHI PHÍ ĐÃ TRẢ TRƯỚC"
-        );
-        if (
-            idxFinalProfit !== -1 &&
-            idxCpVuotDuKe !== -1 &&
-            idxChiPhiTraTruoc !== -1
-        ) {
-            const finalProfit = toNum(rows[idxFinalProfit].profit);
-            const cpVuotDuKeProfit = toNum(rows[idxCpVuotDuKe].profit);
-            rows[idxChiPhiTraTruoc].profit = finalProfit - cpVuotDuKeProfit;
+        if (idxCpVuot !== -1) {
+            rows[idxCpVuot].profit = profitBPXD + profitBPSX + profitBPDT;
         }
+        // --- KẾT THÚC THAY ĐỔI ---
+
         return rows;
     };
+const updateLoiNhuanRongRow = (inputRows) => {
+    const rows = [...inputRows];
+    const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
+
+    // Tìm index của các hàng cần thiết
+    const idxLNRong = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === "LỢI NHUẬN RÒNG"
+    );
+    const idxLNFinal = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === finalProfitRowName.toUpperCase()
+    );
+    const idxVuotBPXD = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPXD"
+    );
+    const idxVuotBPSX = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPSX"
+    );
+    const idxVuotBPDT = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPĐT"
+    );
+    const idxChiPhiTraTruoc = rows.findIndex(
+        (r) => (r.name || "").toUpperCase() === "+ CHI PHÍ ĐÃ TRẢ TRƯỚC"
+    );
+
+    // Kiểm tra tất cả các hàng có tồn tại không
+    if (
+        idxLNRong !== -1 &&
+        idxLNFinal !== -1 &&
+        idxVuotBPXD !== -1 &&
+        idxVuotBPSX !== -1 &&
+        idxVuotBPDT !== -1 &&
+        idxChiPhiTraTruoc !== -1
+    ) {
+        // Lấy giá trị lợi nhuận từ các hàng
+        const lnFinal = toNum(rows[idxLNFinal].profit);
+        const vuotBPXD = toNum(rows[idxVuotBPXD].profit);
+        const vuotBPSX = toNum(rows[idxVuotBPSX].profit);
+        const vuotBPDT = toNum(rows[idxVuotBPDT].profit);
+        const chiPhiTraTruoc = toNum(rows[idxChiPhiTraTruoc].profit);
+
+        // Tính toán lợi nhuận ròng
+        const loiNhuanRong =
+            lnFinal - (vuotBPXD + vuotBPSX + vuotBPDT + chiPhiTraTruoc);
+
+        // Cập nhật giá trị cho hàng "LỢI NHUẬN RÒNG"
+        rows[idxLNRong].profit = loiNhuanRong;
+    }
+
+    return rows;
+};
+   
 
     useEffect(() => {
         const fetchData = async () => {
@@ -962,12 +993,12 @@ export default function ProfitReportQuarter() {
                         percent: null,
                     },
                     {
-                        name: "CP VƯỢT DỰ KẾ",
+                        name: `VƯỢT ${selectedQuarter}`,
                         revenue: null,
                         cost: null,
                         profit: null,
                         percent: null,
-                        editable: true,
+                        editable: false,
                     },
                     {
                         name: "+Vượt CP BPXD",
@@ -975,7 +1006,8 @@ export default function ProfitReportQuarter() {
                         cost: null,
                         profit: 0,
                         percent: null,
-                        editable: true,
+                                                editable: false,
+
                     },
                     {
                         name: "+Vượt CP BPSX",
@@ -983,7 +1015,8 @@ export default function ProfitReportQuarter() {
                         cost: null,
                         profit: 0,
                         percent: null,
-                        editable: true,
+                                                editable: false,
+
                     },
                     {
                         name: "+Vượt CP BPĐT",
@@ -991,7 +1024,8 @@ export default function ProfitReportQuarter() {
                         cost: null,
                         profit: 0,
                         percent: null,
-                        editable: true,
+                                                editable: false,
+
                     },
                     {
                         name: "+ Chi phí đã trả trước",
@@ -999,7 +1033,17 @@ export default function ProfitReportQuarter() {
                         cost: 0,
                         profit: 0,
                         percent: null,
+                        editable: true,
+
                     },
+                     { // <-- THÊM HÀNG MỚI TẠI ĐÂY
+                            name: "LỢI NHUẬN RÒNG",
+                            revenue: null,
+                            cost: null,
+                            profit: 0,
+                            percent: null,
+                            editable: false, // Hàng này không cho phép sửa thủ công
+                        },
                 ];
             }
 
@@ -1061,8 +1105,8 @@ export default function ProfitReportQuarter() {
 
             finalRows = updateSanXuatRow(finalRows);
             finalRows = updateVuotCPRows(finalRows);
-            finalRows = updateChiPhiTraTruocRow(finalRows, finalProfitRowName);
             finalRows = calculateTotals(finalRows);
+                        finalRows = updateLoiNhuanRongRow(finalRows); // <-- THÊM DÒNG NÀY
 
             const idxTotal = finalRows.findIndex(
                 (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
@@ -1149,7 +1193,7 @@ export default function ProfitReportQuarter() {
                             "II. SẢN XUẤT",
                             "III. ĐẦU TƯ",
                             "TỔNG",
-                            "CP VƯỢT DỰ KẾ",
+                            `VƯỢT ${selectedQuarter}`.toUpperCase(),
                             "+VƯỢT CP BPXD",
                             "+VƯỢT CP BPSX",
                             "+VƯỢT CP BPĐT",
@@ -1295,10 +1339,7 @@ export default function ProfitReportQuarter() {
         finalRows = updateGroupII1(finalRows); // <-- Giả sử bạn có hàm này
         finalRows = updateSanXuatRow(finalRows); // <-- Giả sử bạn có hàm này
         finalRows = updateVuotCPRows(finalRows);
-        finalRows = updateChiPhiTraTruocRow(
-            finalRows,
-            `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`
-        );
+       
         finalRows = calculateTotals(finalRows);
 
         // --- TÍNH TOÁN LẠI CÁC DÒNG LỢI NHUẬN CUỐI CÙNG ---
@@ -1352,6 +1393,7 @@ export default function ProfitReportQuarter() {
                 toNum(finalRows[idxVII].profit) -
                 toNum(finalRows[idxVIII].profit);
         }
+    finalRows = updateLoiNhuanRongRow(finalRows); // <-- THÊM DÒNG NÀY
 
         setRows(finalRows);
     };
@@ -1383,7 +1425,6 @@ export default function ProfitReportQuarter() {
             `+ Vượt CP BPXN do ko đạt DT ${selectedQuarter}`,
             `V. GIẢM LỢI NHUẬN`,
             "VI. THU NHẬP KHÁC",
-            "+ CHI PHÍ ĐÃ TRẢ TRƯỚC",
         ].includes(nameUpper);
         // THÊM ĐOẠN CODE MỚI NÀY VÀO
         // ----------------------------------------------------------------
