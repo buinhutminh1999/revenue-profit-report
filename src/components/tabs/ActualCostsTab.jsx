@@ -278,28 +278,35 @@ useEffect(() => {
 
     fetchCostAllocations();
 }, [year, quarter]);
-// Step 5: Tự động đồng bộ nhaMayValue vào cột Phân bổ cho dự án Nhà máy
+// ✅ BƯỚC 1: Thay thế toàn bộ useEffect cũ bằng useEffect mới này
+
 useEffect(() => {
+    // Chỉ chạy khi tất cả dữ liệu cần thiết đã sẵn sàng
     if (
-        projectData?.type !== "Nhà máy" ||
-        costItems.length === 0 ||
-        costAllocations.length === 0 // Kiểm tra nếu mảng rỗng
+        !initialDbLoadComplete || 
+        !projectData ||
+        !costAllocations ||
+        categories.length === 0
     ) {
         return;
     }
 
+    // Tạo một Map để tra cứu nhanh trạng thái `allowAllocation` của từng khoản mục
+    const allocationStatusMap = new Map(
+        categories.map(cat => [cat.label, cat.allowAllocation])
+    );
+
     let hasChanges = false;
     const updatedCostItems = costItems.map(item => {
-        // Dùng .find() để tìm khoản mục có 'name' trùng với 'description'
-        const allocationData = costAllocations.find(
-            allocItem => allocItem.name === item.description
-        );
+        // Lấy trạng thái phân bổ từ Map. Nếu không tìm thấy, mặc định là true.
+        const isAllowed = allocationStatusMap.get(item.description) ?? true;
 
-        if (allocationData && allocationData.nhaMayValue !== undefined) {
-            const newAllocatedValue = String(allocationData.nhaMayValue);
-            if (item.allocated !== newAllocatedValue) {
+        if (!isAllowed) {
+            // ---- TRƯỜNG HỢP 1: KHOẢN MỤC KHÔNG ĐƯỢC PHÉP PHÂN BỔ ----
+            if (item.allocated !== "0") {
                 hasChanges = true;
-                const newItem = { ...item, allocated: newAllocatedValue };
+                const newItem = { ...item, allocated: "0" }; // Ép giá trị Phân Bổ về 0
+                // Tính toán lại các trường liên quan
                 calcAllFields(newItem, {
                     overallRevenue,
                     projectTotalAmount,
@@ -307,14 +314,43 @@ useEffect(() => {
                 });
                 return newItem;
             }
+        } else if (projectData.type === "Nhà máy" && costAllocations.length > 0) {
+            // ---- TRƯỜNG HỢP 2: ĐƯỢC PHÉP PHÂN BỔ (giữ logic cũ cho dự án Nhà máy) ----
+            const allocationData = costAllocations.find(
+                allocItem => allocItem.name === item.description
+            );
+
+            if (allocationData && allocationData.nhaMayValue !== undefined) {
+                const newAllocatedValue = String(allocationData.nhaMayValue);
+                if (item.allocated !== newAllocatedValue) {
+                    hasChanges = true;
+                    const newItem = { ...item, allocated: newAllocatedValue };
+                    calcAllFields(newItem, {
+                        overallRevenue,
+                        projectTotalAmount,
+                        projectType: projectData?.type,
+                    });
+                    return newItem;
+                }
+            }
         }
+        // Trả về item gốc nếu không có gì thay đổi
         return item;
     });
 
     if (hasChanges) {
         setCostItems(updatedCostItems);
     }
-}, [costItems, costAllocations, projectData, overallRevenue, projectTotalAmount]);
+
+}, [
+    initialDbLoadComplete, 
+    costItems, 
+    costAllocations, 
+    categories, 
+    projectData, 
+    overallRevenue, 
+    projectTotalAmount
+]);
 
 // ... (các useEffect và hàm khác)
     const columnsAll = useMemo(

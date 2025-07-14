@@ -1906,16 +1906,22 @@ export default function ProfitReportQuarter() {
                                     {renderEditableCell(r, idx, "revenue")}
                                     {renderEditableCell(r, idx, "cost")}
                                     {renderEditableCell(r, idx, "profit")}
-<TableCell align="center" sx={cellStyle}>
-    {
-        // THÊM ĐIỀU KIỆN MỚI Ở ĐÂY
-        isDetailUnderI1(idx) || isDetailUnderII1(idx) 
-            ? "–" // Nếu là chi tiết của I.1 hoặc II.1, luôn hiển thị "–"
-            : r.projectId && toNum(r.cost) > 0 // Giữ lại logic cũ cho các trường hợp khác
-            ? `${((toNum(r.profit) / toNum(r.cost)) * 100).toFixed(2)}%`
-            : "–"
-    }
-</TableCell>
+                                    <TableCell align="center" sx={cellStyle}>
+                                        {
+                                            // THÊM ĐIỀU KIỆN MỚI Ở ĐÂY
+                                            isDetailUnderI1(idx) ||
+                                            isDetailUnderII1(idx)
+                                                ? "–" // Nếu là chi tiết của I.1 hoặc II.1, luôn hiển thị "–"
+                                                : r.projectId &&
+                                                  toNum(r.cost) > 0 // Giữ lại logic cũ cho các trường hợp khác
+                                                ? `${(
+                                                      (toNum(r.profit) /
+                                                          toNum(r.cost)) *
+                                                      100
+                                                  ).toFixed(2)}%`
+                                                : "–"
+                                        }
+                                    </TableCell>
                                     {isDTLNLDX(r) ? (
                                         <TableCell
                                             align="center"

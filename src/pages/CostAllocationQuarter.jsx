@@ -248,22 +248,24 @@ export default function CostAllocationQuarter() {
         return SORT_CONFIG[typeFilter]?.key || "order"; // Mặc định là 'order' nếu không khớp
     }, [typeFilter]);
     // <<< THAY ĐỔI 3: Cập nhật useEffect để lấy danh mục đã được sắp xếp theo `activeSortKey`
-    useEffect(() => {
-        const fetchCategories = async () => {
-            // Sử dụng `activeSortKey` để sắp xếp dữ liệu ngay từ Firestore
-            const q = query(
-                collection(db, "categories"),
-                orderBy(activeSortKey, "asc")
-            );
-            const querySnapshot = await getDocs(q);
-            const catList = querySnapshot.docs.map((doc) => ({
+useEffect(() => {
+    const fetchCategories = async () => {
+        const q = query(
+            collection(db, "categories"),
+            orderBy(activeSortKey, "asc")
+        );
+        const querySnapshot = await getDocs(q);
+        const catList = querySnapshot.docs
+            // ✅ BƯỚC 1: Thêm dòng filter này
+            .filter(doc => doc.data().allowAllocation !== false)
+            .map((doc) => ({
                 id: doc.id,
                 ...doc.data(),
             }));
-            setCategories(catList);
-        };
-        fetchCategories();
-    }, [activeSortKey]); // Chạy lại mỗi khi bộ lọc thay đổi -> `activeSortKey` thay đổi
+        setCategories(catList);
+    };
+    fetchCategories();
+}, [activeSortKey]);
 
     const projects = useProjects(typeFilter);
     // --- THAY THẾ TOÀN BỘ KHỐI useMemo CŨ BẰNG KHỐI NÀY ---
@@ -748,22 +750,34 @@ export default function CostAllocationQuarter() {
         typeFilter,
         getOriginalVal,
     ]);
-    const filteredRows = useMemo(() => {
-        if (categories.length === 0) return [];
-        return rows.filter((row) => {
-            const labelUpper = (row.label || "").trim().toUpperCase();
-            if (labelUpper === "DOANH THU" || labelUpper === "TỔNG CHI PHÍ")
-                return true;
-            const matchedCat = categories.find(
-                (cat) => cat.label?.trim() === row.label?.trim()
-            );
-            if (!matchedCat) return false;
-            if (typeFilter === "Thi công") return matchedCat.isThiCong === true;
-            if (typeFilter === "Nhà máy") return matchedCat.isNhaMay === true;
-            if (typeFilter === "KH-ĐT") return matchedCat.isKhdt === true;
-            return false;
-        });
-    }, [rows, categories, typeFilter]);
+const filteredRows = useMemo(() => {
+    // ✅ BƯỚC 2: Thay thế toàn bộ useMemo này
+
+    // 1. Tạo một Set chứa các ID hợp lệ từ `categories` đã được lọc theo type
+    const allowedCategoryIds = new Set();
+    categories.forEach(cat => {
+        if (
+            (typeFilter === 'Thi công' && cat.isThiCong) ||
+            (typeFilter === 'Nhà máy' && cat.isNhaMay) ||
+            (typeFilter === 'KH-ĐT' && cat.isKhdt)
+        ) {
+            allowedCategoryIds.add(cat.id);
+        }
+    });
+
+    // 2. Lọc `rows` dựa trên Set các ID hợp lệ
+    return rows.filter(row => {
+        const labelUpper = (row.label || "").trim().toUpperCase();
+        if (labelUpper === "DOANH THU" || labelUpper === "TỔNG CHI PHÍ") {
+            return true; // Luôn hiển thị các dòng đặc biệt
+        }
+        
+        // Chỉ giữ lại những dòng có id nằm trong danh sách được phép
+        const baseId = row.id.split('__')[0];
+        return allowedCategoryIds.has(baseId);
+    });
+
+}, [rows, categories, typeFilter]);
     const rowsWithPrev = useMemo(() => {
         return filteredRows.map((r) => {
             const src = extraRows.find((e) => e.id === r.id);

@@ -211,18 +211,23 @@ export default function CostAllocation() {
         setSnack({ open: true, msg, sev });
     }, []);
 
-    // <<< THAY ĐỔI 2: Lấy tất cả các trường (bao gồm các trường order) từ danh mục
-    useEffect(() => {
-        const q = query(collection(db, "categories"), orderBy("order", "asc"));
-        const unsub = onSnapshot(
-            q,
-            (snap) => {
-                const templates = snap.docs.map((d) => {
+  // ...
+useEffect(() => {
+    const q = query(collection(db, "categories"), orderBy("order", "asc"));
+    const unsub = onSnapshot(
+        q,
+        (snap) => {
+            const templates = snap.docs
+                // ✅ THÊM DÒNG NÀY ĐỂ LỌC
+                .filter(d => d.data().allowAllocation !== false)
+                .map((d) => { // Dòng map giữ nguyên
                     const data = d.data();
                     return {
                         id: d.id,
                         name: data.label,
                         fixed: false,
+                        // Thêm allowAllocation để chắc chắn nó tồn tại trong template
+                        allowAllocation: data.allowAllocation, 
                         isThiCong: data.isThiCong,
                         isNhaMay: data.isNhaMay,
                         isKhdt: data.isKhdt,
@@ -232,13 +237,13 @@ export default function CostAllocation() {
                         orderKhdt: data.orderKhdt,
                     };
                 });
-                setDynamicRowTemplates(templates);
-            },
-            (e) => showSnack(`Lỗi tải danh mục: ${e.message}`, "error")
-        );
-        return () => unsub();
-    }, [showSnack]);
-
+            setDynamicRowTemplates(templates);
+        },
+        (e) => showSnack(`Lỗi tải danh mục: ${e.message}`, "error")
+    );
+    return () => unsub();
+}, [showSnack]);
+// ...
     useEffect(() => {
         const docId = `${year}_${quarter}`;
         const unsub = onSnapshot(
@@ -255,32 +260,20 @@ export default function CostAllocation() {
                 });
                 setRows(finalFixedRows);
 
-                const allDynamicRowStructures = [...dynamicRowTemplates];
-                const savedDynamicRowsData = savedRows.filter(
-                    (sr) => !fixedRows.some((fr) => fr.id === sr.id)
-                );
-
-                savedDynamicRowsData.forEach((savedRow) => {
-                    if (
-                        !allDynamicRowStructures.some(
-                            (t) => t.id === savedRow.id
-                        )
-                    ) {
-                        allDynamicRowStructures.push(normalizeRow(savedRow));
-                    }
-                });
-
-                const finalDynamicRows = allDynamicRowStructures.map(
-                    (structure) => {
-                        const savedData = savedDynamicRowsData.find(
-                            (d) => d.id === structure.id
-                        );
-                        return normalizeRow({
-                            ...structure,
-                            ...(savedData || {}),
-                        });
-                    }
-                );
+                // ✅ LOGIC MỚI: Chỉ xử lý các khoản mục được phép phân bổ
+const finalDynamicRows = dynamicRowTemplates.map(
+    (structure) => {
+        // Tìm dữ liệu đã lưu tương ứng với khoản mục này
+        const savedData = savedRows.find(
+            (d) => d.id === structure.id
+        );
+        // Kết hợp cấu trúc từ template và dữ liệu đã lưu
+        return normalizeRow({
+            ...structure,
+            ...(savedData || {}),
+        });
+    }
+);
                 // --- LOGIC MỚI: Tự động cập nhật "Chi phí thưởng" theo "Lương Sale" ---
 
                 // 1. Tìm hàng "Lương Sale" trong các hàng cố định

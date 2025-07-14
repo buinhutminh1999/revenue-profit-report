@@ -1,76 +1,95 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
-    Box,
-    IconButton,
-    TextField,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Tooltip,
-    Typography,
-    Snackbar,
-    Button,
-    Paper,
-    InputAdornment,
-    Alert as MuiAlert,
-    Stack,
-    Breadcrumbs,
-    Link as MuiLink,
-    Skeleton,
-    alpha,
-    Checkbox,
-    FormControlLabel,
-    FormControl,
-    FormGroup,
-    Alert as MuiInfoAlert,
-    Chip,
+    Box, IconButton, TextField, Dialog, DialogTitle, DialogContent,
+    DialogActions, Tooltip, Typography, Button, Paper, InputAdornment,
+    Stack, Breadcrumbs, Link as MuiLink, Skeleton, alpha, Checkbox,
+    FormControlLabel, FormControl, FormGroup, Alert as MuiInfoAlert, Chip, Switch
 } from "@mui/material";
 import {
-    Add as AddIcon,
-    FileUpload as FileUploadIcon,
-    Edit as EditIcon,
-    Delete as DeleteIcon,
-    Search as SearchIcon,
-    Home as HomeIcon,
-    Category as CategoryIcon,
-    FileDownload as FileDownloadIcon,
-    DragIndicator as DragIndicatorIcon,
-    Info as InfoIcon,
-    SystemUpdateAlt as SystemUpdateAltIcon,
-    Layers as LayersIcon, // Icon mới cho nút cập nhật cấu trúc
+    Add as AddIcon, FileUpload as FileUploadIcon, Edit as EditIcon,
+    Delete as DeleteIcon, Search as SearchIcon, Home as HomeIcon,
+    Category as CategoryIcon, FileDownload as FileDownloadIcon, DragIndicator as DragIndicatorIcon,
+    Info as InfoIcon, Layers as LayersIcon,
 } from "@mui/icons-material";
 import { db } from "../services/firebase-config";
 import {
-    collection,
-    addDoc,
-    onSnapshot,
-    updateDoc,
-    deleteDoc,
-    doc,
-    writeBatch,
-    query,
-    orderBy,
-    getDocs,
+    collection, addDoc, onSnapshot, updateDoc, deleteDoc,
+    doc, writeBatch, query, orderBy, getDocs,
 } from "firebase/firestore";
 import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 
-const Alert = React.forwardRef((props, ref) => (
-    <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />
-));
+// --- TÁI CẤU TRÚC: Component con cho từng dòng ---
+const CategoryRow = ({ row, index, provided, snapshot, isDragDisabled, activeSortLabel, onCheckboxChange, onEdit, onDelete }) => {
+    return (
+        <Paper
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            elevation={0}
+            sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: 'auto 1fr', md: '50px 1fr 100px 100px 100px 110px 120px' },
+                gap: 2,
+                p: '8px 16px',
+                alignItems: 'center',
+                mb: 1,
+                borderRadius: 2.5,
+                border: '1px solid',
+                borderColor: 'divider',
+                backgroundColor: snapshot.isDragging ? alpha("#90CAF9", 0.3) : 'background.paper',
+                boxShadow: snapshot.isDragging ? '0 8px 20px rgba(0,0,0,0.15)' : 'none',
+                transition: 'background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease',
+                '&:hover': {
+                    borderColor: 'primary.main',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                },
+                opacity: (row.allowAllocation === false) ? 0.75 : 1,
+                ...provided.draggableProps.style,
+            }}
+        >
+            <Tooltip title={isDragDisabled ? "" : `Kéo để sắp xếp theo ${activeSortLabel}`}>
+                <Box {...provided.dragHandleProps} sx={{ display: 'flex', alignItems: 'center', cursor: isDragDisabled ? 'not-allowed' : 'grab', color: isDragDisabled ? 'text.disabled' : 'text.secondary' }}>
+                    <DragIndicatorIcon />
+                </Box>
+            </Tooltip>
+            
+            <Typography variant="body2" fontWeight="500">{row.label}</Typography>
+            
+            <Box sx={{ textAlign: 'center' }}><Checkbox checked={!!row.isThiCong} onChange={(e) => onCheckboxChange(row.id, "isThiCong", e.target.checked)} /></Box>
+            <Box sx={{ textAlign: 'center' }}><Checkbox checked={!!row.isNhaMay} onChange={(e) => onCheckboxChange(row.id, "isNhaMay", e.target.checked)} /></Box>
+            <Box sx={{ textAlign: 'center' }}><Checkbox checked={!!row.isKhdt} onChange={(e) => onCheckboxChange(row.id, "isKhdt", e.target.checked)} /></Box>
+            
+            <Box sx={{ textAlign: 'center' }}>
+                <Tooltip title={row.allowAllocation ?? true ? "Bật: Sẽ được phân bổ chi tiết" : "Tắt: Chi phí chung, không phân bổ"}>
+                    <Switch
+                        checked={row.allowAllocation ?? true}
+                        onChange={(e) => onCheckboxChange(row.id, "allowAllocation", e.target.checked)}
+                        size="small"
+                    />
+                </Tooltip>
+            </Box>
 
-const RowSkeleton = () => (
-    <Stack spacing={1} sx={{ p: 2 }}>
+            <Stack direction="row" spacing={1} justifyContent="center">
+                <Tooltip title="Sửa"><IconButton size="small" onClick={() => onEdit(row)}><EditIcon fontSize="small" /></IconButton></Tooltip>
+                <Tooltip title="Xoá"><IconButton size="small" onClick={() => onDelete(row.id)}><DeleteIcon fontSize="small" color="error" /></IconButton></Tooltip>
+            </Stack>
+        </Paper>
+    );
+};
+
+
+// --- TÁI CẤU TRÚC: Component Skeleton cho Table ---
+const TableSkeleton = () => (
+    <Stack spacing={1.5} sx={{ p: 2 }}>
         {[...Array(8)].map((_, index) => (
-            <Skeleton key={index} variant="rectangular" height={56} sx={{ borderRadius: 2, mb: 1 }} />
+            <Skeleton key={index} variant="rectangular" height={58} sx={{ borderRadius: 2.5 }} />
         ))}
     </Stack>
 );
 
-// <<< THAY ĐỔI LỚN 1: Cấu hình sắp xếp cho từng loại
 const SORT_CONFIG = {
     all: { key: "order", label: "Mặc định" },
     isThiCong: { key: "orderThiCong", label: "Thi công" },
@@ -89,37 +108,24 @@ export default function CategoryConfig() {
     });
     const [editRow, setEditRow] = useState(null);
     const [delId, setDelId] = useState(null);
-    const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
     const [newCategoryName, setNewCategoryName] = useState("");
     const [openAddDialog, setOpenAddDialog] = useState(false);
     const fileRef = useRef(null);
-
-    // <<< THAY ĐỔI LỚN 2: State để quản lý loại sắp xếp hiện tại
     const [activeSort, setActiveSort] = useState(SORT_CONFIG.all);
 
     const normalizeLabel = (str) => str.trim().toLowerCase().replace(/\s+/g, " ");
 
-    // <<< THAY ĐỔI LỚN 3: useEffect theo dõi filter để đổi cách sắp xếp
     useEffect(() => {
-        // Ưu tiên sắp xếp theo thứ tự: Thi công -> Nhà máy -> KH-ĐT -> Mặc định
-        if (filters.isThiCong) {
-            setActiveSort(SORT_CONFIG.isThiCong);
-        } else if (filters.isNhaMay) {
-            setActiveSort(SORT_CONFIG.isNhaMay);
-        } else if (filters.isKhdt) {
-            setActiveSort(SORT_CONFIG.isKhdt);
-        } else {
-            setActiveSort(SORT_CONFIG.all);
-        }
+        if (filters.isThiCong) setActiveSort(SORT_CONFIG.isThiCong);
+        else if (filters.isNhaMay) setActiveSort(SORT_CONFIG.isNhaMay);
+        else if (filters.isKhdt) setActiveSort(SORT_CONFIG.isKhdt);
+        else setActiveSort(SORT_CONFIG.all);
     }, [filters]);
 
-    // <<< THAY ĐỔI LỚN 4: useEffect lắng nghe dữ liệu, sắp xếp theo `activeSort`
     useEffect(() => {
         setLoading(true);
-        // Sắp xếp theo trường key của activeSort hiện tại
         const q = query(collection(db, "categories"), orderBy(activeSort.key, "asc"));
-        const unsub = onSnapshot(
-            q,
+        const unsub = onSnapshot(q,
             (snap) => {
                 const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
                 setCategories(list);
@@ -131,13 +137,11 @@ export default function CategoryConfig() {
                 setLoading(false);
             }
         );
-        return unsub;
-    }, [activeSort]); // Chạy lại khi activeSort thay đổi
+        return () => unsub();
+    }, [activeSort]);
 
-    // <<< THAY ĐỔI LỚN 5: Hàm mới để cập nhật cấu trúc dữ liệu cũ
-    const addTypedOrderToOldData = async () => {
-        toast.loading("Đang quét và cập nhật cấu trúc dữ liệu...");
-        try {
+    const addDataStructureFields = async () => {
+        const promise = (async () => {
             const q = query(collection(db, "categories"));
             const snapshot = await getDocs(q);
             const batch = writeBatch(db);
@@ -146,78 +150,64 @@ export default function CategoryConfig() {
             snapshot.docs.forEach(docSnap => {
                 const data = docSnap.data();
                 const updatePayload = {};
-
-                // Nếu các trường order theo type chưa có, tạo mới và gán giá trị mặc định (có thể là order chung)
+                
                 if (data.orderThiCong === undefined) updatePayload.orderThiCong = data.order ?? 9999;
                 if (data.orderNhaMay === undefined) updatePayload.orderNhaMay = data.order ?? 9999;
                 if (data.orderKhdt === undefined) updatePayload.orderKhdt = data.order ?? 9999;
                 if (data.order === undefined) updatePayload.order = 9999;
-
+                // Thêm trường allowAllocation nếu chưa tồn tại, mặc định là true
+                if (data.allowAllocation === undefined) updatePayload.allowAllocation = true;
 
                 if (Object.keys(updatePayload).length > 0) {
-                    const docRef = doc(db, "categories", docSnap.id);
-                    batch.update(docRef, updatePayload);
+                    batch.update(doc(db, "categories", docSnap.id), updatePayload);
                     updatedCount++;
                 }
             });
 
             if (updatedCount > 0) {
                 await batch.commit();
-                toast.dismiss();
-                toast.success(`Đã cập nhật cấu trúc cho ${updatedCount} khoản mục! Dữ liệu sẽ sớm đồng bộ.`);
+                return `Đã cập nhật cấu trúc cho ${updatedCount} khoản mục!`;
             } else {
-                toast.dismiss();
-                toast.info("Tất cả khoản mục đã có cấu trúc sắp xếp mới.");
+                return "Tất cả khoản mục đã có cấu trúc mới nhất.";
             }
-        } catch (error) {
-            toast.dismiss();
-            toast.error("Có lỗi xảy ra khi cập nhật cấu trúc.");
-            console.error("Error updating typed orders:", error);
-        }
+        })();
+
+        toast.promise(promise, {
+            loading: 'Đang quét và cập nhật cấu trúc...',
+            success: (message) => message,
+            error: 'Có lỗi xảy ra khi cập nhật!',
+        });
     };
 
-    // <<< THAY ĐỔI LỚN 6: Cập nhật logic kéo-thả để dùng `activeSort`
     const handleDragEnd = async (result) => {
         const { source, destination } = result;
         if (!destination) return;
 
-        // Lấy danh sách đang hiển thị để sắp xếp
-        const currentList = filteredCategories;
-        const reorderedList = Array.from(currentList);
+        const reorderedList = Array.from(filteredCategories);
         const [movedItem] = reorderedList.splice(source.index, 1);
         reorderedList.splice(destination.index, 0, movedItem);
-
-        // Cập nhật state ngay lập tức để UI mượt mà
-        // Tạo một bản đồ từ ID để cập nhật danh sách chính
+        
         const reorderedMap = new Map(reorderedList.map((item, index) => [item.id, index]));
-        const newMasterList = categories.map(item => {
-            if (reorderedMap.has(item.id)) {
-                // Cập nhật lại chính item đó trong master list để giữ các thuộc tính khác
-                return { ...item, [activeSort.key]: reorderedMap.get(item.id) };
-            }
-            return item;
-        }).sort((a, b) => (a[activeSort.key] || 0) - (b[activeSort.key] || 0)); // Sắp xếp lại master list
-
+        const newMasterList = categories
+            .map(item => reorderedMap.has(item.id) ? { ...item, [activeSort.key]: reorderedMap.get(item.id) } : item)
+            .sort((a, b) => (a[activeSort.key] || 0) - (b[activeSort.key] || 0));
+        
         setCategories(newMasterList);
 
-
-        toast.loading(`Đang lưu thứ tự cho mục ${activeSort.label}...`);
-        try {
+        const promise = (async () => {
             const batch = writeBatch(db);
-            // Chỉ cập nhật thứ tự cho các mục trong danh sách đã được sắp xếp lại
             reorderedList.forEach((item, index) => {
                 const docRef = doc(db, "categories", item.id);
-                // Sử dụng key của activeSort để cập nhật đúng trường
                 batch.update(docRef, { [activeSort.key]: index });
             });
             await batch.commit();
-            toast.dismiss();
-            toast.success(`Đã cập nhật thứ tự ${activeSort.label} thành công!`);
-        } catch (error) {
-            toast.dismiss();
-            toast.error("Lỗi khi lưu thứ tự. Vui lòng tải lại trang.");
-            console.error("Error updating order:", error);
-        }
+        })();
+        
+        toast.promise(promise, {
+            loading: `Đang lưu thứ tự ${activeSort.label}...`,
+            success: `Đã cập nhật thứ tự ${activeSort.label}!`,
+            error: "Lỗi khi lưu thứ tự.",
+        });
     };
 
     const isDragDisabled = useMemo(() => search.trim() !== "", [search]);
@@ -225,93 +215,73 @@ export default function CategoryConfig() {
     const filteredCategories = useMemo(() => {
         let items = Array.isArray(categories) ? categories : [];
         const s = search.trim().toLowerCase();
-
-        // 1. Lọc theo search
         if (s) {
             items = items.filter((c) => c?.label?.toLowerCase().includes(s));
         }
-
-        // 2. Lọc theo checkbox
         const activeFilters = Object.keys(filters).filter((key) => filters[key]);
         if (activeFilters.length > 0) {
-            items = items.filter((category) => {
-                return activeFilters.every((filterKey) => !!category[filterKey]);
-            });
+            items = items.filter((category) => activeFilters.every((filterKey) => !!category[filterKey]));
         }
-
         return items;
     }, [categories, search, filters]);
 
-    const handleCheckboxChange = async (id, field, value) => {
+    const handleFieldChange = async (id, field, value) => {
         try {
-            const categoryRef = doc(db, "categories", id);
-            await updateDoc(categoryRef, { [field]: value });
+            await updateDoc(doc(db, "categories", id), { [field]: value });
         } catch (error) {
-            console.error("Error updating checkbox state:", error);
-            setSnackbar({ open: true, message: "Lỗi khi cập nhật!", severity: "error" });
+            console.error("Error updating field:", error);
+            toast.error("Lỗi khi cập nhật!");
         }
     };
 
     const handleExportExcel = () => {
         if (filteredCategories.length === 0) {
-            setSnackbar({ open: true, message: "Không có dữ liệu để xuất!", severity: "warning" });
+            toast.error("Không có dữ liệu để xuất!");
             return;
         }
         toast.success("Đang chuẩn bị file Excel...");
-        const dataToExport = filteredCategories.map((category, index) => ({
+        const dataToExport = filteredCategories.map((cat, index) => ({
             STT: index + 1,
-            "Tên Khoản Mục": category.label,
-            "Thi công": category.isThiCong ? "x" : "",
-            "Nhà máy": category.isNhaMay ? "x" : "",
-            "KH-ĐT": category.isKhdt ? "x" : "",
+            "Tên Khoản Mục": cat.label,
+            "Thi công": cat.isThiCong ? "x" : "",
+            "Nhà máy": cat.isNhaMay ? "x" : "",
+            "KH-ĐT": cat.isKhdt ? "x" : "",
+            "Phân bổ": (cat.allowAllocation ?? true) ? "Có" : "Không",
         }));
         const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const cellBorder = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-        const headerStyle = { font: { bold: true }, fill: { fgColor: { rgb: "E0E0E0" } }, alignment: { horizontal: "center", vertical: "center" }, border: cellBorder };
-        const range = XLSX.utils.decode_range(ws["!ref"]);
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-            const address = XLSX.utils.encode_cell({ r: range.s.r, c: C });
-            if (!ws[address]) continue;
-            ws[address].s = headerStyle;
-        }
-        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cell_address = { c: C, r: R };
-                const address = XLSX.utils.encode_cell(cell_address);
-                if (!ws[address]) continue;
-                ws[address].s = { border: cellBorder };
-            }
-        }
-        const colWidths = [{ wch: 5 }, { wch: 50 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+        const colWidths = [{ wch: 5 }, { wch: 50 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, {wch: 10}];
         ws["!cols"] = colWidths;
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Danh mục khoản mục");
         XLSX.writeFile(wb, "Danh-muc-khoan-muc.xlsx");
     };
-    
-    // <<< THAY ĐỔI LỚN 7: Cập nhật hàm Add để thêm các trường order mới
+
     const handleAdd = async () => {
         const label = newCategoryName.trim();
         if (!label) return;
-        if (categories.some((c) => c && c.label && normalizeLabel(c.label) === normalizeLabel(label))) {
-            setSnackbar({ open: true, message: "Khoản mục đã tồn tại!", severity: "warning" });
+        if (categories.some((c) => c && normalizeLabel(c.label) === normalizeLabel(label))) {
+            toast.error("Khoản mục đã tồn tại!");
             return;
         }
         
-        // Gán vị trí cuối cùng cho tất cả các loại thứ tự
         const newOrderValue = categories.length;
-        await addDoc(collection(db, "categories"), {
+        const promise = addDoc(collection(db, "categories"), {
             label,
-            key: Date.now().toString(),
             isThiCong: false,
             isNhaMay: false,
             isKhdt: false,
+            allowAllocation: true, // Mặc định là có phân bổ
             order: newOrderValue,
             orderThiCong: newOrderValue,
             orderNhaMay: newOrderValue,
             orderKhdt: newOrderValue,
         });
-        setSnackbar({ open: true, message: "Đã thêm khoản mục mới.", severity: "success" });
+
+        toast.promise(promise, {
+            loading: 'Đang thêm...',
+            success: 'Đã thêm khoản mục mới!',
+            error: 'Lỗi khi thêm khoản mục.',
+        });
         setOpenAddDialog(false);
         setNewCategoryName("");
     };
@@ -319,122 +289,102 @@ export default function CategoryConfig() {
     const handleUpdate = async () => {
         const newLabel = editRow.label.trim();
         if (!newLabel) return;
-        const duplicate = categories.find((c) => c.id !== editRow.id && c && c.label && normalizeLabel(c.label) === normalizeLabel(newLabel));
-        if (duplicate) {
-            setSnackbar({ open: true, message: "Tên khoản mục đã tồn tại!", severity: "warning" });
+        if (categories.some((c) => c.id !== editRow.id && normalizeLabel(c.label) === normalizeLabel(newLabel))) {
+            toast.error("Tên khoản mục đã tồn tại!");
             return;
         }
-        const { label, isThiCong, isNhaMay, isKhdt } = editRow;
-        await updateDoc(doc(db, "categories", editRow.id), { label, isThiCong, isNhaMay, isKhdt });
+        const { label } = editRow;
+        const promise = updateDoc(doc(db, "categories", editRow.id), { label });
+        
+        toast.promise(promise, {
+            loading: 'Đang cập nhật...',
+            success: 'Cập nhật thành công!',
+            error: 'Lỗi khi cập nhật.',
+        });
         setEditRow(null);
-        setSnackbar({ open: true, message: "Cập nhật thành công.", severity: "success" });
     };
 
     const handleDelete = async () => {
-        await deleteDoc(doc(db, "categories", delId));
+        const promise = deleteDoc(doc(db, "categories", delId));
+        toast.promise(promise, {
+            loading: 'Đang xoá...',
+            success: 'Đã xoá khoản mục.',
+            error: 'Lỗi khi xoá.',
+        });
         setDelId(null);
-        setSnackbar({ open: true, message: "Đã xoá khoản mục.", severity: "info" });
     };
 
-    const handleExcel = async (e) => {
+    const handleExcelUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
-        toast.loading("Đang xử lý file Excel...");
-        try {
-            const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+    
+        const promise = (async () => {
+            const data = await file.arrayBuffer();
+            const wb = XLSX.read(data, { type: "array" });
             const sheet = wb.Sheets[wb.SheetNames[0]];
-            const rowsX = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-            const excelDataMap = new Map();
-            rowsX.slice(1).forEach((r) => {
-                if (!r || !Array.isArray(r) || r.length === 0) return;
-                const rawLabel = (r[0] ?? "").toString().trim();
-                if (!rawLabel) return;
-                const normalizedLabel = normalizeLabel(rawLabel);
-                const newRowData = {
-                    rawLabel: rawLabel,
-                    isThiCong: (r[1] ?? "").toString().toLowerCase() === "x",
-                    isNhaMay: (r[2] ?? "").toString().toLowerCase() === "x",
-                    isKhdt: (r[3] ?? "").toString().toLowerCase() === "x",
-                };
-                if (excelDataMap.has(normalizedLabel)) {
-                    const existingData = excelDataMap.get(normalizedLabel);
-                    existingData.isThiCong = existingData.isThiCong || newRowData.isThiCong;
-                    existingData.isNhaMay = existingData.isNhaMay || newRowData.isNhaMay;
-                    existingData.isKhdt = existingData.isKhdt || newRowData.isKhdt;
-                    existingData.rawLabel = newRowData.rawLabel;
-                } else {
-                    excelDataMap.set(normalizedLabel, newRowData);
-                }
-            });
-
-            const firestoreMap = new Map(categories.filter((c) => c && c.label).map((c) => [normalizeLabel(c.label), c]));
+            const rows = XLSX.utils.sheet_to_json(sheet);
+    
             const batch = writeBatch(db);
+            const firestoreMap = new Map(categories.map(c => [normalizeLabel(c.label), c]));
             let addedCount = 0;
             let updatedCount = 0;
             let currentOrder = categories.length;
-
-            for (const [normalizedLabel, excelRowData] of excelDataMap.entries()) {
-                const existingDoc = firestoreMap.get(normalizedLabel);
+    
+            rows.forEach(row => {
+                const label = (row["Tên Khoản Mục"] || "").trim();
+                if (!label) return;
+    
+                const normalizedLabel = normalizeLabel(label);
                 const dataPayload = {
-                    isThiCong: excelRowData.isThiCong,
-                    isNhaMay: excelRowData.isNhaMay,
-                    isKhdt: excelRowData.isKhdt,
+                    label: label,
+                    isThiCong: String(row["Thi công"]).toLowerCase() === 'x',
+                    isNhaMay: String(row["Nhà máy"]).toLowerCase() === 'x',
+                    isKhdt: String(row["KH-ĐT"]).toLowerCase() === 'x',
+                    allowAllocation: String(row["Phân bổ"]).toLowerCase() !== 'không',
                 };
-                if (existingDoc && existingDoc.id) {
-                    const docRef = doc(db, "categories", existingDoc.id);
-                    batch.update(docRef, dataPayload);
+    
+                const existingDoc = firestoreMap.get(normalizedLabel);
+                if (existingDoc) {
+                    batch.update(doc(db, "categories", existingDoc.id), dataPayload);
                     updatedCount++;
                 } else {
-                    const docRef = doc(collection(db, "categories"));
-                    batch.set(docRef, {
-                        label: excelRowData.rawLabel,
-                        key: Date.now().toString() + Math.random(),
+                    batch.set(doc(collection(db, "categories")), {
+                        ...dataPayload,
                         order: currentOrder,
                         orderThiCong: currentOrder,
                         orderNhaMay: currentOrder,
                         orderKhdt: currentOrder,
-                        ...dataPayload,
                     });
                     currentOrder++;
                     addedCount++;
                 }
-            }
-
+            });
+    
             await batch.commit();
-            toast.dismiss();
-            setSnackbar({ open: true, message: `Hoàn tất! Đã thêm ${addedCount} mục mới và cập nhật ${updatedCount} mục.`, severity: "success" });
-        } catch (err) {
-            toast.dismiss();
-            console.error("Lỗi chi tiết khi upload Excel:", err);
-            setSnackbar({ open: true, message: "File lỗi hoặc có sự cố khi upload", severity: "error" });
-        } finally {
-            if (e.target) e.target.value = "";
-        }
+            return `Hoàn tất! Thêm ${addedCount}, cập nhật ${updatedCount} mục.`;
+        })();
+    
+        toast.promise(promise, {
+            loading: 'Đang xử lý file Excel...',
+            success: (message) => message,
+            error: 'File lỗi hoặc có sự cố khi tải lên.',
+        });
+    
+        if (e.target) e.target.value = "";
     };
-
+    
     return (
-        <Box sx={{ bgcolor: "#F0F2F5", minHeight: "calc(100vh - 64px)", p: 3 }}>
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <Box sx={{ bgcolor: "rgb(244, 246, 248)", minHeight: "calc(100vh - 64px)", p: 3 }}>
+            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 4 }}>
                     <Box>
                         <Typography variant="h4" fontWeight="700" color="text.primary">Danh mục Khoản mục</Typography>
                         <Breadcrumbs aria-label="breadcrumb" separator="›">
-                            <MuiLink component="button" underline="hover" color="text.secondary" onClick={() => {}} sx={{ display: "flex", alignItems: "center" }}>
-                                <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" /> Trang chủ
-                            </MuiLink>
-                            <Typography color="text.primary" sx={{ display: "flex", alignItems: "center" }}>
-                                <CategoryIcon sx={{ mr: 0.5 }} fontSize="inherit" /> Khoản mục
-                            </Typography>
+                            <MuiLink component="button" underline="hover" color="text.secondary" onClick={() => {}} sx={{ display: 'flex', alignItems: 'center' }}><HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" /> Trang chủ</MuiLink>
+                            <Typography color="text.primary" sx={{ display: 'flex', alignItems: 'center' }}><CategoryIcon sx={{ mr: 0.5 }} fontSize="inherit" /> Khoản mục</Typography>
                         </Breadcrumbs>
                     </Box>
-                    <Stack direction="row" spacing={1}>
-                        {/* <<< THAY ĐỔI LỚN 8: Nút mới để cập nhật cấu trúc dữ liệu */}
-                        <Tooltip title="Chạy chức năng này một lần để thêm các trường sắp xếp theo loại cho dữ liệu cũ.">
-                            <Button variant="outlined" color="secondary" startIcon={<LayersIcon />} onClick={addTypedOrderToOldData}>
-                                Cập nhật cấu trúc
-                            </Button>
-                        </Tooltip>
+                    <Stack direction="row" spacing={1.5}>
                         <Button variant="outlined" color="success" startIcon={<FileDownloadIcon />} onClick={handleExportExcel}>Xuất Excel</Button>
                         <Button variant="outlined" color="primary" startIcon={<FileUploadIcon />} onClick={() => fileRef.current?.click()}>Tải lên</Button>
                         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenAddDialog(true)}>Thêm mới</Button>
@@ -442,83 +392,65 @@ export default function CategoryConfig() {
                 </Stack>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
-                <Paper elevation={0} sx={{ borderRadius: 4, bgcolor: "white", boxShadow: "0 16px 40px -12px rgba(145, 158, 171, 0.2)" }}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                <Paper elevation={0} sx={{ borderRadius: 4, bgcolor: "background.paper", boxShadow: "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px" }}>
                     <Box sx={{ p: 2, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
                         <FormControl component="fieldset" variant="standard">
                             <FormGroup row>
                                 <Typography sx={{ mr: 2, fontWeight: 500, color: "text.secondary", alignSelf: "center" }}>Lọc theo:</Typography>
-                                <FormControlLabel control={<Checkbox checked={filters.isThiCong} onChange={(e) => setFilters((prev) => ({ ...prev, isThiCong: e.target.checked }))} name="isThiCong" />} label="Thi công" />
-                                <FormControlLabel control={<Checkbox checked={filters.isNhaMay} onChange={(e) => setFilters((prev) => ({ ...prev, isNhaMay: e.target.checked }))} name="isNhaMay" />} label="Nhà máy" />
-                                <FormControlLabel control={<Checkbox checked={filters.isKhdt} onChange={(e) => setFilters((prev) => ({ ...prev, isKhdt: e.target.checked }))} name="isKhdt" />} label="KH-ĐT" />
+                                <FormControlLabel control={<Checkbox checked={filters.isThiCong} onChange={(e) => setFilters(prev => ({ ...prev, isThiCong: e.target.checked }))} />} label="Thi công" />
+                                <FormControlLabel control={<Checkbox checked={filters.isNhaMay} onChange={(e) => setFilters(prev => ({ ...prev, isNhaMay: e.target.checked }))} />} label="Nhà máy" />
+                                <FormControlLabel control={<Checkbox checked={filters.isKhdt} onChange={(e) => setFilters(prev => ({ ...prev, isKhdt: e.target.checked }))} />} label="KH-ĐT" />
                             </FormGroup>
                         </FormControl>
                         <TextField variant="outlined" size="small" placeholder="Tìm kiếm khoản mục..." value={search} onChange={(e) => setSearch(e.target.value)} InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>) }} sx={{ width: { xs: "100%", sm: 320 }, "& .MuiOutlinedInput-root": { borderRadius: "8px" } }} />
                     </Box>
                     
-                    <Box sx={{ width: "100%", minHeight: 'calc(100vh - 400px)' }}>
-                        {loading ? (
-                            <RowSkeleton />
-                        ) : (
+                    <Box sx={{ width: "100%", minHeight: 'calc(100vh - 450px)' }}>
+                        {loading ? <TableSkeleton /> : (
                             <>
-                                <Box sx={{p: 2, display: 'flex', flexDirection: 'column', gap: 1}}>
-                                    {/* <<< THAY ĐỔI LỚN 9: Hiển thị thông báo về chế độ sắp xếp hiện tại */}
-                                    <MuiInfoAlert severity="info" icon={<InfoIcon fontSize="inherit" />} sx={{transition: 'all 0.3s ease-in-out'}}>
+                                <Box sx={{p: 2, pt: 0, display: 'flex', flexDirection: 'column', gap: 1}}>
+                                    <MuiInfoAlert severity="info" icon={<InfoIcon fontSize="inherit" />} sx={{ borderRadius: 2 }}>
                                         Đang sắp xếp theo: <Chip size="small" label={activeSort.label} color="primary" sx={{ml: 1}}/>. Kéo thả để thay đổi thứ tự trong nhóm này.
+                                        <Tooltip title="Chạy chức năng này một lần để đảm bảo dữ liệu cũ có đủ các trường cần thiết cho việc phân loại và sắp xếp.">
+                                            <Button size="small" variant="text" startIcon={<LayersIcon />} onClick={addDataStructureFields} sx={{ ml: 2, textTransform: 'none' }}>Cập nhật cấu trúc</Button>
+                                        </Tooltip>
                                     </MuiInfoAlert>
                                     {isDragDisabled && (
-                                        <MuiInfoAlert severity="warning" icon={<InfoIcon fontSize="inherit" />}>
-                                            Chức năng sắp xếp bị vô hiệu hóa khi đang tìm kiếm. Xóa nội dung tìm kiếm để bật lại.
+                                        <MuiInfoAlert severity="warning" icon={<InfoIcon fontSize="inherit" />} sx={{ borderRadius: 2 }}>
+                                            Chức năng sắp xếp bị vô hiệu hóa khi đang tìm kiếm.
                                         </MuiInfoAlert>
                                     )}
                                 </Box>
+                                
                                 <DragDropContext onDragEnd={handleDragEnd}>
                                     <Droppable droppableId="categoriesList" isDropDisabled={isDragDisabled}>
                                         {(provided) => (
                                             <Box {...provided.droppableProps} ref={provided.innerRef} sx={{ p: 2, pt: 0 }}>
-                                                <Paper sx={{ display: { xs: 'none', md: 'grid' }, gridTemplateColumns: '50px 1fr 100px 100px 100px 120px', gap: 2, p: '8px 16px', mb: 1, fontWeight: 'bold', backgroundColor: alpha("#F0F2F5", 0.7) }}>
+                                                <Box sx={{ display: { xs: 'none', md: 'grid' }, gridTemplateColumns: '50px 1fr 100px 100px 100px 110px 120px', gap: 2, p: '8px 16px', mb: 1, fontWeight: 'bold', color: 'text.secondary', borderBottom: '1px solid', borderColor: 'divider' }}>
                                                     <Box></Box>
                                                     <Box>Tên Khoản Mục</Box>
                                                     <Box sx={{ textAlign: 'center' }}>Thi công</Box>
                                                     <Box sx={{ textAlign: 'center' }}>Nhà máy</Box>
                                                     <Box sx={{ textAlign: 'center' }}>KH-ĐT</Box>
+                                                    <Box sx={{ textAlign: 'center' }}>Phân bổ</Box>
                                                     <Box sx={{ textAlign: 'center' }}>Hành Động</Box>
-                                                </Paper>
+                                                </Box>
 
                                                 {filteredCategories.map((row, index) => (
                                                     <Draggable key={row.id} draggableId={row.id} index={index} isDragDisabled={isDragDisabled}>
                                                         {(provided, snapshot) => (
-                                                            <Paper
-                                                                ref={provided.innerRef}
-                                                                {...provided.draggableProps}
-                                                                sx={{
-                                                                    display: 'grid',
-                                                                    gridTemplateColumns: {xs: 'auto 1fr', md: '50px 1fr 100px 100px 100px 120px'},
-                                                                    gap: 2,
-                                                                    p: '8px 16px',
-                                                                    alignItems: 'center',
-                                                                    mb: 1,
-                                                                    backgroundColor: snapshot.isDragging ? alpha("#90CAF9", 0.3) : 'white',
-                                                                    boxShadow: snapshot.isDragging ? '0 5px 15px rgba(0,0,0,0.2)' : 'none',
-                                                                    transition: 'background-color 0.2s ease, box-shadow 0.2s ease',
-                                                                    ...provided.draggableProps.style,
-                                                                }}
-                                                            >
-                                                                <Tooltip title={isDragDisabled ? "" : `Kéo để sắp xếp theo ${activeSort.label}`}>
-                                                                    <Box {...provided.dragHandleProps} sx={{ display: 'flex', alignItems: 'center', cursor: isDragDisabled ? 'not-allowed' : 'grab', color: isDragDisabled ? 'action.disabled' : 'text.secondary' }}>
-                                                                        <DragIndicatorIcon />
-                                                                    </Box>
-                                                                </Tooltip>
-                                                                
-                                                                <Typography variant="body2">{row.label}</Typography>
-                                                                <Box sx={{ textAlign: 'center', display: { xs: 'none', md: 'block' } }}><Checkbox checked={!!row.isThiCong} onChange={(e) => handleCheckboxChange(row.id, "isThiCong", e.target.checked)} /></Box>
-                                                                <Box sx={{ textAlign: 'center', display: { xs: 'none', md: 'block' } }}><Checkbox checked={!!row.isNhaMay} onChange={(e) => handleCheckboxChange(row.id, "isNhaMay", e.target.checked)} /></Box>
-                                                                <Box sx={{ textAlign: 'center', display: { xs: 'none', md: 'block' } }}><Checkbox checked={!!row.isKhdt} onChange={(e) => handleCheckboxChange(row.id, "isKhdt", e.target.checked)} /></Box>
-                                                                <Stack direction="row" spacing={1} justifyContent="center" sx={{ gridColumn: { xs: '2', md: 'auto' } }}>
-                                                                    <Tooltip title="Sửa"><IconButton size="small" onClick={() => setEditRow(row)}><EditIcon fontSize="small" /></IconButton></Tooltip>
-                                                                    <Tooltip title="Xoá"><IconButton size="small" onClick={() => setDelId(row.id)}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
-                                                                </Stack>
-                                                            </Paper>
+                                                           <CategoryRow
+                                                                row={row}
+                                                                index={index}
+                                                                provided={provided}
+                                                                snapshot={snapshot}
+                                                                isDragDisabled={isDragDisabled}
+                                                                activeSortLabel={activeSort.label}
+                                                                onCheckboxChange={handleFieldChange}
+                                                                onEdit={setEditRow}
+                                                                onDelete={setDelId}
+                                                           />
                                                         )}
                                                     </Draggable>
                                                 ))}
@@ -533,37 +465,37 @@ export default function CategoryConfig() {
                 </Paper>
             </motion.div>
 
-            <input type="file" hidden ref={fileRef} accept=".xlsx,.xls" onChange={handleExcel} />
+            <input type="file" hidden ref={fileRef} accept=".xlsx,.xls" onChange={handleExcelUpload} />
             
             <AnimatePresence>
                 {openAddDialog && (
-                    <Dialog open={openAddDialog} onClose={() => { setOpenAddDialog(false); setNewCategoryName(""); }} PaperComponent={motion.div} PaperProps={{ initial: { scale: 0.95, opacity: 0 }, animate: { scale: 1, opacity: 1 }, exit: { scale: 0.95, opacity: 0 } }}>
+                    <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} PaperComponent={motion.div} PaperProps={{ initial:{ opacity: 0, scale: 0.95 }, animate:{ opacity: 1, scale: 1 }, exit:{ opacity: 0, scale: 0.95 } }}>
                         <DialogTitle>Thêm khoản mục mới</DialogTitle>
                         <DialogContent sx={{ width: "400px" }}>
-                            <TextField autoFocus margin="dense" label="Tên khoản mục" fullWidth variant="outlined" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
+                            <TextField autoFocus margin="dense" label="Tên khoản mục" fullWidth variant="outlined" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAdd()}/>
                         </DialogContent>
                         <DialogActions sx={{ p: "16px 24px" }}>
-                            <Button onClick={() => { setOpenAddDialog(false); setNewCategoryName(""); }}>Huỷ</Button>
+                            <Button onClick={() => setOpenAddDialog(false)}>Huỷ</Button>
                             <Button variant="contained" onClick={handleAdd}>Thêm</Button>
                         </DialogActions>
                     </Dialog>
                 )}
                 {editRow && (
-                    <Dialog open={!!editRow} onClose={() => setEditRow(null)} PaperComponent={motion.div} PaperProps={{ initial: { scale: 0.95, opacity: 0 }, animate: { scale: 1, opacity: 1 }, exit: { scale: 0.95, opacity: 0 } }}>
+                    <Dialog open={!!editRow} onClose={() => setEditRow(null)} PaperComponent={motion.div} PaperProps={{ initial:{ opacity: 0, scale: 0.95 }, animate:{ opacity: 1, scale: 1 }, exit:{ opacity: 0, scale: 0.95 } }}>
                         <DialogTitle>Sửa khoản mục</DialogTitle>
                         <DialogContent sx={{ width: "400px" }}>
-                            <TextField autoFocus margin="dense" label="Tên khoản mục" fullWidth variant="outlined" value={editRow?.label || ""} onChange={(e) => setEditRow((p) => ({ ...p, label: e.target.value }))} />
+                            <TextField autoFocus margin="dense" label="Tên khoản mục" fullWidth variant="outlined" value={editRow?.label || ""} onChange={(e) => setEditRow(p => ({ ...p, label: e.target.value }))} onKeyPress={(e) => e.key === 'Enter' && handleUpdate()}/>
                         </DialogContent>
                         <DialogActions sx={{ p: "16px 24px" }}>
                             <Button onClick={() => setEditRow(null)}>Huỷ</Button>
-                            <Button variant="contained" onClick={handleUpdate}>Lưu thay đổi</Button>
+                            <Button variant="contained" onClick={handleUpdate}>Lưu</Button>
                         </DialogActions>
                     </Dialog>
                 )}
                 {delId && (
-                    <Dialog open={!!delId} onClose={() => setDelId(null)} PaperComponent={motion.div} PaperProps={{ initial: { scale: 0.95, opacity: 0 }, animate: { scale: 1, opacity: 1 }, exit: { scale: 0.95, opacity: 0 } }}>
+                     <Dialog open={!!delId} onClose={() => setDelId(null)} PaperComponent={motion.div} PaperProps={{ initial:{ opacity: 0, scale: 0.95 }, animate:{ opacity: 1, scale: 1 }, exit:{ opacity: 0, scale: 0.95 } }}>
                         <DialogTitle sx={{ display: "flex", alignItems: "center" }}><DeleteIcon color="error" sx={{ mr: 1 }} /> Xác nhận xoá</DialogTitle>
-                        <DialogContent><Typography>Bạn có chắc chắn muốn xoá khoản mục này? Hành động này không thể hoàn tác.</Typography></DialogContent>
+                        <DialogContent><Typography>Bạn có chắc chắn muốn xoá khoản mục này không? Hành động này không thể hoàn tác.</Typography></DialogContent>
                         <DialogActions sx={{ p: "16px 24px" }}>
                             <Button onClick={() => setDelId(null)}>Huỷ</Button>
                             <Button color="error" variant="contained" onClick={handleDelete}>Xoá</Button>
@@ -571,9 +503,6 @@ export default function CategoryConfig() {
                     </Dialog>
                 )}
             </AnimatePresence>
-            <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
-                <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>{snackbar.message}</Alert>
-            </Snackbar>
         </Box>
     );
 }
