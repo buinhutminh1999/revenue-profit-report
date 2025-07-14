@@ -587,58 +587,40 @@ export default function ProfitReportQuarter() {
 
         return rows;
     };
-const updateLoiNhuanRongRow = (inputRows) => {
-    const rows = [...inputRows];
-    const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
+    const updateLoiNhuanRongRow = (inputRows) => {
+        const rows = [...inputRows];
 
-    // Tìm index của các hàng cần thiết
-    const idxLNRong = rows.findIndex(
-        (r) => (r.name || "").toUpperCase() === "LỢI NHUẬN RÒNG"
-    );
-    const idxLNFinal = rows.findIndex(
-        (r) => (r.name || "").toUpperCase() === finalProfitRowName.toUpperCase()
-    );
-    const idxVuotBPXD = rows.findIndex(
-        (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPXD"
-    );
-    const idxVuotBPSX = rows.findIndex(
-        (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPSX"
-    );
-    const idxVuotBPDT = rows.findIndex(
-        (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPĐT"
-    );
-    const idxChiPhiTraTruoc = rows.findIndex(
-        (r) => (r.name || "").toUpperCase() === "+ CHI PHÍ ĐÃ TRẢ TRƯỚC"
-    );
+        // Tên các hàng cần tìm
+        const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
+        const vuotQuarterRowName = `VƯỢT ${selectedQuarter}`;
 
-    // Kiểm tra tất cả các hàng có tồn tại không
-    if (
-        idxLNRong !== -1 &&
-        idxLNFinal !== -1 &&
-        idxVuotBPXD !== -1 &&
-        idxVuotBPSX !== -1 &&
-        idxVuotBPDT !== -1 &&
-        idxChiPhiTraTruoc !== -1
-    ) {
-        // Lấy giá trị lợi nhuận từ các hàng
-        const lnFinal = toNum(rows[idxLNFinal].profit);
-        const vuotBPXD = toNum(rows[idxVuotBPXD].profit);
-        const vuotBPSX = toNum(rows[idxVuotBPSX].profit);
-        const vuotBPDT = toNum(rows[idxVuotBPDT].profit);
-        const chiPhiTraTruoc = toNum(rows[idxChiPhiTraTruoc].profit);
+        // Tìm index của các hàng
+        const idxLNRong = rows.findIndex(
+            (r) => (r.name || "").toUpperCase() === "LỢI NHUẬN RÒNG"
+        );
+        const idxLNFinal = rows.findIndex(
+            (r) =>
+                (r.name || "").toUpperCase() ===
+                finalProfitRowName.toUpperCase()
+        );
+        const idxVuotQ2 = rows.findIndex(
+            (r) =>
+                (r.name || "").toUpperCase() ===
+                vuotQuarterRowName.toUpperCase()
+        );
 
-        // Tính toán lợi nhuận ròng
-        const loiNhuanRong =
-            lnFinal - (vuotBPXD + vuotBPSX + vuotBPDT + chiPhiTraTruoc);
+        // Chỉ tính toán khi tìm thấy tất cả các hàng cần thiết
+        if (idxLNRong !== -1 && idxLNFinal !== -1 && idxVuotQ2 !== -1) {
+            // Lấy giá trị lợi nhuận từ các hàng
+            const loiNhuanSauGiamTru = toNum(rows[idxLNFinal].profit);
+            const vuotQ2Profit = toNum(rows[idxVuotQ2].profit);
 
-        // Cập nhật giá trị cho hàng "LỢI NHUẬN RÒNG"
-        rows[idxLNRong].profit = loiNhuanRong;
-    }
+            // Công thức mới
+            rows[idxLNRong].profit = loiNhuanSauGiamTru - vuotQ2Profit;
+        }
 
-    return rows;
-};
-   
-
+        return rows;
+    };
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
@@ -751,6 +733,24 @@ const updateLoiNhuanRongRow = (inputRows) => {
                 processedRows = saved
                     .data()
                     .rows.filter((savedRow) => !savedRow.projectId);
+                // --- BẮT ĐẦU SỬA LỖI ---
+                // Kiểm tra xem hàng "LỢI NHUẬN RÒNG" đã tồn tại trong dữ liệu đã lưu chưa
+                const loiNhuanRongExists = processedRows.some(
+                    (r) => (r.name || "").toUpperCase() === "LỢI NHUẬN RÒNG"
+                );
+
+                // Nếu chưa tồn tại, thêm nó vào cuối danh sách
+                if (!loiNhuanRongExists) {
+                    processedRows.push({
+                        name: "LỢI NHUẬN RÒNG",
+                        revenue: null,
+                        cost: null,
+                        profit: 0,
+                        percent: null,
+                        editable: false,
+                    });
+                }
+                // --- KẾT THÚC SỬA LỖI ---
 
                 // BƯỚC 2: Coi TẤT CẢ công trình từ database là "dự án mới" cần được chèn lại.
                 const newProjects = projects; // Lấy toàn bộ danh sách công trình mới nhất
@@ -1006,8 +1006,7 @@ const updateLoiNhuanRongRow = (inputRows) => {
                         cost: null,
                         profit: 0,
                         percent: null,
-                                                editable: false,
-
+                        editable: false,
                     },
                     {
                         name: "+Vượt CP BPSX",
@@ -1015,8 +1014,7 @@ const updateLoiNhuanRongRow = (inputRows) => {
                         cost: null,
                         profit: 0,
                         percent: null,
-                                                editable: false,
-
+                        editable: false,
                     },
                     {
                         name: "+Vượt CP BPĐT",
@@ -1024,8 +1022,7 @@ const updateLoiNhuanRongRow = (inputRows) => {
                         cost: null,
                         profit: 0,
                         percent: null,
-                                                editable: false,
-
+                        editable: false,
                     },
                     {
                         name: "+ Chi phí đã trả trước",
@@ -1034,16 +1031,16 @@ const updateLoiNhuanRongRow = (inputRows) => {
                         profit: 0,
                         percent: null,
                         editable: true,
-
                     },
-                     { // <-- THÊM HÀNG MỚI TẠI ĐÂY
-                            name: "LỢI NHUẬN RÒNG",
-                            revenue: null,
-                            cost: null,
-                            profit: 0,
-                            percent: null,
-                            editable: false, // Hàng này không cho phép sửa thủ công
-                        },
+                    {
+                        // <-- THÊM HÀNG MỚI TẠI ĐÂY
+                        name: "LỢI NHUẬN RÒNG",
+                        revenue: null,
+                        cost: null,
+                        profit: 0,
+                        percent: null,
+                        editable: false, // Hàng này không cho phép sửa thủ công
+                    },
                 ];
             }
 
@@ -1106,7 +1103,7 @@ const updateLoiNhuanRongRow = (inputRows) => {
             finalRows = updateSanXuatRow(finalRows);
             finalRows = updateVuotCPRows(finalRows);
             finalRows = calculateTotals(finalRows);
-                        finalRows = updateLoiNhuanRongRow(finalRows); // <-- THÊM DÒNG NÀY
+            finalRows = updateLoiNhuanRongRow(finalRows); // <-- THÊM DÒNG NÀY
 
             const idxTotal = finalRows.findIndex(
                 (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
@@ -1199,6 +1196,7 @@ const updateLoiNhuanRongRow = (inputRows) => {
                             "+VƯỢT CP BPĐT",
                             `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase(),
                             "+ CHI PHÍ ĐÃ TRẢ TRƯỚC",
+                            "LỢI NHUẬN RÒNG", // <-- THÊM DÒNG NÀY VÀO ĐÂY
                         ].includes(nameUpper)
                     ) {
                         return true;
@@ -1339,7 +1337,7 @@ const updateLoiNhuanRongRow = (inputRows) => {
         finalRows = updateGroupII1(finalRows); // <-- Giả sử bạn có hàm này
         finalRows = updateSanXuatRow(finalRows); // <-- Giả sử bạn có hàm này
         finalRows = updateVuotCPRows(finalRows);
-       
+
         finalRows = calculateTotals(finalRows);
 
         // --- TÍNH TOÁN LẠI CÁC DÒNG LỢI NHUẬN CUỐI CÙNG ---
@@ -1393,7 +1391,7 @@ const updateLoiNhuanRongRow = (inputRows) => {
                 toNum(finalRows[idxVII].profit) -
                 toNum(finalRows[idxVIII].profit);
         }
-    finalRows = updateLoiNhuanRongRow(finalRows); // <-- THÊM DÒNG NÀY
+        finalRows = updateLoiNhuanRongRow(finalRows); // <-- THÊM DÒNG NÀY
 
         setRows(finalRows);
     };
@@ -1531,8 +1529,7 @@ const updateLoiNhuanRongRow = (inputRows) => {
             "CHI PHÍ ĐÃ CHI",
             "LỢI NHUẬN",
             "% LN / GIÁ VỐN", // Thêm vào đây
-
-            "% CHỈ TIÊU LN KH",
+            "% LN THEO KH", // <-- ĐÃ SỬA
             "% LN QUÍ",
             "CP VƯỢT QUÝ",
             "CHỈ TIÊU",
@@ -1819,8 +1816,7 @@ const updateLoiNhuanRongRow = (inputRows) => {
                                     "CHI PHÍ ĐÃ CHI",
                                     "LỢI NHUẬN",
                                     "% LN / GIÁ VỐN",
-
-                                    "% CHỈ TIÊU LN KH",
+                                    "% LN THEO KH", // <-- ĐÃ SỬA
                                     "% LN QUÍ",
                                     cpVuotLabel,
                                     "CHỈ TIÊU",
@@ -1910,19 +1906,16 @@ const updateLoiNhuanRongRow = (inputRows) => {
                                     {renderEditableCell(r, idx, "revenue")}
                                     {renderEditableCell(r, idx, "cost")}
                                     {renderEditableCell(r, idx, "profit")}
-                                    {/* ✅ DÁN TOÀN BỘ ĐOẠN CODE NÀY VÀO ĐÂY */}
-                                    <TableCell align="center" sx={cellStyle}>
-                                        {
-                                            // Chỉ tính toán khi là hàng dự án chi tiết và có chi phí > 0
-                                            r.projectId && toNum(r.cost) > 0
-                                                ? `${(
-                                                      (toNum(r.profit) /
-                                                          toNum(r.cost)) *
-                                                      100
-                                                  ).toFixed(2)}%`
-                                                : "–" // Hiển thị gạch ngang cho các trường hợp khác
-                                        }
-                                    </TableCell>
+<TableCell align="center" sx={cellStyle}>
+    {
+        // THÊM ĐIỀU KIỆN MỚI Ở ĐÂY
+        isDetailUnderI1(idx) || isDetailUnderII1(idx) 
+            ? "–" // Nếu là chi tiết của I.1 hoặc II.1, luôn hiển thị "–"
+            : r.projectId && toNum(r.cost) > 0 // Giữ lại logic cũ cho các trường hợp khác
+            ? `${((toNum(r.profit) / toNum(r.cost)) * 100).toFixed(2)}%`
+            : "–"
+    }
+</TableCell>
                                     {isDTLNLDX(r) ? (
                                         <TableCell
                                             align="center"
