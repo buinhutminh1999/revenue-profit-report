@@ -39,6 +39,7 @@ import {
     writeBatch,
     getDocs,
     where,
+    updateDoc,
 } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
 import toast from "react-hot-toast";
@@ -1170,7 +1171,48 @@ toast(`Nhóm "${oldDefaultGroupName}" sẽ được đổi tên thành "${newDef
         }, [planningItems, adjustmentsData]);
 
     const estimatedProfit = contractValue - totalFinalAmount;
+// ==> THÊM ĐOẠN NÀY VÀO
+// ==> THAY ĐỔI ĐOẠN CODE NÀY
+const estimatedProfitMargin = useMemo(() => {
+    // Tránh chia cho 0 nếu hợp đồng chưa có giá trị
+    if (!contractValue || contractValue === 0) {
+        return 0;
+    }
+    // Thay đổi duy nhất ở dòng return này
+    return (estimatedProfit / contractValue) * 100;
+}, [estimatedProfit, contractValue]);
+ // ==> THÊM HOOK MỚI NÀY VÀO
+    useEffect(() => {
+        // Chỉ chạy khi có projectId và projectData đã được tải
+        if (!projectId || !projectData) return;
 
+        // Debounce: Tạo một timer. Hàm cập nhật chỉ chạy sau 1500ms (1.5s)
+        // kể từ lần cuối cùng `estimatedProfitMargin` thay đổi.
+        const handler = setTimeout(async () => {
+            try {
+                const projectRef = doc(db, "projects", projectId);
+                await updateDoc(projectRef, {
+                    // Cập nhật các giá trị tổng hợp
+                    plannedCost: totalPlannedAmount, // Chi phí kế hoạch
+                    finalCost: totalFinalAmount,     // Chi phí dự kiến cuối cùng
+                    estimatedProfit: estimatedProfit, // Lợi nhuận dự kiến
+                    estimatedProfitMargin: estimatedProfitMargin // Tỷ suất lợi nhuận
+                });
+                 console.log("Project stats updated successfully!");
+            } catch (error) {
+                console.error("Failed to update project stats:", error);
+                // Bạn có thể thêm một toast.error nhỏ ở đây nếu muốn
+            }
+        }, 1500);
+
+        // Hàm dọn dẹp: Hủy timer nếu component unmount hoặc giá trị thay đổi
+        // trước khi timer kết thúc.
+        return () => {
+            clearTimeout(handler);
+        };
+
+    // Phụ thuộc vào các giá trị đã tính toán và projectId
+    }, [projectId, projectData, totalPlannedAmount, totalFinalAmount, estimatedProfit, estimatedProfitMargin]);
 useEffect(() => {
         if (!projectId) {
             setLoading(false);

@@ -661,9 +661,12 @@ export default function ProfitReportQuarter() {
 
             const projects = await Promise.all(
                 projectsSnapshot.docs.map(async (d) => {
+                    // data chứa toàn bộ thông tin của project, bao gồm cả estimatedProfitMargin
                     const data = d.data();
                     let revenue = 0,
                         cost = 0;
+
+                    // Phần này giữ nguyên để lấy doanh thu và chi phí thực tế trong quý
                     try {
                         const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
                         const qSnap = await getDoc(doc(db, qPath));
@@ -680,15 +683,21 @@ export default function ProfitReportQuarter() {
                             }
                         }
                     } catch {}
+
+                    // Dòng này tính lợi nhuận của quý (giữ nguyên) để hiển thị ở cột "LỢI NHUẬN"
                     const profit = revenue - cost;
-                    const percent = revenue ? (profit / revenue) * 100 : null;
+
+                    // THAY ĐỔI: Lấy % LN kế hoạch từ dữ liệu gốc của project
+                    const plannedProfitMargin =
+                        data.estimatedProfitMargin || null;
+
                     return {
                         projectId: d.id,
                         name: data.name,
                         revenue,
                         cost,
                         profit,
-                        percent,
+                        percent: plannedProfitMargin, // <-- SỬ DỤNG GIÁ TRỊ MỚI
                         costOverQuarter: null,
                         target: null,
                         note: "",
@@ -757,7 +766,41 @@ export default function ProfitReportQuarter() {
 
                 // BƯỚC 3: Chạy lại logic chèn công trình vào các nhóm tương ứng.
                 // (Giữ nguyên đoạn code này như cũ)
+                // BÊN TRONG HÀM fetchData và khối if (saved.exists() ...)
+
+                // BƯỚC 3: Chạy lại logic chèn công trình vào các nhóm tương ứng.
                 if (newProjects.length > 0) {
+                    // ====================== BẮT ĐẦU CODE MỚI ======================
+
+                    // 1. Tách các dự án có tên chứa "KÈ" ra một nhóm riêng
+                    const keProjects = newProjects.filter((p) =>
+                        (p.name || "").toUpperCase().includes("KÈ")
+                    );
+                    // Các dự án còn lại không chứa "KÈ"
+                    const otherProjects = newProjects.filter(
+                        (p) => !(p.name || "").toUpperCase().includes("KÈ")
+                    );
+
+                    // 2. Ưu tiên chèn các dự án "KÈ" vào đúng nhóm "I.2. KÈ"
+                    if (keProjects.length > 0) {
+                        const keGroupIndex = processedRows.findIndex(
+                            (r) =>
+                                (r.name || "").trim().toUpperCase() ===
+                                "I.2. KÈ"
+                        );
+                        if (keGroupIndex !== -1) {
+                            processedRows.splice(
+                                keGroupIndex + 1,
+                                0,
+                                ...keProjects.map((p) => ({
+                                    ...p,
+                                    editable: true,
+                                }))
+                            );
+                        }
+                    }
+
+                    // 3. Sử dụng logic groupMapping cũ cho các dự án CÒN LẠI
                     const groupMapping = {
                         "Thi cong": "I.1. DÂN DỤNG + GIAO THÔNG",
                         "Thi công": "I.1. DÂN DỤNG + GIAO THÔNG",
@@ -769,7 +812,8 @@ export default function ProfitReportQuarter() {
 
                     Object.entries(groupMapping).forEach(
                         ([type, groupName]) => {
-                            const projectsToAdd = newProjects.filter(
+                            // Chỉ lọc từ các dự án còn lại (otherProjects)
+                            const projectsToAdd = otherProjects.filter(
                                 (p) => p.type === type
                             );
                             if (projectsToAdd.length > 0) {
@@ -791,6 +835,7 @@ export default function ProfitReportQuarter() {
                             }
                         }
                     );
+                    // ====================== KẾT THÚC CODE MỚI ======================
                 }
             } else {
                 // Logic để tạo báo cáo mới khi chưa có dữ liệu lưu
@@ -1239,9 +1284,15 @@ export default function ProfitReportQuarter() {
         `+ VƯỢT CP BPĐT DO KO CÓ DT ${selectedQuarter} (LÃI + THUÊ VP)`.toUpperCase(),
         "+ CHI PHÍ ĐÃ TRẢ TRƯỚC",
     ];
-
     const format = (v, field = "", row = {}) => {
         const name = (row.name || "").trim().toUpperCase();
+
+        // ✅ THÊM ĐIỀU KIỆN MỚI TẠI ĐÂY
+        if (name === "I.1. DÂN DỤNG + GIAO THÔNG" && field === "percent") {
+            return "–";
+        }
+        // KẾT THÚC THÊM MỚI
+
         if (field === "percent" && name === "TỔNG") return "–";
         if (
             ["revenue", "cost"].includes(field) &&
@@ -1969,7 +2020,8 @@ export default function ProfitReportQuarter() {
                                                     ? (r.profit / r.revenue) *
                                                           100
                                                     : null,
-                                                "percent"
+                                                "percent",
+                                                r
                                             )
                                         )}
                                     </TableCell>

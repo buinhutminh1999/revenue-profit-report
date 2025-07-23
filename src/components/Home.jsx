@@ -9,14 +9,17 @@ import { alpha, useTheme } from "@mui/material/styles";
 import { motion } from "framer-motion";
 import {
     LineChart, FolderKanban, PieChart, Construction, Building,
-    Settings, BarChart3, TrendingUp, BookCheck, ArrowRight, Sun, Moon, Coffee
+    Settings, BarChart3, TrendingUp, BookCheck, ArrowRight, Sun, Moon, Coffee,
+    FileSpreadsheet // ===== THÊM ICON MỚI =====
 } from "lucide-react";
 
-// --- DỮ LIỆU CẤU HÌNH (Không đổi) ---
+// --- DỮ LIỆU CẤU HÌNH (Đã cập nhật) ---
 const mainFunctions = [
     { icon: <Construction size={32} />, text: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ các dự án" },
-    { icon: <Building size={32} />, text: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết, quản lý từng công trình", isNew: true },
+    { icon: <Building size={32} />, text: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết, quản lý từng công trình" },
     { icon: <BookCheck size={32} />, text: "Phân bổ chi phí", to: "/allocations", desc: "Nhập và quản lý chi phí cho dự án" },
+    // ===== THÊM CHỨC NĂNG MỚI =====
+    { icon: <FileSpreadsheet size={32} />, text: "Công Nợ Phải Trả", to: "/construction-payables", desc: "Theo dõi và quản lý công nợ phải trả", isNew: true },
 ];
 const reportFunctions = [
     { icon: <BarChart3 size={24} />, text: "Báo Cáo Lợi Nhuận", to: "/profit-report-quarter", desc: "Phân tích doanh thu - chi phí" },
@@ -31,9 +34,7 @@ const settingsFunctions = [
 const formatVND = (v) =>
     new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(v);
 
-// --- ✨ [UI/UX] CÁC STYLED COMPONENTS ĐÃ ĐƯỢC NÂNG CẤP ---
-
-// Component gốc cho toàn bộ trang với hiệu ứng Aurora
+// --- STYLED COMPONENTS (Không đổi) ---
 const StyledRoot = styled(Box)(({ theme }) => ({
     position: 'relative',
     overflow: 'hidden',
@@ -76,7 +77,6 @@ const KpiCard = styled(Paper)(({ theme, color = 'primary' }) => ({
         transform: 'translateY(-5px)',
         boxShadow: `0 20px 40px -15px ${alpha(theme.palette[color].main, 0.3)}`,
     },
-    // Vầng sáng phía sau icon
     '& .icon-glow': {
         width: 64,
         height: 64,
@@ -153,19 +153,17 @@ const Section = ({ title, children }) => (
     </Box>
 );
 
-// --- COMPONENT CHÍNH ĐÃ ĐƯỢC TỐI ƯU ---
+// --- COMPONENT CHÍNH (Không đổi) ---
 export default function Home() {
-    const [summary, setSummary] = useState(null); // Dữ liệu KPI
+    const [summary, setSummary] = useState(null);
     const [greeting, setGreeting] = useState({ icon: <Coffee />, text: "Chào mừng bạn" });
 
-    // ✨ [UX] Lời chào cá nhân hóa theo thời gian
     useEffect(() => {
         const hour = new Date().getHours();
         if (hour < 12) setGreeting({ icon: <Sun size={24} />, text: "Chào buổi sáng" });
         else if (hour < 18) setGreeting({ icon: <Coffee size={24} />, text: "Chào buổi chiều" });
         else setGreeting({ icon: <Moon size={24} />, text: "Chào buổi tối" });
 
-        // Giả lập tải dữ liệu KPI
         const timer = setTimeout(() => {
             setSummary({ totalProjects: 12, totalRevenue: 1585000000, totalCost: 834000000 });
         }, 800);
@@ -189,7 +187,6 @@ export default function Home() {
 
     return (
         <StyledRoot>
-            {/* ✨ [UX] Lời chào và tiêu đề */}
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
                 <Stack direction="row" spacing={1.5} alignItems="center" mb={1}>
                     {greeting.icon}
@@ -198,7 +195,6 @@ export default function Home() {
                 <Typography color="text.secondary" mb={4}>Đây là tổng quan hệ thống của bạn hôm nay.</Typography>
             </motion.div>
 
-            {/* ✨ [PERF] Hiển thị Skeleton khi đang tải */}
             <motion.div variants={containerVariants} initial="hidden" animate="visible">
                 <Grid container spacing={3} sx={{ mb: 6 }}>
                     {kpis.map((k) => (
@@ -225,7 +221,7 @@ export default function Home() {
                     <motion.div variants={containerVariants} initial="hidden" animate="visible">
                         <Grid container spacing={{ xs: 2, md: 3 }}>
                             {mainFunctions.map((item) => (
-                                <Grid item xs={12} sm={6} md={4} key={item.to}>
+                                <Grid item xs={12} sm={6} md={4} lg={3} key={item.to}>
                                     <motion.div variants={itemVariants} style={{ height: '100%' }}>
                                         <MainFunctionCard component={Link} to={item.to}>
                                             <Box className="icon-wrapper">{item.icon}</Box>
