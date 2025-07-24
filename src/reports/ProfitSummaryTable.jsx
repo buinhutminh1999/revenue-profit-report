@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
     Table,
     TableBody,
@@ -12,6 +12,7 @@ import {
 } from "@mui/material";
 import { formatNumber, toNum } from "../utils/numberUtils";
 
+// Các hàm tiện ích và style không đổi
 const cellStyle = {
     border: "1px solid #e0e0e0",
     textAlign: "right",
@@ -36,6 +37,8 @@ const formatValue = (value, isPercent = false) => {
         return `${num.toFixed(2)}%`;
     }
     
+    if (num === 0) return "0";
+
     if (num < 0) {
         return (
             <Typography color="error" component="span" sx={{ fontWeight: 'inherit', fontSize: 'inherit' }}>
@@ -47,10 +50,10 @@ const formatValue = (value, isPercent = false) => {
 };
 
 const EditableCell = ({ value, onChange }) => {
-    const [displayValue, setDisplayValue] = useState(formatNumber(value));
+    const [displayValue, setDisplayValue] = React.useState(formatNumber(value));
     const isFocused = React.useRef(false);
 
-    useEffect(() => {
+    React.useEffect(() => {
         if (!isFocused.current) {
             setDisplayValue(formatNumber(value));
         }
@@ -95,7 +98,13 @@ const EditableCell = ({ value, onChange }) => {
     );
 };
 
-export default function ProfitSummaryTable({ data = {}, targets = {}, onTargetChange = () => {} }) {
+
+export default function ProfitSummaryTable({ 
+    data = {}, 
+    targets = {}, 
+    onTargetChange = () => {},
+    isYearlyReport = false 
+}) {
     const {
         revenueXayDung, profitXayDung, costOverXayDung,
         revenueSanXuat, profitSanXuat, costOverSanXuat,
@@ -110,23 +119,26 @@ export default function ProfitSummaryTable({ data = {}, targets = {}, onTargetCh
 
     const tableData = [
         {
-            name: 'i. xây dựng',
+            id: 'I',
+            name: 'xây dựng',
             revenue: { target: revenueTargetXayDung, actual: revenueXayDung, targetKey: 'revenueTargetXayDung' },
             profit: { target: profitTargetXayDung, actual: profitXayDung, costOver: costOverXayDung, targetKey: 'profitTargetXayDung' },
         },
         {
-            name: 'ii. SẢN XUẤT',
+            id: 'II',
+            name: 'SẢN XUẤT',
             revenue: { target: revenueTargetSanXuat, actual: revenueSanXuat, targetKey: 'revenueTargetSanXuat' },
-            profit: { target: profitTargetSanXuat, actual: profitSanXuat, costOver: costOverSanXuat, targetKey: 'profitTargetSanXuat' },
+            profit: { target: profitTargetSanXuat, actual: profitSanXuat, costOver: costOverSanXuat, targetKey: 'profitTargetXayDung' },
         },
         {
-            name: 'iii. ĐT',
+            id: 'III',
+            name: 'ĐT',
             revenue: { target: revenueTargetDauTu, actual: revenueDauTu, targetKey: 'revenueTargetDauTu' },
             profit: { target: profitTargetDauTu, actual: profitDauTu, costOver: costOverDauTu, targetKey: 'profitTargetDauTu' },
         },
     ];
 
-    return (
+    const sharedLayout = (isEditable) => (
         <TableContainer component={Paper} sx={{ mt: 4, mb: 4, border: '1px solid #e0e0e0' }}>
             <Table size="small" aria-label="profit summary table">
                 <TableHead>
@@ -136,7 +148,6 @@ export default function ProfitSummaryTable({ data = {}, targets = {}, onTargetCh
                         <TableCell sx={headerCellStyle}>THỰC TẾ</TableCell>
                         <TableCell sx={{ ...headerCellStyle, width: '18%' }} colSpan={2}>ĐÁNH GIÁ</TableCell>
                         <TableCell sx={headerCellStyle}>CHI PHÍ VƯỢT</TableCell>
-                        {/* === ĐÃ THÊM TÊN ĐẦY ĐỦ CHO CỘT CUỐI CÙNG === */}
                         <TableCell sx={headerCellStyle}>LỢI NHUẬN SAU ĐIỀU CHỈNH</TableCell>
                     </TableRow>
                 </TableHead>
@@ -146,41 +157,43 @@ export default function ProfitSummaryTable({ data = {}, targets = {}, onTargetCh
                         const revenuePercent = toNum(item.revenue.target) === 0 ? 0 : (toNum(item.revenue.actual) / toNum(item.revenue.target)) * 100;
                         const profitEvaluation = toNum(item.profit.actual) - toNum(item.profit.target);
                         const profitPercent = toNum(item.profit.target) === 0 ? 0 : (toNum(item.profit.actual) / toNum(item.profit.target)) * 100;
-                        const newColumnValue = toNum(item.profit.costOver) - toNum(item.profit.actual);
+                        const adjustedProfit = toNum(item.profit.actual) - toNum(item.profit.costOver);
 
                         return (
                             <React.Fragment key={item.name}>
                                 <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                                    <TableCell sx={{ ...cellStyle, fontWeight: 'bold', textTransform: 'uppercase', textAlign: 'left' }}>{item.name}</TableCell>
-                                    <TableCell sx={cellStyle}></TableCell>
-                                    <TableCell sx={cellStyle}></TableCell>
-                                    <TableCell sx={cellStyle} colSpan={2}></TableCell>
-                                    <TableCell sx={cellStyle}></TableCell>
-                                    <TableCell sx={cellStyle}></TableCell>
+                                    <TableCell sx={{ ...cellStyle, fontWeight: 'bold', textTransform: 'uppercase', textAlign: 'left' }}>{item.id}. {item.name}</TableCell>
+                                    <TableCell colSpan={6}></TableCell>
                                 </TableRow>
-
                                 <TableRow>
                                     <TableCell sx={{ ...cellStyle, fontStyle: 'italic', paddingLeft: '32px', textAlign: 'left' }}>doanh thu</TableCell>
-                                    <EditableCell value={toNum(item.revenue.target)} onChange={(value) => onTargetChange(item.revenue.targetKey, value)} />
+                                    
+                                    {isEditable ? (
+                                        <EditableCell value={toNum(item.revenue.target)} onChange={(value) => onTargetChange(item.revenue.targetKey, value)} />
+                                    ) : (
+                                        <TableCell sx={cellStyle}>{formatValue(item.revenue.target)}</TableCell>
+                                    )}
+
                                     <TableCell sx={cellStyle}>{formatValue(item.revenue.actual)}</TableCell>
                                     <TableCell sx={{ ...cellStyle, width: '15%' }}>{formatValue(revenueEvaluation)}</TableCell>
                                     <TableCell sx={{ ...cellStyle, width: '10%' }}>{formatValue(revenuePercent, true)}</TableCell>
-                                    <TableCell sx={cellStyle}>-</TableCell>
-                                    <TableCell sx={cellStyle}></TableCell>
+                                    <TableCell sx={cellStyle}>–</TableCell>
+                                    <TableCell sx={cellStyle}>–</TableCell>
                                 </TableRow>
-
                                 <TableRow>
                                     <TableCell sx={{ ...cellStyle, fontStyle: 'italic', paddingLeft: '32px', textAlign: 'left' }}>lợi nhuận</TableCell>
-                                    <EditableCell value={toNum(item.profit.target)} onChange={(value) => onTargetChange(item.profit.targetKey, value)} />
+                                    
+                                    {isEditable ? (
+                                        <EditableCell value={toNum(item.profit.target)} onChange={(value) => onTargetChange(item.profit.targetKey, value)} />
+                                    ) : (
+                                        <TableCell sx={cellStyle}>{formatValue(item.profit.target)}</TableCell>
+                                    )}
+
                                     <TableCell sx={cellStyle}>{formatValue(item.profit.actual)}</TableCell>
                                     <TableCell sx={{ ...cellStyle, width: '15%' }}>{formatValue(profitEvaluation)}</TableCell>
                                     <TableCell sx={{ ...cellStyle, width: '10%' }}>{formatValue(profitPercent, true)}</TableCell>
-                                    <TableCell sx={{ ...cellStyle, fontWeight: 'bold' }}>
-                                        {toNum(item.profit.costOver) === 0 ? '0' : formatValue(item.profit.costOver)}
-                                    </TableCell>
-                                    <TableCell sx={{ ...cellStyle, fontWeight: 'bold' }}>
-                                        {formatValue(newColumnValue)}
-                                    </TableCell>
+                                    <TableCell sx={{ ...cellStyle, fontWeight: 'bold' }}>{formatValue(item.profit.costOver)}</TableCell>
+                                    <TableCell sx={{ ...cellStyle, fontWeight: 'bold' }}>{formatValue(adjustedProfit)}</TableCell>
                                 </TableRow>
                             </React.Fragment>
                         );
@@ -189,4 +202,11 @@ export default function ProfitSummaryTable({ data = {}, targets = {}, onTargetCh
             </Table>
         </TableContainer>
     );
+
+    // Dựa vào isYearlyReport để quyết định cột "CHỈ TIÊU" có được sửa hay không
+    if (isYearlyReport) {
+        return sharedLayout(false); // isEditable = false
+    } else {
+        return sharedLayout(true); // isEditable = true
+    }
 }

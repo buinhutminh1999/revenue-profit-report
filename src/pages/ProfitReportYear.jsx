@@ -19,10 +19,13 @@ import { collection, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 import { toNum, formatNumber } from "../utils/numberUtils";
 import { FileDown, Save } from "lucide-react";
+import ProfitSummaryTable from "../reports/ProfitSummaryTable";
 
 const useProfitReportData = (selectedYear) => {
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [initialSummaryTargets, setInitialSummaryTargets] = useState({});
+
     const [editableRows, setEditableRows] = useState({});
 
     // Danh sách các hàng có thể chỉnh sửa
@@ -439,6 +442,53 @@ const useProfitReportData = (selectedYear) => {
         const fetchData = async () => {
             setLoading(true);
 
+            // ======================================================================
+            // ✅ BƯỚC 1: THÊM LẠI ĐOẠN CODE TÍNH TỔNG CHỈ TIÊU TẠI ĐÂY
+            // ======================================================================
+            let summedTargets = {
+                revenueTargetXayDung: 0,
+                profitTargetXayDung: 0,
+                revenueTargetSanXuat: 0,
+                profitTargetSanXuat: 0,
+                revenueTargetDauTu: 0,
+                profitTargetDauTu: 0,
+            };
+
+            const quarters = ["Q1", "Q2", "Q3", "Q4"];
+           // Thay thế toàn bộ vòng lặp for cũ bằng vòng lặp này
+
+for (const quarter of quarters) {
+    try {
+        const quarterlyReportDoc = await getDoc(
+            doc(db, "profitReports", `${selectedYear}_${quarter}`)
+        );
+
+        if (quarterlyReportDoc.exists()) {
+            const quarterlyData = quarterlyReportDoc.data();
+            
+            // Lấy object summaryTargets từ dữ liệu của quý
+            const targetsForQuarter = quarterlyData.summaryTargets || {};
+
+            // Cộng dồn đúng trường chỉ tiêu
+            summedTargets.revenueTargetXayDung += toNum(targetsForQuarter.revenueTargetXayDung);
+            summedTargets.profitTargetXayDung += toNum(targetsForQuarter.profitTargetXayDung);
+
+            summedTargets.revenueTargetSanXuat += toNum(targetsForQuarter.revenueTargetSanXuat);
+            summedTargets.profitTargetSanXuat += toNum(targetsForQuarter.profitTargetSanXuat);
+
+            summedTargets.revenueTargetDauTu += toNum(targetsForQuarter.revenueTargetDauTu);
+            summedTargets.profitTargetDauTu += toNum(targetsForQuarter.profitTargetDauTu);
+        }
+    } catch (error) {
+        console.error(
+            `Lỗi khi đọc báo cáo quý ${quarter}/${selectedYear}:`,
+            error
+        );
+    }
+}
+            setInitialSummaryTargets(summedTargets);
+            // ✅ KẾT THÚC THAY ĐỔI
+            // ======================================================================
             // Load dữ liệu các hàng có thể chỉnh sửa đã lưu
             try {
                 const editableDoc = await getDoc(
@@ -510,6 +560,10 @@ const useProfitReportData = (selectedYear) => {
             const savedRowsData = savedReportDoc.exists()
                 ? savedReportDoc.data().rows
                 : [];
+// ======================================================================
+// ✅ VỊ TRÍ 1: TỐT NHẤT ĐỂ KIỂM TRA DỮ LIỆU GỐC
+console.log(`Dữ liệu gốc từ 'profitReports/${selectedYear}':`, savedRowsData);
+// ======================================================================
             const projects = await Promise.all(
                 projectsSnapshot.docs.map(async (d) => {
                     const data = d.data();
@@ -808,7 +862,7 @@ const useProfitReportData = (selectedYear) => {
         };
 
         fetchData();
-    }, [selectedYear]);
+    }, [selectedYear, runAllCalculations]);
 
     // UseEffect riêng để cập nhật rows khi editableRows thay đổi
     useEffect(() => {
@@ -856,29 +910,37 @@ const useProfitReportData = (selectedYear) => {
                 }
 
                 // Tính toán cho "a. THỰC CHI THƯỞNG THEO XẾP LOẠI ABCD"
-const idxThucChiThuong = updatedRows.findIndex(
-    (r) => r.name === "a. THỰC CHI THƯỞNG THEO XẾP LOẠI ABCD"
-);
-const idxTrichThuongNV = updatedRows.findIndex(
-    (r) => r.name === `1. TRÍCH THƯỞNG NHÂN VIÊN NĂM ${selectedYear}`
-);
-const idxTrich50BP = updatedRows.findIndex(
-    (r) => r.name === "b. TRÍCH 50% THƯỞNG CÁC BP"
-);
-const idxThuLuongSale = updatedRows.findIndex(
-    (r) => r.name === "d. THU LƯƠNG TẠM ỨNG SALE"
-);
+                const idxThucChiThuong = updatedRows.findIndex(
+                    (r) => r.name === "a. THỰC CHI THƯỞNG THEO XẾP LOẠI ABCD"
+                );
+                const idxTrichThuongNV = updatedRows.findIndex(
+                    (r) =>
+                        r.name ===
+                        `1. TRÍCH THƯỞNG NHÂN VIÊN NĂM ${selectedYear}`
+                );
+                const idxTrich50BP = updatedRows.findIndex(
+                    (r) => r.name === "b. TRÍCH 50% THƯỞNG CÁC BP"
+                );
+                const idxThuLuongSale = updatedRows.findIndex(
+                    (r) => r.name === "d. THU LƯƠNG TẠM ỨNG SALE"
+                );
 
-if (idxThucChiThuong !== -1 && idxTrichThuongNV !== -1 && idxTrich50BP !== -1 && idxThuLuongSale !== -1) {
-    const thucChiThuong = toNum(updatedRows[idxTrichThuongNV].profit) - 
-                          toNum(updatedRows[idxTrich50BP].profit) - 
-                          toNum(updatedRows[idxThuLuongSale].profit);
-    
-    updatedRows[idxThucChiThuong] = {
-        ...updatedRows[idxThucChiThuong],
-        profit: thucChiThuong
-    };
-}
+                if (
+                    idxThucChiThuong !== -1 &&
+                    idxTrichThuongNV !== -1 &&
+                    idxTrich50BP !== -1 &&
+                    idxThuLuongSale !== -1
+                ) {
+                    const thucChiThuong =
+                        toNum(updatedRows[idxTrichThuongNV].profit) -
+                        toNum(updatedRows[idxTrich50BP].profit) -
+                        toNum(updatedRows[idxThuLuongSale].profit);
+
+                    updatedRows[idxThucChiThuong] = {
+                        ...updatedRows[idxThucChiThuong],
+                        profit: thucChiThuong,
+                    };
+                }
 
                 setRows(updatedRows);
             }
@@ -888,6 +950,7 @@ if (idxThucChiThuong !== -1 && idxTrichThuongNV !== -1 && idxTrich50BP !== -1 &&
     return {
         rows,
         loading,
+        initialSummaryTargets,
         editableRows,
         updateEditableRow,
         saveEditableData,
@@ -899,15 +962,53 @@ export default function ProfitReportYear() {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [tvMode, setTvMode] = useState(true);
 
+    // ✅ SỬA LẠI PHẦN NÀY: LẤY `initialSummaryTargets` từ hook
     const {
         rows,
         loading,
+        initialSummaryTargets, // Lấy dữ liệu chỉ tiêu ban đầu từ hook
         editableRows,
         updateEditableRow,
         saveEditableData,
         editableRowNames,
     } = useProfitReportData(selectedYear);
+    const [summaryTargets, setSummaryTargets] = useState({});
 
+    // ✅ DÙNG useEffect ĐỂ CẬP NHẬT STATE KHI DỮ LIỆU TỪ HOOK THAY ĐỔI
+    useEffect(() => {
+        // Kiểm tra để đảm bảo initialSummaryTargets có dữ liệu
+        if (Object.keys(initialSummaryTargets).length > 0) {
+            setSummaryTargets(initialSummaryTargets);
+        }
+    }, [initialSummaryTargets]);
+
+    const handleTargetChange = (key, value) => {
+        setSummaryTargets((prevTargets) => ({
+            ...prevTargets,
+            [key]: value,
+        }));
+        // TODO: Tại đây bạn có thể thêm hàm để lưu `summaryTargets` mới vào Firestore
+        // Ví dụ: saveTargetsToFirestore(selectedYear, { ...summaryTargets, [key]: value });
+    };
+    // ✅ BƯỚC 1: THÊM ĐOẠN CODE NÀY ĐỂ CHUẨN BỊ DỮ LIỆU
+    const summaryData = React.useMemo(() => {
+        const constructionRow =
+            rows.find((r) => r.name === "I. XÂY DỰNG") || {};
+        const productionRow = rows.find((r) => r.name === "II. SẢN XUẤT") || {};
+        const investmentRow = rows.find((r) => r.name === "III. ĐẦU TƯ") || {};
+
+        return {
+            revenueXayDung: constructionRow.revenue,
+            profitXayDung: constructionRow.profit,
+            costOverXayDung: constructionRow.costOverCumulative,
+            revenueSanXuat: productionRow.revenue,
+            profitSanXuat: productionRow.profit,
+            costOverSanXuat: productionRow.costOverCumulative,
+            revenueDauTu: investmentRow.revenue,
+            profitDauTu: investmentRow.profit,
+            costOverDauTu: investmentRow.costOverCumulative,
+        };
+    }, [rows]);
     const cellStyle = {
         minWidth: tvMode ? 90 : 110,
         fontSize: tvMode ? 16 : { xs: 12, sm: 14 },
@@ -1104,6 +1205,13 @@ export default function ProfitReportYear() {
                         </Button>
                     </Stack>
                 </Box>
+                <ProfitSummaryTable
+                    data={summaryData}
+                    targets={summaryTargets}
+                    onTargetChange={handleTargetChange}
+                    isYearlyReport={true} // <--- Đã thêm lại prop này
+                />
+
                 <TableContainer
                     sx={{
                         maxHeight: "75vh",
