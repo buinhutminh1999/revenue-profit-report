@@ -1,750 +1,1163 @@
-// src/pages/ConstructionPayables.js
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from "react";
 import {
-    Container,
-    Typography,
-    Card,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     Box,
-    Stack,
-    Select,
-    MenuItem,
+    Typography,
+    Paper,
     FormControl,
     InputLabel,
-    Button,
-    Chip,
-    CircularProgress,
+    Select,
+    MenuItem,
+    Stack,
     Alert,
-    Snackbar,
-    Checkbox,
-    ListItemText,
-    OutlinedInput,
+    Grid,
+    Drawer,
+    IconButton,
     Divider,
-} from '@mui/material';
-import { alpha } from '@mui/material/styles';
-import { FileDown, BookCopy, RefreshCw, Building2 } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../services/firebase-config';
+    Chip,
+    Skeleton,
+    Button,
+    CircularProgress,
+} from "@mui/material";
+import {
+    DataGrid,
+    GridToolbarContainer,
+    GridToolbarQuickFilter,
+} from "@mui/x-data-grid";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+import { alpha, styled, useTheme } from "@mui/material/styles";
+import {
+    ArchiveOutlined,
+    TrendingUp,
+    TrendingDown,
+    AttachMoney,
+    ErrorOutline,
+    Close as CloseIcon,
+    ChevronRight as ChevronRightIcon,
+    LockClock as CloseQuarterIcon,
+} from "@mui/icons-material";
+import { NumericFormat } from "react-number-format";
+import { useQuery } from "react-query";
+import { db } from "../services/firebase-config";
+import {
+    collection,
+    doc,
+    getDocs,
+    getDoc,
+    query,
+    orderBy,
+    onSnapshot,
+} from "firebase/firestore";
+import { toNum } from "../utils/numberUtils";
 
-// Firebase Service Functions
-const getAvailableProjects = async () => {
-    try {
-        const projectsCollection = collection(db, 'projects');
-        const querySnapshot = await getDocs(projectsCollection);
-        
-        const projects = [];
-        querySnapshot.forEach((doc) => {
-            projects.push({
-                id: doc.id,
-                name: doc.data().name || doc.id,
-                description: doc.data().description || 'Không có mô tả'
-            });
-        });
-        
-        return projects;
-    } catch (error) {
-        console.error('Lỗi khi lấy danh sách dự án:', error);
-        return [];
-    }
-};
+// ===== IMPORT CÁC CÔNG CỤ CẦN THIẾT TỪ FIREBASE =====
+import { getApp } from "firebase/app";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
-const getConstructionPayables = async (projectId, year, quarter) => {
-    try {
-        const quarterPath = `projects/${projectId}/years/${year}/quarters/Q${quarter}`;
-        const payablesCollection = collection(db, quarterPath);
-        
-        const querySnapshot = await getDocs(payablesCollection);
-        
-        const payables = [];
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            
-            const payableItem = {
-                id: data.project || doc.id,
-                projectId: projectId,
-                year: year,
-                quarter: quarter,
-                description: data.description || 'Không có mô tả',
-                openingBalance: parseFloat(data.debt) || 0,
-                increase: parseFloat(data.carryover) || 0,
-                decrease: parseFloat(data.carryoverMinus) || 0,
-                carryoverEnd: parseFloat(data.carryoverEnd) || 0,
-                cpUot: parseFloat(data.cpUot) || 0,
-                directCost: parseFloat(data.directCost) || 0,
-                hash: data.hash || '',
-                inventory: parseFloat(data.inventory) || 0,
-                noPhaiTraCk: parseFloat(data.noPhaiTraCk) || 0,
-                revenue: parseFloat(data.revenue) || 0,
-                tonKhoUocK: parseFloat(data.tonKhoUocK) || 0,
-                totalCost: parseFloat(data.totalCost) || 0
-            };
-            
-            payables.push(payableItem);
-        });
-        
-        return payables;
-    } catch (error) {
-        console.error(`Lỗi khi lấy dữ liệu construction payables cho ${projectId}:`, error);
-        return [];
-    }
-};
 
-const getAvailableYears = async (projectId) => {
-    try {
-        const yearsCollection = collection(db, `projects/${projectId}/years`);
-        const querySnapshot = await getDocs(yearsCollection);
-        
-        const years = [];
-        querySnapshot.forEach((doc) => {
-            years.push(parseInt(doc.id));
-        });
-        
-        return years.sort((a, b) => b - a);
-    } catch (error) {
-        console.error(`Lỗi khi lấy danh sách năm cho ${projectId}:`, error);
-        return [];
-    }
-};
-
-const getAvailableQuarters = async (projectId, year) => {
-    try {
-        const quartersCollection = collection(db, `projects/${projectId}/years/${year}/quarters`);
-        const querySnapshot = await getDocs(quartersCollection);
-        
-        const quarters = [];
-        querySnapshot.forEach((doc) => {
-            const quarterId = doc.id;
-            if (quarterId.startsWith('Q')) {
-                quarters.push(parseInt(quarterId.substring(1)));
-            }
-        });
-        
-        return quarters.sort((a, b) => a - b);
-    } catch (error) {
-        console.error(`Lỗi khi lấy danh sách quý cho ${projectId}:`, error);
-        return [];
-    }
-};
-
-const getMultiplePayables = async (projectIds, years, quarters) => {
-    try {
-        const allPayables = [];
-        
-        for (const projectId of projectIds) {
-            for (const year of years) {
-                for (const quarter of quarters) {
-                    const payables = await getConstructionPayables(projectId, year, quarter);
-                    allPayables.push(...payables);
-                }
-            }
-        }
-        
-        return allPayables;
-    } catch (error) {
-        console.error('Lỗi khi lấy dữ liệu từ nhiều dự án:', error);
-        throw error;
-    }
-};
-
-const getPayablesSummary = (payables) => {
-    const summary = {
-        totalProjects: new Set(payables.map(item => item.projectId)).size,
-        totalRecords: payables.length,
-        totalOpeningBalance: payables.reduce((sum, item) => sum + item.openingBalance, 0),
-        totalIncrease: payables.reduce((sum, item) => sum + item.increase, 0),
-        totalDecrease: payables.reduce((sum, item) => sum + item.decrease, 0),
-        totalEndingBalance: payables.reduce((sum, item) => sum + (item.openingBalance + item.increase - item.decrease), 0)
-    };
-    
-    return summary;
-};
-
-// Utility Functions
-const formatCurrency = (value) => {
-    if (typeof value !== 'number') return '0';
-    return new Intl.NumberFormat('vi-VN').format(value);
-};
-
-const formatSignedCurrency = (value) => {
-    if (typeof value !== 'number' || value === 0) return '0';
-    const formatted = new Intl.NumberFormat('vi-VN').format(value);
-    return value > 0 ? `+${formatted}` : formatted;
-};
-
-const ITEM_HEIGHT = 48;
-const ITEM_PADDING_TOP = 8;
-const MenuProps = {
-    PaperProps: {
-        style: {
-            maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
-            width: 250,
+const StyledDataGrid = styled(DataGrid)(({ theme }) => ({
+    border: 0,
+    "& .MuiDataGrid-columnHeaders": {
+        backgroundColor: alpha(theme.palette.grey[500], 0.08),
+        color: theme.palette.text.primary,
+        textTransform: "uppercase",
+        fontSize: "0.75rem",
+        fontWeight: "600",
+    },
+    "& .MuiDataGrid-cell": {
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        display: "flex",
+        alignItems: "center",
+        transition: "padding 0.2s ease-in-out",
+    },
+    "& .MuiDataGrid-iconSeparator": { display: "none" },
+    "& .MuiDataGrid-row:hover": {
+        cursor: "pointer",
+        backgroundColor: alpha(theme.palette.primary.light, 0.1),
+    },
+    "& .MuiDataGrid-row:nth-of-type(even)": {
+        backgroundColor: theme.palette.action.hover,
+    },
+    "& .summary-row": {
+        backgroundColor: alpha(theme.palette.primary.light, 0.1),
+        "& .MuiDataGrid-cell": {
+            fontWeight: "bold",
         },
     },
+    "& .detail-row": {
+        borderLeft: `2px solid ${theme.palette.primary.light}`,
+        "& .MuiDataGrid-cell:first-of-type": {
+            paddingLeft: "2.5rem !important",
+        },
+    },
+    "& .grand-total-row": {
+        backgroundColor: alpha(theme.palette.grey[500], 0.12),
+        "& .MuiDataGrid-cell": {
+            fontWeight: "bold",
+            borderTop: `2px solid ${theme.palette.divider}`,
+        },
+    },
+}));
+
+const SummaryCard = ({ title, amount, icon, color, loading }) => (
+    <Paper
+        elevation={0}
+        sx={{
+            p: 3,
+            borderRadius: 4,
+            boxShadow:
+                "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px",
+            transition: "box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1) 0ms",
+            "&:hover": {
+                boxShadow: "rgba(145, 158, 171, 0.16) 0px 8px 16px 0px",
+            },
+        }}
+    >
+        {loading ? (
+            <>
+                <Skeleton variant="circular" width={48} height={48} />
+                <Skeleton
+                    variant="text"
+                    sx={{ mt: 1.5, width: "80%", height: 20 }}
+                />
+                <Skeleton variant="text" sx={{ width: "60%", height: 32 }} />
+            </>
+        ) : (
+            <Stack direction="row" alignItems="center" spacing={2.5}>
+                <Box
+                    sx={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        bgcolor: alpha(color.main, 0.12),
+                        color: color.main,
+                    }}
+                >
+                    {icon}
+                </Box>
+                <Box>
+                    <Typography variant="subtitle1" fontWeight="600">
+                        {title}
+                    </Typography>
+                    <CurrencyDisplay
+                        value={amount}
+                        typographyProps={{
+                            variant: "h4",
+                            component: "p",
+                            fontWeight: "700",
+                        }}
+                    />
+                </Box>
+            </Stack>
+        )}
+    </Paper>
+);
+
+const fetchPayables = async (year, quarter) => {
+    if (!year || !quarter) return [];
+    const quarterString = `Q${quarter}`;
+    try {
+        const projectsSnapshot = await getDocs(collection(db, "projects"));
+        const projects = projectsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            name: doc.data().name,
+        }));
+        const promises = projects.map((project) => {
+            const docPath = `projects/${project.id}/years/${year}/quarters/${quarterString}`;
+            return getDoc(doc(db, docPath)).then((docSnap) => ({
+                docSnap,
+                projectId: project.id,
+                projectName: project.name,
+            }));
+        });
+        const results = await Promise.all(promises);
+        return results.flatMap(({ docSnap, projectId, projectName }) => {
+            if (docSnap.exists() && Array.isArray(docSnap.data().items)) {
+                const quarterlyOverallRevenue = toNum(
+                    docSnap.data().overallRevenue
+                );
+
+                return docSnap.data().items.map((item, index) => ({
+                    ...item,
+                    _id: `${docSnap.ref.path}-${index}`,
+                    projectId: projectId,
+                    projectDisplayName: projectName,
+                    quarterlyOverallRevenue: quarterlyOverallRevenue,
+                }));
+            }
+            return [];
+        });
+    } catch (error) {
+        console.error("Error fetching payables:", error);
+        throw new Error("Failed to fetch data from Firestore");
+    }
 };
 
-// Main Component
-export default function ConstructionPayables() {
-    const [payables, setPayables] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [summary, setSummary] = useState(null);
-    
-    // State cho bộ lọc
-    const [selectedProjects, setSelectedProjects] = useState([]);
-    const [selectedYears, setSelectedYears] = useState([new Date().getFullYear()]);
-    const [selectedQuarters, setSelectedQuarters] = useState([Math.floor(new Date().getMonth() / 3) + 1]);
-    
-    // Danh sách có sẵn
-    const [availableProjects, setAvailableProjects] = useState([]);
-    const [availableYears, setAvailableYears] = useState([]);
-    const [availableQuarters, setAvailableQuarters] = useState([1, 2, 3, 4]);
+const CustomToolbar = () => (
+    <GridToolbarContainer sx={{ p: 2, pb: 1, justifyContent: "space-between" }}>
+        <Typography variant="h6" fontWeight="600">
+            Bảng tổng hợp công nợ
+        </Typography>
+        <GridToolbarQuickFilter
+            variant="outlined"
+            size="small"
+            placeholder="Tìm kiếm..."
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: "8px" } }}
+        />
+    </GridToolbarContainer>
+);
 
-    // Snackbar state
-    const [snackbar, setSnackbar] = useState({
-        open: false,
-        message: '',
-        severity: 'success'
-    });
+const CurrencyDisplay = ({ value, typographyProps = {} }) => (
+    <Typography {...typographyProps}>
+        <NumericFormat
+            value={toNum(value)}
+            displayType="text"
+            thousandSeparator=","
+        />
+    </Typography>
+);
 
-    // Lấy danh sách dự án có sẵn khi component mount
-    useEffect(() => {
-        const fetchAvailableProjects = async () => {
-            try {
-                const projects = await getAvailableProjects();
-                setAvailableProjects(projects);
-                
-                // Tự động chọn dự án đầu tiên nếu có
-                if (projects.length > 0) {
-                    setSelectedProjects([projects[0].id]);
-                }
-            } catch (error) {
-                console.error('Lỗi khi lấy danh sách dự án:', error);
-                setError('Không thể tải danh sách dự án');
-            }
-        };
+const DetailStatCard = ({ title, value, color }) => (
+    <Paper
+        variant="outlined"
+        sx={{ p: 2, textAlign: "center", borderColor: alpha(color, 0.3) }}
+    >
+        <Typography variant="caption" color="text.secondary" display="block">
+            {title}
+        </Typography>
+        <CurrencyDisplay
+            value={value}
+            typographyProps={{ fontWeight: "bold", color: color }}
+        />
+    </Paper>
+);
 
-        fetchAvailableProjects();
+const NoRowsOverlay = () => (
+    <Stack
+        height="100%"
+        alignItems="center"
+        justifyContent="center"
+        sx={{ color: "text.secondary" }}
+    >
+        <Typography variant="body2">
+            Không có dữ liệu cho Quý và Năm đã chọn.
+        </Typography>
+    </Stack>
+);
+
+const ConstructionPayables = () => {
+    const theme = useTheme();
+    const currentYear = new Date().getFullYear();
+    const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
+    const quarterOptions = [
+        { value: 1, label: "Quý 1" },
+        { value: 2, label: "Quý 2" },
+        { value: 3, label: "Quý 3" },
+        { value: 4, label: "Quý 4" },
+    ];
+
+    const [selectedYear, setSelectedYear] = useState(currentYear);
+    const [selectedQuarter, setSelectedQuarter] = useState(1);
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [selectedProject, setSelectedProject] = useState(null);
+    const [categories, setCategories] = useState([]);
+    const [expandedGroups, setExpandedGroups] = useState([]);
+
+    // ===== BƯỚC 1: THÊM STATE VÀ LOGIC CHO CHỨC NĂNG KHÓA SỔ =====
+    const [isClosing, setIsClosing] = useState(false);
+    const [closeResult, setCloseResult] = useState(null);
+
+    const callCloseQuarterFunction = useMemo(() => {
+        const functions = getFunctions(getApp(), "asia-southeast1");
+        return httpsCallable(functions, 'manualCloseQuarter');
     }, []);
 
-    // Lấy danh sách năm có sẵn khi dự án thay đổi
-    useEffect(() => {
-        const fetchAvailableYears = async () => {
-            if (selectedProjects.length > 0) {
-                try {
-                    const allYears = new Set();
-                    
-                    for (const projectId of selectedProjects) {
-                        const years = await getAvailableYears(projectId);
-                        years.forEach(year => allYears.add(year));
-                    }
-                    
-                    const yearsArray = Array.from(allYears).sort((a, b) => b - a);
-                    setAvailableYears(yearsArray);
-                    
-                    // Cập nhật selectedYears nếu cần
-                    if (yearsArray.length > 0) {
-                        const validYears = selectedYears.filter(year => yearsArray.includes(year));
-                        if (validYears.length === 0) {
-                            setSelectedYears([yearsArray[0]]);
-                        } else {
-                            setSelectedYears(validYears);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Lỗi khi lấy danh sách năm:', error);
-                    setAvailableYears([]);
-                }
-            }
-        };
+    const handleCloseQuarter = async () => {
+        const isConfirmed = window.confirm(
+            `Bạn có chắc chắn muốn khoá sổ Quý ${selectedQuarter} / ${selectedYear} không?\n` +
+            "Hành động này sẽ ghi đè dữ liệu đầu kỳ của quý tiếp theo."
+        );
 
-        fetchAvailableYears();
-    }, [selectedProjects]);
-
-    // Lấy danh sách quý có sẵn khi dự án và năm thay đổi
-    useEffect(() => {
-        const fetchAvailableQuarters = async () => {
-            if (selectedProjects.length > 0 && selectedYears.length > 0) {
-                try {
-                    const allQuarters = new Set();
-                    
-                    for (const projectId of selectedProjects) {
-                        for (const year of selectedYears) {
-                            const quarters = await getAvailableQuarters(projectId, year);
-                            quarters.forEach(quarter => allQuarters.add(quarter));
-                        }
-                    }
-                    
-                    const quartersArray = Array.from(allQuarters).sort((a, b) => a - b);
-                    setAvailableQuarters(quartersArray);
-                    
-                    // Cập nhật selectedQuarters nếu cần
-                    if (quartersArray.length > 0) {
-                        const validQuarters = selectedQuarters.filter(quarter => quartersArray.includes(quarter));
-                        if (validQuarters.length === 0) {
-                            setSelectedQuarters([quartersArray[0]]);
-                        } else {
-                            setSelectedQuarters(validQuarters);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Lỗi khi lấy danh sách quý:', error);
-                    setAvailableQuarters([1, 2, 3, 4]);
-                }
-            }
-        };
-
-        fetchAvailableQuarters();
-    }, [selectedProjects, selectedYears]);
-
-    // Lấy dữ liệu payables khi các bộ lọc thay đổi
-    useEffect(() => {
-        const fetchPayables = async () => {
-            if (selectedProjects.length === 0 || selectedYears.length === 0 || selectedQuarters.length === 0) {
-                setPayables([]);
-                setSummary(null);
-                setLoading(false);
-                return;
-            }
-
-            setLoading(true);
-            setError(null);
-
+        if (isConfirmed) {
+            setIsClosing(true);
+            setCloseResult(null);
             try {
-                console.log('Đang lấy dữ liệu cho:', {
-                    projects: selectedProjects,
-                    years: selectedYears,
-                    quarters: selectedQuarters
-                });
-                
-                const payablesData = await getMultiplePayables(selectedProjects, selectedYears, selectedQuarters);
-                const summaryData = getPayablesSummary(payablesData);
-
-                setPayables(payablesData);
-                setSummary(summaryData);
-                
-                setSnackbar({
-                    open: true,
-                    message: `Đã tải thành công ${payablesData.length} bản ghi từ ${summaryData.totalProjects} dự án`,
-                    severity: 'success'
-                });
-
+                const response = await callCloseQuarterFunction({ year: selectedYear, quarter: selectedQuarter });
+                setCloseResult({ success: true, message: response.data.message });
             } catch (error) {
-                console.error('Lỗi khi lấy dữ liệu:', error);
-                setError('Không thể tải dữ liệu. Vui lòng thử lại.');
-                setPayables([]);
-                setSummary(null);
-                
-                setSnackbar({
-                    open: true,
-                    message: 'Lỗi khi tải dữ liệu',
-                    severity: 'error'
-                });
-            } finally {
-                setLoading(false);
+                console.error("Lỗi khi khóa sổ:", error);
+                setCloseResult({ success: false, message: `Lỗi: ${error.message}` });
             }
+            setIsClosing(false);
+        }
+    };
+
+    useEffect(() => {
+        const q = query(collection(db, "categories"), orderBy("order", "asc"));
+        const unsub = onSnapshot(q, (snap) => {
+            const fetchedCategories = snap.docs.map((d) => ({
+                id: d.id,
+                ...d.data(),
+            }));
+            setCategories(fetchedCategories);
+        });
+        return () => unsub();
+    }, []);
+
+    const {
+        data: payablesData,
+        isLoading,
+        isError,
+    } = useQuery(
+        ["payables", selectedYear, selectedQuarter],
+        () => fetchPayables(selectedYear, selectedQuarter),
+        {
+            staleTime: 5 * 60 * 1000,
+            keepPreviousData: true,
+            onSuccess: () => {
+                setDrawerOpen(false);
+                setSelectedProject(null);
+                setExpandedGroups([]);
+            },
+        }
+    );
+    const processedData = useMemo(() => {
+        if (!payablesData) return [];
+        const projectsMap = new Map();
+
+        payablesData.forEach((item) => {
+            const creditValue =
+                item.quarterlyOverallRevenue === 0
+                    ? toNum(item.directCost)
+                    : toNum(item.debt);
+
+            const dauKyNo = toNum(item.debt);
+            const dauKyCo = toNum(item.openingCredit);
+            const psNo = toNum(item.noPhaiTraCK);
+            const psGiam = creditValue;
+
+            const cuoiKyNo = Math.max(dauKyNo + psNo - psGiam - dauKyCo, 0);
+            const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
+
+            if (!projectsMap.has(item.projectId)) {
+                projectsMap.set(item.projectId, {
+                    _id: item.projectId,
+                    projectId: item.projectId,
+                    project: item.projectDisplayName,
+                    debt: 0,
+                    openingCredit: 0,
+                    debit: 0,
+                    credit: 0,
+                    tonCuoiKy: 0,
+                    carryover: 0,
+                });
+            }
+
+            const projectSummary = projectsMap.get(item.projectId);
+            projectSummary.debt += dauKyNo;
+            projectSummary.openingCredit += dauKyCo;
+            projectSummary.debit += psNo;
+            projectSummary.credit += psGiam;
+            projectSummary.tonCuoiKy += cuoiKyNo;
+            projectSummary.carryover += cuoiKyCo;
+        });
+
+        return Array.from(projectsMap.values());
+    }, [payablesData]);
+
+    const summaryData = useMemo(
+        () =>
+            processedData.reduce(
+                (acc, row) => {
+                    acc.opening += toNum(row.debt);
+                    acc.debit += toNum(row.debit);
+                    acc.credit += toNum(row.credit);
+                    acc.closing += toNum(row.tonCuoiKy);
+                    return acc;
+                },
+                { opening: 0, debit: 0, credit: 0, closing: 0 }
+            ),
+        [processedData]
+    );
+    const handleRowClick = (params) => {
+        setSelectedProject(params.row);
+        setDrawerOpen(true);
+    };
+    const handleDrawerClose = () => setDrawerOpen(false);
+
+    const mainColumns = [
+        {
+            field: "project",
+            headerName: "Tên Công Trình",
+            minWidth: 300,
+            flex: 1,
+            renderCell: (params) => (
+                <Typography fontWeight={500}>{params.value}</Typography>
+            ),
+        },
+        {
+            field: "debt",
+            headerName: "Đầu Kỳ Nợ",
+            type: "number",
+            width: 150,
+            align: "right",
+            headerAlign: "right",
+            renderCell: (params) => (
+                <CurrencyDisplay
+                    value={params.value}
+                    typographyProps={{ style: { fontSize: "0.875rem" } }}
+                />
+            ),
+        },
+        {
+            field: "openingCredit",
+            headerName: "Đầu Kỳ Có",
+            type: "number",
+            width: 150,
+            align: "right",
+            headerAlign: "right",
+            renderCell: (params) => (
+                <CurrencyDisplay
+                    value={params.value}
+                    typographyProps={{ style: { fontSize: "0.875rem" } }}
+                />
+            ),
+        },
+        {
+            field: "debit",
+            headerName: "PS Nợ",
+            type: "number",
+            width: 160,
+            align: "right",
+            headerAlign: "right",
+            renderCell: (params) =>
+                params.value > 0 ? (
+                    <Chip
+                        label={
+                            <NumericFormat
+                                value={toNum(params.value)}
+                                displayType="text"
+                                thousandSeparator=","
+                            />
+                        }
+                        color="warning"
+                        variant="light"
+                        size="small"
+                    />
+                ) : (
+                    <CurrencyDisplay
+                        value={0}
+                        typographyProps={{ style: { fontSize: "0.875rem" } }}
+                    />
+                ),
+        },
+        {
+            field: "credit",
+            headerName: "PS Giảm",
+            type: "number",
+            width: 160,
+            align: "right",
+            headerAlign: "right",
+            renderCell: (params) =>
+                params.value > 0 ? (
+                    <Chip
+                        label={
+                            <NumericFormat
+                                value={toNum(params.value)}
+                                displayType="text"
+                                thousandSeparator=","
+                            />
+                        }
+                        color="success"
+                        variant="light"
+                        size="small"
+                    />
+                ) : (
+                    <CurrencyDisplay
+                        value={0}
+                        typographyProps={{ style: { fontSize: "0.875rem" } }}
+                    />
+                ),
+        },
+
+        {
+            field: "tonCuoiKy",
+            headerName: "Cuối Kỳ Nợ",
+            type: "number",
+            width: 150,
+            align: "right",
+            headerAlign: "right",
+            renderCell: (params) => (
+                <CurrencyDisplay
+                    value={params.value}
+                    typographyProps={{
+                        fontWeight: "bold",
+                        style: { fontSize: "0.875rem" },
+                    }}
+                />
+            ),
+        },
+        {
+            field: "carryover",
+            headerName: "Cuối Kỳ Có",
+            type: "number",
+            width: 150,
+            align: "right",
+            headerAlign: "right",
+            renderCell: (params) => (
+                <CurrencyDisplay
+                    value={params.value}
+                    typographyProps={{
+                        fontWeight: "bold",
+                        style: { fontSize: "0.875rem" },
+                    }}
+                />
+            ),
+        },
+        {
+            field: "actions",
+            type: "actions",
+            headerName: "",
+            width: 60,
+            align: "center",
+            renderCell: () => <ChevronRightIcon color="action" />,
+        },
+    ];
+    const detailItems = useMemo(() => {
+        if (!selectedProject || !payablesData) return [];
+        return payablesData.filter(
+            (item) => item.projectId === selectedProject.projectId
+        );
+    }, [selectedProject, payablesData]);
+    const sortedDetailItems = useMemo(() => {
+        if (categories.length === 0 || detailItems.length === 0)
+            return detailItems;
+        const categoryOrderMap = new Map(
+            categories.map((cat, index) => [cat.label, index])
+        );
+        return [...detailItems].sort((a, b) => {
+            const orderA = categoryOrderMap.get(a.description) ?? Infinity;
+            const orderB = categoryOrderMap.get(b.description) ?? Infinity;
+            return orderA - orderB;
+        });
+    }, [detailItems, categories]);
+
+    const detailDataWithGroups = useMemo(() => {
+        if (sortedDetailItems.length === 0) return [];
+        const result = [];
+        const groupedByProject = sortedDetailItems.reduce((acc, item) => {
+            const key = item.project;
+            (acc[key] = acc[key] || []).push(item);
+            return acc;
+        }, {});
+
+        for (const projectKey in groupedByProject) {
+            const itemsInGroup = groupedByProject[projectKey];
+            const summaryId = `summary-${projectKey}`;
+
+            if (itemsInGroup.length > 1) {
+                const summaryRow = itemsInGroup.reduce(
+                    (sum, item) => {
+                        const creditValue =
+                            item.quarterlyOverallRevenue === 0
+                                ? toNum(item.directCost)
+                                : toNum(item.debt);
+                        sum.debt += toNum(item.debt);
+                        sum.openingCredit += toNum(item.openingCredit);
+                        sum.noPhaiTraCK += toNum(item.noPhaiTraCK);
+                        sum.credit += creditValue;
+                        return sum;
+                    },
+                    {
+                        _id: summaryId,
+                        project: projectKey,
+                        description: "Tổng hợp",
+                        debt: 0,
+                        openingCredit: 0,
+                        noPhaiTraCK: 0,
+                        credit: 0,
+                        isSummary: true,
+                    }
+                );
+
+                summaryRow.closingDebt = Math.max(
+                    summaryRow.debt +
+                    summaryRow.noPhaiTraCK -
+                    summaryRow.credit -
+                    summaryRow.openingCredit,
+                    0
+                );
+                summaryRow.closingCredit = Math.max(
+                    summaryRow.openingCredit +
+                    summaryRow.credit -
+                    summaryRow.debt -
+                    summaryRow.noPhaiTraCK,
+                    0
+                );
+
+                result.push(summaryRow);
+
+                itemsInGroup.forEach((item) => {
+                    const creditValue =
+                        item.quarterlyOverallRevenue === 0
+                            ? toNum(item.directCost)
+                            : toNum(item.debt);
+
+                    result.push({
+                        ...item,
+                        parentId: summaryId,
+                        credit: creditValue,
+                        closingDebt: Math.max(
+                            toNum(item.debt) +
+                            toNum(item.noPhaiTraCK) -
+                            creditValue -
+                            toNum(item.openingCredit),
+                            0
+                        ),
+                        closingCredit: Math.max(
+                            toNum(item.openingCredit) +
+                            creditValue -
+                            toNum(item.debt) -
+                            toNum(item.noPhaiTraCK),
+                            0
+                        ),
+                    });
+                });
+            } else {
+                const singleItem = itemsInGroup[0];
+                const creditValue =
+                    singleItem.quarterlyOverallRevenue === 0
+                        ? toNum(singleItem.directCost)
+                        : toNum(singleItem.debt);
+
+                result.push({
+                    ...singleItem,
+                    isSingle: true,
+                    credit: creditValue,
+                    closingDebt: Math.max(
+                        toNum(singleItem.debt) +
+                        toNum(singleItem.noPhaiTraCK) -
+                        creditValue -
+                        toNum(singleItem.openingCredit),
+                        0
+                    ),
+                    closingCredit: Math.max(
+                        toNum(singleItem.openingCredit) +
+                        creditValue -
+                        toNum(singleItem.debt) -
+                        toNum(singleItem.noPhaiTraCK),
+                        0
+                    ),
+                });
+            }
+        }
+        return result;
+    }, [sortedDetailItems]);
+    const displayRows = useMemo(() => {
+        const currentRows = detailDataWithGroups.filter((row) => {
+            if (row.isSummary || row.isSingle) return true;
+            return expandedGroups.includes(row.parentId);
+        });
+
+        if (currentRows.length === 0) {
+            return [];
+        }
+
+        const grandTotal = detailDataWithGroups.reduce(
+            (acc, row) => {
+                if (!row.isSummary) {
+                    acc.debt += toNum(row.debt);
+                    acc.openingCredit += toNum(row.openingCredit);
+                    acc.noPhaiTraCK += toNum(row.noPhaiTraCK);
+                    acc.credit += toNum(row.credit);
+                    acc.closingDebt += toNum(row.closingDebt);
+                    acc.closingCredit += toNum(row.closingCredit);
+                }
+                return acc;
+            },
+            {
+                debt: 0,
+                openingCredit: 0,
+                noPhaiTraCK: 0,
+                credit: 0,
+                closingDebt: 0,
+                closingCredit: 0,
+            }
+        );
+
+        const grandTotalRow = {
+            _id: "grand-total-summary",
+            project: "",
+            description: "Tổng cộng",
+            ...grandTotal,
+            isGrandTotal: true,
         };
 
-        fetchPayables();
-    }, [selectedProjects, selectedYears, selectedQuarters]);
+        return [...currentRows, grandTotalRow];
 
-    // Handlers cho multi-select
-    const handleProjectsChange = (event) => {
-        const value = event.target.value;
-        setSelectedProjects(typeof value === 'string' ? value.split(',') : value);
-    };
+    }, [detailDataWithGroups, expandedGroups]);
 
-    const handleYearsChange = (event) => {
-        const value = event.target.value;
-        setSelectedYears(typeof value === 'string' ? value.split(',').map(Number) : value);
-    };
-
-    const handleQuartersChange = (event) => {
-        const value = event.target.value;
-        setSelectedQuarters(typeof value === 'string' ? value.split(',').map(Number) : value);
-    };
-
-    // Hàm refresh dữ liệu
-    const handleRefresh = () => {
-        setPayables([]);
-        setSummary(null);
-        setLoading(true);
-        // Trigger re-fetch by updating state
-        setSelectedProjects([...selectedProjects]);
-    };
-
-    // Hàm xuất Excel (placeholder)
-    const handleExportExcel = () => {
-        setSnackbar({
-            open: true,
-            message: 'Chức năng xuất Excel đang được phát triển',
-            severity: 'info'
-        });
-    };
-
-    // Đóng snackbar
-    const handleCloseSnackbar = () => {
-        setSnackbar(prev => ({ ...prev, open: false }));
-    };
-
-    // Format selected values display
-    const getProjectDisplayValue = (selected) => {
-        if (selected.length === 0) return '';
-        if (selected.length === 1) {
-            const project = availableProjects.find(p => p.id === selected[0]);
-            return project ? project.name : selected[0];
+    const handleDetailRowClick = (params, event) => {
+        if (event.target.closest(".MuiIconButton-root")) {
+            event.stopPropagation();
         }
-        return `${selected.length} dự án được chọn`;
-    };
-
-    const getYearDisplayValue = (selected) => {
-        if (selected.length === 0) return '';
-        if (selected.length === 1) return selected[0].toString();
-        return `${selected.length} năm được chọn`;
-    };
-
-    const getQuarterDisplayValue = (selected) => {
-        if (selected.length === 0) return '';
-        if (selected.length === 1) return `Quý ${selected[0]}`;
-        return `${selected.length} quý được chọn`;
+        const row = params.row;
+        if (row.isSummary) {
+            const id = row._id;
+            setExpandedGroups((prev) =>
+                prev.includes(id)
+                    ? prev.filter((gId) => gId !== id)
+                    : [...prev, id]
+            );
+        }
     };
 
     return (
-        <Container maxWidth="xl">
-            <Stack spacing={3}>
-                {/* TIÊU ĐỀ VÀ BỘ LỌC */}
-                <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems="center" spacing={2}>
-                    <Box>
-                        <Stack direction="row" spacing={1.5} alignItems="center">
-                            <BookCopy size={32} color="#1976d2"/>
-                            <Typography variant="h4" component="h1" fontWeight="bold">
-                                Công Nợ Phải Trả
-                            </Typography>
-                        </Stack>
-                        <Typography color="text.secondary">
-                           Báo cáo chi tiết công nợ phải trả theo từng công trình.
-                        </Typography>
-                        {summary && (
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                                {summary.totalProjects} dự án | {summary.totalRecords} bản ghi | 
-                                Tổng nợ cuối kỳ: {formatCurrency(summary.totalEndingBalance)} VNĐ
-                            </Typography>
-                        )}
-                    </Box>
-                    
-                    <Stack direction="row" spacing={1.5} flexWrap="wrap">
-                        {/* Multi-select Projects */}
-                        <FormControl sx={{ minWidth: 200 }} size="small">
-                            <InputLabel>Dự án</InputLabel>
-                            <Select
-                                multiple
-                                value={selectedProjects}
-                                onChange={handleProjectsChange}
-                                input={<OutlinedInput label="Dự án" />}
-                                renderValue={getProjectDisplayValue}
-                                MenuProps={MenuProps}
-                                disabled={loading}
-                            >
-                                {availableProjects.map((project) => (
-                                    <MenuItem key={project.id} value={project.id}>
-                                        <Checkbox checked={selectedProjects.indexOf(project.id) > -1} />
-                                        <ListItemText primary={project.name} secondary={project.id} />
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-
-                        {/* Multi-select Years */}
-                        <FormControl sx={{ minWidth: 140 }} size="small">
-                            <InputLabel>Năm</InputLabel>
-                            <Select
-                                multiple
-                                value={selectedYears}
-                                onChange={handleYearsChange}
-                                input={<OutlinedInput label="Năm" />}
-                                renderValue={getYearDisplayValue}
-                                MenuProps={MenuProps}
-                                disabled={loading}
-                            >
-                                {availableYears.map((year) => (
-                                    <MenuItem key={year} value={year}>
-                                        <Checkbox checked={selectedYears.indexOf(year) > -1} />
-                                        <ListItemText primary={year} />
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-
-                        {/* Multi-select Quarters */}
-                        <FormControl sx={{ minWidth: 140 }} size="small">
-                            <InputLabel>Quý</InputLabel>
-                            <Select
-                                multiple
-                                value={selectedQuarters}
-                                onChange={handleQuartersChange}
-                                input={<OutlinedInput label="Quý" />}
-                                renderValue={getQuarterDisplayValue}
-                                MenuProps={MenuProps}
-                                disabled={loading}
-                            >
-                                {availableQuarters.map((quarter) => (
-                                    <MenuItem key={quarter} value={quarter}>
-                                        <Checkbox checked={selectedQuarters.indexOf(quarter) > -1} />
-                                        <ListItemText primary={`Quý ${quarter}`} />
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-
-                        <Button 
-                            variant="outlined" 
-                            startIcon={<RefreshCw size={18} />}
-                            onClick={handleRefresh}
-                            disabled={loading}
+        <Box
+            sx={{
+                bgcolor: "grey.100",
+                minHeight: "100vh",
+                p: { xs: 2, sm: 3 },
+            }}
+        >
+            <Stack
+                direction={{ xs: "column", md: "row" }}
+                justifyContent="space-between"
+                alignItems="center"
+                spacing={2}
+                sx={{ mb: 3 }}
+            >
+                <Box>
+                    <Typography variant="h4" fontWeight="700">
+                        Nợ Phải Trả Công Trình
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Quản lý và theo dõi công nợ các công trình.
+                    </Typography>
+                </Box>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                    <FormControl
+                        variant="outlined"
+                        size="small"
+                        sx={{ minWidth: 120, bgcolor: "background.paper" }}
+                    >
+                        <InputLabel>Quý</InputLabel>
+                        <Select
+                            value={selectedQuarter}
+                            label="Quý"
+                            onChange={(e) => setSelectedQuarter(e.target.value)}
                         >
-                            Làm mới
-                        </Button>
-                        <Button 
-                            variant="outlined" 
-                            startIcon={<FileDown size={18} />}
-                            onClick={handleExportExcel}
-                            disabled={loading || payables.length === 0}
+                            {quarterOptions.map((o) => (
+                                <MenuItem key={o.value} value={o.value}>
+                                    {o.label}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                    <FormControl
+                        variant="outlined"
+                        size="small"
+                        sx={{ minWidth: 110, bgcolor: "background.paper" }}
+                    >
+                        <InputLabel>Năm</InputLabel>
+                        <Select
+                            value={selectedYear}
+                            label="Năm"
+                            onChange={(e) => setSelectedYear(e.target.value)}
                         >
-                            Xuất Excel
-                        </Button>
-                    </Stack>
+                            {yearOptions.map((y) => (
+                                <MenuItem key={y} value={y}>
+                                    {y}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
+                    {/* ===== BƯỚC 2: THÊM NÚT KHOÁ SỔ VÀO GIAO DIỆN ===== */}
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handleCloseQuarter}
+                        disabled={isClosing || isLoading}
+                        startIcon={isClosing ? <CircularProgress size={20} color="inherit" /> : <CloseQuarterIcon />}
+                    >
+                        Khoá Sổ
+                    </Button>
                 </Stack>
-
-                {/* HIỂN THỊ BỘ LỌC HIỆN TẠI */}
-                {(selectedProjects.length > 0 || selectedYears.length > 0 || selectedQuarters.length > 0) && (
-                    <Card sx={{ borderRadius: 2, p: 2, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04) }}>
-                        <Typography variant="subtitle2" color="primary" gutterBottom>
-                            <Building2 size={16} style={{ marginRight: 8, verticalAlign: 'middle' }} />
-                            Bộ lọc hiện tại
-                        </Typography>
-                        <Stack direction="row" spacing={1} flexWrap="wrap">
-                            {selectedProjects.map(projectId => {
-                                const project = availableProjects.find(p => p.id === projectId);
-                                return (
-                                    <Chip 
-                                        key={projectId} 
-                                        label={project ? project.name : projectId}
-                                        size="small" 
-                                        variant="outlined"
-                                        color="primary"
-                                    />
-                                );
-                            })}
-                            <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-                            {selectedYears.map(year => (
-                                <Chip 
-                                    key={year} 
-                                    label={year}
-                                    size="small" 
-                                    variant="outlined"
-                                    color="secondary"
-                                />
-                            ))}
-                            <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-                            {selectedQuarters.map(quarter => (
-                                <Chip 
-                                    key={quarter} 
-                                    label={`Q${quarter}`}
-                                    size="small" 
-                                    variant="outlined"
-                                    color="info"
-                                />
-                            ))}
-                        </Stack>
-                    </Card>
-                )}
-
-                {/* HIỂN THỊ LỖI */}
-                {error && (
-                    <Alert severity="error" onClose={() => setError(null)}>
-                        {error}
-                    </Alert>
-                )}
-
-                {/* BẢNG DỮ LIỆU */}
-                <Card sx={{ borderRadius: 3, boxShadow: 'rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px' }}>
-                    <TableContainer>
-                        <Table aria-label="construction payables table">
-                            <TableHead sx={{ bgcolor: (theme) => alpha(theme.palette.grey[500], 0.08) }}>
-                                <TableRow>
-                                    <TableCell sx={{ fontWeight: '600', width: '15%' }}>Dự Án</TableCell>
-                                    <TableCell sx={{ fontWeight: '600', width: '15%' }}>Mã Công Trình</TableCell>
-                                    <TableCell sx={{ fontWeight: '600', width: '25%' }}>Diễn Giải</TableCell>
-                                    <TableCell sx={{ fontWeight: '600', width: '8%' }}>Quý/Năm</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: '600' }}>Nợ Đầu Kỳ</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: '600' }}>Phát Sinh Tăng</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: '600' }}>Phát Sinh Giảm</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: '600' }}>Nợ Cuối Kỳ</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {loading ? (
-                                    <TableRow>
-                                        <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
-                                            <CircularProgress />
-                                            <Typography mt={1} color="text.secondary">
-                                                Đang tải dữ liệu từ Firebase...
-                                            </Typography>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : payables.length > 0 ? (
-                                    payables.map((row, index) => {
-                                        const endingBalance = row.openingBalance + row.increase - row.decrease;
-                                        const project = availableProjects.find(p => p.id === row.projectId);
-                                        
-                                        return (
-                                            <TableRow 
-                                                hover 
-                                                key={`${row.projectId}-${row.id}-${row.year}-${row.quarter}-${index}`} 
-                                                sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                                            >
-                                                <TableCell>
-                                                    <Chip 
-                                                        label={project ? project.name : row.projectId} 
-                                                        size="small" 
-                                                        variant="outlined"
-                                                        color="primary"
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Chip 
-                                                        label={row.id} 
-                                                        size="small" 
-                                                        variant="outlined"
-                                                        color="secondary"
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                        {row.description}
-                                                    </Typography>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Q{row.quarter}/{row.year}
-                                                    </Typography>
-                                                </TableCell>
-                                                <TableCell align="right">
-                                                    {formatCurrency(row.openingBalance)}
-                                                </TableCell>
-                                                <TableCell align="right" sx={{ color: 'success.dark' }}>
-                                                    {formatSignedCurrency(row.increase)}
-                                                </TableCell>
-                                                <TableCell align="right" sx={{ color: 'error.dark' }}>
-                                                    {formatSignedCurrency(row.decrease)}
-                                                </TableCell>
-                                                <TableCell align="right" sx={{ 
-                                                    fontWeight: '600',
-                                                    color: endingBalance > 0 ? 'error.dark' : 'success.dark'
-                                                }}>
-                                                    {formatCurrency(endingBalance)}
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
-                                            <Typography variant="body1" color="text.secondary">
-                                                Không có dữ liệu cho bộ lọc hiện tại
-                                            </Typography>
-                                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                                Vui lòng chọn dự án, quý/năm khác hoặc kiểm tra kết nối Firebase
-                                            </Typography>
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Card>
-
-                {/* THỐNG KÊ TỔNG QUAN */}
-                {summary && payables.length > 0 && (
-                    <Card sx={{ borderRadius: 3, p: 2 }}>
-                        <Typography variant="h6" gutterBottom>
-                            Tổng Quan ({summary.totalProjects} dự án - {summary.totalRecords} bản ghi)
-                        </Typography>
-                        <Stack direction="row" spacing={4} flexWrap="wrap">
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">
-                                    Số dự án
-                                </Typography>
-                                <Typography variant="h6" color="primary">
-                                    {summary.totalProjects}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">
-                                    Số bản ghi
-                                </Typography>
-                                <Typography variant="h6" color="primary">
-                                    {summary.totalRecords}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">
-                                    Tổng nợ đầu kỳ
-                                </Typography>
-                                <Typography variant="h6">
-                                    {formatCurrency(summary.totalOpeningBalance)}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">
-                                    Tổng phát sinh tăng
-                                </Typography>
-                                <Typography variant="h6" color="success.dark">
-                                    {formatCurrency(summary.totalIncrease)}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">
-                                    Tổng phát sinh giảm
-                                </Typography>
-                                <Typography variant="h6" color="error.dark">
-                                    {formatCurrency(summary.totalDecrease)}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">
-                                    Tổng nợ cuối kỳ
-                                </Typography>
-                                <Typography variant="h6" color="primary">
-                                    {formatCurrency(summary.totalEndingBalance)}
-                                </Typography>
-                            </Box>
-                        </Stack>
-                    </Card>
-                )}
             </Stack>
 
-
-            {/* SNACKBAR THÔNG BÁO */}
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={4000}
-                onClose={handleCloseSnackbar}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            >
-                <Alert 
-                    onClose={handleCloseSnackbar} 
-                    severity={snackbar.severity}
-                    sx={{ width: '100%' }}
+            {/* ===== BƯỚC 3: THÊM KHUNG THÔNG BÁO KẾT QUẢ ===== */}
+            {closeResult && (
+                <Alert
+                    severity={closeResult.success ? 'success' : 'error'}
+                    sx={{ mb: 3 }}
+                    onClose={() => setCloseResult(null)}
                 >
-                    {snackbar.message}
+                    {closeResult.message}
                 </Alert>
-            </Snackbar>
-        </Container>
+            )}
+
+            <Grid container spacing={2.5} sx={{ mb: 3 }}>
+                <Grid item xs={12} sm={6} md={3}>
+                    <SummaryCard
+                        title="Tổng nợ đầu kỳ"
+                        amount={summaryData.opening}
+                        icon={<ArchiveOutlined sx={{ fontSize: 32 }} />}
+                        color={theme.palette.info}
+                        loading={isLoading}
+                    />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <SummaryCard
+                        title="Phát sinh nợ"
+                        amount={summaryData.debit}
+                        icon={<TrendingUp sx={{ fontSize: 32 }} />}
+                        color={theme.palette.warning}
+                        loading={isLoading}
+                    />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <SummaryCard
+                        title="Đã thanh toán"
+                        amount={summaryData.credit}
+                        icon={<TrendingDown sx={{ fontSize: 32 }} />}
+                        color={theme.palette.success}
+                        loading={isLoading}
+                    />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <SummaryCard
+                        title="Tổng nợ cuối kỳ"
+                        amount={summaryData.closing}
+                        icon={<AttachMoney sx={{ fontSize: 32 }} />}
+                        color={theme.palette.error}
+                        loading={isLoading}
+                    />
+                </Grid>
+            </Grid>
+
+            <Paper
+                elevation={0}
+                sx={{
+                    borderRadius: 4,
+                    overflow: "hidden",
+                    boxShadow:
+                        "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px",
+                }}
+            >
+                <Box
+                    sx={{
+                        height: "calc(100vh - 420px)",
+                        minHeight: 400,
+                        width: "100%",
+                    }}
+                >
+                    {isError ? (
+                        <Alert
+                            severity="error"
+                            icon={<ErrorOutline />}
+                            sx={{ m: 2 }}
+                        >
+                            Đã có lỗi xảy ra khi tải dữ liệu.
+                        </Alert>
+                    ) : (
+                        <StyledDataGrid
+                            rows={processedData}
+                            columns={mainColumns}
+                            getRowId={(row) => row._id}
+                            loading={isLoading}
+                            onRowClick={handleRowClick}
+                            slots={{
+                                toolbar: CustomToolbar,
+                                noRowsOverlay: NoRowsOverlay,
+                            }}
+                            disableRowSelectionOnClick
+                            getRowClassName={(params) =>
+                                params.id === selectedProject?._id
+                                    ? "Mui-selected"
+                                    : ""
+                            }
+                        />
+                    )}
+                </Box>
+            </Paper>
+
+            <Drawer
+                anchor="right"
+                open={drawerOpen}
+                onClose={handleDrawerClose}
+                PaperProps={{
+                    sx: {
+                        width: { xs: "90%", md: "70%" },
+                        minWidth: { md: 900 },
+                        p: { xs: 2, md: 3 },
+                    },
+                }}
+            >
+                {selectedProject && (
+                    <Box>
+                        <Stack
+                            direction="row"
+                            justifyContent="space-between"
+                            alignItems="center"
+                            sx={{ mb: 2 }}
+                        >
+                            <Box sx={{ pr: 2 }}>
+                                <Typography variant="h5" fontWeight={700}>
+                                    {selectedProject.project}
+                                </Typography>
+                                <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                >
+                                    Chi tiết công nợ Quý {selectedQuarter} /
+                                    {selectedYear}
+                                </Typography>
+                            </Box>
+                            <IconButton onClick={handleDrawerClose}>
+                                <CloseIcon />
+                            </IconButton>
+                        </Stack>
+                        <Divider sx={{ mb: 3 }} />
+                        <Grid container spacing={2} sx={{ mb: 3 }}>
+                            <Grid item xs={6} md={3}>
+                                <DetailStatCard
+                                    title="Đầu Kỳ Nợ"
+                                    value={selectedProject.debt}
+                                    color={theme.palette.primary.dark}
+                                />
+                            </Grid>
+                            <Grid item xs={6} md={3}>
+                                <DetailStatCard
+                                    title="PS Nợ"
+                                    value={selectedProject.debit}
+                                    color={theme.palette.warning.dark}
+                                />
+                            </Grid>
+                            <Grid item xs={6} md={3}>
+                                <DetailStatCard
+                                    title="PS Giảm"
+                                    value={selectedProject.credit}
+                                    color={theme.palette.success.dark}
+                                />
+                            </Grid>
+                            <Grid item xs={6} md={3}>
+                                <DetailStatCard
+                                    title="Cuối Kỳ Nợ"
+                                    value={selectedProject.tonCuoiKy}
+                                    color={theme.palette.error.dark}
+                                />
+                            </Grid>
+                        </Grid>
+                        <Typography
+                            variant="h6"
+                            fontWeight={600}
+                            sx={{ mb: 1.5 }}
+                        >
+                            Danh sách giao dịch chi tiết
+                        </Typography>
+                        <Box>
+                            <StyledDataGrid
+                                rows={displayRows}
+                                onRowClick={handleDetailRowClick}
+                                getRowClassName={(params) => {
+                                    if (params.row.isSummary)
+                                        return "summary-row";
+                                    if (params.row.parentId)
+                                        return "detail-row";
+                                    return "";
+                                }}
+                                hideFooter
+                                autoHeight
+                                columns={[
+                                    {
+                                        field: "project",
+                                        headerName: "Mã Công Trình",
+                                        minWidth: 200,
+                                        flex: 0.8,
+                                        pinned: "left",
+                                    },
+                                    {
+                                        field: "description",
+                                        headerName: "Diễn Giải Chi Tiết",
+                                        flex: 1,
+                                        minWidth: 280,
+                                        pinned: "left",
+                                        renderCell: (params) => (
+                                            <Stack
+                                                direction="row"
+                                                alignItems="center"
+                                                spacing={0.5}
+                                            >
+                                                {params.row.isSummary && (
+                                                    <IconButton
+                                                        size="small"
+                                                        sx={{ ml: -1.5 }}
+                                                        onClick={(e) =>
+                                                            handleDetailRowClick(
+                                                                params,
+                                                                e
+                                                            )
+                                                        }
+                                                    >
+                                                        {expandedGroups.includes(
+                                                            params.row._id
+                                                        ) ? (
+                                                            <KeyboardArrowUpIcon />
+                                                        ) : (
+                                                            <KeyboardArrowDownIcon />
+                                                        )}
+                                                    </IconButton>
+                                                )}
+                                                <Typography variant="body2">
+                                                    {params.value}
+                                                </Typography>
+                                            </Stack>
+                                        ),
+                                    },
+
+                                    {
+                                        field: "debt",
+                                        headerName: "Đầu Kỳ Nợ",
+                                        width: 130,
+                                        align: "right",
+                                        headerAlign: "right",
+                                        renderCell: (params) => (
+                                            <CurrencyDisplay
+                                                value={params.value}
+                                                typographyProps={{
+                                                    color:
+                                                        toNum(params.value) !==
+                                                            0
+                                                            ? "text.primary"
+                                                            : "text.disabled",
+                                                }}
+                                            />
+                                        ),
+                                    },
+                                    {
+                                        field: "openingCredit",
+                                        headerName: "Đầu Kỳ Có",
+                                        width: 130,
+                                        align: "right",
+                                        headerAlign: "right",
+                                        renderCell: (params) => (
+                                            <CurrencyDisplay
+                                                value={params.value}
+                                                typographyProps={{
+                                                    color:
+                                                        toNum(params.value) !==
+                                                            0
+                                                            ? "text.primary"
+                                                            : "text.disabled",
+                                                }}
+                                            />
+                                        ),
+                                    },
+                                    {
+                                        field: "noPhaiTraCK",
+                                        headerName: "PS Nợ",
+                                        width: 130,
+                                        align: "right",
+                                        headerAlign: "right",
+                                        renderCell: (params) => (
+                                            <CurrencyDisplay
+                                                value={params.value}
+                                                typographyProps={{
+                                                    color:
+                                                        toNum(params.value) > 0
+                                                            ? "primary.main"
+                                                            : "text.disabled",
+                                                    fontWeight:
+                                                        toNum(params.value) > 0
+                                                            ? "600"
+                                                            : "normal",
+                                                }}
+                                            />
+                                        ),
+                                    },
+                                    {
+                                        field: "credit",
+                                        headerName: "PS Giảm",
+                                        width: 130,
+                                        align: "right",
+                                        headerAlign: "right",
+                                        renderCell: (params) => (
+                                            <CurrencyDisplay
+                                                value={params.value}
+                                                typographyProps={{
+                                                    color:
+                                                        toNum(params.value) > 0
+                                                            ? "success.main"
+                                                            : "text.disabled",
+                                                    fontWeight:
+                                                        toNum(params.value) > 0
+                                                            ? "600"
+                                                            : "normal",
+                                                }}
+                                            />
+                                        ),
+                                    },
+                                    {
+                                        field: "closingDebt",
+                                        headerName: "Cuối Kỳ Nợ",
+                                        type: "number",
+                                        width: 140,
+                                        align: "right",
+                                        headerAlign: "right",
+                                        renderCell: (params) => (
+                                            <CurrencyDisplay
+                                                value={params.value}
+                                                typographyProps={{
+                                                    fontWeight: "bold",
+                                                    color:
+                                                        toNum(params.value) !==
+                                                            0
+                                                            ? "error.dark"
+                                                            : "text.disabled",
+                                                }}
+                                            />
+                                        ),
+                                    },
+                                    {
+                                        field: "closingCredit",
+                                        headerName: "Cuối Kỳ Có",
+                                        type: "number",
+                                        width: 140,
+                                        align: "right",
+                                        headerAlign: "right",
+                                        renderCell: (params) => (
+                                            <CurrencyDisplay
+                                                value={params.value}
+                                                typographyProps={{
+                                                    fontWeight: "bold",
+                                                    color:
+                                                        toNum(params.value) > 0
+                                                            ? "success.dark"
+                                                            : "text.disabled",
+                                                }}
+                                            />
+                                        ),
+                                    },
+                                ]}
+                                getRowId={(r) => r._id}
+                                density="compact"
+                                sx={{
+                                    border: 0,
+                                    "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
+                                    { outline: "none" },
+                                }}
+                                slots={{ noRowsOverlay: NoRowsOverlay }}
+                            />
+                        </Box>
+                    </Box>
+                )}
+            </Drawer>
+        </Box>
     );
-}
+};
+
+export default ConstructionPayables;

@@ -48,9 +48,12 @@ import AdminDashboard from './pages/AdminDashboard';
 import ProfitReportYear from './pages/ProfitReportYear';
 import AdminAuditLog from './pages/AdminAuditLog';
 import VersionChecker from './components/VersionChecker';
+import { QueryClient, QueryClientProvider } from 'react-query';
+import CloseQuarterPage from './pages/CloseQuarterPage';
 
 // ===== THÊM DÒNG NÀY ===== (Sử dụng React.lazy để tối ưu tải trang)
 const ConstructionPayables = React.lazy(() => import('./pages/ConstructionPayables'));
+const queryClient = new QueryClient();
 
 const auth = getAuth();
 const db = getFirestore();
@@ -120,38 +123,40 @@ export default function App() {
         );
     }
 
-    return (
-        <AuthContext.Provider value={{ user: userInfo, userInfo }}>
-            <CustomThemeProvider>
-                <BrowserRouter>
-                    <VersionChecker />
-                    
-                    <Toaster
-                        position="top-center"
-                        reverseOrder={false}
-                        toastOptions={{
-                            duration: 3500,
-                            style: {
-                                borderRadius: '8px',
-                                background: '#333',
-                                color: '#fff',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                            },
-                        }}
-                    />
-                    <RouterProgressWrapper>
-                        <Suspense fallback={<LinearProgress />}>
-                            <Routes>
-                                <Route path="/login" element={userInfo ? <Navigate to="/" replace /> : <LoginPage />} />
-                                <Route path="/*" element={userInfo ? <LayoutRoutes /> : <Navigate to="/login" replace />} />
-                            </Routes>
-                        </Suspense>
-                    </RouterProgressWrapper>
-                </BrowserRouter>
-            </CustomThemeProvider>
-        </AuthContext.Provider>
+   return (
+        <QueryClientProvider client={queryClient}>
+            <AuthContext.Provider value={{ user: userInfo, userInfo }}>
+                <CustomThemeProvider>
+                    <BrowserRouter>
+                        <VersionChecker />
+                        <Toaster
+                            position="top-center"
+                            reverseOrder={false}
+                            toastOptions={{
+                                duration: 3500,
+                                style: {
+                                    borderRadius: '8px',
+                                    background: '#333',
+                                    color: '#fff',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                },
+                            }}
+                        />
+                        <RouterProgressWrapper>
+                            <Suspense fallback={<LinearProgress />}>
+                                <Routes>
+                                    <Route path="/login" element={userInfo ? <Navigate to="/" replace /> : <LoginPage />} />
+                                    <Route path="/*" element={userInfo ? <LayoutRoutes /> : <Navigate to="/login" replace />} />
+                                </Routes>
+                            </Suspense>
+                        </RouterProgressWrapper>
+                    </BrowserRouter>
+                </CustomThemeProvider>
+            </AuthContext.Provider>
+        </QueryClientProvider>
     );
 }
+
 
 function LayoutRoutes() {
     return (
@@ -209,6 +214,14 @@ function LayoutRoutes() {
                         </RequireRole>
                     }
                 />
+                <Route
+    path="admin/close-quarter"
+    element={
+        <RequireRole allowedRoles={['admin']}>
+            <CloseQuarterPage />
+        </RequireRole>
+    }
+ />
                 <Route path="project-manager" element={<ProjectsList />} />
                 <Route path="*" element={<NotFound />} />
             </Route>

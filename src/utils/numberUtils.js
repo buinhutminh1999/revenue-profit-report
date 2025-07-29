@@ -1,18 +1,10 @@
-// src/utils/numberUtils.js
-// ------------------------------------------------------------
-//  Số & Chuẩn hoá ký tự                        (v1.2 – 2025-05-10)
-// ------------------------------------------------------------
+// functions/utils/numberUtils.js
 
 /**
- * toNum(v)
- *  • Parse chuỗi lộn xộn (spaces, NBSP, '.', ',') → Number đã round.
- *  • Hỗ trợ:
- *     - "1.234.567" → 1234567
- *     - "(1,234)"   → -1234
- *     - "-1234"     → -1234
- *  • Trả về 0 nếu parse thất bại.
- */
-export function toNum(v) {
+ * toNum(v)
+ * Chuyển đổi chuỗi thành số, xử lý các định dạng phức tạp.
+ */
+exports.toNum = function (v) {
   if (v == null) return 0;
   if (typeof v === "number" && Number.isFinite(v)) {
     return Math.round(v);
@@ -21,20 +13,17 @@ export function toNum(v) {
   let s = String(v).replace(/\u00A0/g, " ").trim();
   if (s === "" || s === "-" || /^[-.,\s]+$/.test(s)) return 0;
 
-  // 1) Dấu âm ở đầu
   let sign = 1;
   if (s.startsWith("-")) {
     sign = -1;
     s = s.slice(1).trim();
   }
 
-  // 2) Dấu ngoặc: (1,234) => -1234
   if (/^\(.*\)$/.test(s)) {
     sign = -1;
     s = s.slice(1, -1).trim();
   }
 
-  // 3) Xác định vị trí dấu thập phân duy nhất, nếu có
   const dotCount = (s.match(/\./g) || []).length;
   const commaCount = (s.match(/,/g) || []).length;
   const lastDot = s.lastIndexOf(".");
@@ -46,17 +35,14 @@ export function toNum(v) {
   } else if (commaCount === 1 && dotCount === 0) {
     decPos = lastComma;
   } else if (commaCount === 0 && dotCount > 1) {
-    // Trường hợp kiểu 1.234.567 => không có phần thập phân
     s = s.replace(/\./g, "");
     const n = parseFloat(s);
     return Number.isFinite(n) ? Math.round(sign * n) : 0;
   } else if (dotCount === 0 && commaCount > 1) {
-    // Trường hợp kiểu 1,234,567 => không có phần thập phân
     s = s.replace(/,/g, "");
     const n = parseFloat(s);
     return Number.isFinite(n) ? Math.round(sign * n) : 0;
   } else {
-    // Trường hợp lẫn cả , và . hoặc có 1 trong 2 xuất hiện nhiều lần
     decPos = Math.max(lastComma, lastDot);
   }
 
@@ -72,18 +58,18 @@ export function toNum(v) {
   const n = parseFloat(normalized);
 
   return Number.isFinite(n) ? Math.round(sign * n) : 0;
-}
+};
 
-export const parseNumber = (value) => toNum(value);
+exports.parseNumber = (value) => exports.toNum(value);
 
-export const formatNumber = (v) => {
+exports.formatNumber = (v) => {
   const n = Number(v);
   return Number.isFinite(n)
     ? n.toLocaleString("en-US", { maximumFractionDigits: 0 })
     : v;
 };
 
-export function normalize(str = "") {
+exports.normalize = function (str = "") {
   return str
     .toLowerCase()
     .normalize("NFD")
@@ -91,4 +77,4 @@ export function normalize(str = "") {
     .replace(/[^a-z0-9+]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
+};
