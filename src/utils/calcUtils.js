@@ -34,12 +34,21 @@ const calcCarryoverEnd = (row, projectType) => {
 };
 
 const calcNoPhaiTraCK = (row) => {
-    const carMinus = Number(parseNumber(row.carryoverMinus)),
-        dc = Number(parseNumber(row.directCost)),
-        al = Number(parseNumber(row.allocated)),
-        rev = Number(parseNumber(row.revenue)),
-        debt = Number(parseNumber(row.debt)),
-        part1 = carMinus + dc + al < rev ? rev - (dc + al) - carMinus : 0;
+    // Lấy và chuyển đổi các giá trị cần thiết sang dạng số
+    const carMinus = Number(parseNumber(row.carryoverMinus || "0"));
+    const dc = Number(parseNumber(row.directCost || "0"));
+    const al = Number(parseNumber(row.allocated || "0"));
+    const rev = Number(parseNumber(row.revenue || "0"));
+    const debt = Number(parseNumber(row.debt || "0"));
+
+    // ---- BỔ SUNG: Điều kiện kiểm tra Doanh thu bằng 0 ----
+    if (rev === 0) {
+        // Nếu Doanh thu bằng 0, áp dụng công thức mới
+        return String(debt - dc);
+    }
+
+    // Nếu Doanh thu khác 0, giữ nguyên công thức cũ
+    const part1 = carMinus + dc + al < rev ? rev - (dc + al) - carMinus : 0;
     return String(part1 + debt);
 };
 
