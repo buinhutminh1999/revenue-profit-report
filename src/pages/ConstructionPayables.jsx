@@ -56,7 +56,6 @@ import { getApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 
-// ✨ BƯỚC 1.1: Thêm cấu hình sắp xếp
 const SORT_CONFIG = {
     "Thi công": { key: "orderThiCong" },
     "Nhà máy": { key: "orderNhaMay" },
@@ -234,7 +233,6 @@ const ConstructionPayables = () => {
     const [categories, setCategories] = useState([]);
     const [expandedGroups, setExpandedGroups] = useState([]);
     
-    // ✨ BƯỚC 1.2: Thêm state để lưu chi tiết các công trình
     const [projects, setProjects] = useState([]);
 
     const [payablesData, setPayablesData] = useState([]);
@@ -268,7 +266,6 @@ const ConstructionPayables = () => {
         setIsClosing(false);
     };
 
-    // ✨ BƯỚC 3: Thay bằng useEffect mới, lấy categories động
     useEffect(() => {
         if (!selectedProject) {
             setCategories([]);
@@ -293,7 +290,6 @@ const ConstructionPayables = () => {
     }, [selectedProject, projects]);
 
 
-    // ✨ BƯỚC 2: Sửa lại useEffect này để lấy đầy đủ thông tin công trình
     useEffect(() => {
         setIsLoading(true);
         setIsError(false);
@@ -435,7 +431,7 @@ const ConstructionPayables = () => {
             renderCell: (params) => (<CurrencyDisplay value={params.value} typographyProps={{ style: { fontSize: "0.875rem" } }} />),
         },
         {
-            field: "debit", headerName: "PS Nợ", type: "number", width: 160,
+            field: "credit", headerName: "PS Nợ", type: "number", width: 160,
             align: "right", headerAlign: "right",
             renderCell: (params) => params.value > 0 ? (
                 <Chip label={<NumericFormat value={toNum(params.value)} displayType="text" thousandSeparator="," />}
@@ -443,7 +439,7 @@ const ConstructionPayables = () => {
             ) : (<CurrencyDisplay value={0} typographyProps={{ style: { fontSize: "0.875rem" } }} />),
         },
         {
-            field: "credit", headerName: "PS Giảm", type: "number", width: 160,
+            field: "debit", headerName: "PS Giảm", type: "number", width: 160,
             align: "right", headerAlign: "right",
             renderCell: (params) => params.value > 0 ? (
                 <Chip label={<NumericFormat value={toNum(params.value)} displayType="text" thousandSeparator="," />}
@@ -473,7 +469,6 @@ const ConstructionPayables = () => {
     }, [selectedProject, payablesData]);
 
     const sortedDetailItems = useMemo(() => {
-        // ✨ BƯỚC 4: Logic này giữ nguyên, nó sẽ tự động đúng vì `categories` đã được sắp xếp chính xác
         if (categories.length === 0 || detailItems.length === 0) return detailItems;
         const categoryOrderMap = new Map(categories.map((cat, index) => [cat.label, index]));
         return [...detailItems].sort((a, b) => {
@@ -614,8 +609,8 @@ const ConstructionPayables = () => {
             
             <Grid container spacing={3} sx={{ mb: 4 }}>
                 <SummaryCard title="Tổng nợ đầu kỳ" amount={summaryData.opening} icon={<ArchiveOutlined />} color={theme.palette.info} loading={isLoading} />
-                <SummaryCard title="Phát sinh nợ" amount={summaryData.debit} icon={<TrendingUp />} color={theme.palette.warning} loading={isLoading} />
-                <SummaryCard title="Đã thanh toán" amount={summaryData.credit} icon={<TrendingDown />} color={theme.palette.success} loading={isLoading} />
+                <SummaryCard title="Phát sinh nợ" amount={summaryData.credit} icon={<TrendingUp />} color={theme.palette.warning} loading={isLoading} />
+                <SummaryCard title="Đã thanh toán" amount={summaryData.debit} icon={<TrendingDown />} color={theme.palette.success} loading={isLoading} />
                 <SummaryCard title="Tổng nợ cuối kỳ" amount={summaryData.closing} icon={<AttachMoney />} color={theme.palette.error} loading={isLoading} />
             </Grid>
 
@@ -689,14 +684,14 @@ const ConstructionPayables = () => {
                                 <Grid item xs={6} md={3}>
                                     <DetailStatCard
                                         title="PS Nợ"
-                                        value={selectedProject.debit}
+                                        value={selectedProject.credit}
                                         color={theme.palette.warning.dark}
                                     />
                                 </Grid>
                                 <Grid item xs={6} md={3}>
                                     <DetailStatCard
                                         title="PS Giảm"
-                                        value={selectedProject.credit}
+                                        value={selectedProject.debit}
                                         color={theme.palette.success.dark}
                                     />
                                 </Grid>
@@ -815,9 +810,10 @@ const ConstructionPayables = () => {
                                                 />
                                             ),
                                         },
+                                        // ✨ ĐÃ HOÁN ĐỔI GIÁ TRỊ CỦA 2 CỘT DƯỚI ĐÂY ✨
                                         {
-                                            field: "noPhaiTraCK",
-                                            headerName: "PS Nợ",
+                                            field: "credit", // Lấy từ 'credit'
+                                            headerName: "PS Nợ", // Hiển thị là 'PS Nợ'
                                             width: 130,
                                             align: "right",
                                             headerAlign: "right",
@@ -838,8 +834,8 @@ const ConstructionPayables = () => {
                                             ),
                                         },
                                         {
-                                            field: "credit",
-                                            headerName: "PS Giảm",
+                                            field: "noPhaiTraCK", // Lấy từ 'noPhaiTraCK'
+                                            headerName: "PS Giảm", // Hiển thị là 'PS Giảm'
                                             width: 130,
                                             align: "right",
                                             headerAlign: "right",
