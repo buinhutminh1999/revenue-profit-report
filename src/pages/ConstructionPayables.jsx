@@ -389,47 +389,62 @@ const ConstructionPayables = () => {
         };
     }, [selectedYear, selectedQuarter]);
 
-    const processedData = useMemo(() => {
-        if (!payablesData) return [];
-        const projectsMap = new Map();
+const processedData = useMemo(() => {
+    if (!payablesData) return [];
+    const projectsMap = new Map();
 
-        payablesData.forEach((item) => {
-            const creditValue =
-                item.quarterlyOverallRevenue === 0
-                    ? toNum(item.directCost)
-                    : toNum(item.debt);
-            const dauKyNo = toNum(item.debt);
-            const dauKyCo = toNum(item.openingCredit);
-            const psNo = toNum(item.noPhaiTraCK);
-            const psGiam = creditValue;
-            const cuoiKyNo = Math.max(dauKyNo + psNo - psGiam - dauKyCo, 0);
-            const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
+    // Tính trước tổng doanh thu của các item cho mỗi dự án
+    const projectRevenueSums = {};
+    payablesData.forEach(item => {
+        const projectId = item.projectId;
+        if (projectRevenueSums[projectId] === undefined) {
+            projectRevenueSums[projectId] = 0;
+        }
+        projectRevenueSums[projectId] += toNum(item.revenue);
+    });
 
-            if (!projectsMap.has(item.projectId)) {
-                projectsMap.set(item.projectId, {
-                    _id: item.projectId,
-                    projectId: item.projectId,
-                    project: item.projectDisplayName,
-                    debt: 0,
-                    openingCredit: 0,
-                    debit: 0,
-                    credit: 0,
-                    tonCuoiKy: 0,
-                    carryover: 0,
-                });
-            }
-            const projectSummary = projectsMap.get(item.projectId);
-            projectSummary.debt += dauKyNo;
-            projectSummary.openingCredit += dauKyCo;
-            projectSummary.debit += psNo;
-            projectSummary.credit += psGiam;
-            projectSummary.tonCuoiKy += cuoiKyNo;
-            projectSummary.carryover += cuoiKyCo;
-        });
+    payablesData.forEach((item) => {
+        // Lấy tổng doanh thu item đã tính trước đó
+        const totalItemsRevenue = projectRevenueSums[item.projectId] || 0;
 
-        return Array.from(projectsMap.values());
-    }, [payablesData]);
+        // Logic cho PS Nợ (giữ nguyên)
+        const psNo = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
+        
+        // ✅ LOGIC MỚI CHO PS GIẢM
+        const psGiam = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
 
+        const dauKyNo = toNum(item.debt);
+        const dauKyCo = toNum(item.openingCredit);
+        
+        const cuoiKyNo = Math.max(dauKyNo + psNo - psGiam - dauKyCo, 0);
+        const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
+
+        if (!projectsMap.has(item.projectId)) {
+            projectsMap.set(item.projectId, {
+                _id: item.projectId,
+                projectId: item.projectId,
+                project: item.projectDisplayName,
+                debt: 0,
+                openingCredit: 0,
+                debit: 0,
+                credit: 0,
+                tonCuoiKy: 0,
+                carryover: 0,
+            });
+        }
+
+        const projectSummary = projectsMap.get(item.projectId);
+        
+        projectSummary.debt += dauKyNo;
+        projectSummary.openingCredit += dauKyCo;
+        projectSummary.debit += psGiam;
+        projectSummary.credit += psNo;
+        projectSummary.tonCuoiKy += cuoiKyNo;
+        projectSummary.carryover += cuoiKyCo;
+    });
+
+    return Array.from(projectsMap.values());
+}, [payablesData]);
     const summaryData = useMemo(
         () =>
             processedData.reduce(
@@ -608,115 +623,97 @@ const ConstructionPayables = () => {
             return orderA - orderB;
         });
     }, [detailItems, categories]);
+const detailDataWithGroups = useMemo(() => {
+    if (sortedDetailItems.length === 0) return [];
+    const result = [];
+    const groupedByProject = sortedDetailItems.reduce((acc, item) => {
+        const key = item.project;
+        (acc[key] = acc[key] || []).push(item);
+        return acc;
+    }, {});
 
-    const detailDataWithGroups = useMemo(() => {
-        if (sortedDetailItems.length === 0) return [];
-        const result = [];
-        const groupedByProject = sortedDetailItems.reduce((acc, item) => {
-            const key = item.project;
-            (acc[key] = acc[key] || []).push(item);
-            return acc;
-        }, {});
+    for (const projectKey in groupedByProject) {
+        const itemsInGroup = groupedByProject[projectKey];
+        const summaryId = `summary-${projectKey}`;
 
-        for (const projectKey in groupedByProject) {
-            const itemsInGroup = groupedByProject[projectKey];
-            const summaryId = `summary-${projectKey}`;
+        // Tính tổng doanh thu của các item trong nhóm này
+        const totalItemsRevenue = itemsInGroup.reduce(
+            (sum, item) => sum + toNum(item.revenue || 0),
+            0
+        );
 
-            if (itemsInGroup.length > 1) {
-                const summaryRow = itemsInGroup.reduce(
-                    (sum, item) => {
-                        const creditValue =
-                            item.quarterlyOverallRevenue === 0
-                                ? toNum(item.directCost)
-                                : toNum(item.debt);
-                        sum.debt += toNum(item.debt);
-                        sum.openingCredit += toNum(item.openingCredit);
-                        sum.noPhaiTraCK += toNum(item.noPhaiTraCK);
-                        sum.credit += creditValue;
-                        return sum;
-                    },
-                    {
-                        _id: summaryId,
-                        project: projectKey,
-                        description: "Tổng hợp",
-                        debt: 0,
-                        openingCredit: 0,
-                        noPhaiTraCK: 0,
-                        credit: 0,
-                        isSummary: true,
-                    }
-                );
-                summaryRow.closingDebt = Math.max(
-                    summaryRow.debt +
-                        summaryRow.noPhaiTraCK -
-                        summaryRow.credit -
-                        summaryRow.openingCredit,
-                    0
-                );
-                summaryRow.closingCredit = Math.max(
-                    summaryRow.openingCredit +
-                        summaryRow.credit -
-                        summaryRow.debt -
-                        summaryRow.noPhaiTraCK,
-                    0
-                );
-                result.push(summaryRow);
+        if (itemsInGroup.length > 1) {
+            const summaryRow = itemsInGroup.reduce(
+                (sum, item) => {
+                    const psNoValue = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
+                    // ✅ ÁP DỤNG LOGIC MỚI CHO PS GIẢM
+                    const psGiamValue = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
 
-                itemsInGroup.forEach((item) => {
-                    const creditValue =
-                        item.quarterlyOverallRevenue === 0
-                            ? toNum(item.directCost)
-                            : toNum(item.debt);
-                    result.push({
-                        ...item,
-                        parentId: summaryId,
-                        credit: creditValue,
-                        closingDebt: Math.max(
-                            toNum(item.debt) +
-                                toNum(item.noPhaiTraCK) -
-                                creditValue -
-                                toNum(item.openingCredit),
-                            0
-                        ),
-                        closingCredit: Math.max(
-                            toNum(item.openingCredit) +
-                                creditValue -
-                                toNum(item.debt) -
-                                toNum(item.noPhaiTraCK),
-                            0
-                        ),
-                    });
-                });
-            } else {
-                const singleItem = itemsInGroup[0];
-                const creditValue =
-                    singleItem.quarterlyOverallRevenue === 0
-                        ? toNum(singleItem.directCost)
-                        : toNum(singleItem.debt);
+                    sum.debt += toNum(item.debt);
+                    sum.openingCredit += toNum(item.openingCredit);
+                    sum.credit += psNoValue;
+                    sum.noPhaiTraCK += psGiamValue;
+                    return sum;
+                },
+                {
+                    _id: summaryId,
+                    project: projectKey,
+                    description: "Tổng hợp",
+                    debt: 0,
+                    openingCredit: 0,
+                    credit: 0,
+                    noPhaiTraCK: 0,
+                    isSummary: true,
+                }
+            );
+            summaryRow.closingDebt = Math.max(
+                summaryRow.debt + summaryRow.credit - summaryRow.noPhaiTraCK - summaryRow.openingCredit, 0
+            );
+            summaryRow.closingCredit = Math.max(
+                summaryRow.openingCredit + summaryRow.noPhaiTraCK - summaryRow.debt - summaryRow.credit, 0
+            );
+            result.push(summaryRow);
+
+            itemsInGroup.forEach((item) => {
+                const psNoValue = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
+                // ✅ ÁP DỤNG LOGIC MỚI CHO PS GIẢM
+                const psGiamValue = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
+
                 result.push({
-                    ...singleItem,
-                    isSingle: true,
-                    credit: creditValue,
+                    ...item,
+                    parentId: summaryId,
+                    credit: psNoValue,
+                    noPhaiTraCK: psGiamValue,
                     closingDebt: Math.max(
-                        toNum(singleItem.debt) +
-                            toNum(singleItem.noPhaiTraCK) -
-                            creditValue -
-                            toNum(singleItem.openingCredit),
-                        0
+                        toNum(item.debt) + psNoValue - psGiamValue - toNum(item.openingCredit), 0
                     ),
                     closingCredit: Math.max(
-                        toNum(singleItem.openingCredit) +
-                            creditValue -
-                            toNum(singleItem.debt) -
-                            toNum(singleItem.noPhaiTraCK),
-                        0
+                        toNum(item.openingCredit) + psGiamValue - toNum(item.debt) - psNoValue, 0
                     ),
                 });
-            }
-        }
-        return result;
-    }, [sortedDetailItems]);
+            });
+        } else {
+            const singleItem = itemsInGroup[0];
+            const psNoValue = toNum(singleItem.revenue) > 0 ? toNum(singleItem.noPhaiTraCK) : 0;
+            // ✅ ÁP DỤNG LOGIC MỚI CHO PS GIẢM
+            const psGiamValue = totalItemsRevenue === 0 ? toNum(singleItem.directCost) : toNum(singleItem.noPhaiTraCK);
 
+            result.push({
+                ...singleItem,
+                isSingle: true,
+                credit: psNoValue,
+                noPhaiTraCK: psGiamValue,
+                closingDebt: Math.max(
+                    toNum(singleItem.debt) + psNoValue - psGiamValue - toNum(singleItem.openingCredit), 0
+                ),
+                closingCredit: Math.max(
+                    toNum(singleItem.openingCredit) + psGiamValue - toNum(singleItem.debt) - psNoValue, 0
+                ),
+            });
+        }
+    }
+    return result;
+}, [sortedDetailItems]);
     const displayRows = useMemo(() => {
         const currentRows = detailDataWithGroups.filter((row) => {
             if (row.isSummary || row.isSingle) return true;

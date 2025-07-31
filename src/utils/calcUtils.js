@@ -125,10 +125,10 @@ export const calcAllFields = (
     // =========================================================
     const debt = parseNumber(row.debt || "0");
     const directCost = parseNumber(row.directCost || "0");
-    const noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0"); // <-- THAY ĐỔI: Sử dụng Nợ Phải Trả CK
+    const noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
 
-    row.cpSauQuyetToan = String(debt - directCost - noPhaiTraCK);
-        // =========================================================
+    // ✅ ĐÃ CẬP NHẬT CÔNG THỨC MỚI TẠI ĐÂY
+    row.cpSauQuyetToan = String(directCost + noPhaiTraCK - debt);
 
 };
 // ---------- Hidden Columns Helper (cho -VT, -NC) ----------
