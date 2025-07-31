@@ -659,54 +659,81 @@ export default function ProfitReportQuarter() {
                 ),
             ]);
 
-            const projects = await Promise.all(
-                projectsSnapshot.docs.map(async (d) => {
-                    // data chứa toàn bộ thông tin của project, bao gồm cả estimatedProfitMargin
-                    const data = d.data();
-                    let revenue = 0,
-                        cost = 0;
+// Thay thế toàn bộ đoạn .map() này
+const projects = await Promise.all(
+    projectsSnapshot.docs.map(async (d) => {
+        const data = d.data();
+        let revenue = 0, // Đây là doanh thu TỔNG của quý, dùng để tính lợi nhuận cuối cùng
+            cost = 0;
 
-                    // Phần này giữ nguyên để lấy doanh thu và chi phí thực tế trong quý
-                    try {
-                        const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
-                        const qSnap = await getDoc(doc(db, qPath));
-                        if (qSnap.exists()) {
-                            revenue = toNum(qSnap.data().overallRevenue);
-                            if (Array.isArray(qSnap.data().items)) {
-                                cost = qSnap
-                                    .data()
-                                    .items.reduce(
-                                        (sum, item) =>
-                                            sum + toNum(item.totalCost),
-                                        0
-                                    );
-                            }
-                        }
-                    } catch {}
+        try {
+            const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
+            const qSnap = await getDoc(doc(db, qPath));
+            
+            if (qSnap.exists()) {
+                // Giữ lại việc lấy doanh thu tổng của quý để tính lợi nhuận
+                revenue = toNum(qSnap.data().overallRevenue);
 
-                    // Dòng này tính lợi nhuận của quý (giữ nguyên) để hiển thị ở cột "LỢI NHUẬN"
-                    const profit = revenue - cost;
+                if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
+                    // =================================================================
+                    // ✅ BẮT ĐẦU LOGIC MỚI NHẤT
+                    // =================================================================
+                    
+                    // 1. Tính tổng doanh thu của TẤT CẢ CÁC KHOẢN MỤC (items) để làm điều kiện
+                    const totalItemsRevenue = qSnap
+                        .data()
+                        .items.reduce(
+                            (sum, item) => sum + toNum(item.revenue || 0),
+                            0
+                        );
 
-                    // THAY ĐỔI: Lấy % LN kế hoạch từ dữ liệu gốc của project
-                    const plannedProfitMargin =
-                        data.estimatedProfitMargin || null;
+                    // 2. Dùng tổng doanh thu của items làm điều kiện
+                    if (totalItemsRevenue === 0) {
+                        // TRƯỜNG HỢP 1: Nếu tổng Doanh thu của items = 0, tính tổng 'cpSauQuyetToan'
+                        cost = qSnap
+                            .data()
+                            .items.reduce(
+                                (sum, item) =>
+                                    sum + toNum(item.cpSauQuyetToan || 0),
+                                0
+                            );
+                    } else {
+                        // TRƯỜNG HỢP 2: Nếu tổng Doanh thu của items > 0, giữ nguyên công thức cũ (tổng 'totalCost')
+                        cost = qSnap
+                            .data()
+                            .items.reduce(
+                                (sum, item) => sum + toNum(item.totalCost || 0),
+                                0
+                            );
+                    }
+                    // =================================================================
+                    // ✅ KẾT THÚC LOGIC MỚI NHẤT
+                    // =================================================================
+                }
+            }
+        } catch {}
 
-                    return {
-                        projectId: d.id,
-                        name: data.name,
-                        revenue,
-                        cost,
-                        profit,
-                        percent: plannedProfitMargin, // <-- SỬ DỤNG GIÁ TRỊ MỚI
-                        costOverQuarter: null,
-                        target: null,
-                        note: "",
-                        suggest: "",
-                        type: data.type || "",
-                        editable: true,
-                    };
-                })
-            );
+        // Lợi nhuận vẫn được tính bằng Doanh thu tổng của quý trừ đi Chi phí đã được tính theo logic mới
+        const profit = revenue - cost;
+        
+        const plannedProfitMargin = data.estimatedProfitMargin || null;
+
+        return {
+            projectId: d.id,
+            name: data.name,
+            revenue,
+            cost, // <-- Giá trị cost bây giờ đã được tính theo logic chính xác nhất
+            profit,
+            percent: plannedProfitMargin,
+            costOverQuarter: null,
+            target: null,
+            note: "",
+            suggest: "",
+            type: data.type || "",
+            editable: true,
+        };
+    })
+);
 
             const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
             const saved = await getDoc(

@@ -46,9 +46,9 @@ export const defaultRow = {
     noPhaiTraCK: "0",
     totalCost: "0",
     cpVuot: "0",
-
     revenue: "0",
     hskh: "0",
+    cpSauQuyetToan: 0,
 };
 
 const transformProjectName = (name) => {
@@ -102,6 +102,7 @@ export const handleFileUpload = (
         "Doanh Thu": "revenue",
         HSKH: "hskh",
         "CP Vượt": "cpVuot",
+        "CP Sau Quyết Toán": "cpSauQuyetToan", // <-- THÊM DÒNG NÀY
     };
 
     const reader = new FileReader();
@@ -231,6 +232,7 @@ const numericFields = [
     "cpVuot",
     "revenue",
     "hskh",
+    "cpSauQuyetToan", // <-- THÊM DÒNG NÀY
 ];
 const validateRow = (row) =>
     numericFields.every((key) => {
@@ -259,72 +261,54 @@ export default function ActualCostsTab({ projectId }) {
     const [costAllocations, setCostAllocations] = useState(null); // <--- THÊM DÒNG NÀY
 
     const [initialDbLoadComplete, setInitialDbLoadComplete] = useState(false);
-// Tải dữ liệu từ costAllocations
-useEffect(() => {
-    const fetchCostAllocations = async () => {
-        if (!year || !quarter) return;
-        const docId = `${year}_${quarter}`;
-        const docRef = doc(db, "costAllocations", docId);
-        const docSnap = await getDoc(docRef);
+    // Tải dữ liệu từ costAllocations
+    useEffect(() => {
+        const fetchCostAllocations = async () => {
+            if (!year || !quarter) return;
+            const docId = `${year}_${quarter}`;
+            const docRef = doc(db, "costAllocations", docId);
+            const docSnap = await getDoc(docRef);
 
-        if (docSnap.exists()) {
-            // Lấy đúng mảng mainRows từ document
-            setCostAllocations(docSnap.data().mainRows || []);
-        } else {
-            console.warn(`Không tìm thấy dữ liệu phân bổ cho ${docId}`);
-            setCostAllocations([]); // Reset về mảng rỗng nếu không có dữ liệu
-        }
-    };
-
-    fetchCostAllocations();
-}, [year, quarter]);
-// ✅ BƯỚC 1: Thay thế toàn bộ useEffect cũ bằng useEffect mới này
-
-useEffect(() => {
-    // Chỉ chạy khi tất cả dữ liệu cần thiết đã sẵn sàng
-    if (
-        !initialDbLoadComplete || 
-        !projectData ||
-        !costAllocations ||
-        categories.length === 0
-    ) {
-        return;
-    }
-
-    // Tạo một Map để tra cứu nhanh trạng thái `allowAllocation` của từng khoản mục
-    const allocationStatusMap = new Map(
-        categories.map(cat => [cat.label, cat.allowAllocation])
-    );
-
-    let hasChanges = false;
-    const updatedCostItems = costItems.map(item => {
-        // Lấy trạng thái phân bổ từ Map. Nếu không tìm thấy, mặc định là true.
-        const isAllowed = allocationStatusMap.get(item.description) ?? true;
-
-        if (!isAllowed) {
-            // ---- TRƯỜNG HỢP 1: KHOẢN MỤC KHÔNG ĐƯỢC PHÉP PHÂN BỔ ----
-            if (item.allocated !== "0") {
-                hasChanges = true;
-                const newItem = { ...item, allocated: "0" }; // Ép giá trị Phân Bổ về 0
-                // Tính toán lại các trường liên quan
-                calcAllFields(newItem, {
-                    overallRevenue,
-                    projectTotalAmount,
-                    projectType: projectData?.type,
-                });
-                return newItem;
+            if (docSnap.exists()) {
+                // Lấy đúng mảng mainRows từ document
+                setCostAllocations(docSnap.data().mainRows || []);
+            } else {
+                console.warn(`Không tìm thấy dữ liệu phân bổ cho ${docId}`);
+                setCostAllocations([]); // Reset về mảng rỗng nếu không có dữ liệu
             }
-        } else if (projectData.type === "Nhà máy" && costAllocations.length > 0) {
-            // ---- TRƯỜNG HỢP 2: ĐƯỢC PHÉP PHÂN BỔ (giữ logic cũ cho dự án Nhà máy) ----
-            const allocationData = costAllocations.find(
-                allocItem => allocItem.name === item.description
-            );
+        };
 
-            if (allocationData && allocationData.nhaMayValue !== undefined) {
-                const newAllocatedValue = String(allocationData.nhaMayValue);
-                if (item.allocated !== newAllocatedValue) {
+        fetchCostAllocations();
+    }, [year, quarter]);
+    // ✅ BƯỚC 1: Thay thế toàn bộ useEffect cũ bằng useEffect mới này
+
+    useEffect(() => {
+        // Chỉ chạy khi tất cả dữ liệu cần thiết đã sẵn sàng
+        if (
+            !initialDbLoadComplete ||
+            !projectData ||
+            !costAllocations ||
+            categories.length === 0
+        ) {
+            return;
+        }
+
+        // Tạo một Map để tra cứu nhanh trạng thái `allowAllocation` của từng khoản mục
+        const allocationStatusMap = new Map(
+            categories.map((cat) => [cat.label, cat.allowAllocation])
+        );
+
+        let hasChanges = false;
+        const updatedCostItems = costItems.map((item) => {
+            // Lấy trạng thái phân bổ từ Map. Nếu không tìm thấy, mặc định là true.
+            const isAllowed = allocationStatusMap.get(item.description) ?? true;
+
+            if (!isAllowed) {
+                // ---- TRƯỜNG HỢP 1: KHOẢN MỤC KHÔNG ĐƯỢC PHÉP PHÂN BỔ ----
+                if (item.allocated !== "0") {
                     hasChanges = true;
-                    const newItem = { ...item, allocated: newAllocatedValue };
+                    const newItem = { ...item, allocated: "0" }; // Ép giá trị Phân Bổ về 0
+                    // Tính toán lại các trường liên quan
                     calcAllFields(newItem, {
                         overallRevenue,
                         projectTotalAmount,
@@ -332,27 +316,55 @@ useEffect(() => {
                     });
                     return newItem;
                 }
+            } else if (
+                projectData.type === "Nhà máy" &&
+                costAllocations.length > 0
+            ) {
+                // ---- TRƯỜNG HỢP 2: ĐƯỢC PHÉP PHÂN BỔ (giữ logic cũ cho dự án Nhà máy) ----
+                const allocationData = costAllocations.find(
+                    (allocItem) => allocItem.name === item.description
+                );
+
+                if (
+                    allocationData &&
+                    allocationData.nhaMayValue !== undefined
+                ) {
+                    const newAllocatedValue = String(
+                        allocationData.nhaMayValue
+                    );
+                    if (item.allocated !== newAllocatedValue) {
+                        hasChanges = true;
+                        const newItem = {
+                            ...item,
+                            allocated: newAllocatedValue,
+                        };
+                        calcAllFields(newItem, {
+                            overallRevenue,
+                            projectTotalAmount,
+                            projectType: projectData?.type,
+                        });
+                        return newItem;
+                    }
+                }
             }
+            // Trả về item gốc nếu không có gì thay đổi
+            return item;
+        });
+
+        if (hasChanges) {
+            setCostItems(updatedCostItems);
         }
-        // Trả về item gốc nếu không có gì thay đổi
-        return item;
-    });
+    }, [
+        initialDbLoadComplete,
+        costItems,
+        costAllocations,
+        categories,
+        projectData,
+        overallRevenue,
+        projectTotalAmount,
+    ]);
 
-    if (hasChanges) {
-        setCostItems(updatedCostItems);
-    }
-
-}, [
-    initialDbLoadComplete, 
-    costItems, 
-    costAllocations, 
-    categories, 
-    projectData, 
-    overallRevenue, 
-    projectTotalAmount
-]);
-
-// ... (các useEffect và hàm khác)
+    // ... (các useEffect và hàm khác)
     const columnsAll = useMemo(
         () => [
             { key: "project", label: "Công Trình", editable: true },
@@ -382,6 +394,11 @@ useEffect(() => {
 
             { key: "revenue", label: "Doanh Thu", editable: true },
             { key: "hskh", label: "HSKH", editable: true },
+            {
+                key: "cpSauQuyetToan",
+                label: "CP Sau Quyết Toán",
+                editable: false, // Trường này được tính tự động
+            },
         ],
         []
     );
@@ -467,6 +484,7 @@ useEffect(() => {
             "revenue",
             "hskh",
             "cpVuot",
+            "cpSauQuyetToan", // <-- THÊM DÒNG NÀY
         ],
         []
     );
@@ -478,53 +496,65 @@ useEffect(() => {
         [sumKeys]
     );
 
-   // Step 1: Listen for real-time updates on saved cost data from DB
-useEffect(() => {
-    if (!id || !year || !quarter) return;
+    // Step 1: Listen for real-time updates on saved cost data from DB
+    useEffect(() => {
+        if (!id || !year || !quarter) return;
 
-    // Tạo reference đến document cần lắng nghe
-    const docRef = doc(db, "projects", id, "years", year, "quarters", quarter);
+        // Tạo reference đến document cần lắng nghe
+        const docRef = doc(
+            db,
+            "projects",
+            id,
+            "years",
+            year,
+            "quarters",
+            quarter
+        );
 
-    // Thiết lập listener thời gian thực
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-        try {
-            // Logic xử lý dữ liệu giữ nguyên như cũ
-            const rev = docSnap.exists()
-                ? parseNumber(docSnap.data().overallRevenue ?? 0)
-                : 0;
-            setOverallRevenue(rev);
+        // Thiết lập listener thời gian thực
+        const unsubscribe = onSnapshot(
+            docRef,
+            (docSnap) => {
+                try {
+                    // Logic xử lý dữ liệu giữ nguyên như cũ
+                    const rev = docSnap.exists()
+                        ? parseNumber(docSnap.data().overallRevenue ?? 0)
+                        : 0;
+                    setOverallRevenue(rev);
 
-            const items = (
-                docSnap.exists() ? docSnap.data().items || [] : []
-            ).map((item) => ({
-                ...item,
-                id: item.id || generateUniqueId(),
-                project: (item.project || "").trim().toUpperCase(),
-                description: (item.description || "").trim(),
-            }));
-            
-            setCostItems(items);
+                    const items = (
+                        docSnap.exists() ? docSnap.data().items || [] : []
+                    ).map((item) => ({
+                        ...item,
+                        id: item.id || generateUniqueId(),
+                        project: (item.project || "").trim().toUpperCase(),
+                        description: (item.description || "").trim(),
+                    }));
 
-        } catch (err) {
-            setError("Lỗi khi xử lý dữ liệu thời gian thực: " + err.message);
-        } finally {
-            // Đánh dấu đã tải xong dữ liệu ban đầu
-            setInitialDbLoadComplete(true); 
-            setLoading(false); // Có thể cần đặt setLoading(false) ở đây
-        }
-    }, (err) => {
-        // Xử lý lỗi từ listener
-        setError("Lỗi lắng nghe dữ liệu: " + err.message);
-        setLoading(false);
-    });
+                    setCostItems(items);
+                } catch (err) {
+                    setError(
+                        "Lỗi khi xử lý dữ liệu thời gian thực: " + err.message
+                    );
+                } finally {
+                    // Đánh dấu đã tải xong dữ liệu ban đầu
+                    setInitialDbLoadComplete(true);
+                    setLoading(false); // Có thể cần đặt setLoading(false) ở đây
+                }
+            },
+            (err) => {
+                // Xử lý lỗi từ listener
+                setError("Lỗi lắng nghe dữ liệu: " + err.message);
+                setLoading(false);
+            }
+        );
 
-    // Quan trọng: Trả về một hàm cleanup để hủy listener khi component unmount
-    // Điều này giúp tránh rò rỉ bộ nhớ
-    return () => {
-        unsubscribe();
-    };
-
-}, [id, year, quarter]); // Dependencies không đổi
+        // Quan trọng: Trả về một hàm cleanup để hủy listener khi component unmount
+        // Điều này giúp tránh rò rỉ bộ nhớ
+        return () => {
+            unsubscribe();
+        };
+    }, [id, year, quarter]); // Dependencies không đổi
 
     // Step 2: Load project details (chỉ chạy khi id thay đổi)
     useEffect(() => {

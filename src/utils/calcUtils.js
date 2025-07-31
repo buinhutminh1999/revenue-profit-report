@@ -121,6 +121,15 @@ export const calcAllFields = (
     
     if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP"))
         row.noPhaiTraCK = calcNoPhaiTraCK(row);
+// TÍNH TOÁN CP SAU QUYẾT TOÁN THEO CÔNG THỨC MỚI NHẤT
+    // =========================================================
+    const debt = parseNumber(row.debt || "0");
+    const directCost = parseNumber(row.directCost || "0");
+    const noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0"); // <-- THAY ĐỔI: Sử dụng Nợ Phải Trả CK
+
+    row.cpSauQuyetToan = String(debt - directCost - noPhaiTraCK);
+        // =========================================================
+
 };
 // ---------- Hidden Columns Helper (cho -VT, -NC) ----------
 export const getHiddenColumnsForProject = (project) =>
