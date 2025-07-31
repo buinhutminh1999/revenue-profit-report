@@ -1,3 +1,4 @@
+import { ROW_SELECTION_PROPAGATION_DEFAULT } from "@mui/x-data-grid/internals";
 import { parseNumber } from "./numberUtils";
 // ---------- Calculation Functions ----------
 
@@ -107,6 +108,7 @@ export const calcAllFields = (
             const pta = Number(parseNumber(projectTotalAmount));
             row.revenue = pta === 0 ? "0" : String((hskh * orv) / pta);
         }
+    
     }
 
     // ✨ SỬA LẠI THỨ TỰ TÍNH TOÁN Ở ĐÂY ✨

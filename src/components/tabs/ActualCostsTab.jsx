@@ -478,44 +478,53 @@ useEffect(() => {
         [sumKeys]
     );
 
-    // Step 1: Load saved cost data from DB
-    useEffect(() => {
-        if (!id || !year || !quarter) return;
-        const loadSavedData = async () => {
-            try {
-                const docRef = doc(
-                    db,
-                    "projects",
-                    id,
-                    "years",
-                    year,
-                    "quarters",
-                    quarter
-                );
-                const docSnap = await getDoc(docRef);
-                const rev = docSnap.exists()
-                    ? parseNumber(docSnap.data().overallRevenue ?? 0)
-                    : 0;
-                setOverallRevenue(rev);
+   // Step 1: Listen for real-time updates on saved cost data from DB
+useEffect(() => {
+    if (!id || !year || !quarter) return;
 
-                const items = (
-                    docSnap.exists() ? docSnap.data().items || [] : []
-                ).map((item) => ({
-                    ...item,
-                    id: item.id || generateUniqueId(),
-                    project: (item.project || "").trim().toUpperCase(),
-                    description: (item.description || "").trim(),
-                }));
-                setCostItems(items);
-            } catch (err) {
-                setError("Lỗi tải dữ liệu chi phí: " + err.message);
-                setLoading(false);
-            } finally {
-                setInitialDbLoadComplete(true);
-            }
-        };
-        loadSavedData();
-    }, [id, year, quarter]);
+    // Tạo reference đến document cần lắng nghe
+    const docRef = doc(db, "projects", id, "years", year, "quarters", quarter);
+
+    // Thiết lập listener thời gian thực
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+        try {
+            // Logic xử lý dữ liệu giữ nguyên như cũ
+            const rev = docSnap.exists()
+                ? parseNumber(docSnap.data().overallRevenue ?? 0)
+                : 0;
+            setOverallRevenue(rev);
+
+            const items = (
+                docSnap.exists() ? docSnap.data().items || [] : []
+            ).map((item) => ({
+                ...item,
+                id: item.id || generateUniqueId(),
+                project: (item.project || "").trim().toUpperCase(),
+                description: (item.description || "").trim(),
+            }));
+            
+            setCostItems(items);
+
+        } catch (err) {
+            setError("Lỗi khi xử lý dữ liệu thời gian thực: " + err.message);
+        } finally {
+            // Đánh dấu đã tải xong dữ liệu ban đầu
+            setInitialDbLoadComplete(true); 
+            setLoading(false); // Có thể cần đặt setLoading(false) ở đây
+        }
+    }, (err) => {
+        // Xử lý lỗi từ listener
+        setError("Lỗi lắng nghe dữ liệu: " + err.message);
+        setLoading(false);
+    });
+
+    // Quan trọng: Trả về một hàm cleanup để hủy listener khi component unmount
+    // Điều này giúp tránh rò rỉ bộ nhớ
+    return () => {
+        unsubscribe();
+    };
+
+}, [id, year, quarter]); // Dependencies không đổi
 
     // Step 2: Load project details (chỉ chạy khi id thay đổi)
     useEffect(() => {
