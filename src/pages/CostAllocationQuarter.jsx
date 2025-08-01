@@ -300,30 +300,34 @@ useEffect(() => {
         });
     }, [projects, year, quarter]); // Dependency array không đổi
     const { projData, loading } = useProjectData(baseProjects, year, quarter);
-    const visibleProjects = useMemo(() => {
-        const compQ = toComparableQuarter(`${year}_${quarter}`);
-        const filtered = projects.filter((p) => {
-            if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom))
-                return false;
-            const qData = projData?.[p.id];
-            let hasData = false;
-            if (qData) {
-                if (toNum(qData.overallRevenue) > 0) hasData = true;
-                if (
-                    Array.isArray(qData.items) &&
-                    qData.items.some((item) => toNum(item.totalCost) > 0)
-                )
-                    hasData = true;
-            }
-            return hasData;
-        });
-        const seen = new Set();
-        return filtered.filter((p) => {
-            if (seen.has(p.id)) return false;
-            seen.add(p.id);
-            return true;
-        });
-    }, [projects, year, quarter, projData]);
+   const visibleProjects = useMemo(() => {
+    const compQ = toComparableQuarter(`${year}_${quarter}`);
+
+    // ✅ ĐÚNG: Bắt đầu lọc từ `baseProjects` đã được xử lý trước đó
+    const filtered = baseProjects.filter((p) => { 
+        if (p.closedFrom && compQ >= toComparableQuarter(p.closedFrom))
+            return false;
+        const qData = projData?.[p.id];
+        let hasData = false;
+        if (qData) {
+            if (toNum(qData.overallRevenue) > 0) hasData = true;
+            if (
+                Array.isArray(qData.items) &&
+                qData.items.some((item) => toNum(item.totalCost) > 0)
+            )
+                hasData = true;
+        }
+        return hasData;
+    });
+
+    const seen = new Set();
+    return filtered.filter((p) => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+    });
+// ✅ ĐÚNG: Cập nhật dependency array
+}, [baseProjects, year, quarter, projData]);
     const mainRows = useQuarterMainData(COL_MAIN, `${year}_${quarter}`);
     const [extraRows, setExtraRows] = usePrevQuarterData(
         year,

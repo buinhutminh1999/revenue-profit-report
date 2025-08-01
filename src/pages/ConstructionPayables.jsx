@@ -408,9 +408,8 @@ const processedData = useMemo(() => {
         const totalItemsRevenue = projectRevenueSums[item.projectId] || 0;
 
         // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
-        const psNo = toNum(item.revenue) > 0 
-            ? toNum(item.debt) - toNum(item.directCost) - toNum(item.noPhaiTraCK) 
-            : 0;
+        const psNo = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
+
         
         // Logic cho PS Giảm (giữ nguyên)
         const psGiam = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
@@ -648,9 +647,8 @@ const detailDataWithGroups = useMemo(() => {
             const summaryRow = itemsInGroup.reduce(
                 (sum, item) => {
                     // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
-                    const psNoValue = toNum(item.revenue) > 0 
-                        ? toNum(item.debt) - toNum(item.directCost) - toNum(item.noPhaiTraCK) 
-                        : 0;
+                   const psNoValue = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
+
 
                     // Logic PS Giảm (giữ nguyên)
                     const psGiamValue = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
@@ -682,9 +680,8 @@ const detailDataWithGroups = useMemo(() => {
 
             itemsInGroup.forEach((item) => {
                 // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
-                const psNoValue = toNum(item.revenue) > 0 
-                    ? toNum(item.debt) - toNum(item.directCost) - toNum(item.noPhaiTraCK) 
-                    : 0;
+                // Công thức mới cho PS Nợ
+const psNoValue = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
 
                 // Logic PS Giảm (giữ nguyên)
                 const psGiamValue = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
@@ -705,9 +702,8 @@ const detailDataWithGroups = useMemo(() => {
         } else {
             const singleItem = itemsInGroup[0];
             // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
-            const psNoValue = toNum(singleItem.revenue) > 0 
-                ? toNum(singleItem.debt) - toNum(singleItem.directCost) - toNum(singleItem.noPhaiTraCK) 
-                : 0;
+           // Công thức mới cho PS Nợ
+const psNoValue = toNum(singleItem.revenue) > 0 ? toNum(singleItem.noPhaiTraCK) : 0;
             
             // Logic PS Giảm (giữ nguyên)
             const psGiamValue = totalItemsRevenue === 0 ? toNum(singleItem.directCost) : toNum(singleItem.noPhaiTraCK);
