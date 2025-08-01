@@ -407,10 +407,12 @@ const processedData = useMemo(() => {
         // Lấy tổng doanh thu item đã tính trước đó
         const totalItemsRevenue = projectRevenueSums[item.projectId] || 0;
 
-        // Logic cho PS Nợ (giữ nguyên)
-        const psNo = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
+        // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
+        const psNo = toNum(item.revenue) > 0 
+            ? toNum(item.debt) - toNum(item.directCost) - toNum(item.noPhaiTraCK) 
+            : 0;
         
-        // ✅ LOGIC MỚI CHO PS GIẢM
+        // Logic cho PS Giảm (giữ nguyên)
         const psGiam = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
 
         const dauKyNo = toNum(item.debt);
@@ -438,7 +440,7 @@ const processedData = useMemo(() => {
         projectSummary.debt += dauKyNo;
         projectSummary.openingCredit += dauKyCo;
         projectSummary.debit += psGiam;
-        projectSummary.credit += psNo;
+        projectSummary.credit += psNo; // Cộng dồn giá trị PS Nợ mới
         projectSummary.tonCuoiKy += cuoiKyNo;
         projectSummary.carryover += cuoiKyCo;
     });
@@ -645,13 +647,17 @@ const detailDataWithGroups = useMemo(() => {
         if (itemsInGroup.length > 1) {
             const summaryRow = itemsInGroup.reduce(
                 (sum, item) => {
-                    const psNoValue = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
-                    // ✅ ÁP DỤNG LOGIC MỚI CHO PS GIẢM
+                    // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
+                    const psNoValue = toNum(item.revenue) > 0 
+                        ? toNum(item.debt) - toNum(item.directCost) - toNum(item.noPhaiTraCK) 
+                        : 0;
+
+                    // Logic PS Giảm (giữ nguyên)
                     const psGiamValue = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
 
                     sum.debt += toNum(item.debt);
                     sum.openingCredit += toNum(item.openingCredit);
-                    sum.credit += psNoValue;
+                    sum.credit += psNoValue; // Cộng dồn PS Nợ mới
                     sum.noPhaiTraCK += psGiamValue;
                     return sum;
                 },
@@ -675,14 +681,18 @@ const detailDataWithGroups = useMemo(() => {
             result.push(summaryRow);
 
             itemsInGroup.forEach((item) => {
-                const psNoValue = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
-                // ✅ ÁP DỤNG LOGIC MỚI CHO PS GIẢM
+                // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
+                const psNoValue = toNum(item.revenue) > 0 
+                    ? toNum(item.debt) - toNum(item.directCost) - toNum(item.noPhaiTraCK) 
+                    : 0;
+
+                // Logic PS Giảm (giữ nguyên)
                 const psGiamValue = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
 
                 result.push({
                     ...item,
                     parentId: summaryId,
-                    credit: psNoValue,
+                    credit: psNoValue, // Gán giá trị PS Nợ mới
                     noPhaiTraCK: psGiamValue,
                     closingDebt: Math.max(
                         toNum(item.debt) + psNoValue - psGiamValue - toNum(item.openingCredit), 0
@@ -694,14 +704,18 @@ const detailDataWithGroups = useMemo(() => {
             });
         } else {
             const singleItem = itemsInGroup[0];
-            const psNoValue = toNum(singleItem.revenue) > 0 ? toNum(singleItem.noPhaiTraCK) : 0;
-            // ✅ ÁP DỤNG LOGIC MỚI CHO PS GIẢM
+            // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
+            const psNoValue = toNum(singleItem.revenue) > 0 
+                ? toNum(singleItem.debt) - toNum(singleItem.directCost) - toNum(singleItem.noPhaiTraCK) 
+                : 0;
+            
+            // Logic PS Giảm (giữ nguyên)
             const psGiamValue = totalItemsRevenue === 0 ? toNum(singleItem.directCost) : toNum(singleItem.noPhaiTraCK);
 
             result.push({
                 ...singleItem,
                 isSingle: true,
-                credit: psNoValue,
+                credit: psNoValue, // Gán giá trị PS Nợ mới
                 noPhaiTraCK: psGiamValue,
                 closingDebt: Math.max(
                     toNum(singleItem.debt) + psNoValue - psGiamValue - toNum(singleItem.openingCredit), 0
@@ -1228,6 +1242,7 @@ const detailDataWithGroups = useMemo(() => {
                         đầu kỳ cho quý tiếp theo.
                     </DialogContentText>
                 </DialogContent>
+
                 <DialogActions sx={{ p: "0 24px 16px" }}>
                     <Button onClick={() => setOpenConfirmDialog(false)}>
                         Huỷ
