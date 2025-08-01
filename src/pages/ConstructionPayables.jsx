@@ -388,31 +388,22 @@ const ConstructionPayables = () => {
             unsubscribers.forEach((unsub) => unsub());
         };
     }, [selectedYear, selectedQuarter]);
-
 const processedData = useMemo(() => {
     if (!payablesData) return [];
     const projectsMap = new Map();
 
-    // Tính trước tổng doanh thu của các item cho mỗi dự án
-    const projectRevenueSums = {};
-    payablesData.forEach(item => {
-        const projectId = item.projectId;
-        if (projectRevenueSums[projectId] === undefined) {
-            projectRevenueSums[projectId] = 0;
-        }
-        projectRevenueSums[projectId] += toNum(item.revenue);
-    });
+    // Tính tổng doanh thu của toàn bộ dữ liệu
+    const grandTotalRevenue = payablesData.reduce(
+        (sum, item) => sum + toNum(item.revenue || 0),
+        0
+    );
 
     payablesData.forEach((item) => {
-        // Lấy tổng doanh thu item đã tính trước đó
-        const totalItemsRevenue = projectRevenueSums[item.projectId] || 0;
-
-        // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
-        const psNo = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
-
+        // Công thức PS Nợ (giữ nguyên)
+        const psNo = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
         
-        // Logic cho PS Giảm (giữ nguyên)
-        const psGiam = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
+        // ✅ CÔNG THỨC MỚI CHO PS GIẢM
+        const psGiam = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
 
         const dauKyNo = toNum(item.debt);
         const dauKyCo = toNum(item.openingCredit);
@@ -427,8 +418,8 @@ const processedData = useMemo(() => {
                 project: item.projectDisplayName,
                 debt: 0,
                 openingCredit: 0,
-                debit: 0,
-                credit: 0,
+                debit: 0,  // Sẽ cộng dồn psGiam
+                credit: 0, // Sẽ cộng dồn psNo
                 tonCuoiKy: 0,
                 carryover: 0,
             });
@@ -438,15 +429,15 @@ const processedData = useMemo(() => {
         
         projectSummary.debt += dauKyNo;
         projectSummary.openingCredit += dauKyCo;
-        projectSummary.debit += psGiam;
-        projectSummary.credit += psNo; // Cộng dồn giá trị PS Nợ mới
+        projectSummary.debit += psGiam;   // debit là PS Giảm
+        projectSummary.credit += psNo;    // credit là PS Nợ
         projectSummary.tonCuoiKy += cuoiKyNo;
         projectSummary.carryover += cuoiKyCo;
     });
 
     return Array.from(projectsMap.values());
-}, [payablesData]);
-    const summaryData = useMemo(
+}, [payablesData]);  
+ const summaryData = useMemo(
         () =>
             processedData.reduce(
                 (acc, row) => {
@@ -626,6 +617,13 @@ const processedData = useMemo(() => {
     }, [detailItems, categories]);
 const detailDataWithGroups = useMemo(() => {
     if (sortedDetailItems.length === 0) return [];
+
+    // Tính tổng doanh thu của toàn bộ các hạng mục
+    const grandTotalRevenue = sortedDetailItems.reduce(
+        (sum, item) => sum + toNum(item.revenue || 0),
+        0
+    );
+
     const result = [];
     const groupedByProject = sortedDetailItems.reduce((acc, item) => {
         const key = item.project;
@@ -637,25 +635,18 @@ const detailDataWithGroups = useMemo(() => {
         const itemsInGroup = groupedByProject[projectKey];
         const summaryId = `summary-${projectKey}`;
 
-        // Tính tổng doanh thu của các item trong nhóm này
-        const totalItemsRevenue = itemsInGroup.reduce(
-            (sum, item) => sum + toNum(item.revenue || 0),
-            0
-        );
-
         if (itemsInGroup.length > 1) {
             const summaryRow = itemsInGroup.reduce(
                 (sum, item) => {
-                    // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
-                   const psNoValue = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
-
-
-                    // Logic PS Giảm (giữ nguyên)
-                    const psGiamValue = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
+                    // Công thức PS Nợ (giữ nguyên)
+                    const psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
+                    
+                    // ✅ CÔNG THỨC MỚI CHO PS GIẢM
+                    const psGiamValue = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
 
                     sum.debt += toNum(item.debt);
                     sum.openingCredit += toNum(item.openingCredit);
-                    sum.credit += psNoValue; // Cộng dồn PS Nợ mới
+                    sum.credit += psNoValue;
                     sum.noPhaiTraCK += psGiamValue;
                     return sum;
                 },
@@ -679,17 +670,13 @@ const detailDataWithGroups = useMemo(() => {
             result.push(summaryRow);
 
             itemsInGroup.forEach((item) => {
-                // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
-                // Công thức mới cho PS Nợ
-const psNoValue = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
-
-                // Logic PS Giảm (giữ nguyên)
-                const psGiamValue = totalItemsRevenue === 0 ? toNum(item.directCost) : toNum(item.noPhaiTraCK);
+                const psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
+                const psGiamValue = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
 
                 result.push({
                     ...item,
                     parentId: summaryId,
-                    credit: psNoValue, // Gán giá trị PS Nợ mới
+                    credit: psNoValue,
                     noPhaiTraCK: psGiamValue,
                     closingDebt: Math.max(
                         toNum(item.debt) + psNoValue - psGiamValue - toNum(item.openingCredit), 0
@@ -701,17 +688,14 @@ const psNoValue = toNum(item.revenue) > 0 ? toNum(item.noPhaiTraCK) : 0;
             });
         } else {
             const singleItem = itemsInGroup[0];
-            // ✅ ĐÃ THAY ĐỔI THEO CÔNG THỨC MỚI
-           // Công thức mới cho PS Nợ
-const psNoValue = toNum(singleItem.revenue) > 0 ? toNum(singleItem.noPhaiTraCK) : 0;
             
-            // Logic PS Giảm (giữ nguyên)
-            const psGiamValue = totalItemsRevenue === 0 ? toNum(singleItem.directCost) : toNum(singleItem.noPhaiTraCK);
+            const psNoValue = grandTotalRevenue > 0 ? toNum(singleItem.noPhaiTraCK) : 0;
+            const psGiamValue = grandTotalRevenue === 0 ? toNum(singleItem.directCost) : toNum(singleItem.debt);
 
             result.push({
                 ...singleItem,
                 isSingle: true,
-                credit: psNoValue, // Gán giá trị PS Nợ mới
+                credit: psNoValue,
                 noPhaiTraCK: psGiamValue,
                 closingDebt: Math.max(
                     toNum(singleItem.debt) + psNoValue - psGiamValue - toNum(singleItem.openingCredit), 0
@@ -945,280 +929,82 @@ const psNoValue = toNum(singleItem.revenue) > 0 ? toNum(singleItem.noPhaiTraCK) 
                 </Box>
             </Paper>
 
-            <Drawer
-                anchor="right"
+           <Dialog
                 open={drawerOpen}
                 onClose={handleDrawerClose}
-                PaperProps={{
-                    sx: {
-                        width: { xs: "90%", md: "70%" },
-                        minWidth: { md: 900 },
-                        p: { xs: 2, md: 3 },
-                    },
-                }}
+                fullWidth
+                maxWidth="xl"
+                PaperProps={{ sx: { borderRadius: 3, height: '90vh' } }}
             >
                 {selectedProject && (
-                    <Box>
-                        <Stack
-                            direction="row"
-                            justifyContent="space-between"
-                            alignItems="center"
-                            sx={{ mb: 2 }}
-                        >
-                            <Box sx={{ pr: 2 }}>
-                                <Typography variant="h5" fontWeight={700}>
-                                    {selectedProject.project}
-                                </Typography>
-                                <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                >
-                                    Chi tiết công nợ Quý {selectedQuarter} /
-                                    {selectedYear}
-                                </Typography>
-                            </Box>
-                            <IconButton onClick={handleDrawerClose}>
+                    <>
+                        <DialogTitle sx={{ fontWeight: 700 }}>
+                            {selectedProject.project}
+                            <IconButton aria-label="close" onClick={handleDrawerClose} sx={{ position: 'absolute', right: 12, top: 12, color: (theme) => theme.palette.grey[500] }}>
                                 <CloseIcon />
                             </IconButton>
-                        </Stack>
-                        <Divider sx={{ mb: 3 }} />
-                        <Grid container spacing={2} sx={{ mb: 3 }}>
-                            <Grid item xs={6} md={3}>
-                                <DetailStatCard
-                                    title="Đầu Kỳ Nợ"
-                                    value={selectedProject.debt}
-                                    color={theme.palette.primary.dark}
-                                />
+                        </DialogTitle>
+                        <DialogContent dividers>
+                             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                Chi tiết công nợ Quý {selectedQuarter} / {selectedYear}
+                            </Typography>
+                            
+                            <Grid container spacing={2} sx={{ mb: 2 }}>
+                                <Grid item xs={6} md={3}><DetailStatCard title="Đầu Kỳ Nợ" value={selectedProject.debt} color={theme.palette.primary.dark} /></Grid>
+                                <Grid item xs={6} md={3}><DetailStatCard title="PS Nợ" value={selectedProject.credit} color={theme.palette.warning.dark} /></Grid>
+                                <Grid item xs={6} md={3}><DetailStatCard title="PS Giảm" value={selectedProject.debit} color={theme.palette.success.dark} /></Grid>
+                                <Grid item xs={6} md={3}><DetailStatCard title="Cuối Kỳ Nợ" value={selectedProject.tonCuoiKy} color={theme.palette.error.dark} /></Grid>
                             </Grid>
-                            <Grid item xs={6} md={3}>
-                                <DetailStatCard
-                                    title="PS Nợ"
-                                    value={selectedProject.credit}
-                                    color={theme.palette.warning.dark}
-                                />
-                            </Grid>
-                            <Grid item xs={6} md={3}>
-                                <DetailStatCard
-                                    title="PS Giảm"
-                                    value={selectedProject.debit}
-                                    color={theme.palette.success.dark}
-                                />
-                            </Grid>
-                            <Grid item xs={6} md={3}>
-                                <DetailStatCard
-                                    title="Cuối Kỳ Nợ"
-                                    value={selectedProject.tonCuoiKy}
-                                    color={theme.palette.error.dark}
-                                />
-                            </Grid>
-                        </Grid>
-                        <Typography
-                            variant="h6"
-                            fontWeight={600}
-                            sx={{ mb: 1.5 }}
-                        >
-                            Danh sách giao dịch chi tiết
-                        </Typography>
-                        <Box>
-                            <StyledDataGrid
-                                rows={displayRows}
-                                onRowClick={handleDetailRowClick}
-                                getRowClassName={(params) => {
-                                    if (params.row.isGrandTotal)
-                                        return "grand-total-row";
-                                    if (params.row.isSummary)
-                                        return "summary-row";
-                                    if (params.row.parentId)
-                                        return "detail-row";
-                                    return "";
-                                }}
-                                hideFooter
-                                autoHeight
-                                columns={[
-                                    {
-                                        field: "project",
-                                        headerName: "Mã Công Trình",
-                                        flex: 1, // Cho phép co giãn, chiếm 1 phần
-                                        minWidth: 180, // Giữ độ rộng tối thiểu
-                                        pinned: "left",
-                                    },
-                                    {
-                                        field: "description",
-                                        headerName: "Diễn Giải Chi Tiết",
-                                        flex: 1.3, // Tăng tỉ lệ co giãn để cột này rộng hơn
-                                        minWidth: 280, // Tăng độ rộng tối thiểu
-                                        pinned: "left",
-                                        renderCell: (params) => (
-                                            <Stack
-                                                direction="row"
-                                                alignItems="center"
-                                                spacing={0.5}
-                                            >
-                                                {params.row.isSummary && (
-                                                    <IconButton
-                                                        size="small"
-                                                        sx={{ ml: -1.5 }}
-                                                        onClick={(e) =>
-                                                            handleDetailRowClick(
-                                                                params,
-                                                                e
-                                                            )
-                                                        }
-                                                    >
-                                                        {expandedGroups.includes(
-                                                            params.row._id
-                                                        ) ? (
-                                                            <KeyboardArrowUpIcon />
-                                                        ) : (
-                                                            <KeyboardArrowDownIcon />
-                                                        )}
-                                                    </IconButton>
-                                                )}
-                                                <Typography variant="body2">
-                                                    {params.value}
-                                                </Typography>
-                                            </Stack>
-                                        ),
-                                    },
+                           
+                            <Typography variant="h6" fontWeight={600} sx={{ mt: 3, mb: 1.5 }}>
+                                Danh sách giao dịch chi tiết
+                            </Typography>
 
-                                    {
-                                        field: "debt",
-                                        headerName: "Đầu Kỳ Nợ",
-                                        width: 130,
-                                        align: "right",
-                                        headerAlign: "right",
-                                        renderCell: (params) => (
-                                            <CurrencyDisplay
-                                                value={params.value}
-                                                typographyProps={{
-                                                    color:
-                                                        toNum(params.value) !==
-                                                        0
-                                                            ? "text.primary"
-                                                            : "text.disabled",
-                                                }}
-                                            />
-                                        ),
-                                    },
-                                    {
-                                        field: "openingCredit",
-                                        headerName: "Đầu Kỳ Có",
-                                        width: 130,
-                                        align: "right",
-                                        headerAlign: "right",
-                                        renderCell: (params) => (
-                                            <CurrencyDisplay
-                                                value={params.value}
-                                                typographyProps={{
-                                                    color:
-                                                        toNum(params.value) !==
-                                                        0
-                                                            ? "text.primary"
-                                                            : "text.disabled",
-                                                }}
-                                            />
-                                        ),
-                                    },
-                                    // ✨ ĐÃ HOÁN ĐỔI GIÁ TRỊ CỦA 2 CỘT DƯỚI ĐÂY ✨
-                                    {
-                                        field: "credit", // Lấy từ 'credit'
-                                        headerName: "PS Nợ", // Hiển thị là 'PS Nợ'
-                                        width: 130,
-                                        align: "right",
-                                        headerAlign: "right",
-                                        renderCell: (params) => (
-                                            <CurrencyDisplay
-                                                value={params.value}
-                                                typographyProps={{
-                                                    color:
-                                                        toNum(params.value) > 0
-                                                            ? "primary.main"
-                                                            : "text.disabled",
-                                                    fontWeight:
-                                                        toNum(params.value) > 0
-                                                            ? "600"
-                                                            : "normal",
-                                                }}
-                                            />
-                                        ),
-                                    },
-                                    {
-                                        field: "noPhaiTraCK", // Lấy từ 'noPhaiTraCK'
-                                        headerName: "PS Giảm", // Hiển thị là 'PS Giảm'
-                                        width: 130,
-                                        align: "right",
-                                        headerAlign: "right",
-                                        renderCell: (params) => (
-                                            <CurrencyDisplay
-                                                value={params.value}
-                                                typographyProps={{
-                                                    color:
-                                                        toNum(params.value) > 0
-                                                            ? "success.main"
-                                                            : "text.disabled",
-                                                    fontWeight:
-                                                        toNum(params.value) > 0
-                                                            ? "600"
-                                                            : "normal",
-                                                }}
-                                            />
-                                        ),
-                                    },
-                                    {
-                                        field: "closingDebt",
-                                        headerName: "Cuối Kỳ Nợ",
-                                        type: "number",
-                                        width: 140,
-                                        align: "right",
-                                        headerAlign: "right",
-                                        renderCell: (params) => (
-                                            <CurrencyDisplay
-                                                value={params.value}
-                                                typographyProps={{
-                                                    fontWeight: "bold",
-                                                    color:
-                                                        toNum(params.value) !==
-                                                        0
-                                                            ? "error.dark"
-                                                            : "text.disabled",
-                                                }}
-                                            />
-                                        ),
-                                    },
-                                    {
-                                        field: "closingCredit",
-                                        headerName: "Cuối Kỳ Có",
-                                        type: "number",
-                                        width: 140,
-                                        align: "right",
-                                        headerAlign: "right",
-                                        renderCell: (params) => (
-                                            <CurrencyDisplay
-                                                value={params.value}
-                                                typographyProps={{
-                                                    fontWeight: "bold",
-                                                    color:
-                                                        toNum(params.value) > 0
-                                                            ? "success.dark"
-                                                            : "text.disabled",
-                                                }}
-                                            />
-                                        ),
-                                    },
-                                ]}
-                                getRowId={(r) => r._id}
-                                density="compact"
-                                sx={{
-                                    border: 0,
-                                    "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
-                                        { outline: "none" },
-                                }}
-                                slots={{ noRowsOverlay: NoRowsOverlay }}
-                            />
-                        </Box>
-                    </Box>
+                            <Box sx={{ height: 'calc(100% - 200px)', width: '100%' }}>
+                                <StyledDataGrid
+                                    rows={displayRows}
+                                    onRowClick={handleDetailRowClick}
+                                    getRowHeight={() => 'auto'}
+                                    getRowClassName={(params) => {
+                                        if (params.row.isGrandTotal) return "grand-total-row";
+                                        if (params.row.isSummary) return "summary-row";
+                                        if (params.row.parentId) return "detail-row";
+                                        return "";
+                                    }}
+                                    hideFooter
+                                    autoHeight={false} // Tắt autoHeight của grid để nó vừa trong Box
+                                    columns={[
+                                        { field: "project", headerName: "Mã Công Trình", flex: 1, minWidth: 180 },
+                                        {
+                                            field: "description", headerName: "Diễn Giải Chi Tiết", flex: 1.3, minWidth: 280,
+                                            renderCell: (params) => (
+                                                <Stack direction="row" alignItems="center" spacing={0.5}>
+                                                    {params.row.isSummary && (
+                                                        <IconButton size="small" sx={{ ml: -1.5 }} onClick={(e) => handleDetailRowClick(params, e)}>
+                                                            {expandedGroups.includes(params.row._id) ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                                                        </IconButton>
+                                                    )}
+                                                    <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{params.value}</Typography>
+                                                </Stack>
+                                            ),
+                                        },
+                                        { field: "debt", headerName: "Đầu Kỳ Nợ", width: 130, align: "right", headerAlign: "right", renderCell: (params) => (<CurrencyDisplay value={params.value} typographyProps={{ color: toNum(params.value) !== 0 ? "text.primary" : "text.disabled" }} />) },
+                                        { field: "openingCredit", headerName: "Đầu Kỳ Có", width: 130, align: "right", headerAlign: "right", renderCell: (params) => (<CurrencyDisplay value={params.value} typographyProps={{ color: toNum(params.value) !== 0 ? "text.primary" : "text.disabled" }} />) },
+                                        { field: "credit", headerName: "PS Nợ", width: 130, align: "right", headerAlign: "right", renderCell: (params) => (<CurrencyDisplay value={params.value} typographyProps={{ color: toNum(params.value) > 0 ? "primary.main" : "text.disabled", fontWeight: toNum(params.value) > 0 ? "600" : "normal" }} />) },
+                                        { field: "noPhaiTraCK", headerName: "PS Giảm", width: 130, align: "right", headerAlign: "right", renderCell: (params) => (<CurrencyDisplay value={params.value} typographyProps={{ color: toNum(params.value) > 0 ? "success.main" : "text.disabled", fontWeight: toNum(params.value) > 0 ? "600" : "normal" }} />) },
+                                        { field: "closingDebt", headerName: "Cuối Kỳ Nợ", type: "number", width: 140, align: "right", headerAlign: "right", renderCell: (params) => (<CurrencyDisplay value={params.value} typographyProps={{ fontWeight: "bold", color: toNum(params.value) !== 0 ? "error.dark" : "text.disabled" }} />) },
+                                        { field: "closingCredit", headerName: "Cuối Kỳ Có", type: "number", width: 140, align: "right", headerAlign: "right", renderCell: (params) => (<CurrencyDisplay value={params.value} typographyProps={{ fontWeight: "bold", color: toNum(params.value) > 0 ? "success.dark" : "text.disabled" }} />) },
+                                    ]}
+                                    getRowId={(r) => r._id}
+                                    density="compact"
+                                    sx={{ border: 0, "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": { outline: "none" } }}
+                                    slots={{ noRowsOverlay: NoRowsOverlay }}
+                                />
+                            </Box>
+                        </DialogContent>
+                    </>
                 )}
-            </Drawer>
+            </Dialog>
 
             <Dialog
                 open={openConfirmDialog}
