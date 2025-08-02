@@ -803,8 +803,72 @@
                         ...assetDepreciationData,
                     };
                 }
+// ✅ BẮT ĐẦU: THAY THẾ TOÀN BỘ KHỐI CODE CŨ BẰNG KHỐI NÀY
+// ======================================================================
+// TỔNG HỢP DỮ LIỆU TỪ BÁO CÁO QUÝ CHO CÁC HÀNG ĐẶC BIỆT
+// ======================================================================
+const rowsToAggregate = [
+    "II.2. DT + LN ĐƯỢC CHIA TỪ LDX",
+    "LỢI NHUẬN LIÊN DOANH (LDX)",
+    "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
+    "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)",
+    "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
+    "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
+];
 
-       // ✅ DÁN PHIÊN BẢN HOÀN CHỈNH NÀY VÀO
+for (const rowName of rowsToAggregate) {
+    const aggregatedData = {};
+    for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+        try {
+            const docId = `${selectedYear}_${quarter}`;
+            const profitReportSnap = await getDoc(doc(db, "profitReports", docId));
+
+            if (profitReportSnap.exists()) {
+                const reportData = profitReportSnap.data();
+                if (Array.isArray(reportData.rows)) {
+                    const sourceRow = reportData.rows.find(
+                        (row) => row.name === rowName
+                    );
+                    if (sourceRow) {
+                        // Lấy số liệu từ báo cáo quý và gán vào đúng trường của năm
+                        aggregatedData[`revenue${quarter}`] = toNum(sourceRow.revenue);
+                        aggregatedData[`cost${quarter}`] = toNum(sourceRow.cost);
+                        aggregatedData[`profit${quarter}`] = toNum(sourceRow.profit);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(
+                `Lỗi khi lấy dữ liệu cho "${rowName}" từ quý ${quarter}/${selectedYear}:`,
+                error
+            );
+        }
+    }
+
+    // Tính tổng cả năm từ dữ liệu các quý vừa lấy
+    aggregatedData.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce(
+        (sum, q) => sum + (aggregatedData[`revenue${q}`] || 0),
+        0
+    );
+    aggregatedData.cost = ["Q1", "Q2", "Q3", "Q4"].reduce(
+        (sum, q) => sum + (aggregatedData[`cost${q}`] || 0),
+        0
+    );
+    aggregatedData.profit = ["Q1", "Q2", "Q3", "Q4"].reduce(
+        (sum, q) => sum + (aggregatedData[`profit${q}`] || 0),
+        0
+    );
+
+    // Cập nhật dữ liệu vào rowTemplate
+    const targetIndex = rowTemplate.findIndex((r) => r.name === rowName);
+    if (targetIndex > -1) {
+        rowTemplate[targetIndex] = {
+            ...rowTemplate[targetIndex],
+            ...aggregatedData,
+        };
+    }
+}
+// ✅ KẾT THÚC: THAY THẾ TOÀN BỘ KHỐI CODE CŨ BẰNG KHỐI NÀY
 projects.forEach((p) => {
     const index = rowTemplate.findIndex((r) => r.name === p.name);
     if (index > -1) {
