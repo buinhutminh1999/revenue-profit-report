@@ -583,16 +583,34 @@
                                 if (qSnap.exists()) {
                                     const qData = qSnap.data();
                                     const revenue = toNum(qData.overallRevenue);
-                                    const cost = Array.isArray(qData.items)
-                                        ? qData.items.reduce(
-                                            (sum, item) =>
-                                                sum + toNum(item.totalCost),
-                                            0
-                                        )
-                                        : 0;
-                                    quarterlyData.revenues[quarter] = revenue;
-                                    quarterlyData.costs[quarter] = cost;
-                                    quarterlyData.profits[quarter] = revenue - cost;
+                                   let cost = 0; // Khởi tạo chi phí cho quý này
+                        if (Array.isArray(qData.items) && qData.items.length > 0) {
+                            // 1. Tính tổng doanh thu của các items làm điều kiện
+                            const totalItemsRevenue = qData.items.reduce(
+                                (sum, item) => sum + toNum(item.revenue || 0),
+                                0
+                            );
+
+                            // 2. Áp dụng logic điều kiện để tính chi phí
+                            if (totalItemsRevenue === 0) {
+                                // Nếu tổng revenue của items = 0, tính tổng 'cpSauQuyetToan'
+                                cost = qData.items.reduce(
+                                    (sum, item) => sum + toNum(item.cpSauQuyetToan || 0),
+                                    0
+                                );
+                            } else {
+                                // Ngược lại, tính tổng 'totalCost'
+                                cost = qData.items.reduce(
+                                    (sum, item) => sum + toNum(item.totalCost || 0),
+                                    0
+                                );
+                            }
+                        }
+                        // ======================================================================
+
+                        quarterlyData.revenues[quarter] = revenue;
+                        quarterlyData.costs[quarter] = cost; // <-- Gán chi phí đã được tính đúng
+                        quarterlyData.profits[quarter] = revenue - cost;
                                 }
                             } catch {}
                         }
