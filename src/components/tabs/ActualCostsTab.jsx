@@ -320,30 +320,40 @@ export default function ActualCostsTab({ projectId }) {
                 projectData.type === "Nhà máy" &&
                 costAllocations.length > 0
             ) {
-                // ---- TRƯỜNG HỢP 2: ĐƯỢC PHÉP PHÂN BỔ (giữ logic cũ cho dự án Nhà máy) ----
-                const allocationData = costAllocations.find(
-                    (allocItem) => allocItem.name === item.description
-                );
+                // ---- TRƯỜNG HỢP 2: ĐƯỢC PHÉP PHÂN BỔ (logic MỚI cho dự án Nhà máy) ----
+    const allocationData = costAllocations.find(
+        (allocItem) => allocItem.name === item.description
+    );
 
-                if (
-                    allocationData &&
-                    allocationData.nhaMayValue !== undefined
-                ) {
-                    const newAllocatedValue = String(
-                        allocationData.nhaMayValue
-                    );
-                    if (item.allocated !== newAllocatedValue) {
-                        hasChanges = true;
-                        const newItem = {
-                            ...item,
-                            allocated: newAllocatedValue,
-                        };
-                        calcAllFields(newItem, {
-                            overallRevenue,
-                            projectTotalAmount,
-                            projectType: projectData?.type,
-                        });
-                        return newItem;
+    if (
+        allocationData &&
+        allocationData.nhaMayValue !== undefined
+    ) {
+        // --- BẮT ĐẦU KHỐI LOGIC MỚI ---
+
+        // 1. Lấy giá trị gốc từ 'nhaMayValue' và chi phí trực tiếp của dòng hiện tại
+        const sourceNhaMayValue = Number(parseNumber(allocationData.nhaMayValue || "0"));
+        const currentDirectCost = Number(parseNumber(item.directCost || "0"));
+
+        // 2. Thực hiện phép trừ theo yêu cầu của bạn
+        const newAllocatedValue = String(sourceNhaMayValue - currentDirectCost);
+
+        // --- KẾT THÚC KHỐI LOGIC MỚI ---
+
+        // Logic còn lại giữ nguyên: so sánh và cập nhật nếu có thay đổi
+        if (item.allocated !== newAllocatedValue) {
+            hasChanges = true;
+            const newItem = {
+                ...item,
+                allocated: newAllocatedValue, // Gán giá trị MỚI đã được tính toán
+            };
+            // Luôn gọi calcAllFields để các cột khác được tính lại theo giá trị Phân bổ mới
+            calcAllFields(newItem, {
+                overallRevenue,
+                projectTotalAmount,
+                projectType: projectData?.type,
+            });
+            return newItem;
                     }
                 }
             }

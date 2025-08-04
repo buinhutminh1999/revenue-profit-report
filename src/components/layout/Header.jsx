@@ -1,111 +1,155 @@
 import React, { useContext, useState } from 'react';
 import {
     AppBar, Toolbar, Box, IconButton, InputBase, Tooltip, Container, alpha,
-    Menu, MenuItem, Divider, useTheme, Avatar, Drawer, List, ListItem, ListItemButton, ListItemText, ListItemIcon, ButtonBase, Chip, useScrollTrigger, Badge,
-    Stack,
-    Typography,
-    Modal,
-    Fade
+    Menu, MenuItem, Divider, useTheme, Avatar, Drawer, List, ListItem, 
+    ListItemButton, ListItemText, ListItemIcon, ButtonBase, Chip, 
+    useScrollTrigger, Badge, Stack, Typography, Modal, Fade, Paper,
+    LinearProgress,
+    Button
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Icons và các Context/Hook
-import { Search, Moon, Sun, Settings, LogOut, User as UserIcon, LayoutDashboard, FolderOpen, BarChart2, Menu as MenuIcon, ChevronRight } from 'lucide-react';
+// Icons
+import { 
+    Search, Moon, Sun, Settings, LogOut, User as UserIcon, 
+    LayoutDashboard, FolderOpen, BarChart2, Menu as MenuIcon, 
+    ChevronRight, Bell, HelpCircle, Shield, Building2,
+    TrendingUp, Calendar, Clock, Home
+} from 'lucide-react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { ColorModeContext } from '../../styles/ThemeContext';
 import { useAuth } from '../../App';
-import BreadcrumbsNav from '../ui/Breadcrumbs';
 
-// --- STYLED COMPONENTS & HELPERS ---
+// --- STYLED COMPONENTS FOR MODERN ERP ---
 
-const Logo = styled(motion.img)({
-    cursor: 'pointer',
-    height: '40px',
-});
+// ERP Header Container
+const ERPHeader = styled(AppBar)(({ theme, scrolled }) => ({
+    backgroundColor: theme.palette.background.paper,
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    boxShadow: scrolled ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+}));
 
-// ✨ Thay thế NavButton và ActiveNavIndicator bằng style "Pill"
-const NavItem = styled(ButtonBase)(({ theme }) => ({
-    position: 'relative',
-    textTransform: 'none',
-    fontWeight: 500,
-    fontSize: '0.9rem',
-    color: theme.palette.text.secondary,
-    padding: theme.spacing(1, 2),
-    borderRadius: theme.shape.borderRadius * 2,
-    transition: 'color 0.2s ease, background-color 0.2s ease',
-    '&:hover': {
-        color: theme.palette.text.primary,
+// Logo Container
+const LogoContainer = styled(Box)(({ theme }) => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing(1.5),
+    '& img': {
+        height: 36,
+        transition: 'transform 0.2s ease',
     },
-    '&.active': {
-        color: theme.palette.text.primary,
-        fontWeight: 600,
+    '&:hover img': {
+        transform: 'scale(1.05)',
     }
 }));
 
-const ActiveNavPill = styled(motion.div)(({ theme }) => ({
-    position: 'absolute',
-    inset: 0,
-    backgroundColor: theme.palette.action.selected,
-    borderRadius: 'inherit',
-    zIndex: -1,
-}));
-
-// ✨ Nâng cấp nút Search thành một "Command Bar Trigger"
-const SearchTrigger = styled(ButtonBase)(({ theme }) => ({
-    padding: theme.spacing(0.75, 1.5),
-    borderRadius: theme.shape.borderRadius * 2.5,
-    backgroundColor: alpha(theme.palette.grey[500], 0.08),
-    border: `1px solid ${theme.palette.divider}`,
-    width: '100%',
-    maxWidth: '280px',
-    justifyContent: 'space-between',
-    transition: 'all 0.2s ease-in-out',
+// Modern Navigation Item
+const NavItem = styled(ButtonBase)(({ theme, active }) => ({
+    position: 'relative',
+    padding: theme.spacing(1, 2),
+    borderRadius: theme.spacing(1),
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: active ? theme.palette.primary.main : theme.palette.text.secondary,
+    backgroundColor: active ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
+    transition: 'all 0.2s ease',
+    
     '&:hover': {
-        backgroundColor: alpha(theme.palette.grey[500], 0.12),
-        borderColor: alpha(theme.palette.grey[500], 0.32),
+        backgroundColor: alpha(theme.palette.primary.main, 0.08),
+        color: theme.palette.primary.main,
     },
+    
+    '& .nav-icon': {
+        marginRight: theme.spacing(1),
+        transition: 'transform 0.2s ease',
+    },
+    
+    '&:hover .nav-icon': {
+        transform: 'translateY(-1px)',
+    }
 }));
 
-const SearchModalWrapper = styled(motion.div)(({ theme }) => ({
+// Search Bar for ERP
+const SearchBar = styled(Paper)(({ theme }) => ({
+    display: 'flex',
+    alignItems: 'center',
+    padding: theme.spacing(0.5, 2),
+    borderRadius: theme.spacing(1),
+    backgroundColor: theme.palette.mode === 'light' 
+        ? theme.palette.grey[100] 
+        : alpha(theme.palette.grey[800], 0.6),
+    border: `1px solid ${theme.palette.divider}`,
+    transition: 'all 0.2s ease',
+    minWidth: 300,
+    
+    '&:hover, &:focus-within': {
+        borderColor: theme.palette.primary.main,
+        boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`,
+    }
+}));
+
+// Notification Badge
+const NotificationBadge = styled(Badge)(({ theme }) => ({
+    '& .MuiBadge-badge': {
+        backgroundColor: theme.palette.error.main,
+        color: theme.palette.error.contrastText,
+        fontSize: '0.625rem',
+        height: 16,
+        minWidth: 16,
+        padding: '0 4px',
+    }
+}));
+
+// User Info Section
+const UserSection = styled(Box)(({ theme }) => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing(1),
+    padding: theme.spacing(0.5, 1),
+    borderRadius: theme.spacing(1),
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    
+    '&:hover': {
+        backgroundColor: alpha(theme.palette.primary.main, 0.04),
+    }
+}));
+
+// Command Palette Modal
+const CommandPalette = styled(Paper)(({ theme }) => ({
     position: 'absolute',
-    top: '15%',
+    top: '20%',
     left: '50%',
     transform: 'translateX(-50%)',
-    width: '95%',
-    maxWidth: '640px',
-    backgroundColor: alpha(theme.palette.background.paper, 0.9),
-    backdropFilter: 'blur(16px)',
-    boxShadow: '0 16px 70px rgba(0,0,0,0.2)',
-    borderRadius: theme.shape.borderRadius * 3,
+    width: '90%',
+    maxWidth: 720,
+    maxHeight: '60vh',
+    overflow: 'hidden',
+    borderRadius: theme.spacing(2),
+    boxShadow: theme.shadows[24],
     border: `1px solid ${theme.palette.divider}`,
 }));
 
-const StyledBadge = styled(Badge)(({ theme }) => ({
-    '& .MuiBadge-badge': {
-        backgroundColor: '#44b700',
-        color: '#44b700',
-        boxShadow: `0 0 0 2px ${theme.palette.background.paper}`,
-        '&::after': {
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            borderRadius: '50%',
-            animation: 'ripple 1.2s infinite ease-in-out',
-            border: '1px solid currentColor',
-            content: '""',
-        },
+// Quick Action Item
+const QuickAction = styled(ListItemButton)(({ theme }) => ({
+    borderRadius: theme.spacing(1),
+    marginBottom: theme.spacing(0.5),
+    transition: 'all 0.2s ease',
+    
+    '&:hover': {
+        backgroundColor: alpha(theme.palette.primary.main, 0.08),
+        transform: 'translateX(4px)',
     },
-    '@keyframes ripple': {
-        '0%': { transform: 'scale(.8)', opacity: 1 },
-        '100%': { transform: 'scale(2.4)', opacity: 0 },
-    },
+    
+    '& .action-icon': {
+        color: theme.palette.primary.main,
+    }
 }));
 
-// --- MAIN COMPONENT ---
+// --- MAIN HEADER COMPONENT ---
 
 export default function Header() {
     const theme = useTheme();
@@ -114,234 +158,649 @@ export default function Header() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const [searchModalOpen, setSearchModalOpen] = useState(false);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [searchValue, setSearchValue] = useState('');
     const [userMenuAnchor, setUserMenuAnchor] = useState(null);
-    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [notificationAnchor, setNotificationAnchor] = useState(null);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    
+    const isScrolled = useScrollTrigger({ 
+        disableHysteresis: true, 
+        threshold: 5 
+    });
 
-    const isScrolled = useScrollTrigger({ disableHysteresis: true, threshold: 10 });
-
+    // Keyboard shortcuts
     useHotkeys('ctrl+k, cmd+k', (e) => {
         e.preventDefault();
-        setSearchModalOpen(true);
-    }, { preventDefault: true });
+        setSearchOpen(true);
+    });
 
-    const handleUserMenuOpen = (e) => setUserMenuAnchor(e.currentTarget);
-    const handleUserMenuClose = () => setUserMenuAnchor(null);
+    useHotkeys('esc', () => {
+        setSearchOpen(false);
+        setSearchValue('');
+    }, { enableOnFormTags: true });
+
+    // Navigation items for ERP
+    const navigationItems = [
+        { 
+            id: 'dashboard',
+            text: 'Tổng quan', 
+            to: '/', 
+            icon: <Home size={18} />,
+            description: 'Dashboard và thống kê'
+        },
+        { 
+            id: 'projects',
+            text: 'Dự án', 
+            to: '/project-manager', 
+            icon: <Building2 size={18} />,
+            description: 'Quản lý công trình'
+        },
+        { 
+            id: 'reports',
+            text: 'Báo cáo', 
+            to: '/profit-report-quarter', 
+            icon: <TrendingUp size={18} />,
+            description: 'Báo cáo tài chính'
+        },
+        {
+            id: 'calendar',
+            text: 'Lịch',
+            to: '/calendar',
+            icon: <Calendar size={18} />,
+            description: 'Lịch làm việc'
+        }
+    ];
+
+    // Quick actions for command palette
+    const quickActions = [
+        {
+            category: 'Điều hướng',
+            items: [
+                { icon: <LayoutDashboard size={20} />, text: 'Dashboard', action: () => navigate('/') },
+                { icon: <Building2 size={20} />, text: 'Danh sách dự án', action: () => navigate('/project-manager') },
+                { icon: <BarChart2 size={20} />, text: 'Báo cáo lợi nhuận', action: () => navigate('/profit-report-quarter') },
+            ]
+        },
+        {
+            category: 'Hành động',
+            items: [
+                { icon: <FolderOpen size={20} />, text: 'Tạo dự án mới', action: () => navigate('/construction-plan') },
+                { icon: <TrendingUp size={20} />, text: 'Xem báo cáo tháng', action: () => navigate('/profit-report-quarter') },
+            ]
+        }
+    ];
 
     const handleLogout = async () => {
-        handleUserMenuClose();
+        setUserMenuAnchor(null);
         const { signOut, getAuth } = await import('firebase/auth');
         try {
             await signOut(getAuth());
             navigate('/login');
         } catch (error) {
-            console.error("Lỗi đăng xuất:", error);
+            console.error("Logout error:", error);
         }
     };
 
-    const mainNavLinks = [
-        { text: 'Trang chính', to: '/', icon: <LayoutDashboard size={20} /> },
-        { text: 'Công trình', to: '/project-manager', icon: <FolderOpen size={20} /> },
-        { text: 'Báo cáo', to: '/profit-report-quarter', icon: <BarChart2 size={20} /> },
-    ];
+    const isActiveRoute = (path) => {
+        if (path === '/') return location.pathname === '/';
+        return location.pathname.startsWith(path);
+    };
 
     return (
         <>
-            <AppBar
-                position="sticky"
-                elevation={0}
-                sx={{
-                    backdropFilter: 'blur(12px)',
-                    backgroundColor: alpha(theme.palette.background.default, isScrolled ? 0.85 : 0.7),
-                    borderBottom: '1px solid',
-                    borderColor: isScrolled ? 'divider' : 'transparent',
-                    transition: 'all 0.3s ease-in-out',
-                }}
-            >
-                <Container maxWidth="xl">
-                    <Toolbar
+            <ERPHeader position="sticky" elevation={0} scrolled={isScrolled}>
+                <Container maxWidth={false}>
+                    <Toolbar 
                         disableGutters
-                        sx={{
-                            justifyContent: 'space-between',
-                            minHeight: isScrolled ? 64 : 80,
-                            transition: 'min-height 0.3s ease-in-out',
+                        sx={{ 
+                            height: 64,
+                            px: { xs: 2, lg: 3 }
                         }}
                     >
-                        {/* --- BÊN TRÁI --- */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <IconButton color="inherit" onClick={() => setDrawerOpen(true)} sx={{ display: { xs: 'flex', lg: 'none' } }}>
-                                <MenuIcon />
+                        {/* Left Section - Logo & Company */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', flex: '0 0 auto' }}>
+                            {/* Mobile menu */}
+                            <IconButton
+                                edge="start"
+                                color="inherit"
+                                onClick={() => setMobileMenuOpen(true)}
+                                sx={{ 
+                                    mr: 2,
+                                    display: { xs: 'flex', lg: 'none' } 
+                                }}
+                            >
+                                <MenuIcon size={24} />
                             </IconButton>
-                            <Link to="/">
-                                <Tooltip title="Trang chủ">
-                                    <Logo
-                                        src="https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png"
-                                        alt="Logo"
-                                        animate={{ height: isScrolled ? 36 : 40 }}
-                                        transition={{ duration: 0.3, ease: 'easeInOut' }}
-                                    />
-                                </Tooltip>
-                            </Link>
+
+                            <LogoContainer component={Link} to="/">
+                                <img 
+                                    src="https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png" 
+                                    alt="Logo" 
+                                />
+                                <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                                    <Typography 
+                                        variant="h6" 
+                                        fontWeight={700}
+                                        sx={{ 
+                                            fontSize: '1.1rem',
+                                            color: 'text.primary'
+                                        }}
+                                    >
+                                        ERP System
+                                    </Typography>
+                                    <Typography 
+                                        variant="caption" 
+                                        color="text.secondary"
+                                        sx={{ fontSize: '0.7rem' }}
+                                    >
+                                        Enterprise Resource Planning
+                                    </Typography>
+                                </Box>
+                            </LogoContainer>
                         </Box>
-                        
-                        {/* ✨ [UI/UX] NAV PILL - Điều hướng trung tâm */}
-                        <Box component="nav" sx={{ display: { xs: 'none', lg: 'flex' }, gap: 1, position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>
-                            {mainNavLinks.map((item) => {
-                                const isActive = location.pathname === item.to || (item.to !== '/' && location.pathname.startsWith(item.to));
-                                return (
-                                    <NavItem component={Link} to={item.to} key={item.text} className={isActive ? 'active' : ''}>
-                                        {isActive && <ActiveNavPill layoutId="activeNavPill" transition={{ type: "spring", stiffness: 380, damping: 30 }} />}
-                                        <Box component="span" sx={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center' }}>
-                                            <Box component="span" sx={{ mr: 1, display: 'flex' }}>{item.icon}</Box>
-                                            {item.text}
+
+                        {/* Center Section - Navigation */}
+                        <Box 
+                            component="nav" 
+                            sx={{ 
+                                display: { xs: 'none', lg: 'flex' },
+                                alignItems: 'center',
+                                gap: 1,
+                                flex: 1,
+                                justifyContent: 'center',
+                                px: 4
+                            }}
+                        >
+                            {navigationItems.map((item) => (
+                                <Tooltip 
+                                    key={item.id}
+                                    title={item.description}
+                                    arrow
+                                    placement="bottom"
+                                >
+                                    <NavItem
+                                        component={Link}
+                                        to={item.to}
+                                        active={isActiveRoute(item.to) ? 1 : 0}
+                                    >
+                                        <Box className="nav-icon">
+                                            {item.icon}
                                         </Box>
+                                        {item.text}
                                     </NavItem>
-                                );
-                            })}
+                                </Tooltip>
+                            ))}
                         </Box>
 
-                        {/* --- BÊN PHẢI --- */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 } }}>
-                             <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                                <Tooltip title="Tìm kiếm (Ctrl + K)">
-                                    <SearchTrigger onClick={() => setSearchModalOpen(true)}>
-                                        <Stack direction="row" alignItems="center" spacing={1}>
-                                            <Search size={16} color={theme.palette.text.secondary} />
-                                            <Typography variant="body2" color="text.secondary">Tìm kiếm...</Typography>
-                                        </Stack>
-                                        <Chip label="Ctrl K" size="small" variant="outlined" sx={{ height: 22 }} />
-                                    </SearchTrigger>
-                                </Tooltip>
+                        {/* Right Section - Search, Notifications, User */}
+                        <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: { xs: 1, md: 2 },
+                            flex: '0 0 auto'
+                        }}>
+                            {/* Search Bar - Desktop */}
+                            <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+                                <SearchBar 
+                                    elevation={0}
+                                    onClick={() => setSearchOpen(true)}
+                                >
+                                    <Search size={18} color={theme.palette.text.secondary} />
+                                    <Typography 
+                                        variant="body2" 
+                                        color="text.secondary"
+                                        sx={{ mx: 1.5, flex: 1 }}
+                                    >
+                                        Tìm kiếm...
+                                    </Typography>
+                                    <Chip 
+                                        label="⌘K" 
+                                        size="small" 
+                                        variant="outlined"
+                                        sx={{ 
+                                            height: 22,
+                                            fontSize: '0.7rem',
+                                            borderColor: theme.palette.divider
+                                        }}
+                                    />
+                                </SearchBar>
                             </Box>
-                             <IconButton color="inherit" onClick={() => setSearchModalOpen(true)} sx={{ display: { xs: 'flex', md: 'none' } }}>
-                                <Search />
+
+                            {/* Search - Mobile */}
+                            <IconButton
+                                color="inherit"
+                                onClick={() => setSearchOpen(true)}
+                                sx={{ display: { xs: 'flex', md: 'none' } }}
+                            >
+                                <Search size={20} />
                             </IconButton>
 
-                            <Tooltip title="Chế độ Sáng/Tối">
-                                <IconButton color="inherit" onClick={colorMode.toggleColorMode}>
-                                    <AnimatePresence mode="wait" initial={false}>
+                            {/* Notifications */}
+                            <Tooltip title="Thông báo">
+                                <IconButton
+                                    color="inherit"
+                                    onClick={(e) => setNotificationAnchor(e.currentTarget)}
+                                >
+                                    <NotificationBadge badgeContent={3}>
+                                        <Bell size={20} />
+                                    </NotificationBadge>
+                                </IconButton>
+                            </Tooltip>
+
+                            {/* Theme Toggle */}
+                            <Tooltip title="Chế độ sáng/tối">
+                                <IconButton
+                                    color="inherit"
+                                    onClick={colorMode.toggleColorMode}
+                                    sx={{ display: { xs: 'none', sm: 'flex' } }}
+                                >
+                                    <AnimatePresence mode="wait">
                                         <motion.div
                                             key={theme.palette.mode}
-                                            initial={{ y: -20, opacity: 0 }}
-                                            animate={{ y: 0, opacity: 1 }}
-                                            exit={{ y: 20, opacity: 0 }}
-                                            transition={{ duration: 0.2 }}
+                                            initial={{ rotate: -180, opacity: 0 }}
+                                            animate={{ rotate: 0, opacity: 1 }}
+                                            exit={{ rotate: 180, opacity: 0 }}
+                                            transition={{ duration: 0.3 }}
                                         >
-                                            {theme.palette.mode === 'dark' ? <Sun /> : <Moon />}
+                                            {theme.palette.mode === 'dark' ? 
+                                                <Sun size={20} /> : 
+                                                <Moon size={20} />
+                                            }
                                         </motion.div>
                                     </AnimatePresence>
                                 </IconButton>
                             </Tooltip>
 
-                            <Tooltip title="Tài khoản">
-                                <IconButton onClick={handleUserMenuOpen} sx={{ p: 0 }}>
-                                    <StyledBadge overlap="circular" anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} variant="dot">
-                                        <Avatar sx={{ width: 40, height: 40 }} src={user?.photoURL} alt={user?.displayName} />
-                                    </StyledBadge>
-                                </IconButton>
-                            </Tooltip>
-                            
-                            <Menu
-                                anchorEl={userMenuAnchor}
-                                open={Boolean(userMenuAnchor)}
-                                onClose={handleUserMenuClose}
-                                MenuListProps={{ 'aria-labelledby': 'user-menu-button' }}
-                                PaperProps={{
-                                    elevation: 0,
-                                    sx: {
-                                        overflow: 'visible', mt: 1.5, minWidth: 240, borderRadius: '16px',
-                                        border: `1px solid ${theme.palette.divider}`,
-                                        backdropFilter: 'blur(12px)',
-                                        backgroundColor: alpha(theme.palette.background.default, 0.8),
-                                        boxShadow: `0 16px 32px -16px rgba(0,0,0,0.3)`,
-                                        '& .MuiAvatar-root': { width: 36, height: 36, ml: -0.5, mr: 1.5, },
-                                        '&:before': {
-                                            content: '""', display: 'block', position: 'absolute', top: 0, right: 14,
-                                            width: 10, height: 10, bgcolor: 'inherit',
-                                            transform: 'translateY(-50%) rotate(45deg)', zIndex: 0,
-                                            borderTop: `1px solid ${theme.palette.divider}`,
-                                            borderLeft: `1px solid ${theme.palette.divider}`,
-                                        },
-                                    },
-                                }}
-                                transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-                                anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                            {/* User Section */}
+                            <UserSection 
+                                onClick={(e) => setUserMenuAnchor(e.currentTarget)}
                             >
-                                <Box sx={{ px: 2, py: 1.5 }}>
-                                    <Typography variant="subtitle1" fontWeight="bold">{user?.displayName || 'Người dùng'}</Typography>
-                                    <Typography variant="body2" color="text.secondary">{user?.email}</Typography>
+                                <Avatar 
+                                    src={user?.photoURL} 
+                                    alt={user?.displayName}
+                                    sx={{ 
+                                        width: 36, 
+                                        height: 36,
+                                        border: `2px solid ${theme.palette.divider}`
+                                    }}
+                                >
+                                    {user?.displayName?.[0] || 'U'}
+                                </Avatar>
+                                <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                                    <Typography 
+                                        variant="body2" 
+                                        fontWeight={600}
+                                        sx={{ lineHeight: 1.2 }}
+                                    >
+                                        {user?.displayName || 'User'}
+                                    </Typography>
+                                    <Typography 
+                                        variant="caption" 
+                                        color="text.secondary"
+                                    >
+                                        {user?.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}
+                                    </Typography>
                                 </Box>
-                                <Divider sx={{ borderStyle: 'dashed' }} />
-                                <MenuItem onClick={() => { handleUserMenuClose(); navigate('/user'); }}>
-                                    <UserIcon size={16} style={{ marginRight: 12, color: theme.palette.text.secondary }} /> Hồ sơ cá nhân
-                                </MenuItem>
-                                <MenuItem onClick={() => { handleUserMenuClose(); navigate('/settings'); }}>
-                                    <Settings size={16} style={{ marginRight: 12, color: theme.palette.text.secondary }} /> Cài đặt
-                                </MenuItem>
-                                <Divider sx={{ borderStyle: 'dashed' }} />
-                                <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
-                                    <LogOut size={16} style={{ marginRight: 12 }} /> Đăng xuất
-                                </MenuItem>
-                            </Menu>
+                                <ChevronRight size={16} />
+                            </UserSection>
                         </Box>
                     </Toolbar>
                 </Container>
-            </AppBar>
 
-            {/* --- CÁC THÀNH PHẦN PHỤ --- */}
-            <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-                <Box sx={{ width: 260, p: 2 }} role="presentation">
-                    <Link to="/" onClick={() => setDrawerOpen(false)} style={{ display: 'block', marginBottom: '16px' }}>
-                        <Logo src="https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png" alt="Logo" style={{ height: 36 }} />
-                    </Link>
+                {/* Progress Bar */}
+                {isScrolled && (
+                    <LinearProgress 
+                        variant="determinate" 
+                        value={30} 
+                        sx={{ 
+                            height: 2,
+                            backgroundColor: alpha(theme.palette.primary.main, 0.1)
+                        }}
+                    />
+                )}
+            </ERPHeader>
+
+            {/* Mobile Drawer */}
+            <Drawer
+                anchor="left"
+                open={mobileMenuOpen}
+                onClose={() => setMobileMenuOpen(false)}
+                PaperProps={{
+                    sx: {
+                        width: 280,
+                        backgroundColor: theme.palette.background.default
+                    }
+                }}
+            >
+                <Box sx={{ p: 2 }}>
+                    <LogoContainer sx={{ mb: 3 }}>
+                        <img 
+                            src="https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png" 
+                            alt="Logo" 
+                        />
+                        <Typography variant="h6" fontWeight={700}>
+                            ERP System
+                        </Typography>
+                    </LogoContainer>
+
                     <List>
-                        {mainNavLinks.map((item) => (
-                            <ListItem key={item.text} disablePadding>
+                        {navigationItems.map((item) => (
+                            <ListItem key={item.id} disablePadding>
                                 <ListItemButton
-                                    selected={location.pathname === item.to}
-                                    onClick={() => { navigate(item.to); setDrawerOpen(false); }}
-                                    sx={{ borderRadius: '8px' }}
+                                    selected={isActiveRoute(item.to)}
+                                    onClick={() => {
+                                        navigate(item.to);
+                                        setMobileMenuOpen(false);
+                                    }}
+                                    sx={{ 
+                                        borderRadius: 1,
+                                        mb: 0.5
+                                    }}
                                 >
-                                    <ListItemIcon>{item.icon}</ListItemIcon>
-                                    <ListItemText primary={item.text} />
+                                    <ListItemIcon sx={{ minWidth: 40 }}>
+                                        {item.icon}
+                                    </ListItemIcon>
+                                    <ListItemText 
+                                        primary={item.text}
+                                        secondary={item.description}
+                                    />
                                 </ListItemButton>
                             </ListItem>
                         ))}
                     </List>
+
+                    <Divider sx={{ my: 2 }} />
+
+                    <List>
+                        <ListItem disablePadding>
+                            <ListItemButton onClick={handleLogout}>
+                                <ListItemIcon sx={{ minWidth: 40 }}>
+                                    <LogOut size={18} />
+                                </ListItemIcon>
+                                <ListItemText primary="Đăng xuất" />
+                            </ListItemButton>
+                        </ListItem>
+                    </List>
                 </Box>
             </Drawer>
 
-            <AnimatePresence>
-                {searchModalOpen && (
-                     <Modal open={searchModalOpen} onClose={() => setSearchModalOpen(false)} closeAfterTransition sx={{ backdropFilter: 'blur(3px)' }}>
-                        <Fade in={searchModalOpen}>
-                           <SearchModalWrapper
-                                initial={{ opacity: 0, scale: 0.95, y: -20 }}
-                                animate={{ opacity: 1, scale: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                transition={{ duration: 0.3, ease: 'easeOut' }}
-                            >
-                                <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5 }}>
-                                    <Search size={20} color={theme.palette.text.secondary} />
-                                    <InputBase fullWidth autoFocus placeholder="Tìm kiếm công trình, báo cáo, hoặc điều hướng..." sx={{ ml: 1.5, fontSize: '1.1rem' }} />
-                                    <Chip label="ESC" size="small" variant="outlined" />
+            {/* User Menu */}
+            <Menu
+                anchorEl={userMenuAnchor}
+                open={Boolean(userMenuAnchor)}
+                onClose={() => setUserMenuAnchor(null)}
+                PaperProps={{
+                    elevation: 0,
+                    sx: {
+                        overflow: 'visible',
+                        filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.08))',
+                        mt: 1.5,
+                        minWidth: 280,
+                        borderRadius: 2,
+                        border: `1px solid ${theme.palette.divider}`,
+                        '&:before': {
+                            content: '""',
+                            display: 'block',
+                            position: 'absolute',
+                            top: 0,
+                            right: 20,
+                            width: 10,
+                            height: 10,
+                            bgcolor: 'background.paper',
+                            transform: 'translateY(-50%) rotate(45deg)',
+                            zIndex: 0,
+                            borderLeft: `1px solid ${theme.palette.divider}`,
+                            borderTop: `1px solid ${theme.palette.divider}`,
+                        },
+                    },
+                }}
+                transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            >
+                {/* User Info Header */}
+                <Box sx={{ px: 2, py: 1.5 }}>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        <Avatar 
+                            src={user?.photoURL}
+                            sx={{ width: 48, height: 48 }}
+                        >
+                            {user?.displayName?.[0] || 'U'}
+                        </Avatar>
+                        <Box>
+                            <Typography variant="subtitle1" fontWeight={600}>
+                                {user?.displayName || 'User'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                {user?.email}
+                            </Typography>
+                            <Chip 
+                                label={user?.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}
+                                size="small"
+                                color={user?.role === 'admin' ? 'primary' : 'default'}
+                                sx={{ mt: 0.5 }}
+                            />
+                        </Box>
+                    </Stack>
+                </Box>
+
+                <Divider />
+
+                <MenuItem 
+                    onClick={() => {
+                        setUserMenuAnchor(null);
+                        navigate('/user');
+                    }}
+                >
+                    <ListItemIcon>
+                        <UserIcon size={18} />
+                    </ListItemIcon>
+                    <ListItemText 
+                        primary="Hồ sơ cá nhân"
+                        secondary="Xem và chỉnh sửa thông tin"
+                    />
+                </MenuItem>
+
+                <MenuItem 
+                    onClick={() => {
+                        setUserMenuAnchor(null);
+                        navigate('/settings');
+                    }}
+                >
+                    <ListItemIcon>
+                        <Settings size={18} />
+                    </ListItemIcon>
+                    <ListItemText 
+                        primary="Cài đặt"
+                        secondary="Tùy chỉnh hệ thống"
+                    />
+                </MenuItem>
+
+                {user?.role === 'admin' && (
+                    <MenuItem 
+                        onClick={() => {
+                            setUserMenuAnchor(null);
+                            navigate('/admin');
+                        }}
+                    >
+                        <ListItemIcon>
+                            <Shield size={18} />
+                        </ListItemIcon>
+                        <ListItemText 
+                            primary="Quản trị"
+                            secondary="Trang quản trị hệ thống"
+                        />
+                    </MenuItem>
+                )}
+
+                <Divider />
+
+                <MenuItem 
+                    onClick={() => {
+                        setUserMenuAnchor(null);
+                        // Show help modal
+                    }}
+                >
+                    <ListItemIcon>
+                        <HelpCircle size={18} />
+                    </ListItemIcon>
+                    <ListItemText primary="Trợ giúp & Hỗ trợ" />
+                </MenuItem>
+
+                <MenuItem 
+                    onClick={handleLogout}
+                    sx={{ color: 'error.main' }}
+                >
+                    <ListItemIcon>
+                        <LogOut size={18} color={theme.palette.error.main} />
+                    </ListItemIcon>
+                    <ListItemText primary="Đăng xuất" />
+                </MenuItem>
+            </Menu>
+
+            {/* Notification Menu */}
+            <Menu
+                anchorEl={notificationAnchor}
+                open={Boolean(notificationAnchor)}
+                onClose={() => setNotificationAnchor(null)}
+                PaperProps={{
+                    sx: {
+                        width: 360,
+                        maxHeight: 480,
+                        borderRadius: 2,
+                    }
+                }}
+            >
+                <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                    <Typography variant="h6" fontWeight={600}>
+                        Thông báo
+                    </Typography>
+                </Box>
+                
+                <Box sx={{ p: 1 }}>
+                    {[1, 2, 3].map((_, index) => (
+                        <Box
+                            key={index}
+                            sx={{
+                                p: 2,
+                                borderRadius: 1,
+                                mb: 1,
+                                backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                                cursor: 'pointer',
+                                '&:hover': {
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                                }
+                            }}
+                        >
+                            <Stack direction="row" spacing={2}>
+                                <Avatar sx={{ width: 40, height: 40 }}>
+                                    <Bell size={18} />
+                                </Avatar>
+                                <Box sx={{ flex: 1 }}>
+                                    <Typography variant="body2" fontWeight={600}>
+                                        Dự án ABC đã hoàn thành
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                        2 giờ trước
+                                    </Typography>
                                 </Box>
-                                <Divider />
-                                <Box sx={{ maxHeight: 400, overflowY: 'auto', p: 1 }}>
-                                    <Typography variant="caption" color="text.secondary" sx={{ px: 1.5, py: 1, display: 'block', fontWeight: 'bold' }}>Gợi ý điều hướng</Typography>
-                                    {mainNavLinks.map(item => (
-                                        <ListItemButton key={item.to} onClick={() => { setSearchModalOpen(false); navigate(item.to); }} sx={{ borderRadius: '8px' }}>
-                                            <ListItemIcon>{item.icon}</ListItemIcon>
+                            </Stack>
+                        </Box>
+                    ))}
+                </Box>
+                
+                <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+                    <Button fullWidth size="small">
+                        Xem tất cả thông báo
+                    </Button>
+                </Box>
+            </Menu>
+
+            {/* Command Palette / Search Modal */}
+            <Modal
+                open={searchOpen}
+                onClose={() => {
+                    setSearchOpen(false);
+                    setSearchValue('');
+                }}
+                closeAfterTransition
+            >
+                <Fade in={searchOpen}>
+                    <CommandPalette>
+                        {/* Search Input */}
+                        <Box sx={{ 
+                            p: 2, 
+                            borderBottom: `1px solid ${theme.palette.divider}`
+                        }}>
+                            <Stack direction="row" alignItems="center" spacing={2}>
+                                <Search size={20} color={theme.palette.text.secondary} />
+                                <InputBase
+                                    fullWidth
+                                    autoFocus
+                                    placeholder="Tìm kiếm hoặc nhập lệnh..."
+                                    value={searchValue}
+                                    onChange={(e) => setSearchValue(e.target.value)}
+                                    sx={{ 
+                                        fontSize: '1.1rem',
+                                        '& input': {
+                                            padding: 0
+                                        }
+                                    }}
+                                />
+                                <Chip
+                                    label="ESC"
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ fontSize: '0.7rem' }}
+                                />
+                            </Stack>
+                        </Box>
+
+                        {/* Quick Actions */}
+                        <Box sx={{ 
+                            maxHeight: 400, 
+                            overflowY: 'auto',
+                            p: 1
+                        }}>
+                            {quickActions.map((category) => (
+                                <Box key={category.category} sx={{ mb: 2 }}>
+                                    <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        sx={{ 
+                                            px: 1.5, 
+                                            py: 0.5,
+                                            display: 'block',
+                                            fontWeight: 600,
+                                            textTransform: 'uppercase',
+                                            letterSpacing: 0.5
+                                        }}
+                                    >
+                                        {category.category}
+                                    </Typography>
+                                    
+                                    {category.items.map((item, index) => (
+                                        <QuickAction
+                                            key={index}
+                                            onClick={() => {
+                                                item.action();
+                                                setSearchOpen(false);
+                                                setSearchValue('');
+                                            }}
+                                        >
+                                            <ListItemIcon className="action-icon">
+                                                {item.icon}
+                                            </ListItemIcon>
                                             <ListItemText primary={item.text} />
-                                            <ChevronRight size={16} color={theme.palette.text.secondary} />
-                                        </ListItemButton>
+                                            <ChevronRight size={16} />
+                                        </QuickAction>
                                     ))}
                                 </Box>
-                            </SearchModalWrapper>
-                        </Fade>
-                    </Modal>
-                )}
-            </AnimatePresence>
+                            ))}
+                        </Box>
+                    </CommandPalette>
+                </Fade>
+            </Modal>
         </>
     );
 }
