@@ -20,7 +20,7 @@ const calcCarryoverEnd = (row, projectType) => {
         const carryover = Number(parseNumber(row.carryover || "0")); // Chuyển Tiếp ĐK
         const carryoverMinus = Number(parseNumber(row.carryoverMinus || "0")); // Được Trừ Quý Này
         const cpVuot = Number(parseNumber(row.cpVuot || "0")); // CP Vượt
-    
+
         return String(carryover - carryoverMinus + cpVuot);
     }
 
@@ -75,7 +75,7 @@ const calcCpVuot = (row) => {
 
     // Tính toán vế 'W' theo công thức mới
     const W = directCost + allocated - debt;
-    console.log(' W', directCost, allocated, debt, row.description )
+    console.log(" W", directCost, allocated, debt, row.description);
     // Vế 'I' chính là Doanh thu
     const I = revenue;
 
@@ -108,7 +108,6 @@ export const calcAllFields = (
             const pta = Number(parseNumber(projectTotalAmount));
             row.revenue = pta === 0 ? "0" : String((hskh * orv) / pta);
         }
-    
     }
 
     // ✨ SỬA LẠI THỨ TỰ TÍNH TOÁN Ở ĐÂY ✨
@@ -117,11 +116,11 @@ export const calcAllFields = (
     row.cpVuot = calcCpVuot(row); // Phải tính CP Vượt trước
 
     // Sau đó mới tính các giá trị phụ thuộc vào CP Vượt
-    row.carryoverEnd = calcCarryoverEnd(row, projectType); 
-    
+    row.carryoverEnd = calcCarryoverEnd(row, projectType);
+
     if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP"))
         row.noPhaiTraCK = calcNoPhaiTraCK(row);
-// TÍNH TOÁN CP SAU QUYẾT TOÁN THEO CÔNG THỨC MỚI NHẤT
+    // TÍNH TOÁN CP SAU QUYẾT TOÁN THEO CÔNG THỨC MỚI NHẤT
     // =========================================================
     const debt = parseNumber(row.debt || "0");
     const directCost = parseNumber(row.directCost || "0");
@@ -129,7 +128,6 @@ export const calcAllFields = (
 
     // ✅ ĐÃ CẬP NHẬT CÔNG THỨC MỚI TẠI ĐÂY
     row.cpSauQuyetToan = String(directCost + noPhaiTraCK - debt);
-
 };
 // ---------- Hidden Columns Helper (cho -VT, -NC) ----------
 export const getHiddenColumnsForProject = (project) =>

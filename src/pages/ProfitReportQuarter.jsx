@@ -659,81 +659,89 @@ export default function ProfitReportQuarter() {
                 ),
             ]);
 
-// Thay thế toàn bộ đoạn .map() này
-const projects = await Promise.all(
-    projectsSnapshot.docs.map(async (d) => {
-        const data = d.data();
-        let revenue = 0, // Đây là doanh thu TỔNG của quý, dùng để tính lợi nhuận cuối cùng
-            cost = 0;
+            // Thay thế toàn bộ đoạn .map() này
+            const projects = await Promise.all(
+                projectsSnapshot.docs.map(async (d) => {
+                    const data = d.data();
+                    let revenue = 0, // Đây là doanh thu TỔNG của quý, dùng để tính lợi nhuận cuối cùng
+                        cost = 0;
 
-        try {
-            const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
-            const qSnap = await getDoc(doc(db, qPath));
-            
-            if (qSnap.exists()) {
-                // Giữ lại việc lấy doanh thu tổng của quý để tính lợi nhuận
-                revenue = toNum(qSnap.data().overallRevenue);
+                    try {
+                        const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
+                        const qSnap = await getDoc(doc(db, qPath));
 
-                if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
-                    // =================================================================
-                    // ✅ BẮT ĐẦU LOGIC MỚI NHẤT
-                    // =================================================================
-                    
-                    // 1. Tính tổng doanh thu của TẤT CẢ CÁC KHOẢN MỤC (items) để làm điều kiện
-                    const totalItemsRevenue = qSnap
-                        .data()
-                        .items.reduce(
-                            (sum, item) => sum + toNum(item.revenue || 0),
-                            0
-                        );
+                        if (qSnap.exists()) {
+                            // Giữ lại việc lấy doanh thu tổng của quý để tính lợi nhuận
+                            revenue = toNum(qSnap.data().overallRevenue);
 
-                    // 2. Dùng tổng doanh thu của items làm điều kiện
-                    if (totalItemsRevenue === 0) {
-                        // TRƯỜNG HỢP 1: Nếu tổng Doanh thu của items = 0, tính tổng 'cpSauQuyetToan'
-                        cost = qSnap
-                            .data()
-                            .items.reduce(
-                                (sum, item) =>
-                                    sum + toNum(item.cpSauQuyetToan || 0),
-                                0
-                            );
-                    } else {
-                        // TRƯỜNG HỢP 2: Nếu tổng Doanh thu của items > 0, giữ nguyên công thức cũ (tổng 'totalCost')
-                        cost = qSnap
-                            .data()
-                            .items.reduce(
-                                (sum, item) => sum + toNum(item.totalCost || 0),
-                                0
-                            );
-                    }
-                    // =================================================================
-                    // ✅ KẾT THÚC LOGIC MỚI NHẤT
-                    // =================================================================
-                }
-            }
-        } catch {}
+                            if (
+                                Array.isArray(qSnap.data().items) &&
+                                qSnap.data().items.length > 0
+                            ) {
+                                // =================================================================
+                                // ✅ BẮT ĐẦU LOGIC MỚI NHẤT
+                                // =================================================================
 
-        // Lợi nhuận vẫn được tính bằng Doanh thu tổng của quý trừ đi Chi phí đã được tính theo logic mới
-        const profit = revenue - cost;
-        
-        const plannedProfitMargin = data.estimatedProfitMargin || null;
+                                // 1. Tính tổng doanh thu của TẤT CẢ CÁC KHOẢN MỤC (items) để làm điều kiện
+                                const totalItemsRevenue = qSnap
+                                    .data()
+                                    .items.reduce(
+                                        (sum, item) =>
+                                            sum + toNum(item.revenue || 0),
+                                        0
+                                    );
 
-        return {
-            projectId: d.id,
-            name: data.name,
-            revenue,
-            cost, // <-- Giá trị cost bây giờ đã được tính theo logic chính xác nhất
-            profit,
-            percent: plannedProfitMargin,
-            costOverQuarter: null,
-            target: null,
-            note: "",
-            suggest: "",
-            type: data.type || "",
-            editable: true,
-        };
-    })
-);
+                                // 2. Dùng tổng doanh thu của items làm điều kiện
+                                if (totalItemsRevenue === 0) {
+                                    // TRƯỜNG HỢP 1: Nếu tổng Doanh thu của items = 0, tính tổng 'cpSauQuyetToan'
+                                    cost = qSnap
+                                        .data()
+                                        .items.reduce(
+                                            (sum, item) =>
+                                                sum +
+                                                toNum(item.cpSauQuyetToan || 0),
+                                            0
+                                        );
+                                } else {
+                                    // TRƯỜNG HỢP 2: Nếu tổng Doanh thu của items > 0, giữ nguyên công thức cũ (tổng 'totalCost')
+                                    cost = qSnap
+                                        .data()
+                                        .items.reduce(
+                                            (sum, item) =>
+                                                sum +
+                                                toNum(item.totalCost || 0),
+                                            0
+                                        );
+                                }
+                                // =================================================================
+                                // ✅ KẾT THÚC LOGIC MỚI NHẤT
+                                // =================================================================
+                            }
+                        }
+                    } catch {}
+
+                    // Lợi nhuận vẫn được tính bằng Doanh thu tổng của quý trừ đi Chi phí đã được tính theo logic mới
+                    const profit = revenue - cost;
+
+                    const plannedProfitMargin =
+                        data.estimatedProfitMargin || null;
+
+                    return {
+                        projectId: d.id,
+                        name: data.name,
+                        revenue,
+                        cost, // <-- Giá trị cost bây giờ đã được tính theo logic chính xác nhất
+                        profit,
+                        percent: plannedProfitMargin,
+                        costOverQuarter: null,
+                        target: null,
+                        note: "",
+                        suggest: "",
+                        type: data.type || "",
+                        editable: true,
+                    };
+                })
+            );
 
             const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
             const saved = await getDoc(
@@ -2098,6 +2106,7 @@ const projects = await Promise.all(
                                         "I.2. KÈ",
                                         "I.3. CÔNG TRÌNH CÔNG TY CĐT",
                                         "I.4. Xí nghiệp XD II",
+                                        'II.1. SẢN XUẤT',
                                         "III. ĐẦU TƯ",
                                     ].map((g) => (
                                         <MenuItem key={g} value={g}>
@@ -2126,6 +2135,35 @@ const projects = await Promise.all(
                             variant="contained"
                             onClick={() => {
                                 if (!addProject.name.trim()) return;
+
+                                // ==========================================================
+                                // ✅ BẮT ĐẦU LOGIC MỚI THEO YÊU CẦU CỦA BẠN
+                                // ==========================================================
+                                let projectType = ""; // Mặc định type là chuỗi rỗng
+
+                                if (
+                                    addProject.group === "I.4. Xí nghiệp XD II"
+                                ) {
+                                    projectType = "XNII";
+                                } else if (
+                                    addProject.group === "II.1. SẢN XUẤT"
+                                ) {
+                                    // <-- ĐIỀU KIỆN BẠN YÊU CẦU
+                                    projectType = "Nhà máy";
+                                } else if (
+                                    addProject.group ===
+                                    "I.3. CÔNG TRÌNH CÔNG TY CĐT"
+                                ) {
+                                    projectType = "CĐT";
+                                } else if (addProject.group === "III. ĐẦU TƯ") {
+                                    projectType = "KH-ĐT";
+                                } else {
+                                    projectType = "Thi công"; // Mặc định cho "I.1. Dân Dụng + Giao Thông" và các trường hợp khác
+                                }
+                                // ==========================================================
+                                // ✅ KẾT THÚC LOGIC MỚI
+                                // ==========================================================
+
                                 let insertIndex = -1;
                                 let groupLabel = addProject.group
                                     .trim()
@@ -2136,6 +2174,7 @@ const projects = await Promise.all(
                                         (r.name || "").trim().toUpperCase() ===
                                         groupLabel
                                 );
+
                                 if (idxGroup !== -1) {
                                     insertIndex = idxGroup + 1;
                                     while (
@@ -2161,9 +2200,10 @@ const projects = await Promise.all(
                                 } else {
                                     insertIndex = rowsCopy.length - 1;
                                 }
+
                                 rowsCopy.splice(insertIndex, 0, {
                                     name: addProject.name,
-                                    type: "",
+                                    type: projectType, // <-- SỬ DỤNG TYPE ĐÃ XÁC ĐỊNH
                                     revenue: 0,
                                     cost: 0,
                                     profit: 0,
@@ -2174,6 +2214,7 @@ const projects = await Promise.all(
                                     suggest: "",
                                     editable: true,
                                 });
+
                                 setRows(rowsCopy);
                                 setAddModal(false);
                                 setAddProject({
