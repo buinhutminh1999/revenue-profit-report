@@ -55,6 +55,15 @@ const mainFunctions = [
         bgColor: '#fef3c7',
         isNew: true 
     },
+    { 
+        icon: <FileSpreadsheet size={24} />, 
+        text: "Quản Lý Danh Mục", 
+        to: "/categories", 
+        desc: "Theo dõi công nợ",
+        color: '#f59e0b',
+        bgColor: '#fef3c7',
+        isNew: true 
+    },
 ];
 
 // Styled Components

@@ -582,103 +582,118 @@ const useProfitReportData = (selectedYear) => {
                 savedRowsData
             );
             // ======================================================================
-            const projects = await Promise.all(
-                projectsSnapshot.docs.map(async (d) => {
-                    const data = d.data();
-                    const quarterlyData = {
-                        revenues: {},
-                        costs: {},
-                        profits: {},
-                    };
-                    for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                        try {
-                            const qSnap = await getDoc(
-                                doc(
-                                    db,
-                                    `projects/${d.id}/years/${selectedYear}/quarters/${quarter}`
-                                )
+           // =================================================================
+// ✅ SAO CHÉP VÀ THAY THẾ TOÀN BỘ KHỐI CODE BÊN DƯỚI
+// =================================================================
+
+const projects = await Promise.all(
+    projectsSnapshot.docs.map(async (d) => {
+        const data = d.data();
+        const quarterlyData = {
+            revenues: {},
+            costs: {},
+            profits: {},
+        };
+
+        for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+            try {
+                const qSnap = await getDoc(
+                    doc(
+                        db,
+                        `projects/${d.id}/years/${selectedYear}/quarters/${quarter}`
+                    )
+                );
+
+                if (qSnap.exists()) {
+                    const qData = qSnap.data();
+                    const revenue = toNum(qData.overallRevenue);
+                    let cost = 0; // Khởi tạo chi phí cho quý này
+
+                    // ==========================================================
+                    // ✅ LOGIC TÍNH CHI PHÍ MỚI ĐƯỢC ÁP DỤNG TẠI ĐÂY
+                    // ==========================================================
+                    const projectType = (data.type || "").toLowerCase();
+
+                    if (projectType.includes("nhà máy")) {
+                        // TRƯỜNG HỢP 1: NẾU LÀ CÔNG TRÌNH SẢN XUẤT (NHÀ MÁY)
+                        // -> Luôn tính chi phí bằng tổng của `totalCost`
+                        if (Array.isArray(qData.items) && qData.items.length > 0) {
+                            cost = qData.items.reduce(
+                                (sum, item) => sum + toNum(item.totalCost || 0),
+                                0
                             );
-                            if (qSnap.exists()) {
-                                const qData = qSnap.data();
-                                const revenue = toNum(qData.overallRevenue);
-                                let cost = 0; // Khởi tạo chi phí cho quý này
-                                if (
-                                    Array.isArray(qData.items) &&
-                                    qData.items.length > 0
-                                ) {
-                                    // 1. Tính tổng doanh thu của các items làm điều kiện
-                                    const totalItemsRevenue =
-                                        qData.items.reduce(
-                                            (sum, item) =>
-                                                sum + toNum(item.revenue || 0),
-                                            0
-                                        );
+                        }
+                    } else {
+                        // TRƯỜNG HỢP 2: CÁC LOẠI CÔNG TRÌNH CÒN LẠI
+                        // -> Áp dụng logic tính toán phức tạp
+                        if (Array.isArray(qData.items) && qData.items.length > 0) {
+                            const totalItemsRevenue = qData.items.reduce(
+                                (sum, item) => sum + toNum(item.revenue || 0),
+                                0
+                            );
 
-                                    // 2. Áp dụng logic điều kiện để tính chi phí
-                                    if (totalItemsRevenue === 0) {
-                                        // Nếu tổng revenue của items = 0, tính tổng 'cpSauQuyetToan'
-                                        cost = qData.items.reduce(
-                                            (sum, item) =>
-                                                sum +
-                                                toNum(item.cpSauQuyetToan || 0),
-                                            0
-                                        );
-                                    } else {
-                                        // Ngược lại, tính tổng 'totalCost'
-                                        cost = qData.items.reduce(
-                                            (sum, item) =>
-                                                sum +
-                                                toNum(item.totalCost || 0),
-                                            0
-                                        );
-                                    }
+                            if (totalItemsRevenue === 0 && revenue === 0) {
+                                cost = 0;
+                            } else {
+                                if (totalItemsRevenue === 0) {
+                                    cost = qData.items.reduce(
+                                        (sum, item) => sum + toNum(item.cpSauQuyetToan || 0),
+                                        0
+                                    );
+                                } else {
+                                    cost = qData.items.reduce(
+                                        (sum, item) => sum + toNum(item.totalCost || 0),
+                                        0
+                                    );
                                 }
-                                // ======================================================================
-
-                                quarterlyData.revenues[quarter] = revenue;
-                                quarterlyData.costs[quarter] = cost; // <-- Gán chi phí đã được tính đúng
-                                quarterlyData.profits[quarter] = revenue - cost;
                             }
-                        } catch {}
+                        } else if (revenue === 0) {
+                            cost = 0;
+                        }
                     }
-                    const totalRevenue = Object.values(
-                        quarterlyData.revenues
-                    ).reduce((s, v) => s + v, 0);
-                    const totalCost = Object.values(quarterlyData.costs).reduce(
-                        (s, v) => s + v,
-                        0
-                    );
-                    return {
-                        ...(savedRowsData.find(
-                            (row) => row.name === data.name
-                        ) || {}),
-                        projectId: d.id,
-                        name: data.name,
-                        type: data.type || "",
-                        revenue: totalRevenue,
-                        ...Object.fromEntries(
-                            Object.entries(quarterlyData.revenues).map(
-                                ([k, v]) => [`revenue${k}`, v]
-                            )
-                        ),
-                        cost: totalCost,
-                        ...Object.fromEntries(
-                            Object.entries(quarterlyData.costs).map(
-                                ([k, v]) => [`cost${k}`, v]
-                            )
-                        ),
-                        profit: totalRevenue - totalCost,
-                        ...Object.fromEntries(
-                            Object.entries(quarterlyData.profits).map(
-                                ([k, v]) => [`profit${k}`, v]
-                            )
-                        ),
-                        percent: totalRevenue
-                            ? ((totalRevenue - totalCost) / totalRevenue) * 100
-                            : null,
-                    };
-                })
-            );
+                    // ==========================================================
+                    // ✅ KẾT THÚC LOGIC TÍNH CHI PHÍ MỚI
+                    // ==========================================================
+
+                    quarterlyData.revenues[quarter] = revenue;
+                    quarterlyData.costs[quarter] = cost;
+                    quarterlyData.profits[quarter] = revenue - cost;
+                }
+            } catch (error) {
+                console.error(`Lỗi khi lấy dữ liệu quý ${quarter} cho dự án ${d.id}:`, error);
+            }
+        }
+
+        const totalRevenue = Object.values(quarterlyData.revenues).reduce((s, v) => s + v, 0);
+        const totalCost = Object.values(quarterlyData.costs).reduce((s, v) => s + v, 0);
+
+        return {
+            ...(savedRowsData.find((row) => row.name === data.name) || {}),
+            projectId: d.id,
+            name: data.name,
+            type: data.type || "",
+            revenue: totalRevenue,
+            ...Object.fromEntries(
+                Object.entries(quarterlyData.revenues).map(([k, v]) => [`revenue${k}`, v])
+            ),
+            cost: totalCost,
+            ...Object.fromEntries(
+                Object.entries(quarterlyData.costs).map(([k, v]) => [`cost${k}`, v])
+            ),
+            profit: totalRevenue - totalCost,
+            ...Object.fromEntries(
+                Object.entries(quarterlyData.profits).map(([k, v]) => [`profit${k}`, v])
+            ),
+            percent: totalRevenue
+                ? ((totalRevenue - totalCost) / totalRevenue) * 100
+                : null,
+        };
+    })
+);
+
+// =================================================================
+// ✅ KẾT THÚC KHỐI CODE THAY THẾ
+// =================================================================
 
             let rowTemplate = [...savedRowsData];
             if (rowTemplate.length === 0) {

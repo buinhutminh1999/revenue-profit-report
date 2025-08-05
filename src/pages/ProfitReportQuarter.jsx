@@ -660,88 +660,110 @@ export default function ProfitReportQuarter() {
             ]);
 
             // Thay thế toàn bộ đoạn .map() này
-            const projects = await Promise.all(
-                projectsSnapshot.docs.map(async (d) => {
-                    const data = d.data();
-                    let revenue = 0, // Đây là doanh thu TỔNG của quý, dùng để tính lợi nhuận cuối cùng
-                        cost = 0;
+          // =================================================================
+// ✅ SAO CHÉP VÀ THAY THẾ TOÀN BỘ KHỐI CODE BÊN DƯỚI
+// =================================================================
 
-                    try {
-                        const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
-                        const qSnap = await getDoc(doc(db, qPath));
+const projects = await Promise.all(
+    projectsSnapshot.docs.map(async (d) => {
+        const data = d.data();
+        let revenue = 0;
+        let cost = 0;
 
-                        if (qSnap.exists()) {
-                            // Giữ lại việc lấy doanh thu tổng của quý để tính lợi nhuận
-                            revenue = toNum(qSnap.data().overallRevenue);
+        try {
+            const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
+            const qSnap = await getDoc(doc(db, qPath));
 
-                            if (
-                                Array.isArray(qSnap.data().items) &&
-                                qSnap.data().items.length > 0
-                            ) {
-                                // =================================================================
-                                // ✅ BẮT ĐẦU LOGIC MỚI NHẤT
-                                // =================================================================
+            if (qSnap.exists()) {
+                // Lấy tổng doanh thu của quý (overallRevenue)
+                revenue = toNum(qSnap.data().overallRevenue);
 
-                                // 1. Tính tổng doanh thu của TẤT CẢ CÁC KHOẢN MỤC (items) để làm điều kiện
-                                const totalItemsRevenue = qSnap
+                // Lấy loại công trình để áp dụng logic điều kiện
+                const projectType = (data.type || "").toLowerCase();
+
+                // Bắt đầu kiểm tra điều kiện
+                if (projectType.includes("nhà máy")) {
+                    // TRƯỜNG HỢP 1: NẾU LÀ CÔNG TRÌNH SẢN XUẤT (NHÀ MÁY)
+                    // -> Luôn tính chi phí bằng tổng của `totalCost`
+                    if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
+                        cost = qSnap
+                            .data()
+                            .items.reduce(
+                                (sum, item) => sum + toNum(item.totalCost || 0),
+                                0
+                            );
+                    }
+                } else {
+                    // TRƯỜNG HỢP 2: CÁC LOẠI CÔNG TRÌNH CÒN LẠI (Dân dụng, Kè, CĐT, v.v.)
+                    // -> Áp dụng logic tính toán phức tạp
+                    if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
+                        const totalItemsRevenue = qSnap
+                            .data()
+                            .items.reduce(
+                                (sum, item) => sum + toNum(item.revenue || 0),
+                                0
+                            );
+
+                        if (totalItemsRevenue === 0 && revenue === 0) {
+                            // Điều kiện đặc biệt: Nếu cả 2 doanh thu = 0 -> chi phí = 0
+                            cost = 0;
+                        } else {
+                            // Logic cũ
+                            if (totalItemsRevenue === 0) {
+                                // Nếu chỉ doanh thu chi tiết = 0 -> chi phí = tổng `cpSauQuyetToan`
+                                cost = qSnap
                                     .data()
                                     .items.reduce(
                                         (sum, item) =>
-                                            sum + toNum(item.revenue || 0),
+                                            sum + toNum(item.cpSauQuyetToan || 0),
                                         0
                                     );
-
-                                // 2. Dùng tổng doanh thu của items làm điều kiện
-                                if (totalItemsRevenue === 0) {
-                                    // TRƯỜNG HỢP 1: Nếu tổng Doanh thu của items = 0, tính tổng 'cpSauQuyetToan'
-                                    cost = qSnap
-                                        .data()
-                                        .items.reduce(
-                                            (sum, item) =>
-                                                sum +
-                                                toNum(item.cpSauQuyetToan || 0),
-                                            0
-                                        );
-                                } else {
-                                    // TRƯỜNG HỢP 2: Nếu tổng Doanh thu của items > 0, giữ nguyên công thức cũ (tổng 'totalCost')
-                                    cost = qSnap
-                                        .data()
-                                        .items.reduce(
-                                            (sum, item) =>
-                                                sum +
-                                                toNum(item.totalCost || 0),
-                                            0
-                                        );
-                                }
-                                // =================================================================
-                                // ✅ KẾT THÚC LOGIC MỚI NHẤT
-                                // =================================================================
+                            } else {
+                                // Nếu có doanh thu chi tiết -> chi phí = tổng `totalCost`
+                                cost = qSnap
+                                    .data()
+                                    .items.reduce(
+                                        (sum, item) =>
+                                            sum + toNum(item.totalCost || 0),
+                                        0
+                                    );
                             }
                         }
-                    } catch {}
+                    } else if (revenue === 0) {
+                        // Xử lý trường hợp không có 'items' và không có doanh thu
+                        cost = 0;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Lỗi khi lấy dữ liệu công trình:", d.id, error);
+        }
 
-                    // Lợi nhuận vẫn được tính bằng Doanh thu tổng của quý trừ đi Chi phí đã được tính theo logic mới
-                    const profit = revenue - cost;
+        // Lợi nhuận luôn được tính lại dựa trên doanh thu và chi phí vừa xác định
+        const profit = revenue - cost;
+        const plannedProfitMargin = data.estimatedProfitMargin || null;
 
-                    const plannedProfitMargin =
-                        data.estimatedProfitMargin || null;
+        // Trả về đối tượng công trình hoàn chỉnh để hiển thị
+        return {
+            projectId: d.id,
+            name: data.name,
+            revenue,
+            cost,
+            profit,
+            percent: plannedProfitMargin,
+            costOverQuarter: null,
+            target: null,
+            note: "",
+            suggest: "",
+            type: data.type || "",
+            editable: true,
+        };
+    })
+);
 
-                    return {
-                        projectId: d.id,
-                        name: data.name,
-                        revenue,
-                        cost, // <-- Giá trị cost bây giờ đã được tính theo logic chính xác nhất
-                        profit,
-                        percent: plannedProfitMargin,
-                        costOverQuarter: null,
-                        target: null,
-                        note: "",
-                        suggest: "",
-                        type: data.type || "",
-                        editable: true,
-                    };
-                })
-            );
+// =================================================================
+// ✅ KẾT THÚC KHỐI CODE THAY THẾ
+// =================================================================
 
             const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
             const saved = await getDoc(
