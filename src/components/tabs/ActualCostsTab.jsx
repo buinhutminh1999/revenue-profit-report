@@ -39,6 +39,7 @@ export const defaultRow = {
     debt: "0",
     directCost: "0",
     allocated: "0",
+    payableDeductionThisQuarter: "0", // Thêm trường dữ liệu cho cột mới
     carryover: "0",
     carryoverMinus: "0",
     carryoverEnd: "0",
@@ -93,6 +94,8 @@ export const handleFileUpload = (
         "Nợ Phải Trả ĐK": "debt",
         "Chi Phí Trực Tiếp": "directCost",
         "Phân Bổ": "allocated",
+        // Mapping cho cột mới từ file Excel - ĐÃ ĐỔI TÊN
+        "CP Trừ Vào Chuyển Tiếp": "payableDeductionThisQuarter",
         "Chuyển Tiếp ĐK": "carryover",
         "Trừ Quỹ": "carryoverMinus",
         "Cuối Kỳ": "carryoverEnd",
@@ -102,7 +105,7 @@ export const handleFileUpload = (
         "Doanh Thu": "revenue",
         HSKH: "hskh",
         "CP Vượt": "cpVuot",
-        "CP Sau Quyết Toán": "cpSauQuyetToan", // <-- THÊM DÒNG NÀY
+        "CP Sau Quyết Toán": "cpSauQuyetToan",
     };
 
     const reader = new FileReader();
@@ -223,6 +226,7 @@ const numericFields = [
     "debt",
     "directCost",
     "allocated",
+    "payableDeductionThisQuarter",
     "carryover",
     "carryoverMinus",
     "carryoverEnd",
@@ -232,7 +236,7 @@ const numericFields = [
     "cpVuot",
     "revenue",
     "hskh",
-    "cpSauQuyetToan", // <-- THÊM DÒNG NÀY
+    "cpSauQuyetToan",
 ];
 const validateRow = (row) =>
     numericFields.every((key) => {
@@ -258,10 +262,10 @@ export default function ActualCostsTab({ projectId }) {
     const [projectTotalAmount, setProjectTotalAmount] = useState("");
     const [categories, setCategories] = useState([]);
     const [projectData, setProjectData] = useState(null);
-    const [costAllocations, setCostAllocations] = useState(null); // <--- THÊM DÒNG NÀY
+    const [costAllocations, setCostAllocations] = useState(null);
 
     const [initialDbLoadComplete, setInitialDbLoadComplete] = useState(false);
-    // Tải dữ liệu từ costAllocations
+    
     useEffect(() => {
         const fetchCostAllocations = async () => {
             if (!year || !quarter) return;
@@ -270,20 +274,17 @@ export default function ActualCostsTab({ projectId }) {
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
-                // Lấy đúng mảng mainRows từ document
                 setCostAllocations(docSnap.data().mainRows || []);
             } else {
                 console.warn(`Không tìm thấy dữ liệu phân bổ cho ${docId}`);
-                setCostAllocations([]); // Reset về mảng rỗng nếu không có dữ liệu
+                setCostAllocations([]);
             }
         };
 
         fetchCostAllocations();
     }, [year, quarter]);
-    // ✅ BƯỚC 1: Thay thế toàn bộ useEffect cũ bằng useEffect mới này
 
     useEffect(() => {
-        // Chỉ chạy khi tất cả dữ liệu cần thiết đã sẵn sàng
         if (
             !initialDbLoadComplete ||
             !projectData ||
@@ -293,22 +294,18 @@ export default function ActualCostsTab({ projectId }) {
             return;
         }
 
-        // Tạo một Map để tra cứu nhanh trạng thái `allowAllocation` của từng khoản mục
         const allocationStatusMap = new Map(
             categories.map((cat) => [cat.label, cat.allowAllocation])
         );
 
         let hasChanges = false;
         const updatedCostItems = costItems.map((item) => {
-            // Lấy trạng thái phân bổ từ Map. Nếu không tìm thấy, mặc định là true.
             const isAllowed = allocationStatusMap.get(item.description) ?? true;
 
             if (!isAllowed) {
-                // ---- TRƯỜNG HỢP 1: KHOẢN MỤC KHÔNG ĐƯỢC PHÉP PHÂN BỔ ----
                 if (item.allocated !== "0") {
                     hasChanges = true;
-                    const newItem = { ...item, allocated: "0" }; // Ép giá trị Phân Bổ về 0
-                    // Tính toán lại các trường liên quan
+                    const newItem = { ...item, allocated: "0" };
                     calcAllFields(newItem, {
                         overallRevenue,
                         projectTotalAmount,
@@ -320,44 +317,39 @@ export default function ActualCostsTab({ projectId }) {
                 projectData.type === "Nhà máy" &&
                 costAllocations.length > 0
             ) {
-                // ---- TRƯỜNG HỢP 2: ĐƯỢC PHÉP PHÂN BỔ (logic MỚI cho dự án Nhà máy) ----
-    const allocationData = costAllocations.find(
-        (allocItem) => allocItem.name === item.description
-    );
+                const allocationData = costAllocations.find(
+                    (allocItem) => allocItem.name === item.description
+                );
 
-    if (
-        allocationData &&
-        allocationData.nhaMayValue !== undefined
-    ) {
-        // --- BẮT ĐẦU KHỐI LOGIC MỚI ---
+                if (
+                    allocationData &&
+                    allocationData.nhaMayValue !== undefined
+                ) {
+                    const sourceNhaMayValue = Number(
+                        parseNumber(allocationData.nhaMayValue || "0")
+                    );
+                    const currentDirectCost = Number(
+                        parseNumber(item.directCost || "0")
+                    );
+                    const newAllocatedValue = String(
+                        sourceNhaMayValue - currentDirectCost
+                    );
 
-        // 1. Lấy giá trị gốc từ 'nhaMayValue' và chi phí trực tiếp của dòng hiện tại
-        const sourceNhaMayValue = Number(parseNumber(allocationData.nhaMayValue || "0"));
-        const currentDirectCost = Number(parseNumber(item.directCost || "0"));
-
-        // 2. Thực hiện phép trừ theo yêu cầu của bạn
-        const newAllocatedValue = String(sourceNhaMayValue - currentDirectCost);
-
-        // --- KẾT THÚC KHỐI LOGIC MỚI ---
-
-        // Logic còn lại giữ nguyên: so sánh và cập nhật nếu có thay đổi
-        if (item.allocated !== newAllocatedValue) {
-            hasChanges = true;
-            const newItem = {
-                ...item,
-                allocated: newAllocatedValue, // Gán giá trị MỚI đã được tính toán
-            };
-            // Luôn gọi calcAllFields để các cột khác được tính lại theo giá trị Phân bổ mới
-            calcAllFields(newItem, {
-                overallRevenue,
-                projectTotalAmount,
-                projectType: projectData?.type,
-            });
-            return newItem;
+                    if (item.allocated !== newAllocatedValue) {
+                        hasChanges = true;
+                        const newItem = {
+                            ...item,
+                            allocated: newAllocatedValue,
+                        };
+                        calcAllFields(newItem, {
+                            overallRevenue,
+                            projectTotalAmount,
+                            projectType: projectData?.type,
+                        });
+                        return newItem;
                     }
                 }
             }
-            // Trả về item gốc nếu không có gì thay đổi
             return item;
         });
 
@@ -374,7 +366,6 @@ export default function ActualCostsTab({ projectId }) {
         projectTotalAmount,
     ]);
 
-    // ... (các useEffect và hàm khác)
     const columnsAll = useMemo(
         () => [
             { key: "project", label: "Công Trình", editable: true },
@@ -383,6 +374,12 @@ export default function ActualCostsTab({ projectId }) {
             { key: "debt", label: "Nợ Phải Trả ĐK", editable: true },
             { key: "directCost", label: "Chi Phí Trực Tiếp", editable: true },
             { key: "allocated", label: "Phân Bổ", editable: true },
+            // Định nghĩa cột mới, đặt trước cột "Chuyển Tiếp ĐK" - ĐÃ ĐỔI TÊN
+            {
+                key: "payableDeductionThisQuarter",
+                label: "CP Trừ Vào Chuyển Tiếp",
+                editable: false,
+            },
             { key: "carryover", label: "Chuyển Tiếp ĐK", editable: true },
             {
                 key: "carryoverMinus",
@@ -401,47 +398,45 @@ export default function ActualCostsTab({ projectId }) {
             },
             { key: "totalCost", label: "Tổng Chi Phí", editable: false },
             { key: "cpVuot", label: "CP Vượt", editable: false },
-
             { key: "revenue", label: "Doanh Thu", editable: true },
             { key: "hskh", label: "HSKH", editable: true },
             {
                 key: "cpSauQuyetToan",
                 label: "CP Sau Quyết Toán",
-                editable: false, // Trường này được tính tự động
+                editable: false,
             },
         ],
         []
     );
+    
     const [columnsVisibility, setColumnsVisibility] = useState(
         () =>
             JSON.parse(localStorage.getItem("columnsVisibility")) ||
             columnsAll.reduce((acc, col) => ({ ...acc, [col.key]: true }), {})
     );
+    
     const displayedColumns = useMemo(() => {
-        // Lọc ra các cột dựa trên điều kiện
         return columnsAll.filter((col) => {
-            // Nếu là cột "CP Vượt"
-            if (col.key === "cpVuot") {
-                // thì chỉ trả về true (hiển thị) nếu loại dự án là "Nhà máy"
+            if (
+                col.key === "cpVuot" ||
+                col.key === "payableDeductionThisQuarter"
+            ) {
                 return projectData?.type === "Nhà máy";
             }
-            // Với tất cả các cột khác, luôn trả về true
             return true;
         });
-    }, [columnsAll, projectData]); // Phụ thuộc vào columnsAll và projectData
+    }, [columnsAll, projectData]);
 
     useEffect(() => {
         setLoading(true);
         setInitialDbLoadComplete(false);
     }, [id, year, quarter]);
 
-    // <<< THAY ĐỔI 1: Xác định trường sắp xếp dựa trên loại dự án
     const activeSortKey = useMemo(() => {
         const projectType = projectData?.type;
-        return SORT_CONFIG[projectType]?.key || "order"; // Mặc định là "order"
+        return SORT_CONFIG[projectType]?.key || "order";
     }, [projectData]);
 
-    // <<< THAY ĐỔI 2: Lấy danh mục đã được sắp xếp theo `activeSortKey`
     useEffect(() => {
         const q = query(
             collection(db, "categories"),
@@ -455,7 +450,7 @@ export default function ActualCostsTab({ projectId }) {
             setCategories(fetchedCategories);
         });
         return () => unsub();
-    }, [activeSortKey]); // Chạy lại khi trường sắp xếp thay đổi
+    }, [activeSortKey]);
 
     useEffect(() => {
         localStorage.setItem(
@@ -485,6 +480,7 @@ export default function ActualCostsTab({ projectId }) {
             "debt",
             "directCost",
             "allocated",
+            "payableDeductionThisQuarter",
             "carryover",
             "carryoverMinus",
             "carryoverEnd",
@@ -494,10 +490,11 @@ export default function ActualCostsTab({ projectId }) {
             "revenue",
             "hskh",
             "cpVuot",
-            "cpSauQuyetToan", // <-- THÊM DÒNG NÀY
+            "cpSauQuyetToan",
         ],
         []
     );
+    
     const summarySumKeys = useMemo(
         () =>
             sumKeys.filter(
@@ -506,11 +503,9 @@ export default function ActualCostsTab({ projectId }) {
         [sumKeys]
     );
 
-    // Step 1: Listen for real-time updates on saved cost data from DB
     useEffect(() => {
         if (!id || !year || !quarter) return;
 
-        // Tạo reference đến document cần lắng nghe
         const docRef = doc(
             db,
             "projects",
@@ -521,12 +516,10 @@ export default function ActualCostsTab({ projectId }) {
             quarter
         );
 
-        // Thiết lập listener thời gian thực
         const unsubscribe = onSnapshot(
             docRef,
             (docSnap) => {
                 try {
-                    // Logic xử lý dữ liệu giữ nguyên như cũ
                     const rev = docSnap.exists()
                         ? parseNumber(docSnap.data().overallRevenue ?? 0)
                         : 0;
@@ -547,26 +540,21 @@ export default function ActualCostsTab({ projectId }) {
                         "Lỗi khi xử lý dữ liệu thời gian thực: " + err.message
                     );
                 } finally {
-                    // Đánh dấu đã tải xong dữ liệu ban đầu
                     setInitialDbLoadComplete(true);
-                    setLoading(false); // Có thể cần đặt setLoading(false) ở đây
+                    setLoading(false);
                 }
             },
             (err) => {
-                // Xử lý lỗi từ listener
                 setError("Lỗi lắng nghe dữ liệu: " + err.message);
                 setLoading(false);
             }
         );
 
-        // Quan trọng: Trả về một hàm cleanup để hủy listener khi component unmount
-        // Điều này giúp tránh rò rỉ bộ nhớ
         return () => {
             unsubscribe();
         };
-    }, [id, year, quarter]); // Dependencies không đổi
+    }, [id, year, quarter]);
 
-    // Step 2: Load project details (chỉ chạy khi id thay đổi)
     useEffect(() => {
         if (!id) return;
         setProjectData(null);
@@ -589,7 +577,6 @@ export default function ActualCostsTab({ projectId }) {
         loadProjectData();
     }, [id]);
 
-    // Step 3: Sync categories after initial data is loaded
     useEffect(() => {
         if (!initialDbLoadComplete || !projectData || categories.length === 0) {
             if (
@@ -641,7 +628,6 @@ export default function ActualCostsTab({ projectId }) {
         setLoading(false);
     }, [initialDbLoadComplete, projectData, categories]);
 
-    // Step 4: Recalculate fields when total amounts change
     useEffect(() => {
         if (loading) return;
 
@@ -651,27 +637,22 @@ export default function ActualCostsTab({ projectId }) {
                 calcAllFields(newRow, {
                     overallRevenue,
                     projectTotalAmount,
-                    projectType: projectData?.type, // <-- Thêm dòng này
+                    projectType: projectData?.type,
                 });
                 return newRow;
             })
         );
     }, [overallRevenue, projectTotalAmount, loading, projectData]);
 
-    // <<< THAY ĐỔI 3: Tạo một state đã được sắp xếp để hiển thị
     const sortedCostItems = useMemo(() => {
         if (categories.length === 0 || costItems.length === 0) {
-            return costItems; // Trả về danh sách gốc nếu chưa có danh mục hoặc chi phí
+            return costItems;
         }
-        // `categories` đã được sắp xếp theo đúng loại.
-        // Tạo map để tra cứu thứ tự (dựa trên index) nhanh hơn.
         const categoryOrderMap = new Map(
             categories.map((cat, index) => [cat.label, index])
         );
 
-        // Sắp xếp danh sách chi phí dựa trên thứ tự của danh mục
         return [...costItems].sort((a, b) => {
-            // Lấy thứ tự từ map. Khoản mục không tìm thấy sẽ bị đẩy xuống cuối.
             const orderA = categoryOrderMap.get(a.description) ?? Infinity;
             const orderB = categoryOrderMap.get(b.description) ?? Infinity;
             return orderA - orderB;
@@ -704,7 +685,7 @@ export default function ActualCostsTab({ projectId }) {
                             isUserEditingNoPhaiTraCK: field === "noPhaiTraCK",
                             overallRevenue,
                             projectTotalAmount,
-                            projectType: projectData?.type, // <-- Thêm dòng này
+                            projectType: projectData?.type,
                         });
                         return newRow;
                     }
@@ -712,8 +693,9 @@ export default function ActualCostsTab({ projectId }) {
                 })
             );
         },
-        [overallRevenue, projectTotalAmount]
+        [overallRevenue, projectTotalAmount, projectData]
     );
+    
     const handleRemoveRow = useCallback(
         (id) => setCostItems((prev) => prev.filter((row) => row.id !== id)),
         []
@@ -729,7 +711,7 @@ export default function ActualCostsTab({ projectId }) {
             await setDoc(
                 doc(db, "projects", id, "years", year, "quarters", quarter),
                 {
-                    items: costItems, // Luôn lưu `costItems` gốc, không phải list đã sắp xếp
+                    items: costItems,
                     overallRevenue: Number(overallRevenue),
                     updated_at: new Date().toISOString(),
                 }
@@ -741,6 +723,7 @@ export default function ActualCostsTab({ projectId }) {
             setLoading(false);
         }
     };
+    
     const handleSaveNextQuarter = async () => {
         if (!validateData(costItems)) {
             setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
@@ -795,6 +778,7 @@ export default function ActualCostsTab({ projectId }) {
             setLoading(false);
         }
     };
+    
     const handleAddRow = useCallback(
         () =>
             setCostItems((prev) => [
@@ -804,7 +788,6 @@ export default function ActualCostsTab({ projectId }) {
         []
     );
 
-    // <<< THAY ĐỔI 4: Sử dụng `sortedCostItems` để lọc và hiển thị
     const filtered = useMemo(
         () =>
             sortedCostItems.filter(
@@ -836,7 +819,7 @@ export default function ActualCostsTab({ projectId }) {
                         mode
                     )
                 }
-                onExport={(items) => exportToExcel(items)}
+                onExport={() => exportToExcel(costItems, displayedColumns, projectData, year, quarter)}
                 onSave={handleSave}
                 onSaveNextQuarter={handleSaveNextQuarter}
                 onToggleColumns={handleOpenColumnsDialog}
@@ -879,6 +862,7 @@ export default function ActualCostsTab({ projectId }) {
                     overallRevenue={overallRevenue}
                     projectTotalAmount={projectTotalAmount}
                     categories={categories}
+                    projectData={projectData}
                 />
             </Box>
             <ColumnSelector
