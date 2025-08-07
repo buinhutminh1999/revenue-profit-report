@@ -87,28 +87,34 @@ const excelRound = (value, digits) => {
     const roundedTempNumber = Math.round(tempNumber);
     return roundedTempNumber / factor;
 };
-// [THÊM MỚI] Component Dialog để tùy chỉnh làm tròn
-const RoundingDialog = ({
-    open,
-    onClose,
-    onSave,
-    row,
-    visibleProjects,
-    initialRules,
-    globalRule,
-}) => {
+const RoundingDialog = ({ open, onClose, onSave, row, visibleProjects, initialRules }) => {
+    // State nội bộ của dialog để quản lý các giá trị đang nhập
     const [rules, setRules] = useState({});
+    const [lastRowId, setLastRowId] = useState(null);
 
+    // useEffect này sẽ chạy khi dialog được mở với row mới
     useEffect(() => {
-        if (open && row) {
+        // Chỉ reset rules khi mở dialog với row khác hoặc mở lại dialog
+        if (open && row && row.id !== lastRowId) {
+            // Lấy các quy tắc đã có của dòng này, hoặc một object rỗng nếu chưa có
             setRules(initialRules[row.id] || {});
+            setLastRowId(row.id);
         }
-    }, [open, row, initialRules]);
+        
+        // Reset lastRowId khi đóng dialog
+        if (!open) {
+            setLastRowId(null);
+        }
+    }, [open, row?.id]); // Chỉ theo dõi open và row.id, BỎ initialRules khỏi dependencies
 
+    // 🔥 THÊM HÀM NÀY - Hàm xử lý khi người dùng thay đổi giá trị trong một ô TextField
     const handleRuleChange = (projectId, value) => {
         const newRules = { ...rules };
         const parsedValue = parseInt(value, 10);
+        
+        // Nếu người dùng xóa trống hoặc nhập chữ, giá trị sẽ là NaN
         if (isNaN(parsedValue)) {
+            // Xóa quy tắc riêng cho ô này, nó sẽ không được làm tròn
             delete newRules[projectId];
         } else {
             newRules[projectId] = parsedValue;
@@ -116,7 +122,9 @@ const RoundingDialog = ({
         setRules(newRules);
     };
 
+    // Hàm xử lý khi nhấn nút Lưu
     const handleSave = () => {
+        // Gửi toàn bộ object rules của dòng này lên component cha
         onSave(row.id, rules);
         onClose();
     };
@@ -127,35 +135,26 @@ const RoundingDialog = ({
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
             <DialogTitle>Tùy chỉnh làm tròn cho:</DialogTitle>
             <DialogContent>
-                <Typography variant="h6" gutterBottom>
-                    {row.label}
-                </Typography>
+                <Typography variant="h6" gutterBottom>{row.label}</Typography>
                 <Stack spacing={2} sx={{ mt: 2 }}>
-                    {visibleProjects.map((project) => (
+                    {visibleProjects.map(project => (
                         <TextField
                             key={project.id}
                             label={`Công trình: ${project.name}`}
                             type="number"
                             variant="outlined"
-                            value={rules[project.id] ?? ""}
-                            placeholder={`Mặc định: ${
-                                globalRule === undefined
-                                    ? "Không làm tròn"
-                                    : globalRule
-                            }`}
-                            onChange={(e) =>
-                                handleRuleChange(project.id, e.target.value)
-                            }
-                            helperText="vd: -3 là hàng nghìn, 0 là số nguyên. Để trống để dùng mặc định."
+                            // Lấy giá trị từ state nội bộ `rules` của dialog
+                            value={rules[project.id] ?? ''} 
+                            placeholder="Không làm tròn" // Sửa lại placeholder cho đơn giản
+                            onChange={(e) => handleRuleChange(project.id, e.target.value)}
+                            helperText="vd: -3 là hàng nghìn. Để trống để không làm tròn."
                         />
                     ))}
                 </Stack>
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose}>Hủy</Button>
-                <Button onClick={handleSave} variant="contained">
-                    Lưu thay đổi
-                </Button>
+                <Button onClick={handleSave} variant="contained">Lưu thay đổi</Button>
             </DialogActions>
         </Dialog>
     );
@@ -465,13 +464,19 @@ export default function CostAllocationQuarter() {
                 // --- SỬA LẠI LOGIC TÌM QUY TẮC LÀM TRÒN ---
 
                 // Chỉ cần lấy quy tắc của ô, không cần fallback nữa
-                const roundingDigits = cellRoundingRules[draftRow.id]?.[p.id];
+              // --- SỬA LẠI LOGIC TÌM QUY TẮC LÀM TRÒN ---
+// Lấy row ID gốc (không có suffix __2, __3...)
+const baseRowId = draftRow.id.split("__")[0];
 
-                // 3. Áp dụng làm tròn NẾU có quy tắc (dòng này không đổi nhưng logic phía trên đã thay đổi)
-                const roundedNeed =
-                    typeof roundingDigits === "number"
-                        ? excelRound(baseNeed, roundingDigits)
-                        : baseNeed;
+// Tìm quy tắc làm tròn cho ô này
+const roundingDigits = cellRoundingRules[draftRow.id]?.[p.id] ?? 
+                      cellRoundingRules[baseRowId]?.[p.id];
+
+// 3. Áp dụng làm tròn NẾU có quy tắc
+const roundedNeed =
+    typeof roundingDigits === "number"
+        ? excelRound(baseNeed, roundingDigits)
+        : baseNeed;
 
                 originalCalculatedNeeds[p.id] = Math.max(0, roundedNeed);
             });
@@ -597,9 +602,7 @@ export default function CostAllocationQuarter() {
 
             draftRow.used = totalUsedInPeriod;
             draftRow.carryOver = carryOverValue;
-            draftRow.cumQuarterOnly =
-                totalUsedInPeriod - totalAllocatedForPeriod;
-
+            draftRow.cumQuarterOnly = Math.min(totalUsedInPeriod - totalAllocatedForPeriod, 0);
             const totalNeedAfterLimits = Object.values(finalAllocation).reduce(
                 (sum, need) => sum + need,
                 0
@@ -726,9 +729,15 @@ export default function CostAllocationQuarter() {
                 }
                 // [THÊM MỚI] Đọc lại quy tắc làm tròn đã lưu
 
-                if (data.cellRoundingRules) {
-                    setCellRoundingRules(data.cellRoundingRules);
-                }
+               //...
+// [SỬA ĐỔI QUAN TRỌNG] Logic tải lại quy tắc làm tròn
+const hasDirtyRounding = Array.from(dirtyCells).some(cell => cell.endsWith("-rounding"));
+
+// Chỉ cập nhật từ Firestore NẾU người dùng chưa chỉnh sửa gì
+if (!hasDirtyRounding && data.cellRoundingRules) {
+    setCellRoundingRules(data.cellRoundingRules);
+}
+//...
 
                 setExtraRows((prev) =>
                     prev.map((r) => {
@@ -1810,26 +1819,37 @@ export default function CostAllocationQuarter() {
                     }
                 />
             </Paper>
-            <RoundingDialog
-                open={roundingDialogOpen}
-                onClose={() => setRoundingDialogOpen(false)}
-                row={currentRoundingCell}
-                visibleProjects={visibleProjects}
-                initialRules={cellRoundingRules}
-                onSave={(rowId, newRules) => {
-                    setCellRoundingRules((prev) => ({
-                        ...prev,
-                        [rowId]: newRules,
-                    }));
-                    // [THÊM MỚI] Đánh dấu thay đổi để nút Lưu sáng lên
-                    setDirtyCells((prev) => {
-                        const newDirtyCells = new Set(prev);
-                        // Dùng một key duy nhất cho thay đổi của dòng này
-                        newDirtyCells.add(`${rowId}-rounding`);
-                        return newDirtyCells;
-                    });
-                }}
-            />
+
+<RoundingDialog
+    open={roundingDialogOpen}
+    onClose={() => setRoundingDialogOpen(false)}
+    row={currentRoundingCell}
+    visibleProjects={visibleProjects}
+    initialRules={cellRoundingRules} // Prop này rất quan trọng
+    // Đảm bảo không có prop globalRule ở đây
+    onSave={(rowId, newRules) => {
+        // Cập nhật state và trigger recalculation
+        setCellRoundingRules(prev => {
+            const updated = {
+                ...prev,
+                [rowId]: newRules,
+            };
+            return updated;
+        });
+        
+        // Đánh dấu ô bị thay đổi
+        setDirtyCells(prev => {
+            const newDirtyCells = new Set(prev);
+            newDirtyCells.add(`${rowId}-rounding`);
+            return newDirtyCells;
+        });
+        
+        // Force re-render để trigger tính toán lại
+        setDataVersion(Date.now());
+        
+        toast.success("Đã cập nhật quy tắc làm tròn. Bảng sẽ được tính toán lại.");
+    }}
+/>
             <LimitDialog
                 open={limitDialogOpen}
                 onClose={() => setLimitDialogOpen(false)}
