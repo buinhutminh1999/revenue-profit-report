@@ -53,44 +53,43 @@ const calcCarryoverEnd = (row, projectType) => {
 };
 
 const calcNoPhaiTraCK = (row, projectType) => {
-    const carMinus = Number(parseNumber(row.carryoverMinus || "0"));
-    const dc = Number(parseNumber(row.directCost || "0"));
-    const al = Number(parseNumber(row.allocated || "0"));
-    const rev = Number(parseNumber(row.revenue || "0"));
-    const debt = Number(parseNumber(row.debt || "0"));
+    const carMinus = Number(parseNumber(row.carryoverMinus || "0"));
+    const dc = Number(parseNumber(row.directCost || "0"));
+    const al = Number(parseNumber(row.allocated || "0"));
+    const rev = Number(parseNumber(row.revenue || "0"));
+    const debt = Number(parseNumber(row.debt || "0"));
 
-    // =================================================================
-    // MỚI: Logic riêng cho dự án "Nhà máy" theo công thức bạn cung cấp
-    // =================================================================
-    if (projectType === "Nhà máy") {
-        // Áp dụng công thức: if(A < B, C, D)
-        // A = Được Trừ QN + (CP Trực Tiếp - Nợ ĐK)
-        // B = Doanh Thu
-        // C = Doanh Thu - Được Trừ QN - CP Trực Tiếp + Nợ ĐK
-        // D (trường hợp ngược lại) = Nợ ĐK (logic hợp lý nhất)
+    // =================================================================
+    // MỚI: Cập nhật logic riêng cho dự án "Nhà máy"
+    // =================================================================
+    if (projectType === "Nhà máy") {
+        // Áp dụng công thức: if(A < B, C, D)
+        // A = Được Trừ QN + (CP Trực Tiếp + Phân bổ - Nợ ĐK)
+        // B = Doanh Thu
+        // C = Doanh Thu - Được Trừ QN - CP Trực Tiếp - Phân bổ + Nợ ĐK
+        // D (trường hợp ngược lại) = Nợ ĐK + Phân Bổ
 
-        const conditionA = carMinus + (dc - debt);
-        const conditionB = rev;
+        const conditionA = carMinus + (dc + al - debt);
+        const conditionB = rev;
 
-        if (conditionA < conditionB) {
-            const result = rev - carMinus - dc + debt;
-            return String(result);
-        } else {
-            // Nếu điều kiện không thỏa, Nợ CK sẽ bằng Nợ ĐK
-            return String(debt);
-        }
-    }
-    // =================================================================
-    // GIỮ NGUYÊN: Logic cũ cho các loại dự án khác
-    // =================================================================
-    else {
-        if (rev === 0) {
-            return String(debt - dc);
-        }
+        if (conditionA < conditionB) {
+            const result = rev - carMinus - dc - al + debt;
+            return String(result);
+        } else {
+            return 0
+        }
+    }
+    // =================================================================
+    // GIỮ NGUYÊN: Logic cũ cho các loại dự án khác
+    // =================================================================
+    else {
+        if (rev === 0) {
+            return String(debt - dc);
+        }
 
-        const part1 = carMinus + dc + al < rev ? rev - (dc + al) - carMinus : 0;
-        return String(part1 + debt);
-    }
+        const part1 = carMinus + dc + al < rev ? rev - (dc + al) - carMinus : 0;
+        return String(part1 + debt);
+    }
 };
 
 const calcTotalCost = (row) => {
@@ -163,7 +162,6 @@ export const calcAllFields = (
 
     row.cpSauQuyetToan = String(directCost + noPhaiTraCK - debt);
 };
-
 // ---------- Hidden Columns Helper (cho -VT, -NC) ----------
 export const getHiddenColumnsForProject = (project) =>
     project.includes("-VT") || project.includes("-NC")

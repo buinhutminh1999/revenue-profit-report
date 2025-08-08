@@ -60,6 +60,7 @@ import VersionChecker from './components/VersionChecker';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ReactQueryDevtools } from 'react-query/devtools';
 import CloseQuarterPage from './pages/CloseQuarterPage';
+import BrokerDebtReport from './pages/BrokerDebtReport';
 
 // Lazy load for better performance
 const ConstructionPayables = React.lazy(() => import('./pages/ConstructionPayables'));
@@ -541,6 +542,8 @@ function LayoutRoutes() {
                 <Route path="user" element={<PageTransition><UserProfile /></PageTransition>} />
                 <Route path="profit-report-year" element={<PageTransition><ProfitReportYear /></PageTransition>} />
                 <Route path="profit-report-quarter" element={<PageTransition><ProfitReportQuarter /></PageTransition>} />
+                                <Route path="broker-debt-report" element={<PageTransition><BrokerDebtReport /></PageTransition>} />
+
                 <Route path="construction-plan" element={<PageTransition><ConstructionPlan /></PageTransition>} />
                 
                 {/* Lazy loaded route */}
