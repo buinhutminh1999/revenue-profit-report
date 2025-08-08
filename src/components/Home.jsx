@@ -12,7 +12,8 @@ import {
     Settings, BarChart3, TrendingUp, BookCheck, ArrowRight, 
     FileSpreadsheet, DollarSign, Activity, Users, Package,
     Clock, AlertCircle, CheckCircle, XCircle, ArrowUpRight,
-    ArrowDownRight, Minus, MoreVertical
+    ArrowDownRight, Minus, MoreVertical,
+    BookUser
 } from "lucide-react";
 
 // Constants
@@ -53,6 +54,16 @@ const mainFunctions = [
         desc: "Theo dõi công nợ",
         color: '#f59e0b',
         bgColor: '#fef3c7',
+        isNew: true 
+    },
+     // BẠN THÊM KHỐI CODE MỚI VÀO ĐÂY
+    { 
+        icon: <BookUser size={24} />, 
+        text: "Báo cáo Nợ Cò", 
+        to: "/broker-debt-report", 
+        desc: "Theo dõi số dư nợ có",
+        color: '#ef4444',
+        bgColor: '#fee2e2',
         isNew: true 
     },
     { 

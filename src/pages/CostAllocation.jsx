@@ -55,7 +55,6 @@ const fixedRows = [
     { id: "fixed-phong-cung-ung", name: "Phòng Cung Ứng" },
     { id: "fixed-luong-tang-ca", name: "LƯƠNG TĂNG CA" },
     { id: "fixed-kh-dt", name: "LƯƠNG KH-ĐT" },
-    { id: "fixed-sale", name: "Lương Sale" },
 ].map((r) => ({ ...r, fixed: true }));
 
 const quarterMap = {
@@ -244,113 +243,83 @@ useEffect(() => {
     return () => unsub();
 }, [showSnack]);
 // ...
-    useEffect(() => {
-        const docId = `${year}_${quarter}`;
-        const unsub = onSnapshot(
-            doc(db, "costAllocations", docId),
-            (snap) => {
-                const savedRows =
-                    (snap.exists() ? snap.data().mainRows : []) || [];
+useEffect(() => {
+    const docId = `${year}_${quarter}`;
+    const unsub = onSnapshot(
+        doc(db, "costAllocations", docId),
+        (snap) => {
+            const savedRows =
+                (snap.exists() ? snap.data().mainRows : []) || [];
 
-                const finalFixedRows = fixedRows.map((template) => {
+            // 1. Xử lý các dòng cố định (fixed rows)
+            const finalFixedRows = fixedRows.map((template) => {
+                const savedData = savedRows.find(
+                    (d) => d.id === template.id
+                );
+                return normalizeRow({ ...template, ...(savedData || {}) });
+            });
+            setRows(finalFixedRows);
+
+            // 2. Xử lý các dòng động (dynamic rows) từ template
+            const finalDynamicRows = dynamicRowTemplates.map(
+                (structure) => {
                     const savedData = savedRows.find(
-                        (d) => d.id === template.id
+                        (d) => d.id === structure.id
                     );
-                    return normalizeRow({ ...template, ...(savedData || {}) });
-                });
-                setRows(finalFixedRows);
-
-                // ✅ LOGIC MỚI: Chỉ xử lý các khoản mục được phép phân bổ
-const finalDynamicRows = dynamicRowTemplates.map(
-    (structure) => {
-        // Tìm dữ liệu đã lưu tương ứng với khoản mục này
-        const savedData = savedRows.find(
-            (d) => d.id === structure.id
-        );
-        // Kết hợp cấu trúc từ template và dữ liệu đã lưu
-        return normalizeRow({
-            ...structure,
-            ...(savedData || {}),
-        });
-    }
-);
-                // --- LOGIC MỚI: Tự động cập nhật "Chi phí thưởng" theo "Lương Sale" ---
-
-                // 1. Tìm hàng "Lương Sale" trong các hàng cố định
-                const luongSaleRow = finalFixedRows.find(
-                    (r) => r.id === "fixed-sale"
-                );
-
-                // 2. Nếu tìm thấy hàng "Lương Sale"
-                if (luongSaleRow) {
-                    // 3. Tìm chỉ mục (index) của hàng "Chi phí thưởng" với tên đầy đủ
-                    const chiPhiThuongIndex = finalDynamicRows.findIndex(
-                        (r) =>
-                            (r.name || "").trim().toLowerCase() ===
-                            "chi phí thưởng (abcd/abcd) cuối năm kinh doanh nm (nếu ln không đạt mức 2 thì chi phí này được cộng vào ln đến đạt mức 2, phần dư còn lại sẽ được khấu trừ lại lương cho kinh doanh nm và chia thưởng, trường họp không đủ tiền để khấu trừ lương thì công ty chịu phần lương đã chi trả vượt đó, riêng thưởng thì giao nm tự căng đối quỹ bp mà xử lý)"
-                    );
-
-                    // 4. Nếu tìm thấy hàng "Chi phí thưởng"
-                    if (chiPhiThuongIndex > -1) {
-                        // Lấy các giá trị cần sao chép từ "Lương Sale"
-                        const sourceMonthly = luongSaleRow.monthly;
-                        const sourcePercentage = luongSaleRow.percentage;
-                        const sourcePercentThiCong =
-                            luongSaleRow.percentThiCong;
-                        const sourcePercentKHDT = luongSaleRow.percentKHDT;
-
-                        // 5. Cập nhật lại toàn bộ hàng "Chi phí thưởng"
-                        finalDynamicRows[chiPhiThuongIndex] = {
-                            ...finalDynamicRows[chiPhiThuongIndex],
-                            monthly: { ...sourceMonthly },
-                            percentage: sourcePercentage,
-                            percentThiCong: sourcePercentThiCong,
-                            percentKHDT: sourcePercentKHDT,
-                        };
-                    }
+                    return normalizeRow({
+                        ...structure,
+                        ...(savedData || {}),
+                    });
                 }
-                // --- KẾT THÚC LOGIC MỚI ---
-                const groups = { nhaMay: [], thiCong: [], khdt: [], chung: [] };
-                finalDynamicRows.forEach((row) => {
-                    const { isNhaMay, isThiCong, isKhdt } = row;
-                    const typeCount =
-                        (isNhaMay ? 1 : 0) +
-                        (isThiCong ? 1 : 0) +
-                        (isKhdt ? 1 : 0);
-                    if (typeCount === 1) {
-                        if (isNhaMay) groups.nhaMay.push(row);
-                        else if (isThiCong) groups.thiCong.push(row);
-                        else if (isKhdt) groups.khdt.push(row);
-                    } else {
-                        groups.chung.push(row);
-                    }
-                });
+            );
 
-                // <<< THAY ĐỔI 3: Sắp xếp từng nhóm theo đúng trường order của nó
-                groups.nhaMay.sort(
-                    (a, b) =>
-                        (a.orderNhaMay ?? Infinity) -
-                        (b.orderNhaMay ?? Infinity)
-                );
-                groups.thiCong.sort(
-                    (a, b) =>
-                        (a.orderThiCong ?? Infinity) -
-                        (b.orderThiCong ?? Infinity)
-                );
-                groups.khdt.sort(
-                    (a, b) =>
-                        (a.orderKhdt ?? Infinity) - (b.orderKhdt ?? Infinity)
-                );
-                groups.chung.sort(
-                    (a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)
-                );
+            // --- Khối logic tự động cập nhật "Chi phí thưởng" đã được xóa khỏi đây ---
 
-                setGroupedRows(groups);
-            },
-            (e) => showSnack(`Lỗi tải dữ liệu phân bổ: ${e.message}`, "error")
-        );
-        return () => unsub();
-    }, [year, quarter, dynamicRowTemplates, showSnack]);
+            // 3. Phân nhóm các dòng động để hiển thị
+            const groups = { nhaMay: [], thiCong: [], khdt: [], chung: [] };
+            finalDynamicRows.forEach((row) => {
+                const { isNhaMay, isThiCong, isKhdt } = row;
+                const typeCount =
+                    (isNhaMay ? 1 : 0) +
+                    (isThiCong ? 1 : 0) +
+                    (isKhdt ? 1 : 0);
+
+                if (typeCount === 1) {
+                    if (isNhaMay) groups.nhaMay.push(row);
+                    else if (isThiCong) groups.thiCong.push(row);
+                    else if (isKhdt) groups.khdt.push(row);
+                } else {
+                    groups.chung.push(row);
+                }
+            });
+
+            // 4. Sắp xếp các dòng trong mỗi nhóm theo thứ tự
+            groups.nhaMay.sort(
+                (a, b) =>
+                    (a.orderNhaMay ?? Infinity) -
+                    (b.orderNhaMay ?? Infinity)
+            );
+            groups.thiCong.sort(
+                (a, b) =>
+                    (a.orderThiCong ?? Infinity) -
+                    (b.orderThiCong ?? Infinity)
+            );
+            groups.khdt.sort(
+                (a, b) =>
+                    (a.orderKhdt ?? Infinity) - (b.orderKhdt ?? Infinity)
+            );
+            groups.chung.sort(
+                (a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)
+            );
+
+            // 5. Cập nhật state để giao diện hiển thị lại
+            setGroupedRows(groups);
+        },
+        (e) => showSnack(`Lỗi tải dữ liệu phân bổ: ${e.message}`, "error")
+    );
+
+    return () => unsub();
+}, [year, quarter, dynamicRowTemplates, showSnack]);
 
     const handleChange = (id, field, val, subField = null) => {
         const updater = (prev) =>
