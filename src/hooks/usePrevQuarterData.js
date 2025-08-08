@@ -28,10 +28,16 @@ export function usePrevQuarterData(year, quarter, mainRows, typeFilter) {
         let mounted = true;
 
         (async () => {
+            // Chạy song song (nhanh hơn)
+const [fxSnap, curSnap, prevSnap] = await Promise.all([
+    getDoc(doc(db, "costAllocations", `${year}_${quarter}`)),
+    getDoc(doc(db, COL_QUARTER, `${year}_${quarter}`)),
+    getDoc(doc(db, COL_QUARTER, `${getPrevQuarter(year, quarter).year}_${getPrevQuarter(year, quarter).quarter}`))
+]);
             // 1️⃣ đọc tổng fixed cho từng type
-            const fxSnap = await getDoc(
-                doc(db, "costAllocations", `${year}_${quarter}`)
-            );
+            // const fxSnap = await getDoc(
+            //     doc(db, "costAllocations", `${year}_${quarter}`)
+            // );
             const dataFX = fxSnap.exists() ? fxSnap.data() : {};
             const totals = {
                 "Thi công": toNum(dataFX.totalThiCongFixed ?? 0),
@@ -41,14 +47,14 @@ export function usePrevQuarterData(year, quarter, mainRows, typeFilter) {
             const totalFixed = totals[typeFilter] || 0;
 
             // 2️⃣ đọc saved mainRows của quý hiện tại
-            const curSnap = await getDoc(
-                doc(db, COL_QUARTER, `${year}_${quarter}`)
-            );
+            // const curSnap = await getDoc(
+            //     doc(db, COL_QUARTER, `${year}_${quarter}`)
+            // );
             const saved = curSnap.exists() ? curSnap.data().mainRows || [] : [];
 
             // 3️⃣ lấy carry-over & overrun từ quý trước
             const { year: py, quarter: pq } = getPrevQuarter(year, quarter);
-            const prevSnap = await getDoc(doc(db, COL_QUARTER, `${py}_${pq}`));
+            // const prevSnap = await getDoc(doc(db, COL_QUARTER, `${py}_${pq}`));
             const prevRows = prevSnap.exists()
                 ? prevSnap.data().mainRows || []
                 : [];

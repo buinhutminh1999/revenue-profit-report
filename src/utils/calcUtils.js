@@ -52,19 +52,45 @@ const calcCarryoverEnd = (row, projectType) => {
     return String(part1 + car - carMinus);
 };
 
-const calcNoPhaiTraCK = (row) => {
-    const carMinus = Number(parseNumber(row.carryoverMinus || "0"));
-    const dc = Number(parseNumber(row.directCost || "0"));
-    const al = Number(parseNumber(row.allocated || "0"));
-    const rev = Number(parseNumber(row.revenue || "0"));
-    const debt = Number(parseNumber(row.debt || "0"));
+const calcNoPhaiTraCK = (row, projectType) => {
+    const carMinus = Number(parseNumber(row.carryoverMinus || "0"));
+    const dc = Number(parseNumber(row.directCost || "0"));
+    const al = Number(parseNumber(row.allocated || "0"));
+    const rev = Number(parseNumber(row.revenue || "0"));
+    const debt = Number(parseNumber(row.debt || "0"));
 
-    if (rev === 0) {
-        return String(debt - dc);
-    }
+    // =================================================================
+    // MỚI: Logic riêng cho dự án "Nhà máy" theo công thức bạn cung cấp
+    // =================================================================
+    if (projectType === "Nhà máy") {
+        // Áp dụng công thức: if(A < B, C, D)
+        // A = Được Trừ QN + (CP Trực Tiếp - Nợ ĐK)
+        // B = Doanh Thu
+        // C = Doanh Thu - Được Trừ QN - CP Trực Tiếp + Nợ ĐK
+        // D (trường hợp ngược lại) = Nợ ĐK (logic hợp lý nhất)
 
-    const part1 = carMinus + dc + al < rev ? rev - (dc + al) - carMinus : 0;
-    return String(part1 + debt);
+        const conditionA = carMinus + (dc - debt);
+        const conditionB = rev;
+
+        if (conditionA < conditionB) {
+            const result = rev - carMinus - dc + debt;
+            return String(result);
+        } else {
+            // Nếu điều kiện không thỏa, Nợ CK sẽ bằng Nợ ĐK
+            return String(debt);
+        }
+    }
+    // =================================================================
+    // GIỮ NGUYÊN: Logic cũ cho các loại dự án khác
+    // =================================================================
+    else {
+        if (rev === 0) {
+            return String(debt - dc);
+        }
+
+        const part1 = carMinus + dc + al < rev ? rev - (dc + al) - carMinus : 0;
+        return String(part1 + debt);
+    }
 };
 
 const calcTotalCost = (row) => {
@@ -97,46 +123,45 @@ const calcCpVuot = (row) => {
 };
 
 export const calcAllFields = (
-    row,
-    {
-        isUserEditingNoPhaiTraCK = false,
-        overallRevenue = "0",
-        projectTotalAmount = "0",
-        projectType = "",
-    } = {}
+    row,
+    {
+        isUserEditingNoPhaiTraCK = false,
+        overallRevenue = "0",
+        projectTotalAmount = "0",
+        projectType = "", // Biến này đã có sẵn
+    } = {}
 ) => {
-    if (!row.project) return;
-    if (row.project.includes("-VT") || row.project.includes("-NC")) {
-        row.revenue = "0";
-    } else if (row.project.includes("-CP")) {
-        if (!row.isRevenueManual) {
-            const hskh = Number(parseNumber(row.hskh));
-            const orv = Number(parseNumber(overallRevenue));
-            const pta = Number(parseNumber(projectTotalAmount));
-            row.revenue = pta === 0 ? "0" : String((hskh * orv) / pta);
-        }
-    }
+    if (!row.project) return;
+    if (row.project.includes("-VT") || row.project.includes("-NC")) {
+        row.revenue = "0";
+    } else if (row.project.includes("-CP")) {
+        if (!row.isRevenueManual) {
+            const hskh = Number(parseNumber(row.hskh));
+            const orv = Number(parseNumber(overallRevenue));
+            const pta = Number(parseNumber(projectTotalAmount));
+            row.revenue = pta === 0 ? "0" : String((hskh * orv) / pta);
+        }
+    }
 
-    // --- THỰC HIỆN TÍNH TOÁN MỚI ---
-    // Chỉ tính khi là dự án Nhà máy vì cột này chỉ hiển thị cho loại dự án đó
-    if (projectType === "Nhà máy") {
-        row.payableDeductionThisQuarter = calcPayableDeductionThisQuarter(row);
-    }
+    if (projectType === "Nhà máy") {
+        row.payableDeductionThisQuarter = calcPayableDeductionThisQuarter(row);
+    }
 
-    // --- CÁC TÍNH TOÁN CÒN LẠI ---
-    row.carryoverMinus = calcCarryoverMinus(row);
-    row.totalCost = calcTotalCost(row);
-    row.cpVuot = calcCpVuot(row);
-    row.carryoverEnd = calcCarryoverEnd(row, projectType);
+    row.carryoverMinus = calcCarryoverMinus(row);
+    row.totalCost = calcTotalCost(row);
+    row.cpVuot = calcCpVuot(row);
+    row.carryoverEnd = calcCarryoverEnd(row, projectType);
 
-    if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP"))
-        row.noPhaiTraCK = calcNoPhaiTraCK(row);
+    if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP")) {
+        // THAY ĐỔI DUY NHẤT Ở ĐÂY: Truyền thêm "projectType"
+        row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
+    }
 
-    const debt = parseNumber(row.debt || "0");
-    const directCost = parseNumber(row.directCost || "0");
-    const noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
+    const debt = parseNumber(row.debt || "0");
+    const directCost = parseNumber(row.directCost || "0");
+    const noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
 
-    row.cpSauQuyetToan = String(directCost + noPhaiTraCK - debt);
+    row.cpSauQuyetToan = String(directCost + noPhaiTraCK - debt);
 };
 
 // ---------- Hidden Columns Helper (cho -VT, -NC) ----------
