@@ -398,6 +398,8 @@ export default function ActualCostsTab({ projectId }) {
             },
             { key: "totalCost", label: "Tổng Chi Phí", editable: false },
             { key: "cpVuot", label: "CP Vượt", editable: false },
+                        { key: "revenueMode", label: "Chế độ" },
+
             { key: "revenue", label: "Doanh Thu", editable: true },
             { key: "hskh", label: "HSKH", editable: true },
             {
@@ -700,7 +702,59 @@ export default function ActualCostsTab({ projectId }) {
         (id) => setCostItems((prev) => prev.filter((row) => row.id !== id)),
         []
     );
+ // =================================================================
+    // MỚI: HÀM ĐỂ CHUYỂN ĐỔI CHẾ ĐỘ TỰ ĐỘNG/CỐ ĐỊNH CHO TỪNG DÒNG
+    // =================================================================
+    const handleToggleRevenueMode = useCallback(
+        (id) => {
+            setCostItems((prev) =>
+                prev.map((row) => {
+                    if (row.id === id) {
+                        const newRow = { ...row };
+                        // Lật ngược trạng thái isRevenueManual
+                        newRow.isRevenueManual = !newRow.isRevenueManual;
 
+                        // Nếu vừa chuyển về chế độ TỰ ĐỘNG, hãy tính toán lại ngay lập tức
+                        if (!newRow.isRevenueManual) {
+                            calcAllFields(newRow, {
+                                overallRevenue,
+                                projectTotalAmount,
+                                projectType: projectData?.type,
+                            });
+                        }
+                        return newRow;
+                    }
+                    return row;
+                })
+            );
+        },
+        [overallRevenue, projectTotalAmount, projectData]
+    );
+
+    // =================================================================
+    // MỚI: HÀM ĐỂ RESET TOÀN BỘ DOANH THU VỀ CHẾ ĐỘ TỰ ĐỘNG
+    // =================================================================
+    const handleResetAllRevenue = useCallback(() => {
+        if (
+            !window.confirm(
+                "Bạn có chắc muốn đặt lại TOÀN BỘ doanh thu về chế độ tính tự động không? Các giá trị nhập tay sẽ bị mất."
+            )
+        ) {
+            return;
+        }
+
+        setCostItems((prev) =>
+            prev.map((row) => {
+                const newRow = { ...row, isRevenueManual: false };
+                calcAllFields(newRow, {
+                    overallRevenue,
+                    projectTotalAmount,
+                    projectType: projectData?.type,
+                });
+                return newRow;
+            })
+        );
+    }, [overallRevenue, projectTotalAmount, projectData]);
     const handleSave = async () => {
         if (!validateData(costItems)) {
             setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
@@ -823,6 +877,8 @@ export default function ActualCostsTab({ projectId }) {
                 onSave={handleSave}
                 onSaveNextQuarter={handleSaveNextQuarter}
                 onToggleColumns={handleOpenColumnsDialog}
+                                onResetAllRevenue={handleResetAllRevenue}
+
                 onBack={() => navigate("/construction-plan")}
                 costItems={costItems}
                 sx={{ mb: 2 }}
@@ -859,6 +915,8 @@ export default function ActualCostsTab({ projectId }) {
                     setEditingCell={setEditingCell}
                     handleChangeField={handleChangeField}
                     handleRemoveRow={handleRemoveRow}
+                                    onToggleRevenueMode={handleToggleRevenueMode}
+
                     overallRevenue={overallRevenue}
                     projectTotalAmount={projectTotalAmount}
                     categories={categories}

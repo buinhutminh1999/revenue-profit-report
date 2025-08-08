@@ -10,7 +10,7 @@ import {
     Skeleton,
     Box,
 } from "@mui/material";
-import EditableRow from "./EditableRow";
+import EditableRow from "./EditableRow"; // Đảm bảo bạn đã có file này
 import GroupHeader from "./GroupHeader";
 import { sumColumnOfGroup } from "../utils/groupingUtils";
 import { formatNumber } from "../utils/numberUtils";
@@ -26,9 +26,11 @@ export default function CostTable({
     setEditingCell,
     handleChangeField,
     handleRemoveRow,
+    onToggleRevenueMode, // SỬA: Thêm prop mới vào đây
     overallRevenue,
     projectTotalAmount,
     categories,
+    projectData, // SỬA: Thêm prop projectData để có thể dùng trong EditableRow
 }) {
     return (
         <Box sx={{ width: "100%", overflowX: "auto" }}>
@@ -38,12 +40,15 @@ export default function CostTable({
                     minWidth: 1000,
                     borderRadius: 2,
                     border: "1px solid #e0e0e0",
-                    maxHeight: 600,
+                    maxHeight: "calc(100vh - 250px)", // Tăng chiều cao tối đa
                     bgcolor: "#fff",
-                    "&::-webkit-scrollbar": { height: "8px" },
+                    "&::-webkit-scrollbar": { height: "8px", width: "8px" },
                     "&::-webkit-scrollbar-thumb": {
                         backgroundColor: "#c1c1c1",
                         borderRadius: "4px",
+                    },
+                    "&::-webkit-scrollbar-track": {
+                        backgroundColor: "#f1f1f1",
                     },
                     scrollbarColor: "#c1c1c1 #f1f1f1",
                     scrollbarWidth: "thin",
@@ -54,37 +59,39 @@ export default function CostTable({
                     stickyHeader
                     sx={{
                         width: "100%",
-                        // ✨ Bỏ textAlign: "center" ở đây để mỗi TableCell có thể tự quyết định
                         "& thead th": {
-                            backgroundColor: "#f9f9f9",
-                            borderBottom: "1px solid #ddd",
-                            fontWeight: 600,
+                            backgroundColor: "#f5f5f5",
+                            borderBottom: "2px solid #ddd",
+                            fontWeight: 700,
                             whiteSpace: "nowrap",
-                            fontSize: "0.85rem",
+                            fontSize: "0.875rem",
+                            color: "#333",
                         },
                     }}
                 >
                     <TableHead>
                         <TableRow>
                             {columnsAll.map((col, index) => {
-                                // Xác định hướng căn lề: 2 cột đầu căn trái, còn lại căn phải
-                                const alignment = index < 2 ? "left" : "right";
+                                // Sửa: Căn trái cho 2 cột đầu và cột 'Chế độ', còn lại căn phải
+                                const alignment = index < 2 || col.key === 'revenueMode' ? "left" : "right";
 
                                 return (
                                     columnsVisibility[col.key] && (
                                         <TableCell
                                             key={col.key}
-                                            align={alignment} // ✨ Áp dụng căn lề
+                                            align={alignment}
                                             sx={{
                                                 ...(index < 2 && { paddingLeft: "16px" }),
                                                 ...(index === 0 && {
-                                                    position: "sticky", left: 0, zIndex: 999,
+                                                    position: "sticky", left: 0, zIndex: 1000,
                                                     minWidth: "150px",
+                                                    backgroundColor: "#f5f5f5",
                                                 }),
                                                 ...(index === 1 && {
-                                                    position: "sticky", left: "150px", zIndex: 999,
+                                                    position: "sticky", left: "150px", zIndex: 1000,
                                                     minWidth: "200px",
-                                                    boxShadow: "2px 0 5px -2px #ccc",
+                                                    backgroundColor: "#f5f5f5",
+                                                    boxShadow: "2px 0 5px -2px rgba(0,0,0,0.1)",
                                                 }),
                                             }}
                                         >
@@ -93,19 +100,22 @@ export default function CostTable({
                                     )
                                 );
                             })}
-                            <TableCell align="center">Xoá</TableCell>
+                            <TableCell align="center" sx={{position: 'sticky', right: 0, zIndex: 1000, backgroundColor: "#f5f5f5"}}>Xoá</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {loading ? (
-                            Array.from({ length: 5 }).map((_, i) => (
+                            Array.from({ length: 10 }).map((_, i) => (
                                 <TableRow key={`skeleton-${i}`}>
-                                    {/* Skeleton loading... */}
+                                    {columnsAll.map((col) => (
+                                        <TableCell key={col.key}><Skeleton /></TableCell>
+                                    ))}
+                                    <TableCell><Skeleton /></TableCell>
                                 </TableRow>
                             ))
                         ) : filtered.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={columnsAll.length + 1} align="center">
+                                <TableCell colSpan={columnsAll.filter(c => columnsVisibility[c.key]).length + 1} align="center" sx={{py: 4}}>
                                     Không có dữ liệu
                                 </TableCell>
                             </TableRow>
@@ -115,7 +125,7 @@ export default function CostTable({
                                     <React.Fragment key={projectName}>
                                         <GroupHeader
                                             projectName={projectName}
-                                            colSpan={columnsAll.length + 1}
+                                            colSpan={columnsAll.filter(c => columnsVisibility[c.key]).length + 1}
                                         />
 
                                         {groupItems.map((row) => (
@@ -128,12 +138,14 @@ export default function CostTable({
                                                 handleRemoveRow={handleRemoveRow}
                                                 editingCell={editingCell}
                                                 setEditingCell={setEditingCell}
+                                                onToggleRevenueMode={onToggleRevenueMode} // SỬA: Truyền prop xuống đây
                                                 categories={categories}
+                                                projectData={projectData} // SỬA: Truyền prop xuống đây
                                             />
                                         ))}
-
-                                        {/* --- ✨ HÀNG TỔNG ĐÃ SỬA --- */}
-                                        <TableRow sx={{ bgcolor: "#f0f0f0", "& td": { fontWeight: 600 } }}>
+                                        
+                                        {/* Hàng tổng của group */}
+                                       <TableRow sx={{ bgcolor: "#f0f0f0", "& td": { fontWeight: 600 } }}>
                                             {/* Ô 1: Cột "Công Trình" - để trống */}
                                             <TableCell />
 

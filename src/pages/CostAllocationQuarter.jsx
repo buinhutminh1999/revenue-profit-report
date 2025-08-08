@@ -161,7 +161,7 @@ const RoundingDialog = ({ open, onClose, onSave, row, visibleProjects, initialRu
 };
 
 // --- Component con: Thẻ thống kê ---
-const StatCard = ({ title, value, icon, color, isLoading }) => {
+const StatCard = React.memo(({ title, value, icon, color, isLoading }) => {
     const theme = useTheme();
     return (
         <Grid item xs={12} sm={6} md={4}>
@@ -201,7 +201,7 @@ const StatCard = ({ title, value, icon, color, isLoading }) => {
             </motion.div>
         </Grid>
     );
-};
+})
 
 // 📍 THAY THẾ TOÀN BỘ COMPONENT LimitDialog CŨ BẰNG COMPONENT NÀY
 
@@ -603,27 +603,21 @@ const roundedNeed =
             draftRow.used = totalUsedInPeriod;
             draftRow.carryOver = carryOverValue;
             draftRow.cumQuarterOnly = Math.min(totalUsedInPeriod - totalAllocatedForPeriod, 0);
-            const totalNeedAfterLimits = Object.values(finalAllocation).reduce(
+           const totalNeedAfterLimits = Object.values(finalAllocation).reduce(
                 (sum, need) => sum + need,
                 0
             );
-            // if (
-            //     hasManualLimits &&
-            //     totalNeedAfterLimits < totalAllocatedForPeriod
-            // ) {
-            //     draftRow.cumCurrent =
-            //         totalAllocatedForPeriod - totalNeedAfterLimits;
-            // } else {
-            //     draftRow.cumCurrent = draftRow.cumQuarterOnly + carryOverValue;
-            // }
-            // ... bên trong hàm recomputeRow
-
-            // ✅ MÃ SAU KHI SỬA
-            // Luôn tính toán lũy kế theo một công thức nhất quán
-            draftRow.cumCurrent = draftRow.cumQuarterOnly + carryOverValue;
-
-            draftRow.surplusCumCurrent = draftRow.cumCurrent;
-
+            
+            // ✅ TÍNH TOÁN LẠI THEO CÔNG THỨC MỚI
+            // Thặng dư lũy kế = Math.max(Sử dụng - Phân bổ + Vượt kỳ trước, 0)
+            // Nếu giá trị > 0 thì đó là thặng dư
+            const cumValue = draftRow.usedRaw - totalAllocatedForPeriod + carryOverValue;
+            
+            // Thặng dư lũy kế (chỉ lấy giá trị dương)
+            draftRow.surplusCumCurrent = Math.max(cumValue, 0);
+            
+            // Thiếu hụt lũy kế (chỉ lấy giá trị âm)
+            draftRow.cumCurrent = Math.min(cumValue, 0);
             return draftRow;
         },
         [
@@ -971,40 +965,33 @@ if (!hasDirtyRounding && data.cellRoundingRules) {
     );
     // --- DÁN 2 KHỐI CODE NÀY VÀO ---
 
-    // Tính tổng cho cột THẶNG DƯ (chỉ cộng các số dương)
-    const totalSurplus = useMemo(() => {
-        return rowsInit.reduce((sum, row) => {
-            const label = (row.label || "").trim().toUpperCase();
-            const value = toNum(row.cumCurrent) || 0;
-            // Bỏ qua các dòng không cần tính và các giá trị âm hoặc bằng 0
-            if (
-                label === "DOANH THU" ||
-                label === "TỔNG CHI PHÍ" ||
-                value <= 0
-            ) {
-                return sum;
-            }
-            return sum + value;
-        }, 0);
-    }, [rowsInit]);
+// Tính tổng cho cột THẶNG DƯ (cộng tất cả giá trị surplusCumCurrent)
+const totalSurplus = useMemo(() => {
+    return rowsInit.reduce((sum, row) => {
+        const label = (row.label || "").trim().toUpperCase();
+        // Bỏ qua các dòng đặc biệt
+        if (label === "DOANH THU" || label === "TỔNG CHI PHÍ") {
+            return sum;
+        }
+        // Sử dụng trường surplusCumCurrent (luôn >= 0)
+        const value = toNum(row.surplusCumCurrent) || 0;
+        return sum + value;
+    }, 0);
+}, [rowsInit]);
 
-    // Tính tổng cho cột THIẾU HỤT (chỉ cộng các số âm)
-    const totalDeficit = useMemo(() => {
-        return rowsInit.reduce((sum, row) => {
-            const label = (row.label || "").trim().toUpperCase();
-            const value = toNum(row.cumCurrent) || 0;
-            // Bỏ qua các dòng không cần tính và các giá trị dương hoặc bằng 0
-            if (
-                label === "DOANH THU" ||
-                label === "TỔNG CHI PHÍ" ||
-                value >= 0
-            ) {
-                return sum;
-            }
-            return sum + value;
-        }, 0);
-    }, [rowsInit]);
-    // --- THAY THẾ rowsWithTotal BẰNG PHIÊN BẢN NÀY ---
+// Tính tổng cho cột THIẾU HỤT (cộng tất cả giá trị cumCurrent âm)
+const totalDeficit = useMemo(() => {
+    return rowsInit.reduce((sum, row) => {
+        const label = (row.label || "").trim().toUpperCase();
+        // Bỏ qua các dòng đặc biệt
+        if (label === "DOANH THU" || label === "TỔNG CHI PHÍ") {
+            return sum;
+        }
+        // Sử dụng trường cumCurrent (luôn <= 0)
+        const value = toNum(row.cumCurrent) || 0;
+        return sum + value;
+    }, 0);
+}, [rowsInit]);
 
     const rowsWithTotal = useMemo(() => {
         const dataRows = rowsInit.filter(
@@ -1817,6 +1804,7 @@ if (!hasDirtyRounding && data.cellRoundingRules) {
                             ? "dirty-cell"
                             : ""
                     }
+                    
                 />
             </Paper>
 
