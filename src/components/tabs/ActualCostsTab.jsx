@@ -778,61 +778,97 @@ export default function ActualCostsTab({ projectId }) {
         }
     };
     
-    const handleSaveNextQuarter = async () => {
-        if (!validateData(costItems)) {
-            setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
-            return;
-        }
-        setLoading(true);
-        try {
-            const quarters = ["Q1", "Q2", "Q3", "Q4"];
-            const currIndex = quarters.indexOf(quarter);
-            const isLastQuarter = currIndex === 3;
-            const nextQuarter = isLastQuarter ? "Q1" : quarters[currIndex + 1];
-            const nextYear = isLastQuarter ? String(Number(year) + 1) : year;
-            await setDoc(
-                doc(db, "projects", id, "years", year, "quarters", quarter),
-                {
-                    items: costItems,
-                    overallRevenue: Number(overallRevenue),
-                    updated_at: new Date().toISOString(),
-                }
-            );
-            const nextItems = costItems.map((item) => ({
-                ...defaultRow,
-                id: generateUniqueId(),
-                hskh: item.hskh,
-                project: item.project,
-                description: item.description,
-                inventory: item.tonKhoUngKH || "0",
-                debt: item.noPhaiTraCK || "0",
-                carryover: item.carryoverEnd || "0",
-            }));
-            await setDoc(
-                doc(
-                    db,
-                    "projects",
-                    id,
-                    "years",
-                    nextYear,
-                    "quarters",
-                    nextQuarter
-                ),
-                {
-                    items: nextItems,
-                    overallRevenue: 0,
-                    created_at: new Date().toISOString(),
-                }
-            );
-            setSnackOpen(true);
-            alert(`Đã lưu và tạo dữ liệu cho ${nextQuarter} / ${nextYear}`);
-        } catch (err) {
-            setError("Lỗi khi lưu & chuyển quý: " + err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-    
+const handleSaveNextQuarter = async () => {
+    if (!validateData(costItems)) {
+        setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
+        return;
+    }
+    setLoading(true);
+    try {
+        // --- Bước 1: Xác định quý tiếp theo ---
+        const quarters = ["Q1", "Q2", "Q3", "Q4"];
+        const currIndex = quarters.indexOf(quarter);
+        const isLastQuarter = currIndex === 3;
+        const nextQuarter = isLastQuarter ? "Q1" : quarters[currIndex + 1];
+        const nextYear = isLastQuarter ? String(Number(year) + 1) : year;
+
+        // --- Bước 2: Lưu dữ liệu của quý HIỆN TẠI (Q1) ---
+        await setDoc(
+            doc(db, "projects", id, "years", year, "quarters", quarter),
+            {
+                items: costItems,
+                overallRevenue: Number(overallRevenue),
+                updated_at: new Date().toISOString(),
+            }
+        );
+
+        // --- Bước 3: Đọc dữ liệu đã có của quý TIẾP THEO (Q2) ---
+        const nextQuarterDocRef = doc(db, "projects", id, "years", nextYear, "quarters", nextQuarter);
+        const nextQuarterDocSnap = await getDoc(nextQuarterDocRef);
+        const existingNextQuarterItems = nextQuarterDocSnap.exists() ? nextQuarterDocSnap.data().items || [] : [];
+        
+        // Tạo một map để tra cứu hiệu quả các dòng đã có của Q2
+        const existingItemsMap = new Map(
+            existingNextQuarterItems.map(item => {
+                const key = `${item.project}|||${item.description}`; // Khóa định danh một dòng
+                return [key, item];
+            })
+        );
+
+        // --- Bước 4: Hợp nhất dữ liệu từ Q1 vào Q2 ---
+        // Lặp qua từng dòng của Q1 để tính toán và cập nhật vào Q2
+        const mergedItems = costItems.map(currentItemFromQ1 => {
+            const key = `${currentItemFromQ1.project}|||${currentItemFromQ1.description}`;
+            const existingItemInQ2 = existingItemsMap.get(key);
+
+            // Đây là các giá trị "đầu kỳ" cho Q2, được lấy từ "cuối kỳ" của Q1
+            const openingBalancesForQ2 = {
+                inventory: currentItemFromQ1.tonKhoUngKH || "0",
+                debt: currentItemFromQ1.noPhaiTraCK || "0",
+                carryover: currentItemFromQ1.carryoverEnd || "0",
+            };
+
+            if (existingItemInQ2) {
+                // Nếu dòng này ĐÃ TỒN TẠI trong Q2
+                // -> Hợp nhất: Lấy toàn bộ dữ liệu của nó và chỉ ghi đè các số dư đầu kỳ
+                existingItemsMap.delete(key); // Xóa khỏi map để theo dõi các dòng chỉ có ở Q2
+                return { ...existingItemInQ2, ...openingBalancesForQ2 };
+            } else {
+                // Nếu dòng này là MỚI (có ở Q1 nhưng chưa có ở Q2)
+                // -> Tạo một dòng mới hoàn toàn cho Q2
+                return {
+                    ...defaultRow,
+                    id: generateUniqueId(),
+                    project: currentItemFromQ1.project,
+                    description: currentItemFromQ1.description,
+                    hskh: currentItemFromQ1.hskh,
+                    ...openingBalancesForQ2, // Áp dụng số dư đầu kỳ
+                    // Các trường khác như directCost, revenue sẽ lấy từ defaultRow (là "0")
+                };
+            }
+        });
+        
+        // Thêm lại các dòng chỉ tồn tại ở Q2 mà không có ở Q1
+        const itemsOnlyInQ2 = Array.from(existingItemsMap.values());
+        const finalNextItems = [...mergedItems, ...itemsOnlyInQ2];
+
+        // --- Bước 5: Lưu dữ liệu đã hợp nhất vào quý tiếp theo (Q2) ---
+        await setDoc(nextQuarterDocRef, {
+            items: finalNextItems,
+            // Giữ lại overallRevenue của Q2 nếu đã có, nếu không thì mặc định là 0
+            overallRevenue: nextQuarterDocSnap.exists() ? (nextQuarterDocSnap.data().overallRevenue || 0) : 0,
+            updated_at: new Date().toISOString()
+        }, { merge: true }); // Sử dụng { merge: true } để đảm bảo không ghi đè các trường khác ở cấp cao nhất
+
+        setSnackOpen(true);
+        alert(`Đã cập nhật và tạo dữ liệu cho ${nextQuarter} / ${nextYear}`);
+    } catch (err) {
+        setError("Lỗi khi lưu & chuyển quý: " + err.message);
+        console.error("Lỗi chi tiết:", err); // Thêm log để gỡ lỗi
+    } finally {
+        setLoading(false);
+    }
+};
     const handleAddRow = useCallback(
         () =>
             setCostItems((prev) => [
