@@ -26,6 +26,7 @@
     "react-hotkeys-hook": "^5.0.1",
     "react-input-autosize": "^3.0.0",
     "react-number-format": "^5.4.4",
+    "react-pdf": "^10.0.1",
     "react-query": "^3.39.3",
     "react-router-dom": "^7.1.5",
     "react-scripts": "5.0.1",

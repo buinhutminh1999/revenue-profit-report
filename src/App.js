@@ -538,6 +538,7 @@ function LayoutRoutes() {
         <Routes>
             <Route element={<Layout />}>
                 <Route index element={<PageTransition><Home /></PageTransition>} />
+                
                 <Route path="profit-change" element={<PageTransition><ProfitChange /></PageTransition>} />
                 <Route path="user" element={<PageTransition><UserProfile /></PageTransition>} />
                 <Route path="profit-report-year" element={<PageTransition><ProfitReportYear /></PageTransition>} />

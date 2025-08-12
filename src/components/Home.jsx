@@ -56,10 +56,11 @@ const mainFunctions = [
         bgColor: '#fef3c7',
         isNew: true 
     },
+    
      // BẠN THÊM KHỐI CODE MỚI VÀO ĐÂY
     { 
         icon: <BookUser size={24} />, 
-        text: "Báo cáo Nợ Cò", 
+        text: "Báo cáo Nợ Có", 
         to: "/broker-debt-report", 
         desc: "Theo dõi số dư nợ có",
         color: '#ef4444',
