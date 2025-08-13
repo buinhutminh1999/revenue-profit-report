@@ -639,30 +639,54 @@ export default function ProfitReportQuarter() {
                 return 0;
             };
 
-            const [
-                projectsSnapshot,
-                cpVuotCurr,
-                cpVuotNhaMay,
-                cpVuotKhdt,
-                profitChangesDoc,
-            ] = await Promise.all([
-                getDocs(collection(db, "projects")),
-                getCostOverQuarter("totalThiCongCumQuarterOnly"),
-                getCostOverQuarter("totalNhaMayCumQuarterOnly"),
-                getCostOverQuarter("totalKhdtCumQuarterOnly"),
-                getDoc(
-                    doc(
-                        db,
-                        "profitChanges",
-                        `${selectedYear}_${selectedQuarter}`
-                    )
-                ),
-            ]);
+            // Lấy cpVuot từ công trình cụ thể cho II. SẢN XUẤT
+// Lấy cpVuot từ công trình cụ thể cho II. SẢN XUẤT
+const getCpVuotSanXuat = async () => {
+    try {
+        const docRef = doc(db, `projects/HKZyMDRhyXJzJiOauzVe/years/${selectedYear}/quarters/${selectedQuarter}`);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            
+            // Kiểm tra nếu có items và cộng dồn cpVuot của từng item
+            if (Array.isArray(data.items) && data.items.length > 0) {
+                const totalCpVuot = data.items.reduce((sum, item) => {
+                    return sum + toNum(item.cpVuot || 0);
+                }, 0);
+                return totalCpVuot;
+            }
+            
+            // Nếu không có items hoặc items rỗng, lấy cpVuot ở cấp document
+            if (data.cpVuot !== undefined) {
+                return toNum(data.cpVuot);
+            }
+        }
+    } catch (error) {
+        console.error("Lỗi khi lấy cpVuot cho Sản xuất:", error);
+    }
+    return 0;
+};
 
-            // Thay thế toàn bộ đoạn .map() này
-          // =================================================================
-// ✅ SAO CHÉP VÀ THAY THẾ TOÀN BỘ KHỐI CODE BÊN DƯỚI
-// =================================================================
+const [
+    projectsSnapshot,
+    cpVuotCurr,
+    cpVuotNhaMay,  // Giờ sẽ cộng dồn từ items hoặc lấy từ document
+    cpVuotKhdt,
+    profitChangesDoc,
+] = await Promise.all([
+    getDocs(collection(db, "projects")),
+    getCostOverQuarter("totalThiCongCumQuarterOnly"),
+    getCpVuotSanXuat(),  // Thay đổi ở đây
+    getCostOverQuarter("totalKhdtCumQuarterOnly"),
+    getDoc(
+        doc(
+            db,
+            "profitChanges",
+            `${selectedYear}_${selectedQuarter}`
+        )
+    ),
+]);
 
 const projects = await Promise.all(
     projectsSnapshot.docs.map(async (d) => {

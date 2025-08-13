@@ -398,7 +398,6 @@ export default function ActualCostsTab({ projectId }) {
             },
             { key: "totalCost", label: "Tổng Chi Phí", editable: false },
             { key: "cpVuot", label: "CP Vượt", editable: false },
-                        { key: "revenueMode", label: "Chế độ" },
 
             { key: "revenue", label: "Doanh Thu", editable: true },
             { key: "hskh", label: "HSKH", editable: true },
@@ -418,15 +417,34 @@ export default function ActualCostsTab({ projectId }) {
     );
     
     const displayedColumns = useMemo(() => {
-        return columnsAll.filter((col) => {
-            if (
-                col.key === "cpVuot" ||
-                col.key === "payableDeductionThisQuarter"
-            ) {
-                return projectData?.type === "Nhà máy";
+        const isNhaMayType = projectData?.type === "Nhà máy";
+
+        return columnsAll.reduce((acc, col) => {
+            // Lọc các cột chỉ dành cho type "Nhà máy" nếu type hiện tại không khớp
+            const isNhaMayOnlyColumn =
+                col.key === "cpVuot" || col.key === "payableDeductionThisQuarter";
+
+            if (isNhaMayOnlyColumn && !isNhaMayType) {
+                return acc; // Bỏ qua cột này
             }
-            return true;
-        });
+
+            // Nếu cột được hiển thị, tiến hành kiểm tra và đổi tên nếu cần
+            const newCol = { ...col };
+
+            if (isNhaMayType) {
+                // Đổi tên cột 'CP Vượt'
+                if (newCol.key === "cpVuot") {
+                    newCol.label = "CP Vượt Quý";
+                }
+                // Đổi tên cột 'Cuối Kỳ'
+                if (newCol.key === "carryoverEnd") {
+                    newCol.label = "Vượt Cuối kỳ";
+                }
+            }
+
+            acc.push(newCol); // Thêm cột đã xử lý vào kết quả
+            return acc;
+        }, []);
     }, [columnsAll, projectData]);
 
     useEffect(() => {

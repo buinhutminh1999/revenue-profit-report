@@ -626,6 +626,7 @@ function LayoutRoutes() {
                             </RequireRole>
                         }
                     />
+                   
                 </Route>
                 
                 <Route path="project-manager" element={<PageTransition><ProjectsList /></PageTransition>} />

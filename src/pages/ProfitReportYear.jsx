@@ -519,54 +519,91 @@ const useProfitReportData = (selectedYear) => {
                 );
             }
 
-            let costAddedForGroupI = 0;
-            let costOverForGroupI = 0;
-            let costAddedForGroupII = 0;
-            let costOverForGroupII = 0;
+          let costAddedForGroupI = 0;
+let costOverForGroupI = 0;
+let costAddedForGroupII = 0;
+let costOverForGroupII = 0;
 
-            const now = new Date();
-            const currentMonth = now.getMonth();
-            const currentQuarterIndex = Math.floor(currentMonth / 3);
+const now = new Date();
+const currentMonth = now.getMonth();
+const currentQuarterIndex = Math.floor(currentMonth / 3);
 
-            let targetQuarter;
-            let targetYear = selectedYear;
+let targetQuarter;
+let targetYear = selectedYear;
 
-            if (selectedYear < now.getFullYear()) {
-                targetQuarter = "Q4";
-            } else {
-                if (currentQuarterIndex === 0) {
-                    targetQuarter = "Q4";
-                    targetYear = selectedYear - 1;
-                } else {
-                    const quarters = ["Q1", "Q2", "Q3", "Q4"];
-                    targetQuarter = quarters[currentQuarterIndex - 1];
-                }
-            }
+if (selectedYear < now.getFullYear()) {
+    targetQuarter = "Q4";
+} else {
+    if (currentQuarterIndex === 0) {
+        targetQuarter = "Q4";
+        targetYear = selectedYear - 1;
+    } else {
+        const quarters = ["Q1", "Q2", "Q3", "Q4"];
+        targetQuarter = quarters[currentQuarterIndex - 1];
+    }
+}
 
-            const docId = `${targetYear}_${targetQuarter}`;
-            try {
-                const costAllocationDoc = await getDoc(
-                    doc(db, "costAllocationsQuarter", docId)
+// Lấy dữ liệu cho Group I từ costAllocationsQuarter như cũ
+const docId = `${targetYear}_${targetQuarter}`;
+try {
+    const costAllocationDoc = await getDoc(
+        doc(db, "costAllocationsQuarter", docId)
+    );
+    if (costAllocationDoc.exists()) {
+        const data = costAllocationDoc.data();
+        
+        costAddedForGroupI = toNum(data.totalSurplusThiCong);
+        costOverForGroupI = toNum(data.totalDeficitThiCong);
+        costAddedForGroupII = toNum(data.totalSurplusNhaMay); // Giữ nguyên cho CP CỘNG VÀO LN
+        
+        console.log(
+            `Đã lấy dữ liệu từ quý gần nhất: ${targetQuarter}/${targetYear}`
+        );
+    }
+} catch (error) {
+    console.error("Lỗi khi lấy dữ liệu phân bổ chi phí:", error);
+}
+
+// ✅ THÊM MỚI: Lấy carryoverEnd cho II. SẢN XUẤT từ công trình cụ thể
+try {
+    const sanXuatDoc = await getDoc(
+        doc(db, `projects/HKZyMDRhyXJzJiOauzVe/years/${targetYear}/quarters/${targetQuarter}`)
+    );
+    
+    if (sanXuatDoc.exists()) {
+        const data = sanXuatDoc.data();
+        
+        // Kiểm tra nếu có items và cộng dồn carryoverEnd của từng item
+        if (Array.isArray(data.items) && data.items.length > 0) {
+            const totalCarryoverEnd = data.items.reduce((sum, item) => {
+                return sum + toNum(item.carryoverEnd || 0);
+            }, 0);
+            costOverForGroupII = totalCarryoverEnd;
+            console.log(
+                `Đã cộng dồn carryoverEnd từ ${data.items.length} items cho Sản xuất: ${costOverForGroupII}`
+            );
+        } else {
+            // Nếu không có items, lấy carryoverEnd ở cấp document (fallback)
+            if (data.carryoverEnd !== undefined) {
+                costOverForGroupII = toNum(data.carryoverEnd);
+                console.log(
+                    `Đã lấy carryoverEnd ở cấp document cho Sản xuất: ${costOverForGroupII}`
                 );
-                if (costAllocationDoc.exists()) {
-                    const data = costAllocationDoc.data();
-
-                    costAddedForGroupI = toNum(data.totalSurplusThiCong);
-                    costOverForGroupI = toNum(data.totalDeficitThiCong);
-                    costAddedForGroupII = toNum(data.totalSurplusNhaMay);
-                    costOverForGroupII = toNum(data.totalDeficitNhaMay);
-
-                    console.log(
-                        `Đã lấy dữ liệu từ quý gần nhất: ${targetQuarter}/${targetYear}`
-                    );
-                } else {
-                    console.log(
-                        `Không tìm thấy dữ liệu cho quý gần nhất: ${targetQuarter}/${targetYear}`
-                    );
-                }
-            } catch (error) {
-                console.error("Lỗi khi lấy dữ liệu phân bổ chi phí:", error);
+            } else {
+                costOverForGroupII = 0;
+                console.log("Không tìm thấy carryoverEnd cho Sản xuất");
             }
+        }
+    } else {
+        costOverForGroupII = 0;
+        console.log(
+            `Không tìm thấy dữ liệu cho Sản xuất trong quý ${targetQuarter}/${targetYear}`
+        );
+    }
+} catch (error) {
+    console.error("Lỗi khi lấy carryoverEnd cho Sản xuất:", error);
+    costOverForGroupII = 0;
+}
 
             const projectsSnapshot = await getDocs(collection(db, "projects"));
             const savedReportDoc = await getDoc(
