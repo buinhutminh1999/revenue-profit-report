@@ -56,6 +56,15 @@ const mainFunctions = [
         bgColor: '#fef3c7',
         isNew: true 
     },
+     { 
+        icon: <BarChart3 size={24} />, 
+        text: "Bảng Cân Đối Kế Toán", 
+        to: "/balance-sheet", 
+        desc: "Tình hình tài sản & nguồn vốn",
+        color: '#14b8a6', // Màu xanh mòng két
+        bgColor: '#ccfbf1',
+        isNew: true 
+    },
     
      // BẠN THÊM KHỐI CODE MỚI VÀO ĐÂY
     { 
