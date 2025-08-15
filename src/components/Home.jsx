@@ -13,7 +13,8 @@ import {
     FileSpreadsheet, DollarSign, Activity, Users, Package,
     Clock, AlertCircle, CheckCircle, XCircle, ArrowUpRight,
     ArrowDownRight, Minus, MoreVertical,
-    BookUser
+    BookUser,
+    ClipboardList
 } from "lucide-react";
 
 // Constants
@@ -65,7 +66,15 @@ const mainFunctions = [
         bgColor: '#ccfbf1',
         isNew: true 
     },
-    
+     { 
+        icon: <ClipboardList size={24} />, 
+        text: "Hệ Thống Tài Khoản", 
+        to: "/chart-of-accounts", 
+        desc: "Danh mục tài khoản kế toán",
+        color: '#64748b', // Màu xám xanh
+        bgColor: '#f1f5f9',
+        isNew: true 
+    },
      // BẠN THÊM KHỐI CODE MỚI VÀO ĐÂY
     { 
         icon: <BookUser size={24} />, 

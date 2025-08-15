@@ -77,7 +77,9 @@ import BalanceSheet from "./pages/BalanceSheet";
 const ConstructionPayables = React.lazy(() =>
     import("./pages/ConstructionPayables")
 );
-
+const ChartOfAccountsPage = React.lazy(() =>
+    import("./pages/ChartOfAccountsPage")
+);
 // Enhanced QueryClient configuration
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -678,7 +680,18 @@ function LayoutRoutes() {
                         </RequireRole>
                     }
                 />
-
+                <Route
+                    path="chart-of-accounts"
+                    element={
+                        <RequireRole allowedRoles={["admin", "manager"]}>
+                            <Suspense fallback={<SuspenseFallback />}>
+                                <PageTransition>
+                                    <ChartOfAccountsPage />
+                                </PageTransition>
+                            </Suspense>
+                        </RequireRole>
+                    }
+                />
                 {/* Admin Routes */}
                 <Route path="admin">
                     <Route
