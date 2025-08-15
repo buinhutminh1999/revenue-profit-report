@@ -11,7 +11,7 @@ import {
     ChevronRight as ChevronRightIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { getFirestore, collection, getDocs, writeBatch, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, writeBatch, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 
 // Khởi tạo Firestore
@@ -19,7 +19,7 @@ const db = getFirestore();
 const ACCOUNTS_COLLECTION = 'chartOfAccounts';
 
 // ===================================================================================
-// HOOKS TƯƠNG TÁC VỚI FIRESTORE (Lấy, Thêm, Sửa, Xóa)
+// HOOKS TƯƠNG TÁC VỚI FIRESTORE
 // ===================================================================================
 
 const useAccounts = () => {
@@ -37,7 +37,6 @@ const useMutateAccounts = () => {
         async (newAccounts) => {
             const batch = writeBatch(db);
             newAccounts.forEach(acc => {
-                // Sử dụng accountId làm document ID để tránh trùng lặp và dễ tra cứu
                 const docRef = doc(db, ACCOUNTS_COLLECTION, acc.accountId);
                 batch.set(docRef, acc);
             });
@@ -82,16 +81,18 @@ const useMutateAccounts = () => {
 
     return { addBatchMutation, updateMutation, deleteMutation };
 };
+
 // ===================================================================================
-// COMPONENT: FORM THÊM MỚI (CHA + DÁN CON) - ĐÃ SỬA LỖI
+// COMPONENT: FORM THÊM MỚI (CHECK TRÙNG + BÁO LỖI)
 // ===================================================================================
 const AddAccountDialog = ({ open, onClose, parent = null }) => {
     const [parentAccountId, setParentAccountId] = useState('');
     const [parentAccountName, setParentAccountName] = useState('');
     const [childrenData, setChildrenData] = useState('');
     const { addBatchMutation } = useMutateAccounts();
+    const [isChecking, setIsChecking] = useState(false);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (open) {
             if (parent) {
                 setParentAccountId(parent.accountId);
@@ -101,6 +102,7 @@ const AddAccountDialog = ({ open, onClose, parent = null }) => {
                 setParentAccountName('');
             }
             setChildrenData('');
+            setIsChecking(false);
         }
     }, [open, parent]);
 
@@ -110,7 +112,7 @@ const AddAccountDialog = ({ open, onClose, parent = null }) => {
         const pastedChildren = childrenData.trim();
         const accountsToCreate = [];
 
-        // --- Xử lý tạo TÀI KHOẢN CHA ---
+        // --- Bước 1: Thu thập và xác thực dữ liệu đầu vào ---
         if (!parent) {
             if (newParentId || newParentName) {
                 if (!newParentId || !newParentName) {
@@ -124,8 +126,6 @@ const AddAccountDialog = ({ open, onClose, parent = null }) => {
                 });
             }
         }
-
-        // --- Xử lý tạo TÀI KHOẢN CON (từ textarea) ---
         if (pastedChildren) {
             const childrenParentId = parent ? parent.accountId : newParentId;
             if (!childrenParentId) {
@@ -149,17 +149,35 @@ const AddAccountDialog = ({ open, onClose, parent = null }) => {
                 }
             });
         }
-
-        // --- KIỂM TRA CUỐI CÙNG ---
         if (accountsToCreate.length === 0) {
             toast.error('Không có thông tin hợp lệ để thêm mới.');
             return;
         }
 
+        setIsChecking(true);
+
+        // --- Bước 2: KIỂM TRA TRÙNG LẶP TRÊN FIRESTORE ---
+        try {
+            for (const acc of accountsToCreate) {
+                const docRef = doc(db, ACCOUNTS_COLLECTION, acc.accountId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    toast.error(`Mã tài khoản "${acc.accountId}" đã tồn tại!`);
+                    setIsChecking(false);
+                    return;
+                }
+            }
+        } catch (error) {
+            toast.error("Lỗi khi kiểm tra dữ liệu: " + error.message);
+            setIsChecking(false);
+            return;
+        }
+
+        // --- Bước 3: Nếu không trùng, tiến hành ghi dữ liệu ---
         await addBatchMutation.mutateAsync(accountsToCreate);
+        setIsChecking(false);
         onClose();
     };
-
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
@@ -168,14 +186,14 @@ const AddAccountDialog = ({ open, onClose, parent = null }) => {
                 <Typography variant="subtitle1" gutterBottom sx={{ mt: 1 }}>Thông tin tài khoản cha</Typography>
                 <TextField autoFocus margin="dense" label="Mã Tài Khoản Cha" fullWidth variant="outlined" value={parentAccountId} onChange={(e) => setParentAccountId(e.target.value)} disabled={!!parent} />
                 <TextField margin="dense" label="Tên Tài Khoản Cha" fullWidth variant="outlined" value={parentAccountName} onChange={(e) => setParentAccountName(e.target.value)} disabled={!!parent} />
-                <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>Dán danh sách tài khoản con tại đây</Typography>
+                <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>Dán danh sách tài khoản con</Typography>
                 <Typography variant="body2" color="text.secondary">(Mỗi dòng một tài khoản, định dạng: Mã Tên tài khoản)</Typography>
                 <TextField margin="dense" label="Danh sách tài khoản con" fullWidth multiline rows={8} variant="outlined" placeholder="21201 Đầu tư xây dựng nhà máy&#10;21301 Mua sắm thiết bị nhà máy" value={childrenData} onChange={(e) => setChildrenData(e.target.value)} />
             </DialogContent>
             <DialogActions sx={{ p: '16px 24px' }}>
                 <Button onClick={onClose}>Hủy</Button>
-                <Button onClick={handleSubmit} variant="contained" disabled={addBatchMutation.isLoading}>
-                    {addBatchMutation.isLoading ? <CircularProgress size={24} /> : 'Lưu'}
+                <Button onClick={handleSubmit} variant="contained" disabled={addBatchMutation.isLoading || isChecking}>
+                    {(addBatchMutation.isLoading || isChecking) ? <CircularProgress size={24} /> : 'Lưu'}
                 </Button>
             </DialogActions>
         </Dialog>
@@ -183,7 +201,7 @@ const AddAccountDialog = ({ open, onClose, parent = null }) => {
 };
 
 // ===================================================================================
-// COMPONENT: MỘT DÒNG TRONG BẢNG (VÀ CÁC CON CỦA NÓ)
+// COMPONENT: MỘT DÒNG TRONG BẢNG
 // ===================================================================================
 const AccountRow = ({ account, level, expanded, onToggle, onAddChild, onDelete }) => {
     const isParent = account.children && account.children.length > 0;
@@ -199,7 +217,7 @@ const AccountRow = ({ account, level, expanded, onToggle, onAddChild, onDelete }
                                 {isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
                             </IconButton>
                         ) : (
-                            <Box sx={{ width: 28 }} /> // Giữ khoảng trống để căn lề
+                            <Box sx={{ width: 28 }} />
                         )}
                         <Typography variant="body2" sx={{ fontWeight: isParent ? 600 : 400 }}>
                             {account.accountId}
@@ -255,17 +273,14 @@ const ChartOfAccountsPage = () => {
     const { data: accounts, isLoading, isError, error } = useAccounts();
     const { deleteMutation } = useMutateAccounts();
 
-    // STATE quản lý UI
     const [dialogOpen, setDialogOpen] = useState(false);
     const [selectedParent, setSelectedParent] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [expanded, setExpanded] = useState([]);
 
-    // Chuyển danh sách phẳng thành cây
     const accountTree = useMemo(() => {
         if (!accounts) return [];
         const nodeMap = new Map();
-        // Dùng accountId (mã TK) làm key trong Map để liên kết cha-con
         accounts.forEach(acc => nodeMap.set(acc.accountId, { ...acc, children: [] }));
         const roots = [];
         accounts.forEach(acc => {
@@ -278,11 +293,9 @@ const ChartOfAccountsPage = () => {
         return roots;
     }, [accounts]);
 
-    // Lọc dữ liệu dựa trên searchTerm
     const filteredTree = useMemo(() => {
         if (!searchTerm) return accountTree;
         const lowercasedFilter = searchTerm.toLowerCase();
-
         const filter = (nodes) => {
             const result = [];
             for (const node of nodes) {
@@ -298,28 +311,22 @@ const ChartOfAccountsPage = () => {
             }
             return result;
         };
-
         return filter(accountTree);
     }, [accountTree, searchTerm]);
-    
-    // Tự động mở các node cha khi tìm kiếm
+
     useEffect(() => {
         if (searchTerm) {
             const allIds = [];
             const collectIds = (nodes) => {
-                for(const node of nodes) {
+                for (const node of nodes) {
                     allIds.push(node.id);
-                    if(node.children) collectIds(node.children);
+                    if (node.children?.length > 0) collectIds(node.children);
                 }
             }
             collectIds(filteredTree);
             setExpanded(allIds);
-        } else {
-            // Tùy chọn: thu gọn tất cả khi xóa tìm kiếm
-            // setExpanded([]); 
         }
     }, [searchTerm, filteredTree]);
-
 
     const handleToggle = useCallback((accountId) => {
         setExpanded(prev =>
@@ -340,7 +347,6 @@ const ChartOfAccountsPage = () => {
     };
 
     const handleDelete = (account) => {
-        // Cần thay thế bằng Dialog xác nhận của MUI để chuyên nghiệp hơn
         if (window.confirm(`Bạn có chắc muốn xóa [${account.accountId}] ${account.accountName}?`)) {
             deleteMutation.mutate(account.id);
         }
@@ -360,36 +366,29 @@ const ChartOfAccountsPage = () => {
                 onClose={() => setDialogOpen(false)}
                 parent={selectedParent}
             />
-
             <Stack spacing={3}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <ListAltIcon color="primary" sx={{ fontSize: '2.5rem' }} />
-                        <Typography variant="h4" component="h1" fontWeight="bold">
-                            Hệ Thống Tài Khoản
-                        </Typography>
-                    </Box>
+                <Box>
+                    <Typography variant="h4" component="h1" fontWeight="600">
+                        Hệ Thống Tài Khoản
+                    </Typography>
                 </Box>
-
-                <Paper elevation={2} sx={{ borderRadius: 2, overflow: 'hidden' }}>
-                    <Toolbar sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                        <Box sx={{ flex: '1 1 100%' }}>
-                            <TextField
-                                fullWidth
-                                variant="outlined"
-                                size="small"
-                                placeholder="Tìm kiếm theo số hiệu hoặc tên tài khoản..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <SearchIcon />
-                                        </InputAdornment>
-                                    ),
-                                }}
-                            />
-                        </Box>
+                <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                    <Toolbar sx={{ p: 2 }}>
+                        <TextField
+                            fullWidth
+                            variant="outlined"
+                            size="small"
+                            placeholder="Tìm kiếm theo số hiệu hoặc tên tài khoản..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon />
+                                    </InputAdornment>
+                                ),
+                            }}
+                        />
                         <Button
                             variant="contained"
                             startIcon={<AddIcon />}
@@ -399,11 +398,11 @@ const ChartOfAccountsPage = () => {
                             Thêm Mới
                         </Button>
                     </Toolbar>
-                    <TableContainer sx={{ maxHeight: 'calc(100vh - 300px)' }}>
+                    <TableContainer sx={{ maxHeight: 'calc(100vh - 320px)' }}>
                         <Table size="small" stickyHeader>
                             <TableHead>
                                 <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold', width: '35%' }}>Số Hiệu TK</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', width: '40%' }}>Số Hiệu TK</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold' }}>Tên Tài Khoản</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold', width: '150px' }} align="right">Hành động</TableCell>
                                 </TableRow>
@@ -425,7 +424,7 @@ const ChartOfAccountsPage = () => {
                                     <TableRow>
                                         <TableCell colSpan={3} align="center" sx={{ py: 8 }}>
                                             <Typography color="text.secondary">
-                                                Không tìm thấy tài khoản phù hợp hoặc chưa có dữ liệu.
+                                                Không tìm thấy dữ liệu phù hợp.
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
