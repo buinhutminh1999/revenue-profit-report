@@ -45,6 +45,7 @@ export const defaultRow = {
     carryoverEnd: "0",
     tonKhoUngKH: "0",
     noPhaiTraCK: "0",
+    noPhaiTraNM: "0",
     totalCost: "0",
     cpVuot: "0",
     revenue: "0",
@@ -101,6 +102,7 @@ export const handleFileUpload = (
         "Cuối Kỳ": "carryoverEnd",
         "Tồn Kho/Ứng KH": "tonKhoUngKH",
         "Nợ Phải Trả CK": "noPhaiTraCK",
+        "Nợ Phải Trả CK NM": "noPhaiTraCKNM",
         "Tổng Chi Phí": "totalCost",
         "Doanh Thu": "revenue",
         HSKH: "hskh",
@@ -232,6 +234,7 @@ const numericFields = [
     "carryoverEnd",
     "tonKhoUngKH",
     "noPhaiTraCK",
+    "noPhaiTraCKNM",
     "totalCost",
     "cpVuot",
     "revenue",
@@ -396,6 +399,11 @@ export default function ActualCostsTab({ projectId }) {
                     return project.includes("-VT") || project.includes("-NC");
                 },
             },
+             {
+            key: "noPhaiTraCKNM",
+            label: "Nợ Phải Trả CK NM",
+            editable: true, 
+        },
             { key: "totalCost", label: "Tổng Chi Phí", editable: false },
             { key: "cpVuot", label: "CP Vượt", editable: false },
 
@@ -422,7 +430,7 @@ export default function ActualCostsTab({ projectId }) {
         return columnsAll.reduce((acc, col) => {
             // Lọc các cột chỉ dành cho type "Nhà máy" nếu type hiện tại không khớp
             const isNhaMayOnlyColumn =
-                col.key === "cpVuot" || col.key === "payableDeductionThisQuarter";
+                col.key === "cpVuot" || col.key === "payableDeductionThisQuarter" ||  col.key === "noPhaiTraCKNM";
 
             if (isNhaMayOnlyColumn && !isNhaMayType) {
                 return acc; // Bỏ qua cột này
@@ -506,6 +514,7 @@ export default function ActualCostsTab({ projectId }) {
             "carryoverEnd",
             "tonKhoUngKH",
             "noPhaiTraCK",
+            "noPhaiTraCKNM",
             "totalCost",
             "revenue",
             "hskh",

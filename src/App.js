@@ -609,15 +609,15 @@ function LayoutRoutes() {
                         </PageTransition>
                     }
                 />
-<Route 
-                    path="balance-sheet" 
+                <Route
+                    path="balance-sheet"
                     element={
                         <Suspense fallback={<SuspenseFallback />}>
                             <PageTransition>
                                 <BalanceSheet />
                             </PageTransition>
                         </Suspense>
-                    } 
+                    }
                 />
                 <Route
                     path="construction-plan"

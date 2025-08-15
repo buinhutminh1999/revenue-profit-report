@@ -617,7 +617,13 @@ const processedData = useMemo(() => {
     }, [detailItems, categories]);
 const detailDataWithGroups = useMemo(() => {
     if (sortedDetailItems.length === 0) return [];
-
+ // --- BƯỚC 1: LẤY PROJECT TYPE ---
+    // Tìm thông tin chi tiết của dự án đang chọn từ danh sách `projects`
+    const projectDetails = projects.find(
+        (p) => p.id === selectedProject.projectId
+    );
+     // Lấy ra `type` của dự án, ví dụ: 'Nhà máy', 'Thi công', ...
+    const projectType = projectDetails?.type;
     // Tính tổng doanh thu của toàn bộ các hạng mục
     const grandTotalRevenue = sortedDetailItems.reduce(
         (sum, item) => sum + toNum(item.revenue || 0),
@@ -638,8 +644,18 @@ const detailDataWithGroups = useMemo(() => {
         if (itemsInGroup.length > 1) {
             const summaryRow = itemsInGroup.reduce(
                 (sum, item) => {
-                    // Công thức PS Nợ (giữ nguyên)
-                    const psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
+                    let psNoValue;
+
+                // --- BƯỚC 2: ÁP DỤNG CÔNG THỨC ĐIỀU KIỆN ---
+                if (projectType === 'Nhà máy') {
+                    // Công thức MỚI cho loại 'Nhà máy'
+                    psNoValue = grandTotalRevenue > 0 
+                        ? toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM) 
+                        : 0;
+                } else {
+                    // Công thức cũ cho các loại khác
+                    psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
+                }
                     
                     // ✅ CÔNG THỨC MỚI CHO PS GIẢM
                     const psGiamValue = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
