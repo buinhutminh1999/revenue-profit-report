@@ -433,14 +433,14 @@ const BASE_REPORT_STRUCTURE = [
                     {
                         id: "B.3.1",
                         stt: "1",
-                        code: "411",
+                        code: "4111",
                         title: "Cổ phần",
                         type: "item",
                     },
                     {
                         id: "B.3.2",
                         stt: "2",
-                        code: "412",
+                        code: "4112",
                         title: "Cổ tức giữ lại năm (2015- 2024)",
                         type: "item",
                     },

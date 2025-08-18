@@ -34,16 +34,17 @@ const useAccountsStructure = () => {
     }, { staleTime: Infinity });
 };
 
+// ✅ THAY ĐỔI 1: Trả về Object thay vì Map để đảm bảo tính nhất quán
 const useAccountBalances = (year, quarter) => {
     return useQuery(['accountBalances', year, quarter], async () => {
-        const balancesMap = new Map();
+        const balancesObject = {}; // Dùng object thường
         const q = query(collection(db, BALANCES_COLLECTION), where("year", "==", year), where("quarter", "==", quarter));
         const querySnapshot = await getDocs(q);
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            balancesMap.set(data.accountId, data);
+            balancesObject[data.accountId] = data; // Gán bằng key
         });
-        return balancesMap;
+        return balancesObject;
     }, { keepPreviousData: true });
 };
 
@@ -284,9 +285,11 @@ const BalanceSheet = () => {
         }
     };
     
+     // ✅ THAY ĐỔI 2: Cập nhật logic mergedData để dùng object thường
     const mergedData = useMemo(() => {
         if (!accounts || !balances) return [];
-        return accounts.map(acc => ({ ...acc, ...(balances.get(acc.accountId) || {}) }));
+        // Dùng `balances[acc.accountId]` thay vì `balances.get(acc.accountId)`
+        return accounts.map(acc => ({ ...acc, ...(balances[acc.accountId] || {}) }));
     }, [accounts, balances]);
 
     const accountTree = useMemo(() => {
