@@ -300,7 +300,15 @@ const CapitalUtilizationReport = () => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            <TableRow sx={{ '& > td': { fontWeight: 'bold' } }}><TableCell colSpan={7}>a. Vốn dự kiến sử dụng</TableCell></TableRow>
+                            <TableRow sx={{ '& > td': { fontWeight: 'bold', backgroundColor: 'action.hover' } }}>
+                                <TableCell>a</TableCell>
+                                <TableCell></TableCell>
+                                <TableCell>Vốn dự kiến sử dụng</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsUsagePlan)}</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsUsageActual)}</TableCell>
+                                <TableCell></TableCell>
+                                <TableCell></TableCell>
+                            </TableRow>
                             {reportData.construction.usage.map((row) => (
                                 <TableRow key={row.id} hover>
                                     <TableCell>{row.stt}</TableCell>
@@ -312,7 +320,15 @@ const CapitalUtilizationReport = () => {
                                     <TableCell><EditableCell value={row.notes} onSave={(v) => handleNestedDataChange('construction', 'usage', row.id, 'notes', v)} isNumeric={false} /></TableCell>
                                 </TableRow>
                             ))}
-                            <TableRow sx={{ '& > td': { fontWeight: 'bold' } }}><TableCell colSpan={7}>b. Vốn dự kiến thu được</TableCell></TableRow>
+                            <TableRow sx={{ '& > td': { fontWeight: 'bold', backgroundColor: 'action.hover' } }}>
+                                <TableCell>b</TableCell>
+                                <TableCell></TableCell>
+                                <TableCell>Vốn dự kiến thu được</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsRevenuePlan)}</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsRevenueActual)}</TableCell>
+                                <TableCell></TableCell>
+                                <TableCell></TableCell>
+                            </TableRow>
                             {reportData.construction.revenue.map((row) => (
                                 <TableRow key={row.id} hover>
                                     <TableCell>{row.stt}</TableCell>

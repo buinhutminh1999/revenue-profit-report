@@ -714,34 +714,57 @@ const FinancialReport = () => {
         return filterNodes(dynamicReportStructure);
     }, [searchTerm, dynamicReportStructure]);
 
-    const reportData = useMemo(() => {
-        if (!accountBalances || !accountsData || dynamicReportStructure.length === 0) return {};
+   const reportData = useMemo(() => {
+        if (!accountBalances || !accountsData || !dynamicReportStructure || dynamicReportStructure.length === 0) {
+            return {};
+        }
+
         const processedData = {};
-        const flattened = (nodes) => {
-            let result = [];
-            nodes.forEach(node => {
-                result.push(node);
-                if (node.children) result = result.concat(flattened(node.children));
-            });
-            return result;
-        };
-        flattened(dynamicReportStructure).forEach((item) => {
-            if ((item.type === 'item' || item.type === 'subitem') && item.code) {
-                const descendantIds = getAllDescendantIds(item.code, accountsData);
-                const accountsToSum = [item.code, ...descendantIds];
-                let totalDauKy = 0, totalPhatSinh = 0, totalCuoiKy = 0;
-                accountsToSum.forEach(accId => {
-                    const balance = accountBalances[accId];
-                    if (balance) {
-                        totalDauKy += balance.dauKy || 0;
-                        totalPhatSinh += balance.phatSinh || 0;
-                        totalCuoiKy += balance.cuoiKy || 0;
-                    }
-                });
-                processedData[item.id] = { dauKy: totalDauKy, phatSinh: totalPhatSinh, cuoiKy: totalCuoiKy };
+
+        // Hàm đệ quy để tính toán giá trị
+        const calculateNodeValue = (node) => {
+            // Nếu node này đã được tính, trả về giá trị đã lưu
+            if (processedData[node.id]) {
+                return processedData[node.id];
             }
-        });
-        return calculateAllTotals(dynamicReportStructure, processedData);
+
+            let finalBalance = { dauKy: 0, phatSinh: 0, cuoiKy: 0 };
+
+            // Nếu là node cha (có children)
+            if (node.children && node.children.length > 0) {
+                node.children.forEach(childNode => {
+                    const childBalance = calculateNodeValue(childNode); // Đệ quy để tính giá trị của con
+                    finalBalance.dauKy += childBalance.dauKy || 0;
+                    finalBalance.phatSinh += childBalance.phatSinh || 0;
+                    finalBalance.cuoiKy += childBalance.cuoiKy || 0;
+                });
+            } 
+            // Nếu là node lá (không có children) và có mã tài khoản
+            else if (node.code) {
+                const balance = accountBalances[node.code];
+                if (balance) {
+                    finalBalance = balance;
+                }
+            }
+
+            // Lưu kết quả đã tính để không phải tính lại
+            processedData[node.id] = finalBalance;
+            return finalBalance;
+        };
+
+        // Bắt đầu tính toán từ các node gốc
+        dynamicReportStructure.forEach(rootNode => calculateNodeValue(rootNode));
+        
+        // Tính các mục đặc biệt như hàng tổng kết C
+        const totalA = processedData["A"] || { dauKy: 0, phatSinh: 0, cuoiKy: 0 };
+        const totalB = processedData["B"] || { dauKy: 0, phatSinh: 0, cuoiKy: 0 };
+        processedData["C"] = {
+            dauKy: totalA.dauKy - totalB.dauKy,
+            phatSinh: totalA.phatSinh - totalB.phatSinh,
+            cuoiKy: totalA.cuoiKy - totalB.cuoiKy,
+        };
+
+        return processedData;
     }, [dynamicReportStructure, accountBalances, accountsData]);
 
     const allParentIds = useMemo(() => {
