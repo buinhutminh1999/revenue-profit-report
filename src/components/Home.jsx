@@ -14,7 +14,8 @@ import {
     Clock, AlertCircle, CheckCircle, XCircle, ArrowUpRight,
     ArrowDownRight, MoreVertical,
     BookUser,
-    ClipboardList
+    ClipboardList,
+    Landmark
 } from "lucide-react";
 import { useQuery } from "react-query";
 
@@ -68,6 +69,15 @@ const mainFunctions = [
         desc: "Tình hình tài sản & nguồn vốn",
         color: '#14b8a6',
         bgColor: '#ccfbf1',
+        isNew: true 
+    },
+     { 
+        icon: <Landmark size={24} />, // Icon mới
+        text: "Báo Cáo Sử Dụng Vốn", // Tên chức năng
+        to: "/capital-utilization", // Đường dẫn đã tạo
+        desc: "Kế hoạch & thực tế sử dụng", // Mô tả
+        color: '#6366f1',
+        bgColor: '#e0e7ff',
         isNew: true 
     },
      { 

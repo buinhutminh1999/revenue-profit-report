@@ -80,6 +80,8 @@ const ConstructionPayables = React.lazy(() =>
 const ChartOfAccountsPage = React.lazy(() =>
     import("./pages/ChartOfAccountsPage")
 );
+const CapitalUtilizationReport = React.lazy(() => import("./pages/CapitalUtilizationReport"));
+
 // Enhanced QueryClient configuration
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -617,6 +619,16 @@ function LayoutRoutes() {
                         <Suspense fallback={<SuspenseFallback />}>
                             <PageTransition>
                                 <BalanceSheet />
+                            </PageTransition>
+                        </Suspense>
+                    }
+                />
+                  <Route
+                    path="capital-utilization"
+                    element={
+                        <Suspense fallback={<SuspenseFallback />}>
+                            <PageTransition>
+                                <CapitalUtilizationReport />
                             </PageTransition>
                         </Suspense>
                     }
