@@ -59,16 +59,53 @@ const useMutateAccounts = () => {
         },
         {
             onSuccess: () => {
-                toast.success('Cập nhật thành công!');
+                toast.success('Cập nhật tên thành công!');
                 queryClient.invalidateQueries('chartOfAccounts');
             },
             onError: (error) => toast.error(`Lỗi: ${error.message}`),
         }
     );
+    
+    const renameAccountMutation = useMutation(
+        async ({ oldAccount, newAccountId, allAccounts }) => {
+            const newDocRef = doc(db, ACCOUNTS_COLLECTION, newAccountId);
+            const newDocSnap = await getDoc(newDocRef);
+            if (newDocSnap.exists()) {
+                throw new Error(`Mã tài khoản "${newAccountId}" đã tồn tại!`);
+            }
+
+            const batch = writeBatch(db);
+
+            // 1. Tạo document mới với mã mới
+            const newAccountData = { ...oldAccount, accountId: newAccountId };
+            delete newAccountData.id;
+            batch.set(newDocRef, newAccountData);
+
+            // 2. Xóa document cũ
+            const oldDocRef = doc(db, ACCOUNTS_COLLECTION, oldAccount.id);
+            batch.delete(oldDocRef);
+
+            // 3. Cập nhật parentId cho các con trực tiếp
+            const children = allAccounts.filter(acc => acc.parentId === oldAccount.accountId);
+            children.forEach(child => {
+                const childRef = doc(db, ACCOUNTS_COLLECTION, child.id);
+                batch.update(childRef, { parentId: newAccountId });
+            });
+
+            await batch.commit();
+        },
+        {
+            onSuccess: () => {
+                toast.success('Đổi mã tài khoản thành công!');
+                toast('Lưu ý: Dữ liệu số dư cũ không được di dời tự động.', { icon: '⚠️', duration: 6000 });
+                queryClient.invalidateQueries('chartOfAccounts');
+            },
+            onError: (error) => toast.error(`Lỗi khi đổi mã: ${error.message}`),
+        }
+    );
 
     const deleteMutation = useMutation(
         async (id) => {
-            // Lưu ý: Cần xử lý logic xóa các tài khoản con nếu có
             const docRef = doc(db, ACCOUNTS_COLLECTION, id);
             await deleteDoc(docRef);
         },
@@ -81,7 +118,7 @@ const useMutateAccounts = () => {
         }
     );
 
-    return { addBatchMutation, updateMutation, deleteMutation };
+    return { addBatchMutation, updateMutation, deleteMutation, renameAccountMutation };
 };
 
 
@@ -109,89 +146,78 @@ const AddAccountDialog = ({ open, onClose, parent = null }) => {
         }
     }, [open, parent]);
 
-const handleSubmit = async () => {
-    const newParentId = parentAccountId.trim();
-    const newParentName = parentAccountName.trim();
-    const pastedChildren = childrenData.trim();
-    const accountsToCreate = [];
+    const handleSubmit = async () => {
+        const newParentId = parentAccountId.trim();
+        const newParentName = parentAccountName.trim();
+        const pastedChildren = childrenData.trim();
+        const accountsToCreate = [];
 
-    if (!parent) {
-        if (newParentId || newParentName) {
-            if (!newParentId || !newParentName) {
-                toast.error('Vui lòng nhập đủ "Mã" và "Tên" tài khoản cha.');
+        if (!parent) {
+            if (newParentId || newParentName) {
+                if (!newParentId || !newParentName) {
+                    toast.error('Vui lòng nhập đủ "Mã" và "Tên" tài khoản cha.');
+                    return;
+                }
+                accountsToCreate.push({
+                    accountId: newParentId,
+                    accountName: newParentName,
+                    parentId: null,
+                });
+            }
+        }
+        
+        if (pastedChildren) {
+            const childrenParentId = parent ? parent.accountId : newParentId;
+            if (!childrenParentId) {
+                toast.error('Phải có thông tin tài khoản cha để thêm danh sách con.');
                 return;
             }
-            accountsToCreate.push({
-                accountId: newParentId,
-                accountName: newParentName,
-                parentId: null,
+            const childrenLines = pastedChildren.split('\n');
+            childrenLines.forEach(line => {
+                const trimmedLine = line.trim();
+                if (trimmedLine) {
+                    const parts = trimmedLine.split(/\s+/);
+                    const accountId = parts[0];
+                    const accountName = parts.slice(1).join(' ');
+                    if (accountId && accountName) {
+                        accountsToCreate.push({
+                            accountId,
+                            accountName,
+                            parentId: childrenParentId,
+                        });
+                    }
+                }
             });
         }
-    }
-    
-    if (pastedChildren) {
-        const childrenParentId = parent ? parent.accountId : newParentId;
-        if (!childrenParentId) {
-            toast.error('Phải có thông tin tài khoản cha để thêm danh sách con.');
+        
+        if (accountsToCreate.length === 0) {
+            toast.error('Không có thông tin hợp lệ để thêm mới.');
             return;
         }
-        const childrenLines = pastedChildren.split('\n');
-        childrenLines.forEach(line => {
-            const trimmedLine = line.trim();
-            if (trimmedLine) {
-                const parts = trimmedLine.split(/\s+/);
-                const accountId = parts[0];
-                const accountName = parts.slice(1).join(' ');
-                if (accountId && accountName) {
-                    accountsToCreate.push({
-                        accountId,
-                        accountName,
-                        parentId: childrenParentId,
-                    });
+
+        setIsChecking(true);
+        try {
+            const currentAccounts = await getDocs(collection(db, ACCOUNTS_COLLECTION));
+            const existingAccountIds = new Set(currentAccounts.docs.map(doc => doc.data().accountId));
+
+            for (const acc of accountsToCreate) {
+                if (existingAccountIds.has(acc.accountId)) {
+                    toast.error(`Mã tài khoản "${acc.accountId}" đã tồn tại!`);
+                    setIsChecking(false);
+                    return;
                 }
             }
-        });
-    }
-    
-    if (accountsToCreate.length === 0) {
-        toast.error('Không có thông tin hợp lệ để thêm mới.');
-        return;
-    }
-
-    setIsChecking(true);
-    try {
-        // THAY VÌ kiểm tra bằng getDoc (kiểm tra document ID)
-        // Hãy kiểm tra bằng cách tìm trong dữ liệu hiện có
-        const currentAccounts = await getDocs(collection(db, ACCOUNTS_COLLECTION));
-        const existingAccountIds = new Set();
-        
-        currentAccounts.docs.forEach(doc => {
-            const data = doc.data();
-            existingAccountIds.add(data.accountId); // Lấy accountId từ data, không phải doc.id
-        });
-
-        // Kiểm tra duplicate
-        for (const acc of accountsToCreate) {
-           
             
-            if (existingAccountIds.has(acc.accountId)) {
-                toast.error(`Mã tài khoản "${acc.accountId}" đã tồn tại!`);
-                setIsChecking(false);
-                return;
-            }
+            await addBatchMutation.mutateAsync(accountsToCreate);
+            setIsChecking(false);
+            onClose();
+            
+        } catch (error) {
+            toast.error("Lỗi khi kiểm tra dữ liệu: " + error.message);
+            setIsChecking(false);
         }
-        
-        // Nếu không có duplicate, tiến hành tạo
-        await addBatchMutation.mutateAsync(accountsToCreate);
-        setIsChecking(false);
-        onClose();
-        
-    } catch (error) {
-        toast.error("Lỗi khi kiểm tra dữ liệu: " + error.message);
-        setIsChecking(false);
-        return;
-    }
-};
+    };
+
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
             <DialogTitle>{parent ? `Thêm tài khoản con cho [${parent.accountId}]` : 'Tạo Tài Khoản Mới'}</DialogTitle>
@@ -201,7 +227,7 @@ const handleSubmit = async () => {
                 <TextField margin="dense" label="Tên Tài Khoản Cha" fullWidth variant="outlined" value={parentAccountName} onChange={(e) => setParentAccountName(e.target.value)} disabled={!!parent} />
                 <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>Dán danh sách tài khoản con</Typography>
                 <Typography variant="body2" color="text.secondary">(Mỗi dòng một tài khoản, định dạng: Mã Tên tài khoản)</Typography>
-                <TextField margin="dense" label="Danh sách tài khoản con" fullWidth multiline rows={8} variant="outlined" placeholder="21201 Đầu tư xây dựng nhà máy&#10;21301 Mua sắm thiết bị nhà máy" value={childrenData} onChange={(e) => setChildrenData(e.target.value)} />
+                <TextField margin="dense" label="Danh sách tài khoản con" fullWidth multiline rows={8} variant="outlined" placeholder={"21201 Đầu tư xây dựng nhà máy\n21301 Mua sắm thiết bị nhà máy"} value={childrenData} onChange={(e) => setChildrenData(e.target.value)} />
             </DialogContent>
             <DialogActions sx={{ p: '16px 24px' }}>
                 <Button onClick={onClose}>Hủy</Button>
@@ -232,7 +258,7 @@ const DeleteConfirmationDialog = ({ open, onClose, onConfirm, account, isLoading
             <DialogActions>
                 <Button onClick={onClose}>Hủy</Button>
                 <Button onClick={onConfirm} color="error" variant="contained" disabled={isLoading}>
-                     {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Xóa'}
+                   {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Xóa'}
                 </Button>
             </DialogActions>
         </Dialog>
@@ -242,13 +268,13 @@ const DeleteConfirmationDialog = ({ open, onClose, onConfirm, account, isLoading
 // ===================================================================================
 // COMPONENT: PANEL CHI TIẾT/CHỈNH SỬA
 // ===================================================================================
-const AccountDetailPanel = ({ account, onClearSelection }) => {
-    const { updateMutation } = useMutateAccounts();
-    const [formState, setFormState] = useState({ accountName: '' });
+const AccountDetailPanel = ({ account, onClearSelection, allAccounts }) => {
+    const { updateMutation, renameAccountMutation } = useMutateAccounts();
+    const [formState, setFormState] = useState({ accountId: '', accountName: '' });
 
     useEffect(() => {
         if (account) {
-            setFormState({ accountName: account.accountName });
+            setFormState({ accountId: account.accountId, accountName: account.accountName });
         }
     }, [account]);
 
@@ -266,29 +292,48 @@ const AccountDetailPanel = ({ account, onClearSelection }) => {
         setFormState({ ...formState, [e.target.name]: e.target.value });
     };
 
-    const handleSave = () => {
-        updateMutation.mutate({ id: account.id, data: formState });
+    const handleSave = async () => {
+        const newAccountId = formState.accountId.trim();
+        const newAccountName = formState.accountName.trim();
+        
+        if (!newAccountId || !newAccountName) {
+            toast.error("Mã và Tên tài khoản không được để trống!");
+            return;
+        }
+
+        if (newAccountId === account.accountId) {
+            if (newAccountName !== account.accountName) {
+                updateMutation.mutate({ id: account.id, data: { accountName: newAccountName } });
+            }
+        } 
+        else {
+            await renameAccountMutation.mutateAsync({ 
+                oldAccount: account, 
+                newAccountId: newAccountId,
+                allAccounts: allAccounts 
+            });
+            onClearSelection();
+        }
     };
+
+    const isLoading = updateMutation.isLoading || renameAccountMutation.isLoading;
 
     return (
         <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
             <CardHeader
-                title={`Chi tiết: [${account.accountId}]`}
-                action={
-                    <IconButton onClick={onClearSelection}>
-                        <CloseIcon />
-                    </IconButton>
-                }
+                title={`Chi tiết tài khoản`}
+                action={<IconButton onClick={onClearSelection}><CloseIcon /></IconButton>}
                 sx={{ bgcolor: 'action.hover' }}
             />
             <Divider />
             <CardContent>
                 <Stack spacing={3}>
-                     <TextField
+                    <TextField
+                        name="accountId"
                         label="Số Hiệu Tài Khoản"
-                        value={account.accountId}
+                        value={formState.accountId}
+                        onChange={handleChange}
                         fullWidth
-                        disabled
                     />
                     <TextField
                         name="accountName"
@@ -297,15 +342,14 @@ const AccountDetailPanel = ({ account, onClearSelection }) => {
                         onChange={handleChange}
                         fullWidth
                     />
-                    {/* Thêm các trường khác tại đây: Loại TK, Trạng thái, v.v. */}
                     <Button
                         variant="contained"
                         startIcon={<SaveIcon />}
                         onClick={handleSave}
-                        disabled={updateMutation.isLoading}
+                        disabled={isLoading}
                         sx={{ alignSelf: 'flex-end' }}
                     >
-                        {updateMutation.isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
+                        {isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
                     </Button>
                 </Stack>
             </CardContent>
@@ -326,10 +370,7 @@ const AccountRow = ({ account, level, expanded, onToggle, onAddChild, onDelete, 
             <TableRow 
                 hover 
                 selected={selected}
-                sx={{ 
-                    '& > *': { borderBottom: 'unset' },
-                    cursor: 'pointer' 
-                }}
+                sx={{ '& > *': { borderBottom: 'unset' }, cursor: 'pointer' }}
             >
                 <TableCell style={{ paddingLeft: `${8 + level * 24}px` }} onClick={() => onSelect(account)}>
                     <Stack direction="row" alignItems="center" spacing={1}>
@@ -453,9 +494,6 @@ const ChartOfAccountsPage = () => {
             }
             collectIds(filteredTree);
             setExpanded(allIds);
-        } else {
-            // Optional: collapse all when search is cleared
-            // setExpanded([]);
         }
     }, [searchTerm, filteredTree]);
     
@@ -529,10 +567,8 @@ const ChartOfAccountsPage = () => {
                     <Typography variant="h4" component="h1" fontWeight="600">
                         Hệ Thống Tài Khoản
                     </Typography>
-
                 </Box>
                 <Grid container spacing={3}>
-                    {/* MASTER PANEL (LEFT) */}
                     <Grid item xs={12} md={7}>
                         <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
                             <Toolbar sx={{ p: 2 }}>
@@ -598,11 +634,11 @@ const ChartOfAccountsPage = () => {
                             </TableContainer>
                         </Paper>
                     </Grid>
-                    {/* DETAIL PANEL (RIGHT) */}
                     <Grid item xs={12} md={5}>
                         <AccountDetailPanel 
                             account={selectedAccount} 
                             onClearSelection={() => setSelectedAccount(null)}
+                            allAccounts={accounts || []}
                         />
                     </Grid>
                 </Grid>
