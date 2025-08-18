@@ -2,10 +2,11 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
     Typography, Box, useTheme, CircularProgress, Alert, IconButton, Stack,
-    FormControl, InputLabel, Select, MenuItem, Grid, Button, Tooltip, LinearProgress, Card, CardContent, CardHeader, Divider
+    FormControl, InputLabel, Select, MenuItem, Grid, Button, Tooltip, LinearProgress, Card, CardContent, CardHeader, Divider, TextField
 } from '@mui/material';
-import { useQuery, useQueryClient } from 'react-query';
-import { getFirestore, collection, getDocs, query, orderBy, where, writeBatch, doc } from 'firebase/firestore';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { getFirestore, collection, getDocs, query, orderBy, where, writeBatch, doc, setDoc } from 'firebase/firestore';
+import toast from 'react-hot-toast';
 import { 
     ExpandMore as ExpandMoreIcon, 
     ChevronRight as ChevronRightIcon,
@@ -15,13 +16,14 @@ import {
     UnfoldMore as UnfoldMoreIcon,
     UnfoldLess as UnfoldLessIcon
 } from '@mui/icons-material';
-
 import PasteDataDialog from '../components/PasteDataDialog';
 
-// Giữ nguyên các phần hooks và logic Firebase
+// Khởi tạo Firestore và các hằng số
 const db = getFirestore();
 const ACCOUNTS_COLLECTION = 'chartOfAccounts';
 const BALANCES_COLLECTION = 'accountBalances';
+
+// ===== CÁC HOOKS LẤY VÀ CẬP NHẬT DỮ LIỆU =====
 
 const useAccountsStructure = () => {
     return useQuery('accountsStructure', async () => {
@@ -45,23 +47,116 @@ const useAccountBalances = (year, quarter) => {
     }, { keepPreviousData: true });
 };
 
+const useMutateBalances = () => {
+    const queryClient = useQueryClient();
 
-// ✨ CẢI TIẾN: Component Row được thiết kế lại để trực quan hơn
-const BalanceSheetRow = ({ account, level, expanded, onToggle }) => {
+    const updateBalanceMutation = useMutation(
+        async ({ accountId, year, quarter, field, value }) => {
+            const docId = `${accountId}_${year}_${quarter}`;
+            const docRef = doc(db, BALANCES_COLLECTION, docId);
+            await setDoc(docRef, {
+                accountId,
+                year,
+                quarter,
+                [field]: value
+            }, { merge: true });
+        },
+        {
+            onSuccess: (_, variables) => {
+                toast.success(`Đã cập nhật [${variables.field}] cho TK ${variables.accountId}`);
+                queryClient.invalidateQueries(['accountBalances', variables.year, variables.quarter]);
+            },
+            onError: (error) => {
+                toast.error(`Lỗi cập nhật: ${error.message}`);
+            }
+        }
+    );
+    return { updateBalanceMutation };
+};
+
+// ===== CÁC COMPONENT CON =====
+
+const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [value, setValue] = useState(account[fieldName] || '');
+    const theme = useTheme();
+
+    const handleSave = () => {
+        setIsEditing(false);
+        const originalValue = account[fieldName] || 0;
+        const newValue = parseFloat(String(value).replace(/\./g, '').replace(/,/g, '')) || 0;
+
+        if (originalValue !== newValue) {
+            updateMutation.mutate({
+                accountId: account.accountId,
+                year,
+                quarter,
+                field: fieldName,
+                value: newValue
+            });
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') handleSave();
+        if (e.key === 'Escape') setIsEditing(false);
+    };
+    
+    const formatNumber = (num) => (num || 0).toLocaleString('vi-VN');
+
+    if (isEditing) {
+        return (
+            <TextField
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
+                autoFocus
+                variant="standard"
+                fullWidth
+                size="small"
+                sx={{ 
+                    "& input": { 
+                        textAlign: "right",
+                        padding: '2px 0'
+                    }
+                }}
+            />
+        );
+    }
+    
+    return (
+        <Typography
+            variant="body2"
+            onClick={() => setIsEditing(true)}
+            sx={{ 
+                textAlign: 'right', 
+                width: '100%', 
+                cursor: 'pointer',
+                minHeight: '24px',
+                padding: '2px 0',
+                borderRadius: 1,
+                '&:hover': { backgroundColor: theme.palette.action.hover }
+            }}
+        >
+            {formatNumber(account[fieldName]) === '0' ? '-' : formatNumber(account[fieldName])}
+        </Typography>
+    );
+};
+
+
+const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, updateMutation }) => {
     const theme = useTheme();
     const isParent = account.children && account.children.length > 0;
     const isExpanded = expanded.includes(account.id);
 
-    const formatCurrency = (value) => {
-        if (typeof value !== 'number' || isNaN(value) || value === 0) return <Typography variant="body2" color="text.secondary">-</Typography>;
+    const formatStaticCurrency = (value) => {
+        if (typeof value !== 'number' || isNaN(value) || value === 0) return <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400 }}>-</Typography>;
         return value.toLocaleString('vi-VN');
     };
 
     const rowStyle = {
         backgroundColor: isParent ? theme.palette.grey[100] : 'transparent',
-        '&:hover': {
-            backgroundColor: theme.palette.action.hover,
-        },
         fontWeight: isParent ? 'bold' : 'normal',
     };
 
@@ -69,30 +164,55 @@ const BalanceSheetRow = ({ account, level, expanded, onToggle }) => {
         <React.Fragment>
             <TableRow hover sx={rowStyle}>
                 <TableCell style={{ paddingLeft: `${8 + level * 24}px` }}>
-                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                     <Stack direction="row" alignItems="center" spacing={0.5}>
                         {isParent ? (
                             <IconButton size="small" onClick={() => onToggle(account.id)} sx={{ mr: 1 }}>
                                 {isExpanded ? <ExpandMoreIcon fontSize="inherit" /> : <ChevronRightIcon fontSize="inherit" />}
                             </IconButton>
-                        ) : (
-                            <Box sx={{ width: 40 }} /> // Giữ khoảng trống để căn chỉnh
-                        )}
+                        ) : (<Box sx={{ width: 40 }} />)}
                         <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400 }}>{account.accountId}</Typography>
                     </Stack>
                 </TableCell>
                 <TableCell align="left" sx={{ fontWeight: isParent ? 700 : 400 }}>{account.accountName}</TableCell>
-                <TableCell align="right">{formatCurrency(account.dauKyNo)}</TableCell>
-                <TableCell align="right">{formatCurrency(account.dauKyCo)}</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>{formatCurrency(account.cuoiKyNo)}</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>{formatCurrency(account.cuoiKyCo)}</TableCell>
+
+                {['dauKyNo', 'dauKyCo', 'cuoiKyNo', 'cuoiKyCo'].map((field) => (
+                    <TableCell key={field} align="right" sx={{
+                        fontWeight: (field === 'cuoiKyNo' || field === 'cuoiKyCo') && !isParent ? 'bold' : 'inherit',
+                        color: (field === 'cuoiKyNo' || field === 'cuoiKyCo') && !isParent ? theme.palette.primary.main : 'inherit'
+                    }}>
+                        {isParent ? (
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {formatStaticCurrency(account[field])}
+                            </Typography>
+                        ) : (
+                            <EditableBalanceCell 
+                                account={account} 
+                                fieldName={field}
+                                year={year}
+                                quarter={quarter}
+                                updateMutation={updateMutation}
+                            />
+                        )}
+                    </TableCell>
+                ))}
             </TableRow>
             {isParent && isExpanded && account.children.map(child => (
-                <BalanceSheetRow key={child.id} account={child} level={level + 1} expanded={expanded} onToggle={onToggle} />
+                <BalanceSheetRow 
+                    key={child.id} 
+                    account={child} 
+                    level={level + 1} 
+                    expanded={expanded} 
+                    onToggle={onToggle}
+                    year={year}
+                    quarter={quarter}
+                    updateMutation={updateMutation}
+                />
             ))}
         </React.Fragment>
     );
 };
 
+// ===== COMPONENT CHÍNH =====
 const BalanceSheet = () => {
     const theme = useTheme();
     const currentYear = new Date().getFullYear();
@@ -106,8 +226,8 @@ const BalanceSheet = () => {
     const [expanded, setExpanded] = useState([]);
     const [isPasteDialogOpen, setIsPasteDialogOpen] = useState(false);
     const queryClient = useQueryClient();
+    const { updateBalanceMutation } = useMutateBalances();
     
-    // ✨ CẢI TIẾN: Logic để lấy tất cả ID của các node cha
     const parentAccountIds = useMemo(() => {
         if (!accounts) return [];
         const parentIds = new Set();
@@ -118,16 +238,9 @@ const BalanceSheet = () => {
         return parentAccounts.map(acc => acc.id);
     }, [accounts]);
     
-    // ✨ CẢI TIẾN: Chức năng mở rộng / thu gọn tất cả
-    const handleExpandAll = useCallback(() => {
-        setExpanded(parentAccountIds);
-    }, [parentAccountIds]);
+    const handleExpandAll = useCallback(() => setExpanded(parentAccountIds), [parentAccountIds]);
+    const handleCollapseAll = useCallback(() => setExpanded([]), []);
 
-    const handleCollapseAll = useCallback(() => {
-        setExpanded([]);
-    }, []);
-
-    // Giữ nguyên logic xử lý dữ liệu và tính toán
     const handlePasteAndSave = async (pastedText) => {
         if (!pastedText) return;
         const rows = pastedText.trim().split('\n');
@@ -150,7 +263,7 @@ const BalanceSheet = () => {
             });
         });
         if (updates.length === 0) {
-            alert("Không tìm thấy dữ liệu hợp lệ để cập nhật.");
+            toast.error("Không tìm thấy dữ liệu hợp lệ để cập nhật.");
             return;
         }
         const batch = writeBatch(db);
@@ -162,11 +275,11 @@ const BalanceSheet = () => {
         });
         try {
             await batch.commit();
-            alert(`Đã cập nhật thành công ${updates.length} tài khoản!`);
+            toast.success(`Đã cập nhật thành công ${updates.length} tài khoản!`);
             queryClient.invalidateQueries(['accountBalances', selectedYear, selectedQuarter]);
         } catch (error) {
             console.error("Lỗi khi cập nhật batch:", error);
-            alert("Đã xảy ra lỗi khi cập nhật dữ liệu.");
+            toast.error("Đã xảy ra lỗi khi cập nhật dữ liệu.");
             throw error;
         }
     };
@@ -188,18 +301,29 @@ const BalanceSheet = () => {
                 roots.push(nodeMap.get(acc.accountId));
             }
         });
-        const calculateParentTotals = (node) => {
-            if (!node.children || node.children.length === 0) return;
+        const calculateParentTotals = (node, visited = new Set()) => {
+            if (visited.has(node.id)) {
+                console.error("Phát hiện vòng lặp dữ liệu tại tài khoản:", node.accountId);
+                return;
+            }
+            visited.add(node.id);
+            if (!node.children || node.children.length === 0) {
+                 visited.delete(node.id);
+                 return;
+            }
             let sumDauKyNo = 0, sumDauKyCo = 0, sumCuoiKyNo = 0, sumCuoiKyCo = 0;
             node.children.forEach(child => {
-                calculateParentTotals(child);
+                calculateParentTotals(child, visited);
                 sumDauKyNo += child.dauKyNo || 0;
                 sumDauKyCo += child.dauKyCo || 0;
                 sumCuoiKyNo += child.cuoiKyNo || 0;
                 sumCuoiKyCo += child.cuoiKyCo || 0;
             });
-            node.dauKyNo = sumDauKyNo; node.dauKyCo = sumDauKyCo;
-            node.cuoiKyNo = sumCuoiKyNo; node.cuoiKyCo = sumCuoiKyCo;
+            node.dauKyNo = sumDauKyNo; 
+            node.dauKyCo = sumDauKyCo;
+            node.cuoiKyNo = sumCuoiKyNo; 
+            node.cuoiKyCo = sumCuoiKyCo;
+            visited.delete(node.id);
         };
         roots.forEach(rootNode => calculateParentTotals(rootNode));
         return roots;
@@ -212,7 +336,6 @@ const BalanceSheet = () => {
     if (isAccountsLoading) {
         return <Box sx={{ display: 'flex', justifyContent: 'center', my: 10 }}><CircularProgress /></Box>;
     }
-
     if (isAccountsError || isBalancesError) {
         return <Box sx={{ p: 3 }}><Alert severity="error">Lỗi: {accountsError?.message || balancesError?.message}</Alert></Box>;
     }
@@ -224,7 +347,6 @@ const BalanceSheet = () => {
                 onClose={() => setIsPasteDialogOpen(false)}
                 onSave={handlePasteAndSave}
             />
-            {/* ✨ CẢI TIẾN: Sử dụng Card để bao bọc, tạo layout hiện đại */}
             <Card elevation={2}>
                 <CardHeader
                     title="Bảng Cân Đối Kế Toán"
@@ -232,7 +354,6 @@ const BalanceSheet = () => {
                     sx={{ pb: 1 }}
                 />
                 <Divider/>
-                {/* ✨ CẢI TIẾN: Khu vực điều khiển và bộ lọc */}
                 <CardContent>
                     <Grid container spacing={2} alignItems="center" justifyContent="space-between">
                         <Grid item container spacing={2} alignItems="center" xs={12} md={6}>
@@ -254,7 +375,6 @@ const BalanceSheet = () => {
                             </Grid>
                         </Grid>
 
-                        {/* ✨ CẢI TIẾN: Thanh công cụ với các hành động */}
                         <Grid item xs={12} md="auto">
                              <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
                                 <Tooltip title="Mở rộng tất cả">
@@ -277,11 +397,9 @@ const BalanceSheet = () => {
                     </Grid>
                 </CardContent>
 
-                {/* ✨ CẢI TIẾN: Bảng dữ liệu được đặt trong Paper riêng */}
                 <Paper variant="outlined" sx={{ m: 2, borderRadius: 1, overflow: 'hidden' }}>
                     <TableContainer sx={{ maxHeight: 'calc(100vh - 350px)' }}>
-                         {/* ✨ CẢI TIẾN: LinearProgress thay cho CircularProgress overlay */}
-                        {isBalancesLoading && <LinearProgress sx={{ position: 'absolute', top: 0, width: '100%' }} />}
+                       {isBalancesLoading && <LinearProgress sx={{ position: 'absolute', top: 0, width: '100%' }} />}
                         <Table stickyHeader size="small">
                             <TableHead>
                                 <TableRow>
@@ -300,7 +418,16 @@ const BalanceSheet = () => {
                             <TableBody>
                                 {accountTree.length > 0 ? (
                                     accountTree.map((rootAccount) => (
-                                        <BalanceSheetRow key={rootAccount.id} account={rootAccount} level={0} expanded={expanded} onToggle={handleToggle} />
+                                        <BalanceSheetRow 
+                                            key={rootAccount.id} 
+                                            account={rootAccount} 
+                                            level={0} 
+                                            expanded={expanded} 
+                                            onToggle={handleToggle}
+                                            year={selectedYear}
+                                            quarter={selectedQuarter}
+                                            updateMutation={updateBalanceMutation}
+                                        />
                                     ))
                                 ) : (
                                     <TableRow>
