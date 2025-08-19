@@ -18,6 +18,7 @@ import {
     Landmark
 } from "lucide-react";
 import { useQuery } from "react-query";
+import { Settings } from "@mui/icons-material";
 
 // Constants
 const CARD_BORDER_RADIUS = 12;
@@ -107,6 +108,7 @@ const mainFunctions = [
         bgColor: '#fef3c7',
         isNew: true 
     },
+    
 ];
 
 // ✅ Cấu hình Báo cáo & Phân tích (ĐÃ BỔ SUNG ĐƯỜNG DẪN 'to')
