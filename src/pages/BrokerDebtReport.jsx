@@ -105,9 +105,10 @@ const BASE_REPORT_STRUCTURE = [
                             },
                             {
                                 id: "A.3.1.2",
-                                code: "112",
+                                code: "112", // Tài khoản 112 có các con như 1121, 1122...
                                 title: "Tiền gửi ngân hàng",
                                 type: "item",
+                                children: [] // Báo hiệu đây là cha, cần tính tổng con
                             },
                         ],
                     },
@@ -714,48 +715,59 @@ const FinancialReport = () => {
         return filterNodes(dynamicReportStructure);
     }, [searchTerm, dynamicReportStructure]);
 
-   const reportData = useMemo(() => {
+   // ✅ 2. CẬP NHẬT LOGIC TÍNH TOÁN ĐỂ XỬ LÝ TRƯỜNG HỢP MỚI
+    const reportData = useMemo(() => {
         if (!accountBalances || !accountsData || !dynamicReportStructure || dynamicReportStructure.length === 0) {
             return {};
         }
 
         const processedData = {};
 
-        // Hàm đệ quy để tính toán giá trị
         const calculateNodeValue = (node) => {
-            // Nếu node này đã được tính, trả về giá trị đã lưu
             if (processedData[node.id]) {
                 return processedData[node.id];
             }
 
             let finalBalance = { dauKy: 0, phatSinh: 0, cuoiKy: 0 };
-
-            // Nếu là node cha (có children)
+            
+            // TH1: Node có children được định nghĩa sẵn trong cấu trúc (như A.3.1)
             if (node.children && node.children.length > 0) {
                 node.children.forEach(childNode => {
-                    const childBalance = calculateNodeValue(childNode); // Đệ quy để tính giá trị của con
+                    const childBalance = calculateNodeValue(childNode);
                     finalBalance.dauKy += childBalance.dauKy || 0;
                     finalBalance.phatSinh += childBalance.phatSinh || 0;
                     finalBalance.cuoiKy += childBalance.cuoiKy || 0;
                 });
             } 
-            // Nếu là node lá (không có children) và có mã tài khoản
+            // TH2: Node có mã code, cần tìm con từ chartOfAccounts (như 112)
             else if (node.code) {
-                const balance = accountBalances[node.code];
-                if (balance) {
-                    finalBalance = balance;
+                const descendantIds = getAllDescendantIds(node.code, accountsData);
+                // Nếu tìm thấy con -> tính tổng con
+                if (descendantIds.length > 0) {
+                     descendantIds.forEach(accId => {
+                        const balance = accountBalances[accId];
+                        if (balance) {
+                            finalBalance.dauKy += balance.dauKy || 0;
+                            finalBalance.phatSinh += balance.phatSinh || 0;
+                            finalBalance.cuoiKy += balance.cuoiKy || 0;
+                        }
+                    });
+                } 
+                // Nếu không có con -> là tài khoản lá, lấy trực tiếp
+                else {
+                    const balance = accountBalances[node.code];
+                    if (balance) {
+                        finalBalance = balance;
+                    }
                 }
             }
 
-            // Lưu kết quả đã tính để không phải tính lại
             processedData[node.id] = finalBalance;
             return finalBalance;
         };
 
-        // Bắt đầu tính toán từ các node gốc
         dynamicReportStructure.forEach(rootNode => calculateNodeValue(rootNode));
         
-        // Tính các mục đặc biệt như hàng tổng kết C
         const totalA = processedData["A"] || { dauKy: 0, phatSinh: 0, cuoiKy: 0 };
         const totalB = processedData["B"] || { dauKy: 0, phatSinh: 0, cuoiKy: 0 };
         processedData["C"] = {
