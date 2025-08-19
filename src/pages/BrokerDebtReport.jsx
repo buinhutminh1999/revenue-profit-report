@@ -182,6 +182,13 @@ const BASE_REPORT_STRUCTURE = [
                                 title: "Nợ phải thu công trình",
                                 type: "item",
                             },
+                            {
+                                id: "A.3.4.3",
+                                stt: "c",
+                                code: "140",
+                                title: "Nợ phải thu dở dang công trình",
+                                type: "item",
+                            },
                         ],
                     },
                     {

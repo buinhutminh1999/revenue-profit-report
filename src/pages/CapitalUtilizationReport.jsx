@@ -1,25 +1,25 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react'; // Thêm useCallback
 import {
-    Box, Card, CardContent, CardHeader, Divider, FormControl, Grid, InputLabel, MenuItem,
+    Box, Card, CardContent, CardHeader, FormControl, Grid, InputLabel, MenuItem,
     Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, TextField,
     CircularProgress, Alert, Chip, OutlinedInput, Container, Stack, useTheme, Paper,
-    IconButton, Tooltip
+    ListSubheader, InputAdornment, Checkbox, ListItemText
 } from '@mui/material';
 import {
     AssessmentOutlined as AssessmentIcon,
-    Edit as EditIcon,
-    CalendarMonthOutlined as CalendarIcon,
-    FilterList as FilterListIcon
+    FilterList as FilterListIcon,
+    Search as SearchIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { db } from "../services/firebase-config";
 import { useAccountBalances } from "../hooks/useFinanceData";
+import { debounce } from 'lodash'; // ✅ Bước 1: Import debounce
 
-// Dữ liệu và các hook không thay đổi (giữ nguyên)
+// Dữ liệu và các hook không thay đổi
 const REPORT_COLLECTION = 'capitalUtilizationReports';
-
+// ... (initialReportData giữ nguyên như cũ, không cần thay đổi)
 const initialReportData = {
     production: [
         { id: 1, stt: '1', codes: ['152'], item: 'Hàng tồn kho NVL', plan: 0, actual: 0, advantages: '', notes: '' },
@@ -112,8 +112,8 @@ const formatCurrency = (value) => {
     return value.toLocaleString('vi-VN');
 };
 
-// ✅ COMPONENT ĐƯỢC NÂNG CẤP
-const EditableCell = ({ value: initialValue, onSave, isNumeric = true }) => {
+// ✅ Bước 2: Bọc component bằng React.memo để tránh render lại không cần thiết
+const EditableCell = React.memo(({ value: initialValue, onSave, isNumeric = true }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [value, setValue] = useState(initialValue);
     const textInput = useRef(null);
@@ -148,11 +148,7 @@ const EditableCell = ({ value: initialValue, onSave, isNumeric = true }) => {
             size="small"
             inputRef={textInput}
             sx={{
-                "& input": {
-                    textAlign: isNumeric ? "right" : "left",
-                    padding: '4px 2px',
-                    fontSize: '0.875rem'
-                },
+                "& input": { textAlign: isNumeric ? "right" : "left", padding: '4px 2px', fontSize: '0.875rem' },
                 "& .MuiInput-underline:before": { borderBottom: '2px solid #1976d2' },
             }}
         />;
@@ -183,39 +179,83 @@ const EditableCell = ({ value: initialValue, onSave, isNumeric = true }) => {
             </Typography>
         </Box>
     );
-};
+});
+
+const MultiAccountSelect = React.memo(({ value, onChange, availableAccounts }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const handleDelete = (codeToDelete) => (event) => {
+        event.stopPropagation();
+        const newCodes = (value || []).filter((code) => code !== codeToDelete);
+        const syntheticEvent = { target: { value: newCodes } };
+        onChange(syntheticEvent);
+    };
+    const filteredAccounts = availableAccounts.filter((account) =>
+        account.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    return (
+        <FormControl fullWidth size="small">
+            <Select
+                multiple
+                value={value || []}
+                onChange={onChange}
+                input={<OutlinedInput sx={{padding: '4px 8px', fontSize: '0.875rem'}} />}
+                renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((val) => (<Chip key={val} label={val} size="small" onDelete={handleDelete(val)}/>))}
+                    </Box>
+                )}
+                MenuProps={{ autoFocus: false, PaperProps: { style: { maxHeight: 300 } } }}
+            >
+                <ListSubheader>
+                    <TextField
+                        size="small"
+                        placeholder="Tìm kiếm tài khoản..."
+                        fullWidth
+                        InputProps={{
+                            startAdornment: ( <InputAdornment position="start"><SearchIcon /></InputAdornment> ),
+                        }}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                    />
+                </ListSubheader>
+                {filteredAccounts.map((account) => (
+                    <MenuItem key={account} value={account}>
+                        <Checkbox checked={(value || []).indexOf(account) > -1} size="small" />
+                        <ListItemText primary={account} />
+                    </MenuItem>
+                ))}
+                {filteredAccounts.length === 0 && (<MenuItem disabled>Không tìm thấy kết quả</MenuItem>)}
+            </Select>
+        </FormControl>
+    );
+});
 
 
 const CapitalUtilizationReport = () => {
     const theme = useTheme();
     const currentYear = new Date().getFullYear();
-    const [year, setYear] = useState(2025);
-    const [quarter, setQuarter] = useState(2);
-    const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear + 1 - i);
-
+    const [year, setYear] = useState(currentYear);
+    const [quarter, setQuarter] = useState(Math.floor((new Date().getMonth() / 3)) + 1);
+    const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
     const [reportData, setReportData] = useState(null);
 
     const { data: fetchedData, isLoading, isError, error } = useCapitalReport(year, quarter);
     const { mutate: saveData } = useMutateCapitalReport();
     const { data: balances, isLoading: isBalancesLoading } = useAccountBalances(year, quarter);
-
     const availableAccounts = balances ? Object.keys(balances).sort() : [];
 
     useEffect(() => {
         if (fetchedData && balances) {
             let updatedData = JSON.parse(JSON.stringify(fetchedData));
-            const updateActualValue = (items) => {
-                return items.map(item => {
-                    if (!item.codes || item.codes.length === 0) return { ...item, actual: 0 };
-                    const totalActual = item.codes.reduce((sum, code) => {
-                        const balanceInfo = balances[code];
-                        if (balanceInfo) return sum + (balanceInfo.cuoiKyNo || balanceInfo.cuoiKyCo || 0);
-                        return sum;
-                    }, 0);
-                    return { ...item, actual: totalActual };
-                });
-            };
-
+            const updateActualValue = (items) => items.map(item => {
+                if (!item.codes || item.codes.length === 0) return { ...item, actual: 0 };
+                const totalActual = item.codes.reduce((sum, code) => {
+                    const balanceInfo = balances[code];
+                    if (balanceInfo) return sum + (balanceInfo.cuoiKyNo || balanceInfo.cuoiKyCo || 0);
+                    return sum;
+                }, 0);
+                return { ...item, actual: totalActual };
+            });
             updatedData.production = updateActualValue(updatedData.production);
             updatedData.construction.usage = updateActualValue(updatedData.construction.usage);
             updatedData.construction.revenue = updateActualValue(updatedData.construction.revenue);
@@ -225,29 +265,34 @@ const CapitalUtilizationReport = () => {
         }
     }, [fetchedData, balances]);
 
-    const handleSave = (updatedData) => {
-        setReportData(updatedData);
-        const dataToSave = JSON.parse(JSON.stringify(updatedData));
-        const cleanDataForSaving = (items) => items.map(({ actual, ...rest }) => rest);
+    // ✅ Bước 3: Tạo hàm lưu trữ có debounce
+    const debouncedSave = useCallback(
+        debounce((data) => {
+            const dataToSave = JSON.parse(JSON.stringify(data));
+            const cleanDataForSaving = (items) => items.map(({ actual, ...rest }) => rest);
+            dataToSave.production = cleanDataForSaving(dataToSave.production);
+            dataToSave.construction.usage = cleanDataForSaving(dataToSave.construction.usage);
+            dataToSave.construction.revenue = cleanDataForSaving(dataToSave.construction.revenue);
+            saveData({ year, quarter, data: dataToSave });
+        }, 1500), // Chờ 1.5 giây sau lần thay đổi cuối cùng mới lưu
+        [year, quarter, saveData]
+    );
 
-        dataToSave.production = cleanDataForSaving(dataToSave.production);
-        dataToSave.construction.usage = cleanDataForSaving(dataToSave.construction.usage);
-        dataToSave.construction.revenue = cleanDataForSaving(dataToSave.construction.revenue);
+    const handleDataChange = useCallback((section, id, field, newValue) => {
+        setReportData(prevData => {
+            const updatedData = { ...prevData, [section]: prevData[section].map(row => row.id === id ? { ...row, [field]: newValue } : row) };
+            debouncedSave(updatedData);
+            return updatedData;
+        });
+    }, [debouncedSave]);
 
-        saveData({ year, quarter, data: dataToSave });
-    };
-
-    const handleDataChange = (section, id, field, newValue) => {
-        const updatedData = { ...reportData, [section]: reportData[section].map(row => row.id === id ? { ...row, [field]: newValue } : row) };
-        handleSave(updatedData);
-    };
-
-    const handleNestedDataChange = (section, group, id, field, newValue) => {
-        const updatedData = { ...reportData, [section]: { ...reportData[section], [group]: reportData[section][group].map(row => row.id === id ? { ...row, [field]: newValue } : row) } };
-        handleSave(updatedData);
-    };
-
-    const calculateTotal = (data, key) => data?.reduce((acc, item) => acc + (item[key] || 0), 0) || 0;
+    const handleNestedDataChange = useCallback((section, group, id, field, newValue) => {
+        setReportData(prevData => {
+            const updatedData = { ...prevData, [section]: { ...prevData[section], [group]: prevData[section][group].map(row => row.id === id ? { ...row, [field]: newValue } : row) }};
+            debouncedSave(updatedData);
+            return updatedData;
+        });
+    }, [debouncedSave]);
 
     if (isLoading || isBalancesLoading || !reportData) {
         return <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>;
@@ -256,77 +301,12 @@ const CapitalUtilizationReport = () => {
         return <Container sx={{py: 3}}><Alert severity="error">Lỗi khi tải dữ liệu báo cáo: {error.message}</Alert></Container>;
     }
 
-    const totalProdPlan = calculateTotal(reportData.production, 'plan');
-    const totalProdActual = calculateTotal(reportData.production, 'actual');
-    const totalConsUsagePlan = calculateTotal(reportData.construction.usage, 'plan');
-    const totalConsRevenuePlan = calculateTotal(reportData.construction.revenue, 'plan');
-    const totalConsUsageActual = calculateTotal(reportData.construction.usage, 'actual');
-    const totalConsRevenueActual = calculateTotal(reportData.construction.revenue, 'actual');
-
-    const MultiAccountSelect = ({ value, onChange }) => (
-        <FormControl fullWidth size="small" variant="standard">
-            <Select
-                multiple
-                value={value || []}
-                onChange={onChange}
-                renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {selected.map((val) => <Chip key={val} label={val} size="small" variant="outlined" />)}
-                    </Box>
-                )}
-                MenuProps={{ PaperProps: { style: { maxHeight: 250 } } }}
-                sx={{ '& .MuiSelect-standard': { p: '4px 0' } }}
-            >
-                {availableAccounts.map((account) => (
-                    <MenuItem key={account} value={account}>{account}</MenuItem>
-                ))}
-            </Select>
-        </FormControl>
-    );
-
-    const renderTableSection = (title, data, onDataChange, totals) => (
-        <Card sx={{ mb: 3 }}>
-            <CardHeader title={title} titleTypographyProps={{ variant: 'h6', fontWeight: 600 }} />
-            <CardContent sx={{ p: '0 !important' }}>
-                <TableContainer>
-                    <Table size="small">
-                         <TableHead>
-                            <TableRow sx={{ '& > th': { fontWeight: 'bold', backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
-                                <TableCell>STT</TableCell>
-                                <TableCell sx={{minWidth: 200}}>Số hiệu TK</TableCell>
-                                <TableCell sx={{minWidth: 250}}>Kế hoạch sử dụng vốn</TableCell>
-                                <TableCell align="right" sx={{minWidth: 150}}>Số tiền KH</TableCell>
-                                <TableCell align="right" sx={{minWidth: 150}}>Số tiền thực SD</TableCell>
-                                <TableCell sx={{minWidth: 200}}>Thuận lợi & Khó khăn</TableCell>
-                                <TableCell sx={{minWidth: 200}}>Ghi chú</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {data.map((row, index) => (
-                                <TableRow key={row.id} hover sx={{ '&:nth-of-type(odd)': { backgroundColor: theme.palette.action.hover } }}>
-                                    <TableCell>{row.stt}</TableCell>
-                                    <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => onDataChange(row.id, 'codes', e.target.value)} /></TableCell>
-                                    <TableCell>{row.item}</TableCell>
-                                    <TableCell align="right"><EditableCell value={row.plan} onSave={(v) => onDataChange(row.id, 'plan', v)} /></TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{formatCurrency(row.actual)}</TableCell>
-                                    <TableCell><EditableCell value={row.advantages} onSave={(v) => onDataChange(row.id, 'advantages', v)} isNumeric={false} /></TableCell>
-                                    <TableCell><EditableCell value={row.notes} onSave={(v) => onDataChange(row.id, 'notes', v)} isNumeric={false} /></TableCell>
-                                </TableRow>
-                            ))}
-                             <TableRow sx={{ '& > td, & > th': { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] } }}>
-                                <TableCell colSpan={3}>Tổng Cộng</TableCell>
-                                <TableCell align="right">{formatCurrency(totals.plan)}</TableCell>
-                                <TableCell align="right">{formatCurrency(totals.actual)}</TableCell>
-                                <TableCell colSpan={2}></TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            </CardContent>
-        </Card>
-    );
-    
-    // ... Tương tự cho các bảng khác, có thể tạo component tái sử dụng
+    const totalProdPlan = reportData.production.reduce((acc, item) => acc + (item.plan || 0), 0);
+    const totalProdActual = reportData.production.reduce((acc, item) => acc + (item.actual || 0), 0);
+    const totalConsUsagePlan = reportData.construction.usage.reduce((acc, item) => acc + (item.plan || 0), 0);
+    const totalConsRevenuePlan = reportData.construction.revenue.reduce((acc, item) => acc + (item.plan || 0), 0);
+    const totalConsUsageActual = reportData.construction.usage.reduce((acc, item) => acc + (item.actual || 0), 0);
+    const totalConsRevenueActual = reportData.construction.revenue.reduce((acc, item) => acc + (item.actual || 0), 0);
 
     return (
         <Container maxWidth="xl" sx={{ py: 3 }}>
@@ -362,126 +342,150 @@ const CapitalUtilizationReport = () => {
                     </Grid>
                 </Grid>
             </Paper>
-
-            {/* Bảng I */}
-            {renderTableSection(
-                'I. BỘ PHẬN SẢN XUẤT / (NHÀ MÁY)',
-                reportData.production,
-                (id, field, value) => handleDataChange('production', id, field, value),
-                { plan: totalProdPlan, actual: totalProdActual }
-            )}
             
-            {/* Bảng II */}
+            <Card sx={{ mb: 3 }}>
+                <CardHeader title='I. BỘ PHẬN SẢN XUẤT / (NHÀ MÁY)' titleTypographyProps={{ variant: 'h6', fontWeight: 600 }} />
+                <TableContainer>
+                    <Table size="small">
+                        <TableHead>
+                            <TableRow sx={{ '& > th': { fontWeight: 'bold', backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
+                                <TableCell>STT</TableCell>
+                                <TableCell sx={{minWidth: 200}}>Số hiệu TK</TableCell>
+                                <TableCell sx={{minWidth: 250}}>Kế hoạch sử dụng vốn</TableCell>
+                                <TableCell align="right" sx={{minWidth: 150}}>Số tiền KH</TableCell>
+                                <TableCell align="right" sx={{minWidth: 150}}>Số tiền thực SD</TableCell>
+                                <TableCell sx={{minWidth: 200}}>Thuận lợi & Khó khăn</TableCell>
+                                <TableCell sx={{minWidth: 200}}>Ghi chú</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {reportData.production.map((row) => (
+                                <TableRow key={row.id} hover sx={{ '&:nth-of-type(odd)': { backgroundColor: theme.palette.action.hover } }}>
+                                    <TableCell>{row.stt}</TableCell>
+                                    <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => handleDataChange('production', row.id, 'codes', e.target.value)} availableAccounts={availableAccounts} /></TableCell>
+                                    <TableCell>{row.item}</TableCell>
+                                    <TableCell align="right"><EditableCell value={row.plan} onSave={(v) => handleDataChange('production', row.id, 'plan', v)} /></TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{formatCurrency(row.actual)}</TableCell>
+                                    <TableCell><EditableCell value={row.advantages} onSave={(v) => handleDataChange('production', row.id, 'advantages', v)} isNumeric={false} /></TableCell>
+                                    <TableCell><EditableCell value={row.notes} onSave={(v) => handleDataChange('production', row.id, 'notes', v)} isNumeric={false} /></TableCell>
+                                </TableRow>
+                            ))}
+                            <TableRow sx={{ '& > td, & > th': { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] } }}>
+                                <TableCell colSpan={3}>Tổng Cộng</TableCell>
+                                <TableCell align="right">{formatCurrency(totalProdPlan)}</TableCell>
+                                <TableCell align="right">{formatCurrency(totalProdActual)}</TableCell>
+                                <TableCell colSpan={2}></TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Card>
+            
             <Card sx={{ mb: 3 }}>
                 <CardHeader title="II. BỘ PHẬN XÂY DỰNG" titleTypographyProps={{ variant: 'h6', fontWeight: 600 }} />
-                <CardContent sx={{p: '0 !important'}}>
-                     <TableContainer>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow sx={{ '& > th': { fontWeight: 'bold', backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
-                                     <TableCell>STT</TableCell>
-                                     <TableCell sx={{minWidth: 200}}>Số hiệu TK</TableCell>
-                                     <TableCell sx={{minWidth: 250}}>Kế hoạch sử dụng vốn</TableCell>
-                                     <TableCell align="right" sx={{minWidth: 150}}>Số tiền KH</TableCell>
-                                     <TableCell align="right" sx={{minWidth: 150}}>Số tiền thực SD</TableCell>
-                                     <TableCell sx={{minWidth: 200}}>Thuận lợi & Khó khăn</TableCell>
-                                     <TableCell sx={{minWidth: 200}}>Ghi chú</TableCell>
+                <TableContainer>
+                    <Table size="small">
+                        <TableHead>
+                            <TableRow sx={{ '& > th': { fontWeight: 'bold', backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
+                                <TableCell>STT</TableCell>
+                                <TableCell sx={{minWidth: 200}}>Số hiệu TK</TableCell>
+                                <TableCell sx={{minWidth: 250}}>Kế hoạch sử dụng vốn</TableCell>
+                                <TableCell align="right" sx={{minWidth: 150}}>Số tiền KH</TableCell>
+                                <TableCell align="right" sx={{minWidth: 150}}>Số tiền thực SD</TableCell>
+                                <TableCell sx={{minWidth: 200}}>Thuận lợi & Khó khăn</TableCell>
+                                <TableCell sx={{minWidth: 200}}>Ghi chú</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            <TableRow sx={{ '& > td': { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] } }}>
+                                <TableCell>a</TableCell>
+                                <TableCell colSpan={2}>Vốn dự kiến sử dụng</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsUsagePlan)}</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsUsageActual)}</TableCell>
+                                <TableCell colSpan={2}></TableCell>
+                            </TableRow>
+                            {reportData.construction.usage.map((row) => (
+                                <TableRow key={row.id} hover sx={{ '&:nth-of-type(even)': { backgroundColor: theme.palette.action.hover } }}>
+                                    <TableCell>{row.stt}</TableCell>
+                                    <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange('construction', 'usage', row.id, 'codes', e.target.value)} availableAccounts={availableAccounts} /></TableCell>
+                                    <TableCell sx={{ pl: 4 }}>{row.item}</TableCell>
+                                    <TableCell align="right"><EditableCell value={row.plan} onSave={(v) => handleNestedDataChange('construction', 'usage', row.id, 'plan', v)} /></TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{formatCurrency(row.actual)}</TableCell>
+                                    <TableCell><EditableCell value={row.advantages} onSave={(v) => handleNestedDataChange('construction', 'usage', row.id, 'advantages', v)} isNumeric={false} /></TableCell>
+                                    <TableCell><EditableCell value={row.notes} onSave={(v) => handleNestedDataChange('construction', 'usage', row.id, 'notes', v)} isNumeric={false} /></TableCell>
                                 </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                <TableRow sx={{ '& > td': { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] } }}>
-                                    <TableCell>a</TableCell>
-                                    <TableCell colSpan={2}>Vốn dự kiến sử dụng</TableCell>
-                                    <TableCell align="right">{formatCurrency(totalConsUsagePlan)}</TableCell>
-                                    <TableCell align="right">{formatCurrency(totalConsUsageActual)}</TableCell>
-                                    <TableCell colSpan={2}></TableCell>
+                            ))}
+                            <TableRow sx={{ '& > td': { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] } }}>
+                                <TableCell>b</TableCell>
+                                <TableCell colSpan={2}>Vốn dự kiến thu được</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsRevenuePlan)}</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsRevenueActual)}</TableCell>
+                                <TableCell colSpan={2}></TableCell>
+                            </TableRow>
+                            {reportData.construction.revenue.map((row) => (
+                                <TableRow key={row.id} hover sx={{ '&:nth-of-type(even)': { backgroundColor: theme.palette.action.hover } }}>
+                                    <TableCell>{row.stt}</TableCell>
+                                    <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange('construction', 'revenue', row.id, 'codes', e.target.value)} availableAccounts={availableAccounts} /></TableCell>
+                                    <TableCell sx={{ pl: 4 }}>{row.item}</TableCell>
+                                    <TableCell align="right"><EditableCell value={row.plan} onSave={(v) => handleNestedDataChange('construction', 'revenue', row.id, 'plan', v)} /></TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{formatCurrency(row.actual)}</TableCell>
+                                    <TableCell><EditableCell value={row.advantages} onSave={(v) => handleNestedDataChange('construction', 'revenue', row.id, 'advantages', v)} isNumeric={false} /></TableCell>
+                                    <TableCell><EditableCell value={row.notes} onSave={(v) => handleNestedDataChange('construction', 'revenue', row.id, 'notes', v)} isNumeric={false} /></TableCell>
                                 </TableRow>
-                                {reportData.construction.usage.map((row) => (
-                                    <TableRow key={row.id} hover sx={{ '&:nth-of-type(even)': { backgroundColor: theme.palette.action.hover } }}>
-                                        <TableCell>{row.stt}</TableCell>
-                                        <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange('construction', 'usage', row.id, 'codes', e.target.value)} /></TableCell>
-                                        <TableCell sx={{ pl: 4 }}>{row.item}</TableCell>
-                                        <TableCell align="right"><EditableCell value={row.plan} onSave={(v) => handleNestedDataChange('construction', 'usage', row.id, 'plan', v)} /></TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{formatCurrency(row.actual)}</TableCell>
-                                        <TableCell><EditableCell value={row.advantages} onSave={(v) => handleNestedDataChange('construction', 'usage', row.id, 'advantages', v)} isNumeric={false} /></TableCell>
-                                        <TableCell><EditableCell value={row.notes} onSave={(v) => handleNestedDataChange('construction', 'usage', row.id, 'notes', v)} isNumeric={false} /></TableCell>
-                                    </TableRow>
-                                ))}
-                                <TableRow sx={{ '& > td': { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] } }}>
-                                    <TableCell>b</TableCell>
-                                    <TableCell colSpan={2}>Vốn dự kiến thu được</TableCell>
-                                    <TableCell align="right">{formatCurrency(totalConsRevenuePlan)}</TableCell>
-                                    <TableCell align="right">{formatCurrency(totalConsRevenueActual)}</TableCell>
-                                    <TableCell colSpan={2}></TableCell>
-                                </TableRow>
-                                {reportData.construction.revenue.map((row) => (
-                                    <TableRow key={row.id} hover sx={{ '&:nth-of-type(even)': { backgroundColor: theme.palette.action.hover } }}>
-                                        <TableCell>{row.stt}</TableCell>
-                                        <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange('construction', 'revenue', row.id, 'codes', e.target.value)} /></TableCell>
-                                        <TableCell sx={{ pl: 4 }}>{row.item}</TableCell>
-                                        <TableCell align="right"><EditableCell value={row.plan} onSave={(v) => handleNestedDataChange('construction', 'revenue', row.id, 'plan', v)} /></TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{formatCurrency(row.actual)}</TableCell>
-                                        <TableCell><EditableCell value={row.advantages} onSave={(v) => handleNestedDataChange('construction', 'revenue', row.id, 'advantages', v)} isNumeric={false} /></TableCell>
-                                        <TableCell><EditableCell value={row.notes} onSave={(v) => handleNestedDataChange('construction', 'revenue', row.id, 'notes', v)} isNumeric={false} /></TableCell>
-                                    </TableRow>
-                                ))}
-                                <TableRow sx={{ '& > td, & > th': { fontWeight: 'bold', backgroundColor: theme.palette.grey[300] } }}>
-                                    <TableCell colSpan={3}>TỔNG CỘNG (a-b)</TableCell>
-                                    <TableCell align="right">{formatCurrency(totalConsUsagePlan - totalConsRevenuePlan)}</TableCell>
-                                    <TableCell align="right">{formatCurrency(totalConsUsageActual - totalConsRevenueActual)}</TableCell>
-                                    <TableCell colSpan={2}></TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </CardContent>
+                            ))}
+                            <TableRow sx={{ '& > td, & > th': { fontWeight: 'bold', backgroundColor: theme.palette.grey[300] } }}>
+                                <TableCell colSpan={3}>TỔNG CỘNG (a-b)</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsUsagePlan - totalConsRevenuePlan)}</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsUsageActual - totalConsRevenueActual)}</TableCell>
+                                <TableCell colSpan={2}></TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </TableContainer>
             </Card>
 
-            {/* Bảng III */}
             <Card sx={{ mb: 3 }}>
                 <CardHeader title="III. BỘ PHẬN ĐẦU TƯ" titleTypographyProps={{ variant: 'h6', fontWeight: 600 }} />
-                <CardContent sx={{p: '0 !important'}}>
-                    <TableContainer>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow sx={{ '& > th': { fontWeight: 'bold', backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
-                                    <TableCell>STT</TableCell>
-                                    <TableCell sx={{minWidth: 200}}>Số hiệu TK</TableCell>
-                                    <TableCell sx={{minWidth: 250}}>Diễn giải</TableCell>
-                                    <TableCell align="right" sx={{minWidth: 150}}>Nguyên giá</TableCell>
-                                    <TableCell align="right" sx={{minWidth: 150}}>Lãi</TableCell>
-                                    <TableCell align="right" sx={{minWidth: 150}}>Giá trị đầu tư</TableCell>
-                                    <TableCell align="right" sx={{minWidth: 150}}>Đã trừ lãi</TableCell>
-                                    <TableCell align="right" sx={{minWidth: 150}}>Còn lại</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                 <TableRow sx={{ '& > td': { fontWeight: 500, fontStyle: 'italic', backgroundColor: theme.palette.action.hover } }}>
-                                    <TableCell colSpan={8}>a. DA Bắc Long xuyên: -</TableCell>
-                                 </TableRow>
-                                  <TableRow sx={{ '& > td': { fontWeight: 500, fontStyle: 'italic', backgroundColor: theme.palette.action.hover } }}>
-                                    <TableCell colSpan={8}>b. Đầu tư DA mới và mua đất</TableCell>
-                                 </TableRow>
-                                {reportData.investment.projectDetails.map((row, index) => {
-                                    const totalValue = row.cost + row.profit;
-                                    const remaining = totalValue - row.lessProfit;
-                                    return (
-                                        <TableRow key={row.id} hover sx={{ '&:nth-of-type(odd)': { backgroundColor: theme.palette.action.hover } }}>
-                                            <TableCell>{row.stt}</TableCell>
-                                            <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange('investment', 'projectDetails', row.id, 'codes', e.target.value)} /></TableCell>
-                                            <TableCell>{row.name}</TableCell>
-                                            <TableCell align="right"><EditableCell value={row.cost} onSave={(v) => handleNestedDataChange('investment', 'projectDetails', row.id, 'cost', v)} /></TableCell>
-                                            <TableCell align="right"><EditableCell value={row.profit} onSave={(v) => handleNestedDataChange('investment', 'projectDetails', row.id, 'profit', v)} /></TableCell>
-                                            <TableCell align="right">{formatCurrency(totalValue)}</TableCell>
-                                            <TableCell align="right"><EditableCell value={row.lessProfit} onSave={(v) => handleNestedDataChange('investment', 'projectDetails', row.id, 'lessProfit', v)} /></TableCell>
-                                            <TableCell align="right" sx={{ fontWeight: 'bold', backgroundColor: theme.palette.grey[200] }}>{formatCurrency(remaining)}</TableCell>
-                                        </TableRow>
-                                    )
-                                })}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                 </CardContent>
+                <TableContainer>
+                    <Table size="small">
+                        <TableHead>
+                            <TableRow sx={{ '& > th': { fontWeight: 'bold', backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
+                                <TableCell>STT</TableCell>
+                                <TableCell sx={{minWidth: 200}}>Số hiệu TK</TableCell>
+                                <TableCell sx={{minWidth: 250}}>Diễn giải</TableCell>
+                                <TableCell align="right" sx={{minWidth: 150}}>Nguyên giá</TableCell>
+                                <TableCell align="right" sx={{minWidth: 150}}>Lãi</TableCell>
+                                <TableCell align="right" sx={{minWidth: 150}}>Giá trị đầu tư</TableCell>
+                                <TableCell align="right" sx={{minWidth: 150}}>Đã trừ lãi</TableCell>
+                                <TableCell align="right" sx={{minWidth: 150}}>Còn lại</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                             <TableRow sx={{ '& > td': { fontWeight: 500, fontStyle: 'italic', backgroundColor: theme.palette.action.hover } }}>
+                                <TableCell colSpan={8}>a. DA Bắc Long xuyên: -</TableCell>
+                             </TableRow>
+                              <TableRow sx={{ '& > td': { fontWeight: 500, fontStyle: 'italic', backgroundColor: theme.palette.action.hover } }}>
+                                <TableCell colSpan={8}>b. Đầu tư DA mới và mua đất</TableCell>
+                             </TableRow>
+                            {reportData.investment.projectDetails.map((row) => {
+                                const totalValue = row.cost + row.profit;
+                                const remaining = totalValue - row.lessProfit;
+                                return (
+                                    <TableRow key={row.id} hover sx={{ '&:nth-of-type(odd)': { backgroundColor: theme.palette.action.hover } }}>
+                                        <TableCell>{row.stt}</TableCell>
+                                        <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange('investment', 'projectDetails', row.id, 'codes', e.target.value)} availableAccounts={availableAccounts}/></TableCell>
+                                        <TableCell>{row.name}</TableCell>
+                                        <TableCell align="right"><EditableCell value={row.cost} onSave={(v) => handleNestedDataChange('investment', 'projectDetails', row.id, 'cost', v)} /></TableCell>
+                                        <TableCell align="right"><EditableCell value={row.profit} onSave={(v) => handleNestedDataChange('investment', 'projectDetails', row.id, 'profit', v)} /></TableCell>
+                                        <TableCell align="right">{formatCurrency(totalValue)}</TableCell>
+                                        <TableCell align="right"><EditableCell value={row.lessProfit} onSave={(v) => handleNestedDataChange('investment', 'projectDetails', row.id, 'lessProfit', v)} /></TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold', backgroundColor: theme.palette.grey[200] }}>{formatCurrency(remaining)}</TableCell>
+                                    </TableRow>
+                                )
+                            })}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
             </Card>
 
             <Card>
