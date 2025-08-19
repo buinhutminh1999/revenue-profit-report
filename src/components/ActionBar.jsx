@@ -11,7 +11,7 @@ import { useTheme } from "@mui/material/styles";
 import {
     Add, FileUpload, FileDownload, Save, ArrowBack, ViewColumn,
     SkipNext, Layers, DeleteSweep, TableChart, Autorenew as AutorenewIcon,
-    CheckCircle, Warning, Info, CloudUpload, InsertDriveFile
+    CheckCircle, Warning, Info, CloudUpload, InsertDriveFile, Functions as FunctionsIcon,
 } from "@mui/icons-material";
 import * as XLSX from "xlsx";
 import { parseNumber } from "../utils/numberUtils"; // Giả sử bạn có hàm này
@@ -56,6 +56,7 @@ export default function EnhancedActionBar({
     onAddRow, onFileUpload, onExport, onSave, onSaveNextQuarter,
     onToggleColumns, onBack, onResetAllRevenue,
     costItems, saving = false, sx = { mb: 2 },
+    onShowFormulas 
 }) {
     const theme = useTheme();
     const isSmall = useMediaQuery(theme.breakpoints.down("md"));
@@ -118,6 +119,7 @@ export default function EnhancedActionBar({
                     <Tooltip title="Thêm dòng"><IconButton color="primary" onClick={onAddRow}><Add /></IconButton></Tooltip>
                     <Tooltip title="Import"><IconButton color="primary" onClick={handleUploadClick}><CloudUpload /></IconButton></Tooltip>
                     <Tooltip title="Export"><IconButton color="primary" onClick={() => onExport(costItems)}><FileDownload /></IconButton></Tooltip>
+                    
                     <Tooltip title="Lưu"><IconButton color="success" onClick={onSave} disabled={saving}>{saving ? <CircularProgress size={24} /> : <Save />}</IconButton></Tooltip>
                     <Tooltip title="Quay lại"><IconButton color="inherit" onClick={onBack}><ArrowBack /></IconButton></Tooltip>
                 </Stack>
@@ -169,6 +171,14 @@ export default function EnhancedActionBar({
                         <Box flexGrow={1} />
 
                         <ActionButton icon={<FileDownload />} label="Export" onClick={() => onExport(costItems)} tooltip="Xuất dữ liệu ra Excel" variant="text" color="inherit" />
+                        <ActionButton 
+        icon={<FunctionsIcon />} 
+        label="Công Thức" 
+        onClick={onShowFormulas} 
+        tooltip="Tra cứu các công thức tính toán" 
+        variant="text" 
+        color="inherit" 
+    />
                         <ActionButton icon={<AutorenewIcon />} label="Reset DT" color="warning" onClick={onResetAllRevenue} tooltip="Reset toàn bộ doanh thu về tự động" variant="text" />
                         <ActionButton icon={<ViewColumn />} label="Cột" onClick={onToggleColumns} tooltip="Tùy chỉnh hiển thị cột" variant="text" color="inherit" />
 

@@ -22,6 +22,7 @@ import ActionBar from "../ActionBar";
 import ColumnSelector from "../ColumnSelector";
 import CostTable from "../CostTable";
 import SummaryPanel from "../ui/SummaryPanel";
+import FormulaGuide from "../ui/FormulaGuide";
 
 // ---------- Cấu hình sắp xếp ----------
 const SORT_CONFIG = {
@@ -266,6 +267,7 @@ export default function ActualCostsTab({ projectId }) {
     const [categories, setCategories] = useState([]);
     const [projectData, setProjectData] = useState(null);
     const [costAllocations, setCostAllocations] = useState(null);
+    const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
 
     const [initialDbLoadComplete, setInitialDbLoadComplete] = useState(false);
     
@@ -945,6 +947,7 @@ const handleSaveNextQuarter = async () => {
                 onBack={() => navigate("/construction-plan")}
                 costItems={costItems}
                 sx={{ mb: 2 }}
+                onShowFormulas={() => setFormulaDialogOpen(true)}
             />
             <Box sx={{ width: "100%", overflowX: "auto" }}>
                 <Filters
@@ -1013,6 +1016,10 @@ const handleSaveNextQuarter = async () => {
                     {error}
                 </Alert>
             </Snackbar>
+            <FormulaGuide 
+            open={formulaDialogOpen} 
+            onClose={() => setFormulaDialogOpen(false)} 
+        />
         </Box>
     );
 }
