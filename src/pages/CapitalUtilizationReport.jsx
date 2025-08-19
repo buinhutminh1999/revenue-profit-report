@@ -259,6 +259,30 @@ const MultiAccountSelect = React.memo(({ value, onChange, accountsData }) => {
         </FormControl>
     );
 });
+// ✅ BƯỚC 1: HÀM TRỢ GIÚP TÌM TÀI KHOẢN CON
+/**
+ * Tìm tất cả các tài khoản con (và cháu...) của một tài khoản cha.
+ * @param {string} parentId - Mã tài khoản cha cần tìm.
+ * @param {object} allAccounts - Object chứa toàn bộ hệ thống tài khoản.
+ * @returns {string[]} Mảng chứa mã của tài khoản cha và tất cả con cháu.
+ */
+const getAccountAndAllChildren = (parentId, allAccounts) => {
+    const children = new Set([parentId]); // Bắt đầu với chính tài khoản cha
+    const accountsToSearch = [parentId];
+
+    while (accountsToSearch.length > 0) {
+        const currentParentId = accountsToSearch.shift();
+        for (const accountId in allAccounts) {
+            if (allAccounts[accountId].parentId === currentParentId) {
+                if (!children.has(accountId)) {
+                    children.add(accountId);
+                    accountsToSearch.push(accountId);
+                }
+            }
+        }
+    }
+    return Array.from(children);
+};
 
 
 // --- COMPONENT CHÍNH CỦA TRANG ---
@@ -292,24 +316,39 @@ const CapitalUtilizationReport = () => {
         return parents;
     }, [chartOfAccounts, balances]);
     
+// ✅ BƯỚC 2: NÂNG CẤP LOGIC TÍNH TOÁN `useEffect`
     useEffect(() => {
-        if (fetchedData && parentAccountsForSelection) {
+        if (fetchedData && balances && chartOfAccounts) { // Thêm chartOfAccounts vào điều kiện
             let updatedData = JSON.parse(JSON.stringify(fetchedData));
+
             const updateActualValue = (items) => items.map(item => {
                 if (!item.codes || item.codes.length === 0) return { ...item, actual: 0 };
-                const totalActual = item.codes.reduce((sum, code) => {
-                    const balanceInfo = parentAccountsForSelection[code];
-                    if (balanceInfo) return sum + (balanceInfo.cuoiKyNo || balanceInfo.cuoiKyCo || 0);
+                
+                // Lấy tất cả các tài khoản cần tính tổng (cha + con)
+                const allAccountsToSum = item.codes.flatMap(parentCode => 
+                    getAccountAndAllChildren(parentCode, chartOfAccounts)
+                );
+                
+                // Loại bỏ các mã trùng lặp nếu có
+                const uniqueAccountsToSum = [...new Set(allAccountsToSum)];
+
+                const totalActual = uniqueAccountsToSum.reduce((sum, code) => {
+                    const balanceInfo = balances[code]; // Tra cứu trong số dư gốc
+                    if (balanceInfo) {
+                        return sum + (balanceInfo.cuoiKyNo || balanceInfo.cuoiKyCo || 0);
+                    }
                     return sum;
                 }, 0);
+                
                 return { ...item, actual: totalActual };
             });
+
             updatedData.production = updateActualValue(updatedData.production);
             updatedData.construction.usage = updateActualValue(updatedData.construction.usage);
             updatedData.construction.revenue = updateActualValue(updatedData.construction.revenue);
             setReportData(updatedData);
         }
-    }, [fetchedData, parentAccountsForSelection]);
+    }, [fetchedData, balances, chartOfAccounts]); // Thêm balances và chartOfAccounts vào dependency
 
     const debouncedSave = useMemo(
         () => debounce((data) => {
