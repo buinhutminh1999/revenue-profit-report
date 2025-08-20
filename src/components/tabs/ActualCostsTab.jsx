@@ -922,7 +922,15 @@ const handleSaveNextQuarter = async () => {
     );
 
     const groupedData = useMemo(() => groupByProject(filtered), [filtered]);
-
+// Dòng code để debug
+// --- BẮT ĐẦU ĐOẠN CODE GỠ LỖI ---
+const itemsWithoutId = sortedCostItems.filter(item => !item.id);
+if (itemsWithoutId.length > 0) {
+    console.error("!!! LỖI DỮ LIỆU: CÁC DÒNG SAU ĐANG BỊ THIẾU ID:", itemsWithoutId);
+} else {
+    console.log("OK: Tất cả các dòng trong 'sortedCostItems' đều có ID.");
+}
+// --- KẾT THÚC ĐOẠN CODE GỠ LỖI ---
     return (
         <Box>
             <ActionBar

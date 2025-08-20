@@ -53,43 +53,41 @@ const calcCarryoverEnd = (row, projectType) => {
 };
 
 const calcNoPhaiTraCK = (row, projectType) => {
-    const carMinus = Number(parseNumber(row.carryoverMinus || "0"));
-    const dc = Number(parseNumber(row.directCost || "0"));
-    const al = Number(parseNumber(row.allocated || "0"));
-    const rev = Number(parseNumber(row.revenue || "0"));
-    const debt = Number(parseNumber(row.debt || "0"));
+    const carMinus = Number(parseNumber(row.carryoverMinus || "0"));
+    const dc = Number(parseNumber(row.directCost || "0"));
+    const al = Number(parseNumber(row.allocated || "0"));
+    const rev = Number(parseNumber(row.revenue || "0"));
+    const debt = Number(parseNumber(row.debt || "0"));
+    // MỚI: Lấy thêm giá trị từ cột "Nợ phải trả CK NM"
+    const noCKNM = Number(parseNumber(row.noPhaiTraCKNM || "0"));
 
-    // =================================================================
-    // MỚI: Cập nhật logic riêng cho dự án "Nhà máy"
-    // =================================================================
-    if (projectType === "Nhà máy") {
-        // Áp dụng công thức: if(A < B, C, D)
-        // A = Được Trừ QN + (CP Trực Tiếp + Phân bổ - Nợ ĐK)
-        // B = Doanh Thu
-        // C = Doanh Thu - Được Trừ QN - CP Trực Tiếp - Phân bổ + Nợ ĐK
-        // D (trường hợp ngược lại) = Nợ ĐK + Phân Bổ
+    // =================================================================
+    // CẬP NHẬT LOGIC CHO DỰ ÁN "NHÀ MÁY" THEO YÊU CẦU
+    // =================================================================
+    if (projectType === "Nhà máy") {
+        // Điều kiện A được cập nhật để bao gồm noCKNM
+        const conditionA = carMinus + dc + al + noCKNM - debt;
+        const conditionB = rev;
 
-        const conditionA = carMinus + (dc + al - debt);
-        const conditionB = rev;
+        if (conditionA < conditionB) {
+            // Công thức tính kết quả cũng được cập nhật để bao gồm noCKNM
+            const result = rev - carMinus - dc - al - noCKNM + debt;
+            return String(result);
+        } else {
+            return "0"; // Trả về 0 nếu điều kiện sai
+        }
+    }
+    // =================================================================
+    // GIỮ NGUYÊN: Logic cũ cho các loại dự án khác
+    // =================================================================
+    else {
+        if (rev === 0) {
+            return String(debt - dc);
+        }
 
-        if (conditionA < conditionB) {
-            const result = rev - carMinus - dc - al + debt;
-            return String(result);
-        } else {
-            return 0
-        }
-    }
-    // =================================================================
-    // GIỮ NGUYÊN: Logic cũ cho các loại dự án khác
-    // =================================================================
-    else {
-        if (rev === 0) {
-            return String(debt - dc);
-        }
-
-        const part1 = carMinus + dc + al < rev ? rev - (dc + al) - carMinus : 0;
-        return String(part1 + debt);
-    }
+        const part1 = carMinus + dc + al < rev ? rev - (dc + al) - carMinus : 0;
+        return String(part1 + debt);
+    }
 };
 
 const calcTotalCost = (row) => {
@@ -107,18 +105,18 @@ const calcTotalCost = (row) => {
 };
 
 const calcCpVuot = (row) => {
-    const directCost = Number(parseNumber(row.directCost || "0"));
-    const allocated = Number(parseNumber(row.allocated || "0"));
-    const debt = Number(parseNumber(row.debt || "0"));
-    const revenue = Number(parseNumber(row.revenue || "0"));
+    const directCost = Number(parseNumber(row.directCost || "0"));
+    const allocated = Number(parseNumber(row.allocated || "0"));
+    const debt = Number(parseNumber(row.debt || "0"));
+    const revenue = Number(parseNumber(row.revenue || "0"));
+    // MỚI: Lấy thêm giá trị từ cột "Nợ phải trả CK NM"
+    const noCKNM = Number(parseNumber(row.noPhaiTraCKNM || "0"));
 
-    const W = directCost + allocated - debt;
-    const I = revenue;
+    // Tính toán giá trị cốt lõi theo công thức của bạn
+    const result = directCost + allocated + noCKNM - debt - revenue;
 
-    if (W > I) {
-        return String(W - I);
-    }
-    return "0";
+    // Sử dụng Math.max để đảm bảo kết quả không bao giờ là số âm
+    return String(Math.max(0, result));
 };
 
 export const calcAllFields = (

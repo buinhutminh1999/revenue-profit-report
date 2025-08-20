@@ -130,7 +130,7 @@ const FormulaGuide = ({ open, onClose }) => {
                         <FormulaItem 
                             title="CP Vượt Quý"
                             projectType="Nhà Máy"
-                            formula={`MAX(0, CP Trực Tiếp + Phân Bổ - Nợ ĐK - Doanh Thu)`}
+                            formula={`MAX(0, CP Trực Tiếp + Phân Bổ  + phải trả ck nm- Nợ ĐK - Doanh Thu)`}
                         />
                     </Grid>
                     <Grid item xs={12} md={6}>
@@ -144,8 +144,8 @@ const FormulaGuide = ({ open, onClose }) => {
                         <FormulaItem 
                             title="Nợ Phải Trả CK"
                             projectType="Nhà Máy"
-                            formula={`IF( (Được Trừ QN + CP Trực Tiếp + Phân Bổ - Nợ ĐK) < Doanh Thu,
-    (Doanh Thu - Được Trừ QN - CP Trực Tiếp - Phân Bổ + Nợ ĐK),
+                            formula={`IF((Được Trừ QN + CP Trực Tiếp + Phân Bổ + nợ phải trả CK NM- Nợ ĐK) < Doanh Thu,
+    (Doanh Thu - Được Trừ QN - CP Trực Tiếp - Phân Bổ - Nợ phải trả CK NM + Nợ ĐK),
     0
 )`}
                         />
