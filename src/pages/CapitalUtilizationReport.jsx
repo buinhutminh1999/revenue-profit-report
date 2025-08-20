@@ -696,11 +696,13 @@ const CapitalUtilizationReport = () => {
         }
     }, [fetchedData, balances, chartOfAccounts]); // Thêm balances và chartOfAccounts vào dependency
 
-    const debouncedSave = useMemo(
+const debouncedSave = useMemo(
         () =>
             debounce((data) => {
                 if (!data) return;
                 const dataToSave = JSON.parse(JSON.stringify(data));
+
+                // Giữ nguyên logic xóa trường 'actual' khỏi các dòng chi tiết
                 const cleanDataForSaving = (items) =>
                     items.map(({ actual, ...rest }) => rest);
                 dataToSave.production = cleanDataForSaving(
@@ -712,11 +714,46 @@ const CapitalUtilizationReport = () => {
                 dataToSave.construction.revenue = cleanDataForSaving(
                     dataToSave.construction.revenue
                 );
+
+                // --- BÁO CÁO I: LƯU TỔNG CỘNG SẢN XUẤT ---
+                const totalProdActual = data.production.reduce(
+                    (acc, item) => acc + (item.actual || 0),
+                    0
+                );
+                const totalProdPlan = data.production.reduce(
+                    (acc, item) => acc + (item.plan || 0),
+                    0
+                );
+                dataToSave.productionTotalActual = totalProdActual;
+                dataToSave.productionTotalPlan = totalProdPlan;
+                
+                // ✅ BÁO CÁO II: CHỈ LƯU DÒNG TỔNG CỘNG (a-b) CUỐI CÙNG
+                // Vẫn tính toán các tổng phụ để có kết quả cuối cùng...
+                const totalConsUsageActual = data.construction.usage.reduce(
+                    (acc, item) => acc + (item.actual || 0),
+                    0
+                );
+                const totalConsUsagePlan = data.construction.usage.reduce(
+                    (acc, item) => acc + (item.plan || 0),
+                    0
+                );
+                const totalConsRevenueActual = data.construction.revenue.reduce(
+                    (acc, item) => acc + (item.actual || 0),
+                    0
+                );
+                 const totalConsRevenuePlan = data.construction.revenue.reduce(
+                    (acc, item) => acc + (item.plan || 0),
+                    0
+                );
+                
+                // ...nhưng chỉ gán kết quả cuối cùng (a-b) vào dataToSave
+                dataToSave.constructionGrandTotalActual = totalConsUsageActual - totalConsRevenueActual;
+                dataToSave.constructionGrandTotalPlan = totalConsUsagePlan - totalConsRevenuePlan;
+                               // Lưu dữ liệu đã được tinh gọn
                 saveData({ year, quarter, data: dataToSave });
             }, 1500),
         [year, quarter, saveData]
     );
-
     const handleDataChange = useCallback(
         (section, id, field, newValue) => {
             setReportData((prevData) => {
