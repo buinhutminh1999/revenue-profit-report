@@ -141,6 +141,13 @@ const quickReports = [
         to: '/profit-change',
         color: '#f59e0b'
     },
+    { 
+        icon: <PieChart size={20} />, 
+        title: 'Báo Cáo Tổng Quát', 
+        desc: 'Tổng hợp tình hình hoạt động',
+        to: '/overall-report', // <-- Đường dẫn bạn đã tạo
+        color: '#6366f1'
+    },
 ];
 
 

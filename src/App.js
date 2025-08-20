@@ -81,6 +81,7 @@ const ChartOfAccountsPage = React.lazy(() =>
     import("./pages/ChartOfAccountsPage")
 );
 const CapitalUtilizationReport = React.lazy(() => import("./pages/CapitalUtilizationReport"));
+const OverallReportPage = React.lazy(() => import("./pages/OverallReportPage"));
 
 // Enhanced QueryClient configuration
 const queryClient = new QueryClient({
@@ -619,6 +620,16 @@ function LayoutRoutes() {
                         <Suspense fallback={<SuspenseFallback />}>
                             <PageTransition>
                                 <BalanceSheet />
+                            </PageTransition>
+                        </Suspense>
+                    }
+                />
+                 <Route
+                    path="overall-report" // Đây là đường dẫn bạn muốn, ví dụ: /overall-report
+                    element={
+                        <Suspense fallback={<SuspenseFallback />}>
+                            <PageTransition>
+                                <OverallReportPage />
                             </PageTransition>
                         </Suspense>
                     }
