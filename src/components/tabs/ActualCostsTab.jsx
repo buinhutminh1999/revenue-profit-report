@@ -850,13 +850,22 @@ const handleSaveNextQuarter = async () => {
             const key = `${currentItemFromQ1.project}|||${currentItemFromQ1.description}`;
             const existingItemInQ2 = existingItemsMap.get(key);
 
-            // Đây là các giá trị "đầu kỳ" cho Q2, được lấy từ "cuối kỳ" của Q1
-            const openingBalancesForQ2 = {
-                inventory: currentItemFromQ1.tonKhoUngKH || "0",
-                debt: currentItemFromQ1.noPhaiTraCK || "0",
-                carryover: currentItemFromQ1.carryoverEnd || "0",
-            };
+            // Lấy các giá trị cuối kỳ từ quý hiện tại (Q1)
+const noPhaiTraCK_Q1 = Number(parseNumber(currentItemFromQ1.noPhaiTraCK || "0"));
+const noPhaiTraCKNM_Q1 = Number(parseNumber(currentItemFromQ1.noPhaiTraCKNM || "0"));
 
+// Xác định Nợ Phải Trả Đầu Kỳ cho quý tiếp theo (Q2) dựa trên loại dự án
+const openingDebtForQ2 =
+    projectData?.type === "Nhà máy"
+        ? String(noPhaiTraCK_Q1 + noPhaiTraCKNM_Q1) // CÔNG THỨC MỚI
+        : String(noPhaiTraCK_Q1);                 // Công thức cũ
+
+// Đây là các giá trị "đầu kỳ" cho Q2
+const openingBalancesForQ2 = {
+    inventory: currentItemFromQ1.tonKhoUngKH || "0",
+    debt: openingDebtForQ2, // <-- SỬ DỤNG GIÁ TRỊ ĐÃ TÍNH TOÁN
+    carryover: currentItemFromQ1.carryoverEnd || "0",
+};
             if (existingItemInQ2) {
                 // Nếu dòng này ĐÃ TỒN TẠI trong Q2
                 // -> Hợp nhất: Lấy toàn bộ dữ liệu của nó và chỉ ghi đè các số dư đầu kỳ
