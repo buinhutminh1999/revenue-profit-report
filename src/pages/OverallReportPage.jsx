@@ -3,7 +3,7 @@ import {
     Container, Box, Typography, Grid, Paper, TextField, Divider,
     Table, TableBody, TableCell, TableContainer, TableRow, TableHead, useTheme, alpha,
     FormControl, InputLabel, Select, MenuItem, Stack, Card, CardHeader,
-    Chip, OutlinedInput, ListSubheader, InputAdornment, Checkbox, ListItemText, CircularProgress, Alert,
+    Chip, OutlinedInput, ListSubheader, InputAdornment, Checkbox, ListItemText, CircularProgress,
     CardContent
 } from '@mui/material';
 import {
@@ -175,13 +175,14 @@ const MultiAccountSelect = React.memo(({ value, onChange, accountsData }) => {
     );
 });
 
-// ✅ BƯỚC 1: SỬA LẠI COMPONENT `ReportRow1` ĐỂ CHO PHÉP SỬA "ĐẦU KỲ"
 const ReportRow1 = ({
     stt, label, soHieuTK, onSaveSoHieuTK, dauKy, hienTai, accountsData, khoKhan, onSaveKhoKhan,
     deXuat, onSaveDeXuat, isNegative = false, isTotal = false, isSub = false, indent = 0,
     showAccountSelect = true,
-    isDauKyEditable = false, // Thêm lại prop này
-    onSaveDauKy // Thêm lại prop này
+    isDauKyEditable = false,
+    onSaveDauKy,
+    isHienTaiEditable = false,
+    onSaveHienTai
 }) => {
     const theme = useTheme();
     const isDetailRow = !isTotal && !isSub;
@@ -206,14 +207,19 @@ const ReportRow1 = ({
             </TableCell>
             <TableCell sx={{ pl: indent * 4 }}>{label}</TableCell>
             <TableCell>
-                {/* Thêm lại logic để hiển thị ô nhập liệu hoặc chỉ đọc */}
                 {isDauKyEditable ? (
-                    <EditableCell value={dauKy} onSave={onSaveDauKy} />
+                    <EditableCell value={dauKy} onSave={onSaveDauKy} isNegative={isNegative} />
                 ) : (
                     <ReadOnlyCell value={dauKy} isNegative={isNegative} bold={isTotal || isSub} />
                 )}
             </TableCell>
-            <TableCell><ReadOnlyCell value={hienTai} isNegative={isNegative} bold={isTotal || isSub} /></TableCell>
+            <TableCell>
+                {isHienTaiEditable ? (
+                    <EditableCell value={hienTai} onSave={onSaveHienTai} isNegative={isNegative} />
+                ) : (
+                    <ReadOnlyCell value={hienTai} isNegative={isNegative} bold={isTotal || isSub} />
+                )}
+            </TableCell>
             <TableCell>{onSaveKhoKhan ? <EditableCell value={khoKhan} onSave={onSaveKhoKhan} isText /> : null}</TableCell>
             <TableCell>{onSaveDeXuat ? <EditableCell value={deXuat} onSave={onSaveDeXuat} isText /> : null}</TableCell>
         </TableRow>
@@ -246,7 +252,16 @@ const OverallReportPageContent = () => {
 
     const getInitialData1 = () => ({
         dauKyCalculated: {}, hienTaiCalculated: {},
-        accountCodes: { taiSanCongTy: [], taiSanNhaMay: [], phaiThuKhac: [], loiNhuanTM: [], tienMat: [], noPhaiTraKhac: [], vonChoVay: [], vonVay: [], vonGop: [] },
+        accountCodes: {
+            taiSanCongTy: [],
+            taiSanNhaMay: [],
+            phaiThuKhac: [],
+            tienMat: [],
+            noPhaiTraKhac: [],
+            vonChoVay: [],
+            vonVay: [],
+            vonGop: []
+        },
         vonNhaMay_dauKy: 0,
         vonThiCong_dauKy: 0,
         textData: { taiSanCongTy_khoKhan: "", taiSanCongTy_deXuat: "", taiSanNhaMay_khoKhan: "", taiSanNhaMay_deXuat: "", phaiThuKhac_khoKhan: "", phaiThuKhac_deXuat: "", loiNhuanTM_khoKhan: "", loiNhuanTM_deXuat: "", tienMat_khoKhan: "", tienMat_deXuat: "", noPhaiTraKhac_khoKhan: "", noPhaiTraKhac_deXuat: "", vonNhaMay_khoKhan: "", vonNhaMay_deXuat: "", vonThiCong_khoKhan: "", vonThiCong_deXuat: "", vonChoVay_khoKhan: "", vonChoVay_deXuat: "", vonVay_khoKhan: "", vonVay_deXuat: "", vonGop_khoKhan: "", vonGop_deXuat: "" }
@@ -284,11 +299,10 @@ const OverallReportPageContent = () => {
                 vonNhaMay_dauKy: dauKyNhaMay,
                 vonThiCong_dauKy: dauKyThiCong,
             }));
-            initialDataPopulated.current = true; // Đánh dấu là đã cập nhật lần đầu
+            initialDataPopulated.current = true;
         }
     }, [previousCapitalReportData, isPrevCapitalReportLoading, data1.vonNhaMay_dauKy, data1.vonThiCong_dauKy]);
 
-    // Reset cờ khi đổi quý
     useEffect(() => {
         initialDataPopulated.current = false;
     }, [year, quarter]);
@@ -332,38 +346,83 @@ const OverallReportPageContent = () => {
         });
         setData1(prev => ({ ...prev, dauKyCalculated: newDauKy, hienTaiCalculated: newHienTai }));
     }, [data1.accountCodes, balances, chartOfAccounts]);
+    
+    // ✅ STEP 1: TỰ ĐỘNG TÍNH TOÁN CỘT "ĐÃ VAY" KHI SỐ HIỆU TK THAY ĐỔI
+    useEffect(() => {
+        if (!balances || !chartOfAccounts || !data2.tienVay) return;
+
+        const calculateLoanedAmount = (codes) => {
+            if (!codes || codes.length === 0) return 0;
+            const allAccountsToSum = codes.flatMap(code => getAccountAndAllChildren(code, chartOfAccounts));
+            const uniqueAccounts = [...new Set(allAccountsToSum)];
+            return uniqueAccounts.reduce((sum, code) => {
+                const balanceInfo = balances[code];
+                if (balanceInfo) {
+                    // Lấy giá trị Cuối kỳ Nợ hoặc Cuối kỳ Có
+                    const valueToAdd = (balanceInfo['cuoiKyNo'] || 0) > 0 ? balanceInfo['cuoiKyNo'] : (balanceInfo['cuoiKyCo'] || 0);
+                    return sum + valueToAdd;
+                }
+                return sum;
+            }, 0);
+        };
+
+        let hasChanged = false;
+        const newTienVay = data2.tienVay.map(loan => {
+            const calculatedDaVay = calculateLoanedAmount(loan.soHieuTK);
+            if (calculatedDaVay !== loan.daVay) {
+                hasChanged = true;
+            }
+            return { ...loan, daVay: calculatedDaVay };
+        });
+
+        // Chỉ cập nhật state nếu có sự thay đổi để tránh vòng lặp vô tận
+        if (hasChanged) {
+            setData2(prev => ({ ...prev, tienVay: newTienVay }));
+        }
+
+    }, [data2.tienVay, balances, chartOfAccounts]);
+
 
     const totals1 = useMemo(() => {
         const d_calc = data1.dauKyCalculated || {};
         const h_calc = data1.hienTaiCalculated || {};
 
-        // ✅ CẬP NHẬT CÔNG THỨC NÀY
-        const d_taiSanCo = (d_calc.taiSanCongTy || 0) + (d_calc.taiSanNhaMay || 0) + (d_calc.phaiThuKhac || 0) + (d_calc.loiNhuanTM || 0) + (d_calc.tienMat || 0) + (d_calc.noPhaiTraKhac || 0);
+        const d_loiNhuanTM = (d_calc.phaiThuKhac || 0) - (d_calc.noPhaiTraKhac || 0);
+        const h_loiNhuanTM = (h_calc.phaiThuKhac || 0) - (h_calc.noPhaiTraKhac || 0);
+
+        const d_taiSanCo = (d_calc.taiSanCongTy || 0) + (d_calc.taiSanNhaMay || 0) + (d_calc.phaiThuKhac || 0) + d_loiNhuanTM + (d_calc.tienMat || 0) + (d_calc.noPhaiTraKhac || 0);
         const d_vonSuDung = (data1.vonNhaMay_dauKy || 0) + (data1.vonThiCong_dauKy || 0) + (d_calc.vonChoVay || 0);
         const d_tongCongCo = d_taiSanCo + d_vonSuDung;
         const d_tongNo = (d_calc.vonVay || 0) + (d_calc.vonGop || 0);
         const d_tongGiaTri = d_tongCongCo - d_tongNo;
 
-        // Tính tổng cho Hiện tại
-        // ✅ CẬP NHẬT CÔNG THỨC NÀY
-        const h_taiSanCo = (h_calc.taiSanCongTy || 0) + (h_calc.taiSanNhaMay || 0) + (h_calc.phaiThuKhac || 0) + (h_calc.loiNhuanTM || 0) + (h_calc.tienMat || 0) + (h_calc.noPhaiTraKhac || 0);
+        const h_taiSanCo = (h_calc.taiSanCongTy || 0) + (h_calc.taiSanNhaMay || 0) + (h_calc.phaiThuKhac || 0) + h_loiNhuanTM + (h_calc.tienMat || 0) + (h_calc.noPhaiTraKhac || 0);
         const h_vonSuDung = (capitalReportData?.productionTotalActual || 0) + (capitalReportData?.constructionGrandTotalActual || 0) + (h_calc.vonChoVay || 0);
         const h_tongCongCo = h_taiSanCo + h_vonSuDung;
         const h_tongNo = (h_calc.vonVay || 0) + (h_calc.vonGop || 0);
         const h_tongGiaTri = h_tongCongCo - h_tongNo;
 
         return {
-            dauKy: { taiSanCo: d_taiSanCo, vonSuDung: d_vonSuDung, tongCongCo: d_tongCongCo, tongNo: d_tongNo, tongGiaTri: d_tongGiaTri },
-            hienTai: { taiSanCo: h_taiSanCo, vonSuDung: h_vonSuDung, tongCongCo: h_tongCongCo, tongNo: h_tongNo, tongGiaTri: h_tongGiaTri }
+            dauKy: { taiSanCo: d_taiSanCo, vonSuDung: d_vonSuDung, tongCongCo: d_tongCongCo, tongNo: d_tongNo, tongGiaTri: d_tongGiaTri, loiNhuanTM: d_loiNhuanTM },
+            hienTai: { taiSanCo: h_taiSanCo, vonSuDung: h_vonSuDung, tongCongCo: h_tongCongCo, tongNo: h_tongNo, tongGiaTri: h_tongGiaTri, loiNhuanTM: h_loiNhuanTM }
         };
     }, [data1, capitalReportData]);
-
+    
+    // ✅ STEP 2: CẬP NHẬT LẠI CÁCH TÍNH TỔNG CHO BẢNG TIỀN VAY
     const totals2 = useMemo(() => {
         const soChuyenTiep = data2.taiSanQuyTruoc + data2.tmQuyTruoc;
         const loiNhuan3BP = data2.loiNhuanXayDung + data2.loiNhuanSanXuat + data2.khauHao + data2.tangGiamLoiNhuan + data2.dauTuDA + data2.lnChuyenSang;
         const tienSD3Mang = data2.tienXayDungSD + data2.tienSanXuatSD + data2.tienDauTuSD + data2.cpRuiRo + data2.dauTuNMMuon + data2.choMuonDoiTac;
-        const tienVayTotals = data2.tienVay.reduce((acc, item) => ({ duocVay: acc.duocVay + item.duocVay, daVay: acc.daVay + item.daVay, conDuocVay: acc.conDuocVay + (item.duocVay - item.daVay), }), { duocVay: 0, daVay: 0, conDuocVay: 0 });
+        
+        // Tổng sẽ được tính dựa trên giá trị của từng dòng trong data2.tienVay
+        const tienVayTotals = data2.tienVay.reduce((acc, item) => ({
+            duocVay: acc.duocVay + item.duocVay,
+            daVay: acc.daVay + item.daVay,
+            conDuocVay: acc.conDuocVay + (item.duocVay - item.daVay),
+        }), { duocVay: 0, daVay: 0, conDuocVay: 0 });
+
         const no01Totals = data2.no01.reduce((acc, item) => ({ conLai: acc.conLai + (item.noDauKy + item.phatSinh - item.traNo) }), { conLai: 0 });
+        
         return { soChuyenTiep, loiNhuan3BP, tienSD3Mang, tienVayTotals, no01Totals };
     }, [data2]);
 
@@ -373,7 +432,6 @@ const OverallReportPageContent = () => {
     const handleUpdate1_TextData = (field, value) => {
         setData1(prev => ({ ...prev, textData: { ...prev.textData, [field]: value } }));
     };
-    // ✅ BƯỚC 2: THÊM LẠI HÀM HANDLER ĐỂ CẬP NHẬT KHI SỬA TAY
     const handleUpdate1_Numeric = (field, value) => {
         setData1(prev => ({ ...prev, [field]: value }));
     };
@@ -444,11 +502,20 @@ const OverallReportPageContent = () => {
                             <TableBody>
                                 <ReportRow1 isTotal stt="A" label="TỔNG CÓ (I + II)" dauKy={totals1.dauKy.tongCongCo} hienTai={totals1.hienTai.tongCongCo} showAccountSelect={false} />
                                 <ReportRow1 isSub indent={1} stt="I" label="Tài Sản Có" dauKy={totals1.dauKy.taiSanCo} hienTai={totals1.hienTai.taiSanCo} showAccountSelect={false} />
-
                                 <ReportRow1 accountsData={chartOfAccounts} indent={2} stt="1" label="Tài sản Công Ty (xe ô tô  + đất (tạo quỹ đất - BP đầu tư))" soHieuTK={data1.accountCodes.taiSanCongTy} onSaveSoHieuTK={(v) => handleUpdate1_AccountCodes('taiSanCongTy', v)} dauKy={data1.dauKyCalculated.taiSanCongTy} hienTai={data1.hienTaiCalculated.taiSanCongTy} khoKhan={data1.textData.taiSanCongTy_khoKhan} onSaveKhoKhan={(v) => handleUpdate1_TextData('taiSanCongTy_khoKhan', v)} deXuat={data1.textData.taiSanCongTy_deXuat} onSaveDeXuat={(v) => handleUpdate1_TextData('taiSanCongTy_deXuat', v)} />
                                 <ReportRow1 accountsData={chartOfAccounts} indent={2} stt="2" label="Tài Sản Nhà máy (thiết bị + xd)" soHieuTK={data1.accountCodes.taiSanNhaMay} onSaveSoHieuTK={(v) => handleUpdate1_AccountCodes('taiSanNhaMay', v)} dauKy={data1.dauKyCalculated.taiSanNhaMay} hienTai={data1.hienTaiCalculated.taiSanNhaMay} khoKhan={data1.textData.taiSanNhaMay_khoKhan} onSaveKhoKhan={(v) => handleUpdate1_TextData('taiSanNhaMay_khoKhan', v)} deXuat={data1.textData.taiSanNhaMay_deXuat} onSaveDeXuat={(v) => handleUpdate1_TextData('taiSanNhaMay_deXuat', v)} />
                                 <ReportRow1 accountsData={chartOfAccounts} indent={2} stt="3" label="Phải thu khác" soHieuTK={data1.accountCodes.phaiThuKhac} onSaveSoHieuTK={(v) => handleUpdate1_AccountCodes('phaiThuKhac', v)} dauKy={data1.dauKyCalculated.phaiThuKhac} hienTai={data1.hienTaiCalculated.phaiThuKhac} khoKhan={data1.textData.phaiThuKhac_khoKhan} onSaveKhoKhan={(v) => handleUpdate1_TextData('phaiThuKhac_khoKhan', v)} deXuat={data1.textData.phaiThuKhac_deXuat} onSaveDeXuat={(v) => handleUpdate1_TextData('phaiThuKhac_deXuat', v)} />
-                                <ReportRow1 accountsData={chartOfAccounts} indent={2} stt="4" label="Lợi nhuận TM (phải thu, phải trả đến thời điềm này)" soHieuTK={data1.accountCodes.loiNhuanTM} onSaveSoHieuTK={(v) => handleUpdate1_AccountCodes('loiNhuanTM', v)} dauKy={data1.dauKyCalculated.loiNhuanTM} hienTai={data1.hienTaiCalculated.loiNhuanTM} isNegative khoKhan={data1.textData.loiNhuanTM_khoKhan} onSaveKhoKhan={(v) => handleUpdate1_TextData('loiNhuanTM_khoKhan', v)} deXuat={data1.textData.loiNhuanTM_deXuat} onSaveDeXuat={(v) => handleUpdate1_TextData('loiNhuanTM_deXuat', v)} />
+                                <ReportRow1
+                                    indent={2} stt="4"
+                                    label="Lợi nhuận TM (phải thu, phải trả đến thời điềm này)"
+                                    showAccountSelect={false}
+                                    dauKy={totals1.dauKy.loiNhuanTM}
+                                    hienTai={totals1.hienTai.loiNhuanTM}
+                                    khoKhan={data1.textData.loiNhuanTM_khoKhan}
+                                    onSaveKhoKhan={(v) => handleUpdate1_TextData('loiNhuanTM_khoKhan', v)}
+                                    deXuat={data1.textData.loiNhuanTM_deXuat}
+                                    onSaveDeXuat={(v) => handleUpdate1_TextData('loiNhuanTM_deXuat', v)}
+                                />
                                 <ReportRow1 accountsData={chartOfAccounts} indent={2} stt="5" label="Tiền mặt (Cty)" soHieuTK={data1.accountCodes.tienMat} onSaveSoHieuTK={(v) => handleUpdate1_AccountCodes('tienMat', v)} dauKy={data1.dauKyCalculated.tienMat} hienTai={data1.hienTaiCalculated.tienMat} khoKhan={data1.textData.tienMat_khoKhan} onSaveKhoKhan={(v) => handleUpdate1_TextData('tienMat_khoKhan', v)} deXuat={data1.textData.tienMat_deXuat} onSaveDeXuat={(v) => handleUpdate1_TextData('tienMat_deXuat', v)} />
                                 <ReportRow1
                                     accountsData={chartOfAccounts}
@@ -458,15 +525,12 @@ const OverallReportPageContent = () => {
                                     onSaveSoHieuTK={(v) => handleUpdate1_AccountCodes('noPhaiTraKhac', v)}
                                     dauKy={data1.dauKyCalculated.noPhaiTraKhac}
                                     hienTai={data1.hienTaiCalculated.noPhaiTraKhac}
-                                     // Thêm prop này để hiển thị số âm (nếu có) nhưng tính toán vẫn là số dương
                                     khoKhan={data1.textData.noPhaiTraKhac_khoKhan}
                                     onSaveKhoKhan={(v) => handleUpdate1_TextData('noPhaiTraKhac_khoKhan', v)}
                                     deXuat={data1.textData.noPhaiTraKhac_deXuat}
                                     onSaveDeXuat={(v) => handleUpdate1_TextData('noPhaiTraKhac_deXuat', v)}
                                 />
                                 <ReportRow1 isSub indent={1} stt="II" label="Vốn sử dụng có" dauKy={totals1.dauKy.vonSuDung} hienTai={totals1.hienTai.vonSuDung} showAccountSelect={false} />
-
-                                {/* ✅ BƯỚC 3: KÍCH HOẠT LẠI CHẾ ĐỘ EDITABLE CHO "ĐẦU KỲ" */}
                                 <ReportRow1
                                     indent={2} stt="1"
                                     label="Nhà Máy sử dụng (vốn lưu động 25 TỶ)"
@@ -493,20 +557,16 @@ const OverallReportPageContent = () => {
                                     deXuat={data1.textData.vonThiCong_deXuat}
                                     onSaveDeXuat={(v) => handleUpdate1_TextData('vonThiCong_deXuat', v)}
                                 />
-
                                 <ReportRow1 accountsData={chartOfAccounts} indent={2} stt="3" label="Các khoản cho vay được HĐQT thống nhất" soHieuTK={data1.accountCodes.vonChoVay} onSaveSoHieuTK={(v) => handleUpdate1_AccountCodes('vonChoVay', v)} dauKy={data1.dauKyCalculated.vonChoVay} hienTai={data1.hienTaiCalculated.vonChoVay} khoKhan={data1.textData.vonChoVay_khoKhan} onSaveKhoKhan={(v) => handleUpdate1_TextData('vonChoVay_khoKhan', v)} deXuat={data1.textData.vonChoVay_deXuat} onSaveDeXuat={(v) => handleUpdate1_TextData('vonChoVay_deXuat', v)} />
-
                                 <ReportRow1 isTotal stt="B" label="TỔNG NỢ (III + IV)" dauKy={totals1.dauKy.tongNo} hienTai={totals1.hienTai.tongNo} showAccountSelect={false} />
                                 <ReportRow1 isSub indent={1} stt="III" label="VỐN VAY" soHieuTK={data1.accountCodes.vonVay} onSaveSoHieuTK={(v) => handleUpdate1_AccountCodes('vonVay', v)} dauKy={data1.dauKyCalculated.vonVay} hienTai={data1.hienTaiCalculated.vonVay} accountsData={chartOfAccounts} khoKhan={data1.textData.vonVay_khoKhan} onSaveKhoKhan={(v) => handleUpdate1_TextData('vonVay_khoKhan', v)} deXuat={data1.textData.vonVay_deXuat} onSaveDeXuat={(v) => handleUpdate1_TextData('vonVay_deXuat', v)} />
                                 <ReportRow1 isSub indent={1} stt="IV" label="VỐN GÓP + CỔ TỨC" soHieuTK={data1.accountCodes.vonGop} onSaveSoHieuTK={(v) => handleUpdate1_AccountCodes('vonGop', v)} dauKy={data1.dauKyCalculated.vonGop} hienTai={data1.hienTaiCalculated.vonGop} accountsData={chartOfAccounts} khoKhan={data1.textData.vonGop_khoKhan} onSaveKhoKhan={(v) => handleUpdate1_TextData('vonGop_khoKhan', v)} deXuat={data1.textData.vonGop_deXuat} onSaveDeXuat={(v) => handleUpdate1_TextData('vonGop_deXuat', v)} />
-
                                 <ReportRow1 isTotal stt="C" label="TỔNG GIÁ TRỊ: TỔNG CÓ - TỔNG NỢ ( A - B)" dauKy={totals1.dauKy.tongGiaTri} hienTai={totals1.hienTai.tongGiaTri} showAccountSelect={false} />
                             </TableBody>
                         </Table>
                     </TableContainer>
                 </Card>
 
-                {/* --- Bảng Tổng Quát 2 không thay đổi --- */}
                 <Card variant="outlined" sx={{ borderRadius: 2 }}>
                     <CardHeader title="Tổng Quát 2 (Báo Cáo HĐQT)" titleTypographyProps={{ variant: 'h6', fontWeight: 600 }} sx={{ borderBottom: '1px solid', borderColor: 'divider' }} />
                     <TableContainer>
@@ -515,7 +575,6 @@ const OverallReportPageContent = () => {
                                 <TableRow sx={{ bgcolor: 'grey.100' }}><TableCell sx={{ fontWeight: 'bold' }}>I. SỐ CHUYỂN TIẾP CÁC QUÝ TRƯỚC (A + B)</TableCell><TableCell align="right" sx={{ fontWeight: 'bold' }}><ReadOnlyCell value={totals2.soChuyenTiep} bold /></TableCell></TableRow>
                                 <TableRow> <TableCell sx={{ pl: 4 }}>A. TÀI SẢN QUÝ TRƯỚC</TableCell><TableCell><EditableCell value={data2.taiSanQuyTruoc} onSave={(v) => handleUpdate2_Numeric('taiSanQuyTruoc', v)} /></TableCell></TableRow>
                                 <TableRow> <TableCell sx={{ pl: 4 }}>B. TM QUÝ TRƯỚC</TableCell><TableCell><EditableCell value={data2.tmQuyTruoc} onSave={(v) => handleUpdate2_Numeric('tmQuyTruoc', v)} /></TableCell></TableRow>
-
                                 <TableRow sx={{ bgcolor: 'grey.100' }}><TableCell sx={{ fontWeight: 'bold' }}>II. LỢI NHUẬN 3BP QUÝ NÀY</TableCell><TableCell align="right" sx={{ fontWeight: 'bold' }}><ReadOnlyCell value={totals2.loiNhuan3BP} bold /></TableCell></TableRow>
                                 <TableRow><TableCell sx={{ pl: 4 }}>A. XÂY DỰNG</TableCell><TableCell><EditableCell value={data2.loiNhuanXayDung} onSave={(v) => handleUpdate2_Numeric('loiNhuanXayDung', v)} /></TableCell></TableRow>
                                 <TableRow><TableCell sx={{ pl: 4 }}>B. SẢN XUẤT</TableCell><TableCell><EditableCell value={data2.loiNhuanSanXuat} onSave={(v) => handleUpdate2_Numeric('loiNhuanSanXuat', v)} /></TableCell></TableRow>
@@ -523,11 +582,9 @@ const OverallReportPageContent = () => {
                                 <TableRow><TableCell sx={{ pl: 4 }}>D. TĂNG GIẢM LỢI NHUẬN</TableCell><TableCell><EditableCell value={data2.tangGiamLoiNhuan} onSave={(v) => handleUpdate2_Numeric('tangGiamLoiNhuan', v)} isNegative /></TableCell></TableRow>
                                 <TableRow><TableCell sx={{ pl: 4 }}>E. ĐẦU TƯ DA BLX</TableCell><TableCell><EditableCell value={data2.dauTuDA} onSave={(v) => handleUpdate2_Numeric('dauTuDA', v)} /></TableCell></TableRow>
                                 <TableRow><TableCell sx={{ pl: 4 }}>F. LN BP SX CHUYỂN SANG N2025</TableCell><TableCell><EditableCell value={data2.lnChuyenSang} onSave={(v) => handleUpdate2_Numeric('lnChuyenSang', v)} /></TableCell></TableRow>
-
                                 <TableRow sx={{ bgcolor: 'grey.100' }}><TableCell sx={{ fontWeight: 'bold' }}>III. TỔNG TÀI SẢN ĐẾN THỜI ĐIỂM HIỆN TẠI</TableCell><TableCell align="right" sx={{ fontWeight: 'bold' }}><ReadOnlyCell value={data2.taiSanDenThoiDiemNay} bold /></TableCell></TableRow>
                                 <TableRow><TableCell sx={{ pl: 4 }}>A. TÀI SẢN ĐẾN THỜI ĐIỂM NÀY</TableCell><TableCell><EditableCell value={data2.taiSanDenThoiDiemNay} onSave={(v) => handleUpdate2_Numeric('taiSanDenThoiDiemNay', v)} /></TableCell></TableRow>
                                 <TableRow><TableCell sx={{ pl: 4 }}>B. TIỀN MẶT QUÝ NÀY</TableCell><TableCell><EditableCell value={data2.tienMatQuyNay} onSave={(v) => handleUpdate2_Numeric('tienMatQuyNay', v)} /></TableCell></TableRow>
-
                                 <TableRow sx={{ bgcolor: 'grey.100' }}><TableCell sx={{ fontWeight: 'bold' }}>IV. TIỀN SD VỐN 3 MÃNG, CP RỦI RO</TableCell><TableCell align="right" sx={{ fontWeight: 'bold' }}><ReadOnlyCell value={totals2.tienSD3Mang} bold /></TableCell></TableRow>
                                 <TableRow><TableCell sx={{ pl: 4 }}>A. TIỀN XÂY DỰNG SD</TableCell><TableCell><EditableCell value={data2.tienXayDungSD} onSave={(v) => handleUpdate2_Numeric('tienXayDungSD', v)} /></TableCell></TableRow>
                                 <TableRow><TableCell sx={{ pl: 4 }}>B. TIỀN SẢN XUẤT SD</TableCell><TableCell><EditableCell value={data2.tienSanXuatSD} onSave={(v) => handleUpdate2_Numeric('tienSanXuatSD', v)} /></TableCell></TableRow>
@@ -537,7 +594,6 @@ const OverallReportPageContent = () => {
                                 <TableRow><TableCell sx={{ pl: 4 }}>G. CHO MƯỢN (ĐỐI TÁC)</TableCell><TableCell><EditableCell value={data2.choMuonDoiTac} onSave={(v) => handleUpdate2_Numeric('choMuonDoiTac', v)} /></TableCell></TableRow>
                             </TableBody>
                         </Table>
-
                         <Divider sx={{ my: 1.5 }}><Chip label="V. TIỀN VAY" size="small" /></Divider>
                         <Table size="small">
                             <TableHead>
@@ -567,13 +623,13 @@ const OverallReportPageContent = () => {
                                             />
                                         </TableCell>
                                         <TableCell><EditableCell value={item.duocVay} onSave={(v) => handleUpdate2_Array('tienVay', index, 'duocVay', v)} /></TableCell>
-                                        <TableCell><EditableCell value={item.daVay} onSave={(v) => handleUpdate2_Array('tienVay', index, 'daVay', v)} /></TableCell>
+                                        {/* ✅ STEP 3: THAY ĐỔI Ô "ĐÃ VAY" THÀNH CHỈ ĐỌC */}
+                                        <TableCell><ReadOnlyCell value={item.daVay} /></TableCell>
                                         <TableCell><ReadOnlyCell value={item.duocVay - item.daVay} /></TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
                         </Table>
-
                         <Divider sx={{ my: 1.5 }}><Chip label="VI. NỢ 01" size="small" /></Divider>
                         <Table size="small">
                             <TableHead><TableRow sx={{ '& th': { fontWeight: 600, bgcolor: 'grey.100' } }}><TableCell>T(04 CT)</TableCell><TableCell align="right">NỢ 01</TableCell><TableCell align="right">PHÁT SINH</TableCell><TableCell align="right">TRẢ NỢ</TableCell><TableCell align="right">CÒN LẠI</TableCell></TableRow></TableHead>
