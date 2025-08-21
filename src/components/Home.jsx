@@ -1,425 +1,231 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import {
-    Box, Paper, Grid, Typography, CardActionArea,
-    Skeleton, Chip, styled, Alert,
-    Stack, IconButton, Avatar
-} from "@mui/material";
-import { alpha } from "@mui/material/styles";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-    LineChart, FolderKanban, PieChart, Construction, Building,
-    BarChart3, TrendingUp, BookCheck, ArrowRight, 
-    FileSpreadsheet, DollarSign, Activity,
-    Clock, AlertCircle, CheckCircle, XCircle, ArrowUpRight,
-    ArrowDownRight, MoreVertical,
-    BookUser,
-    ClipboardList,
-    Landmark
-} from "lucide-react";
-import { useQuery } from "react-query";
-import { Settings } from "@mui/icons-material";
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
-// Constants
-const CARD_BORDER_RADIUS = 12;
-const GRID_SPACING = 2.5;
+// Import components từ Material-UI (MUI)
+import { Box, Card, CardContent, Typography, Grid, Badge } from '@mui/material';
+import { styled } from '@mui/material/styles';
 
-// ==================================================================
-// CONFIGURATION
-// ==================================================================
+// Import icons từ Lucide React
+import { 
+    Construction, Building, BookCheck, FileSpreadsheet, BarChart3, 
+    Landmark, ClipboardList, BookUser, PieChart, LineChart, TrendingUp
+} from 'lucide-react';
 
-// Cấu hình các chức năng chính
-const mainFunctions = [
-    { 
-        icon: <Construction size={24} />, 
-        text: "Kế Hoạch Thi Công", 
-        to: "/construction-plan", 
-        desc: "Lập và theo dõi tiến độ",
+// Gộp tất cả chức năng và báo cáo vào một danh sách duy nhất
+const allModules = [
+    {
+        icon: <Construction size={28} />,
+        title: "Kế Hoạch Thi Công",
+        to: "/construction-plan",
+        desc: "Lập và theo dõi tiến độ công việc",
         color: '#3b82f6',
         bgColor: '#eff6ff'
     },
-    { 
-        icon: <Building size={24} />, 
-        text: "Quản Lý Công Trình", 
-        to: "/project-manager", 
-        desc: "Xem chi tiết công trình",
+    {
+        icon: <Building size={28} />,
+        title: "Quản Lý Công Trình",
+        to: "/project-manager",
+        desc: "Xem chi tiết thông tin các công trình",
         color: '#8b5cf6',
-        bgColor: '#f3e8ff'
+        bgColor: '#f5f3ff'
     },
-    { 
-        icon: <BookCheck size={24} />, 
-        text: "Phân bổ chi phí", 
-        to: "/allocations", 
-        desc: "Quản lý chi phí dự án",
+    {
+        icon: <BookCheck size={28} />,
+        title: "Phân Bổ Chi Phí",
+        to: "/allocations",
+        desc: "Quản lý và phân bổ chi phí dự án",
         color: '#10b981',
-        bgColor: '#d1fae5'
+        bgColor: '#ecfdf5'
     },
-    { 
-        icon: <FileSpreadsheet size={24} />, 
-        text: "Công Nợ Phải Trả", 
-        to: "/construction-payables", 
-        desc: "Theo dõi công nợ",
+    {
+        icon: <FileSpreadsheet size={28} />,
+        title: "Công Nợ Phải Trả",
+        to: "/construction-payables",
+        desc: "Theo dõi và quản lý các khoản công nợ",
         color: '#f59e0b',
-        bgColor: '#fef3c7',
-        isNew: true 
+        bgColor: '#fffbeb',
     },
-     { 
-        icon: <BarChart3 size={24} />, 
-        text: "Bảng Cân Đối Kế Toán", 
-        to: "/balance-sheet", 
-        desc: "Tình hình tài sản & nguồn vốn",
+    {
+        icon: <BarChart3 size={28} />,
+        title: "Bảng Cân Đối Kế Toán",
+        to: "/balance-sheet",
+        desc: "Tình hình tài sản và nguồn vốn",
         color: '#14b8a6',
-        bgColor: '#ccfbf1',
-        isNew: true 
+        bgColor: '#f0fdfa',
     },
-     { 
-        icon: <Landmark size={24} />, // Icon mới
-        text: "Báo Cáo Sử Dụng Vốn", // Tên chức năng
-        to: "/capital-utilization", // Đường dẫn đã tạo
-        desc: "Kế hoạch & thực tế sử dụng", // Mô tả
+    {
+        icon: <Landmark size={28} />,
+        title: "Báo Cáo Sử Dụng Vốn",
+        to: "/capital-utilization",
+        desc: "Đối chiếu kế hoạch và thực tế sử dụng",
         color: '#6366f1',
-        bgColor: '#e0e7ff',
-        isNew: true 
+        bgColor: '#eef2ff',
+    },
+    {
+        icon: <ClipboardList size={28} />,
+        title: "Hệ Thống Tài Khoản",
+        to: "/chart-of-accounts",
+        desc: "Danh mục các tài khoản kế toán",
+        color: '#64748b',
+        bgColor: '#f8fafc',
+    },
+    {
+        icon: <BookUser size={28} />,
+        title: "Báo Cáo Nợ Có",
+        to: "/broker-debt-report",
+        desc: "Theo dõi và đối chiếu số dư nợ có",
+        color: '#ef4444',
+        bgColor: '#fef2f2',
+    },
+    {
+        icon: <BarChart3 size={28} />,
+        title: 'Báo Cáo Lợi Nhuận',
+        desc: 'Phân tích theo từng quý',
+        to: '/profit-report-quarter',
+        color: '#3b82f6',
+        bgColor: '#eff6ff'
+    },
+    {
+        icon: <PieChart size={28} />,
+        title: 'Chi Phí Theo Quý',
+        desc: 'Theo dõi phân bổ chi phí',
+        to: '/cost-allocation-quarter',
+        color: '#8b5cf6',
+        bgColor: '#f5f3ff'
+    },
+    {
+        icon: <LineChart size={28} />,
+        title: 'Lợi Nhuận Theo Năm',
+        desc: 'Xem báo cáo tổng kết năm',
+        to: '/profit-report-year',
+        color: '#10b981',
+        bgColor: '#ecfdf5'
+    },
+    {
+        icon: <TrendingUp size={28} />,
+        title: 'Tăng Giảm Lợi Nhuận',
+        desc: 'Phân tích các yếu tố ảnh hưởng',
+        to: '/profit-change',
+        color: '#f59e0b',
+        bgColor: '#fffbeb'
+    },
+    {
+        icon: <PieChart size={28} />,
+        title: 'Báo Cáo Tổng Quát',
+        desc: 'Tổng hợp tình hình hoạt động',
+        to: '/overall-report',
+        color: '#6366f1',
+        bgColor: '#eef2ff'
     },
      { 
-        icon: <ClipboardList size={24} />, 
-        text: "Hệ Thống Tài Khoản", 
-        to: "/chart-of-accounts", 
-        desc: "Danh mục tài khoản kế toán",
-        color: '#64748b',
-        bgColor: '#f1f5f9',
-        isNew: true 
-    },
-    { 
-        icon: <BookUser size={24} />, 
-        text: "Báo cáo Nợ Có", 
-        to: "/broker-debt-report", 
-        desc: "Theo dõi số dư nợ có",
-        color: '#ef4444',
-        bgColor: '#fee2e2',
-        isNew: true 
-    },
-    { 
         icon: <FileSpreadsheet size={24} />, 
-        text: "Quản Lý Danh Mục", 
+        title: "Quản Lý Danh Mục", 
         to: "/categories", 
         desc: "Theo dõi công nợ",
         color: '#f59e0b',
         bgColor: '#fef3c7',
-        isNew: true 
-    },
-    
-];
-
-// ✅ Cấu hình Báo cáo & Phân tích (ĐÃ BỔ SUNG ĐƯỜNG DẪN 'to')
-const quickReports = [
-    { 
-        icon: <BarChart3 size={20} />, 
-        title: 'Báo Cáo Lợi Nhuận', 
-        desc: 'Phân tích theo quý',
-        to: '/profit-report-quarter',
-        color: '#3b82f6'
-    },
-    { 
-        icon: <PieChart size={20} />, 
-        title: 'Chi Phí Theo Quý', 
-        desc: 'Theo dõi phân bổ',
-        to: '/cost-allocation-quarter',
-        color: '#8b5cf6'
-    },
-    { 
-        icon: <LineChart size={20} />, 
-        title: 'Lợi Nhuận Theo Năm', 
-        desc: 'Báo cáo cả năm',
-        to: '/profit-report-year',
-        color: '#10b981'
-    },
-    { 
-        icon: <TrendingUp size={20} />, 
-        title: 'Tăng Giảm Lợi Nhuận', 
-        desc: 'Phát sinh ảnh hưởng',
-        to: '/profit-change',
-        color: '#f59e0b'
-    },
-    { 
-        icon: <PieChart size={20} />, 
-        title: 'Báo Cáo Tổng Quát', 
-        desc: 'Tổng hợp tình hình hoạt động',
-        to: '/overall-report', // <-- Đường dẫn bạn đã tạo
-        color: '#6366f1'
     },
 ];
 
-
-// ==================================================================
-// DATA HOOKS WITH REACT-QUERY
-// ==================================================================
-const useDashboardStats = () => {
-    return useQuery('dashboardStats', async () => {
-        await new Promise(resolve => setTimeout(resolve, 800)); 
-        return {
-            totalProjects: 12, activeProjects: 8,
-            totalRevenue: 1585000000, totalCost: 834000000,
-            profit: 751000000, profitMargin: 47.4,
-        };
-    }, { staleTime: 5 * 60 * 1000 });
-};
-
-const useRecentActivities = () => {
-    return useQuery('recentActivities', async () => {
-        await new Promise(resolve => setTimeout(resolve, 1200));
-        return [
-            { id: 1, type: 'success', title: 'Công trình A hoàn thành', time: '2 giờ trước' },
-            { id: 2, type: 'warning', title: 'Công nợ sắp đến hạn', time: '3 giờ trước' },
-            { id: 3, type: 'info', title: 'Cập nhật chi phí dự án B', time: '5 giờ trước' },
-            { id: 4, type: 'error', title: 'Vượt ngân sách dự án C', time: '1 ngày trước' },
-        ];
-    }, { staleTime: 5 * 60 * 1000 });
-};
-
-// ==================================================================
-// STYLED COMPONENTS
-// ==================================================================
-const DashboardContainer = styled(Box)(({ theme }) => ({
-    minHeight: '100vh',
-    backgroundColor: '#f8f9fa',
-    padding: theme.spacing(3),
-}));
-const HeaderSection = styled(Box)(({ theme }) => ({
-    marginBottom: theme.spacing(4),
-}));
-const StatCard = styled(Paper)(({ theme, trend }) => ({
-    padding: theme.spacing(2.5),
-    borderRadius: CARD_BORDER_RADIUS,
-    border: '1px solid #e5e7eb',
-    position: 'relative',
-    overflow: 'hidden',
-    '&::before': {
-        content: '""', position: 'absolute', top: 0, left: 0, right: 0, height: '3px',
-        background: trend === 'up' ? '#10b981' : trend === 'down' ? '#ef4444' : '#6b7280',
-    }
-}));
-const FunctionCard = styled(CardActionArea)(({ theme, color, bgColor }) => ({
-    padding: theme.spacing(3), borderRadius: CARD_BORDER_RADIUS,
-    backgroundColor: '#ffffff', border: '1px solid #e5e7eb',
-    height: '100%', display: 'flex', flexDirection: 'column',
-    alignItems: 'flex-start', textAlign: 'left',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    position: 'relative', overflow: 'hidden',
-    '& .icon-box': {
-        width: 48, height: 48, borderRadius: 10, backgroundColor: bgColor,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        marginBottom: theme.spacing(2), transition: 'all 0.3s ease', color: color,
-    },
+// Styled component cho Card để thêm hiệu ứng hover
+const StyledCard = styled(Card)(({ theme }) => ({
+    height: '100%',
+    borderRadius: '16px', // Bo góc lớn hơn
+    transition: 'transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
     '&:hover': {
-        transform: `translateY(-4px)`,
-        boxShadow: '0 12px 24px rgba(0, 0, 0, 0.1)',
-        borderColor: color,
-        '& .icon-box': { transform: 'rotate(-5deg) scale(1.1)' },
-        '& .arrow-icon': { opacity: 1, transform: 'translateX(0)' }
+        transform: 'translateY(-5px)',
+        boxShadow: '0 10px 20px rgba(0,0,0,0.1)',
     },
-    '& .arrow-icon': {
-        position: 'absolute', top: theme.spacing(2), right: theme.spacing(2),
-        opacity: 0, transform: 'translateX(-10px)', transition: 'all 0.3s ease', color: color,
-    }
-}));
-const QuickActionCard = styled(Paper)(({ theme }) => ({
-    padding: theme.spacing(2), borderRadius: CARD_BORDER_RADIUS,
-    backgroundColor: '#ffffff', border: '1px solid #e5e7eb',
-    transition: 'all 0.2s ease', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: theme.spacing(2),
-    '&:hover': {
-        backgroundColor: '#f9fafb', borderColor: theme.palette.primary.main,
-        transform: 'translateX(4px)',
-        '& .action-arrow': { transform: 'translateX(4px)' }
-    }
-}));
-const ActivityItem = styled(Box)(({ theme }) => ({
-    display: 'flex', alignItems: 'flex-start',
-    gap: theme.spacing(2), padding: theme.spacing(2),
-    borderRadius: 8,
 }));
 
-// ==================================================================
-// UTILITY FUNCTIONS
-// ==================================================================
-const formatVND = (value) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value || 0);
-const formatNumber = (num) => {
-    if (!num) return '0';
-    if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)} Tỷ`;
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)} Tr`;
-    return new Intl.NumberFormat('vi-VN').format(num);
+// Định nghĩa animation cho card
+const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: (i) => ({
+        opacity: 1,
+        y: 0,
+        transition: {
+            delay: i * 0.04,
+            duration: 0.4,
+            ease: "easeOut"
+        }
+    })
 };
 
-// ==================================================================
-// MAIN COMPONENT
-// ==================================================================
-export default function Home() {
-    const { data: stats, isLoading: isLoadingStats, isError: isStatsError, error: statsError } = useDashboardStats();
-    const { data: recentActivities = [], isLoading: isLoadingActivities, isError: isActivitiesError, error: activitiesError } = useRecentActivities();
-
-    const kpiCards = [
-        { title: 'Tổng Dự Án', value: stats?.totalProjects || 0, subValue: `${stats?.activeProjects || 0} đang hoạt động`, icon: <FolderKanban size={20} />, trend: 'up', trendValue: '+15%', color: '#3b82f6' },
-        { title: 'Doanh Thu', value: formatNumber(stats?.totalRevenue), subValue: formatVND(stats?.totalRevenue), icon: <DollarSign size={20} />, trend: 'up', trendValue: '+23%', color: '#10b981' },
-        { title: 'Chi Phí', value: formatNumber(stats?.totalCost), subValue: formatVND(stats?.totalCost), icon: <Activity size={20} />, trend: 'down', trendValue: '-8%', color: '#ef4444' },
-        { title: 'Lợi Nhuận', value: `${stats?.profitMargin || 0}%`, subValue: formatVND(stats?.profit), icon: <TrendingUp size={20} />, trend: 'up', trendValue: '+12%', color: '#8b5cf6' }
-    ];
-
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
-    };
-
-    const itemVariants = {
-        hidden: { y: 20, opacity: 0 },
-        visible: { y: 0, opacity: 1 }
-    };
-    
-    if (isStatsError || isActivitiesError) {
-        return (
-            <DashboardContainer>
-                 <Alert severity="error">
-                    Không thể tải dữ liệu Dashboard. Lỗi: {statsError?.message || activitiesError?.message}
-                </Alert>
-            </DashboardContainer>
-        )
-    }
+const Home = () => {
+    const userName = "Admin";
 
     return (
-        <DashboardContainer>
-            <HeaderSection>
-                <Box>
-                    <Typography variant="h4" fontWeight={700}>Dashboard Tổng Quan</Typography>
-                    <Typography variant="body1" color="text.secondary">
-                        Chào mừng trở lại! Đây là tình hình kinh doanh hôm nay.
+        <Box sx={{ bgcolor: '#f8fafc', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>
+            <Box sx={{ maxWidth: '1600px', mx: 'auto' }}>
+                {/* Header */}
+                <Box component="header" sx={{ mb: 4 }}>
+                    <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: '#1e293b' }}>
+                        Chào mừng trở lại, {userName}!
+                    </Typography>
+                    <Typography sx={{ color: '#64748b', mt: 0.5 }}>
+                        Hãy chọn một chức năng để bắt đầu công việc của bạn.
                     </Typography>
                 </Box>
-                <Chip 
-                    label={`Cập nhật: ${new Date().toLocaleTimeString('vi-VN')}`}
-                    size="small"
-                    icon={<Clock size={14} />}
-                />
-            </HeaderSection>
 
-            {/* KPI Cards */}
-            <motion.div variants={containerVariants} initial="hidden" animate="visible">
-                <Grid container spacing={GRID_SPACING} mb={4}>
-                    {kpiCards.map((card, index) => (
-                        <Grid item xs={12} sm={6} lg={3} key={index}>
-                            <motion.div variants={itemVariants}>
-                                <StatCard trend={card.trend}>
-                                    {isLoadingStats ? (
-                                        <>
-                                            <Skeleton width="60%" height={20} />
-                                            <Skeleton width="40%" height={32} sx={{ my: 1 }} />
-                                            <Skeleton width="50%" height={16} />
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                                               <Box>
-                                                    <Typography variant="body2" color="text.secondary">{card.title}</Typography>
-                                                    <Typography variant="h4" fontWeight={700}>{card.value}</Typography>
+                {/* Main Content Area */}
+                <Box>
+                    <Grid container spacing={3}>
+                        {allModules.map((module, index) => (
+                            <Grid item xs={12} sm={6} md={4} lg={3} xl={2.4} key={index}>
+                                <motion.div
+                                    custom={index}
+                                    initial="hidden"
+                                    animate="visible"
+                                    variants={cardVariants}
+                                    style={{ height: '100%' }}
+                                >
+                                    <Link to={module.to} style={{ textDecoration: 'none' }}>
+                                        <StyledCard sx={{ backgroundColor: module.bgColor, position: 'relative', border: '1px solid #e2e8f0' }}>
+                                            {module.isNew && (
+                                                <Badge 
+                                                    badgeContent="MỚI" 
+                                                    color="error"
+                                                    sx={{ position: 'absolute', top: 16, right: 16 }}
+                                                />
+                                            )}
+                                            <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                                <Box 
+                                                    sx={{ 
+                                                        width: 52, 
+                                                        height: 52, 
+                                                        borderRadius: '12px', 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        justifyContent: 'center',
+                                                        backgroundColor: module.color,
+                                                        color: 'white',
+                                                        mb: 2,
+                                                        flexShrink: 0
+                                                    }}
+                                                >
+                                                    {module.icon}
                                                 </Box>
-                                                <Box sx={{ width: 40, height: 40, borderRadius: 2, backgroundColor: alpha(card.color, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', color: card.color }}>
-                                                    {card.icon}
+                                                <Box sx={{ flexGrow: 1 }}>
+                                                    <Typography variant="h6" component="h3" sx={{ fontWeight: 'bold', color: module.color, fontSize: '1.1rem' }}>
+                                                        {module.title}
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>
+                                                        {module.desc}
+                                                    </Typography>
                                                 </Box>
-                                            </Stack>
-                                            <Stack direction="row" alignItems="center" spacing={1} mt={2}>
-                                                <Chip size="small" label={card.trendValue} icon={card.trend === 'up' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} sx={{ backgroundColor: alpha(card.trend === 'up' ? '#10b981' : '#ef4444', 0.1), color: card.trend === 'up' ? '#10b981' : '#ef4444', '& .MuiChip-icon': { color: 'inherit' } }} />
-                                                <Typography variant="caption" color="text.secondary">{card.subValue}</Typography>
-                                            </Stack>
-                                        </>
-                                    )}
-                                </StatCard>
-                            </motion.div>
-                        </Grid>
-                    ))}
-                </Grid>
-            </motion.div>
-
-            {/* Main Functions */}
-            <Typography variant="h5" fontWeight={600} mb={3}>Chức Năng Chính</Typography>
-            <motion.div variants={containerVariants} initial="hidden" animate="visible">
-                <Grid container spacing={GRID_SPACING} mb={4}>
-                    {mainFunctions.map((func, index) => (
-                        <Grid item xs={12} sm={6} md={4} lg={3} key={index}>
-                            <motion.div variants={itemVariants} style={{ height: '100%' }}>
-                                <FunctionCard component={Link} to={func.to} color={func.color} bgColor={func.bgColor}>
-                                    <Box className="icon-box">{func.icon}</Box>
-                                    <Stack spacing={0.5} sx={{ width: '100%' }}>
-                                        <Stack direction="row" alignItems="center" spacing={1}>
-                                            <Typography variant="h6" fontWeight={600}>{func.text}</Typography>
-                                            {func.isNew && (<Chip label="Mới" size="small" sx={{ height: 20, backgroundColor: '#fee2e2', color: '#ef4444', fontWeight: 600 }} />)}
-                                        </Stack>
-                                        <Typography variant="body2" color="text.secondary">{func.desc}</Typography>
-                                    </Stack>
-                                    <ArrowUpRight className="arrow-icon" size={20} />
-                                </FunctionCard>
-                            </motion.div>
-                        </Grid>
-                    ))}
-                </Grid>
-            </motion.div>
-            
-            <Grid container spacing={GRID_SPACING}>
-                {/* Quick Reports Section */}
-                <Grid item xs={12} lg={8}>
-                     <Paper sx={{ p: 3, borderRadius: CARD_BORDER_RADIUS / 1.5, border: '1px solid #e5e7eb', height: '100%' }}>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-                            <Typography variant="h6" fontWeight={600}>Báo Cáo & Phân Tích</Typography>
-                            <IconButton size="small"><MoreVertical size={20} /></IconButton>
-                        </Stack>
-                        <Grid container spacing={2}>
-                            {quickReports.map((action, index) => (
-                                <Grid item xs={12} sm={6} key={index}>
-                                    <QuickActionCard component={Link} to={action.to} sx={{ textDecoration: 'none' }}>
-                                        <Box sx={{ width: 40, height: 40, borderRadius: 2, backgroundColor: alpha(action.color, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', color: action.color, flexShrink: 0 }}>
-                                            {action.icon}
-                                        </Box>
-                                        <Box sx={{ flex: 1 }}>
-                                            <Typography variant="body1" fontWeight={600}>{action.title}</Typography>
-                                            <Typography variant="caption" color="text.secondary">{action.desc}</Typography>
-                                        </Box>
-                                        <ArrowRight className="action-arrow" size={18} style={{ color: '#9ca3af', transition: 'all 0.2s ease' }} />
-                                    </QuickActionCard>
-                                </Grid>
-                            ))}
-                        </Grid>
-                     </Paper>
-                </Grid>
-
-                {/* Recent Activities Section */}
-                <Grid item xs={12} lg={4}>
-                    <Paper sx={{ p: 3, borderRadius: CARD_BORDER_RADIUS / 1.5, border: '1px solid #e5e7eb', height: '100%' }}>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                            <Typography variant="h6" fontWeight={600}>Hoạt Động Gần Đây</Typography>
-                            <Chip size="small" label={`${recentActivities.length} mới`} sx={{ backgroundColor: '#fee2e2', color: '#ef4444' }} />
-                        </Stack>
-                        <Stack spacing={0}>
-                            {isLoadingActivities ? (
-                                Array.from(new Array(4)).map((_, index) => <Skeleton key={index} height={60} sx={{my: 1}} />)
-                            ) : (
-                                <AnimatePresence>
-                                    {recentActivities.map((activity, index) => (
-                                        <motion.div key={activity.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }}>
-                                            <ActivityItem>
-                                                <Avatar sx={{ width: 36, height: 36, backgroundColor: activity.type === 'success' ? '#d1fae5' : activity.type === 'warning' ? '#fef3c7' : activity.type === 'error' ? '#fee2e2' : '#e0e7ff', color: activity.type === 'success' ? '#10b981' : activity.type === 'warning' ? '#f59e0b' : activity.type === 'error' ? '#ef4444' : '#6366f1' }}>
-                                                    {activity.type === 'success' ? <CheckCircle size={18} /> : activity.type === 'warning' ? <AlertCircle size={18} /> : activity.type === 'error' ? <XCircle size={18} /> : <Activity size={18} />}
-                                                </Avatar>
-                                                <Box sx={{ flex: 1 }}>
-                                                    <Typography variant="body2" fontWeight={500}>{activity.title}</Typography>
-                                                    <Typography variant="caption" color="text.secondary">{activity.time}</Typography>
-                                                </Box>
-                                            </ActivityItem>
-                                        </motion.div>
-                                    ))}
-                                </AnimatePresence>
-                            )}
-                        </Stack>
-                    </Paper>
-                </Grid>
-            </Grid>
-        </DashboardContainer>
+                                            </CardContent>
+                                        </StyledCard>
+                                    </Link>
+                                </motion.div>
+                            </Grid>
+                        ))}
+                    </Grid>
+                </Box>
+            </Box>
+        </Box>
     );
-}
+};
+
+export default Home;

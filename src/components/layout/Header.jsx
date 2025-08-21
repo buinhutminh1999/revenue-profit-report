@@ -185,7 +185,7 @@ export default function Header() {
         { 
             id: 'dashboard',
             text: 'Tổng quan', 
-            to: '/', 
+            to: '/',
             icon: <Home size={18} />,
             description: 'Dashboard và thống kê'
         },

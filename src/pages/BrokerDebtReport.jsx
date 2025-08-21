@@ -146,6 +146,13 @@ const BASE_REPORT_STRUCTURE = [
                                 title: "Nợ phải thu xí nghiệp công ty",
                                 type: "item",
                             },
+                            {
+                                id: "A.3.2.5",
+                                stt: "e",
+                                code: "142",
+                                title: "Nợ phải thu Sao Việt - SX",
+                                type: "item",
+                            },
                         ],
                     },
                     {

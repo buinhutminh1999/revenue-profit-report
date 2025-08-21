@@ -564,7 +564,7 @@ export default function App() {
 function LayoutRoutes() {
     return (
         <Routes>
-            <Route element={<Layout />}>
+            <Route path="/" element={<Layout />}>
                 <Route
                     index
                     element={
