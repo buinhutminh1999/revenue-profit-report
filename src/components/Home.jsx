@@ -9,7 +9,8 @@ import { styled } from '@mui/material/styles';
 // Import icons từ Lucide React
 import { 
     Construction, Building, BookCheck, FileSpreadsheet, BarChart3, 
-    Landmark, ClipboardList, BookUser, PieChart, LineChart, TrendingUp
+    Landmark, ClipboardList, BookUser, PieChart, LineChart, TrendingUp,
+    FileCheck2 // <--- Thêm icon mới ở đây
 } from 'lucide-react';
 
 // Gộp tất cả chức năng và báo cáo vào một danh sách duy nhất
@@ -46,6 +47,16 @@ const allModules = [
         color: '#f59e0b',
         bgColor: '#fffbeb',
     },
+    // ▼▼▼ MODULE MỚI ĐƯỢC THÊM VÀO ĐÂY ▼▼▼
+    {
+        icon: <FileCheck2 size={28} />,
+        title: "Công Nợ Phải Thu",
+        to: "/accounts-receivable",
+        desc: "Theo dõi các khoản phải thu từ khách hàng",
+        color: '#ec4899', // Màu hồng
+        bgColor: '#fdf2f8', // Màu nền hồng nhạt
+    },
+    // ▲▲▲ KẾT THÚC MODULE MỚI ▲▲▲
     {
         icon: <BarChart3 size={28} />,
         title: "Bảng Cân Đối Kế Toán",
