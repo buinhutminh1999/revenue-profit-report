@@ -279,34 +279,51 @@ const OverallReportPageContent = () => {
 
     const initialDataPopulated = useRef(false);
 
-    useEffect(() => {
-        if (fetchedReportData) {
-            setData1(prev => ({ ...getInitialData1(), ...prev, ...fetchedReportData.data1 }));
-            setData2(prev => ({ ...getInitialData2(), ...prev, ...fetchedReportData.data2 }));
-        } else {
-            setData1(getInitialData1());
-            setData2(getInitialData2());
-        }
-    }, [fetchedReportData]);
+  // -------- BƯỚC 2: DÁN KHỐI MÃ MỚI NÀY VÀO --------
+useEffect(() => {
+    // Chỉ thực thi khi cả hai nguồn dữ liệu đã tải xong (không còn loading)
+    if (isReportLoading || isPrevCapitalReportLoading) {
+        return; // Nếu đang tải thì không làm gì cả
+    }
 
-    useEffect(() => {
-        if (!isPrevCapitalReportLoading && !initialDataPopulated.current) {
-            const dauKyNhaMay = previousCapitalReportData?.productionTotalActual || data1.vonNhaMay_dauKy || 0;
-            const dauKyThiCong = previousCapitalReportData?.constructionGrandTotalActual || data1.vonThiCong_dauKy || 0;
+    // Lấy tất cả dữ liệu đã lưu cho quý hiện tại (nếu có)
+    const savedData1 = fetchedReportData?.data1 || {};
+    const savedData2 = fetchedReportData?.data2 || {};
 
-            setData1(prev => ({
-                ...prev,
-                vonNhaMay_dauKy: dauKyNhaMay,
-                vonThiCong_dauKy: dauKyThiCong,
-            }));
-            initialDataPopulated.current = true;
-        }
-    }, [previousCapitalReportData, isPrevCapitalReportLoading, data1.vonNhaMay_dauKy, data1.vonThiCong_dauKy]);
+    // --- Logic ưu tiên cho cột ĐẦU KỲ ---
 
-    useEffect(() => {
-        initialDataPopulated.current = false;
-    }, [year, quarter]);
+    // Ưu tiên 1: Lấy giá trị ĐÃ LƯU cho quý hiện tại.
+    // Kiểm tra `!== undefined` để đảm bảo nếu người dùng lưu số 0 thì vẫn được công nhận.
+    const savedDauKyNhaMay = savedData1.vonNhaMay_dauKy;
+    const savedDauKyThiCong = savedData1.vonThiCong_dauKy;
 
+    // Ưu tiên 2: Lấy giá trị cuối kỳ của quý trước (logic cũ)
+    const prevCuoiKyNhaMay = previousCapitalReportData?.productionTotalActual;
+    const prevCuoiKyThiCong = previousCapitalReportData?.constructionGrandTotalActual;
+
+    // Quyết định giá trị cuối cùng sẽ hiển thị
+    const finalDauKyNhaMay = (savedDauKyNhaMay !== undefined)
+        ? savedDauKyNhaMay      // Nếu có số đã lưu, dùng nó
+        : prevCuoiKyNhaMay || 0; // Nếu không, dùng số của quý trước, hoặc 0
+
+    const finalDauKyThiCong = (savedDauKyThiCong !== undefined)
+        ? savedDauKyThiCong
+        : prevCuoiKyThiCong || 0;
+
+    // Cập nhật state một lần duy nhất với dữ liệu đã được xử lý
+    setData1({
+        ...getInitialData1(),
+        ...savedData1,
+        vonNhaMay_dauKy: finalDauKyNhaMay, // Ghi đè bằng giá trị đã qua logic ưu tiên
+        vonThiCong_dauKy: finalDauKyThiCong,
+    });
+
+    setData2({
+        ...getInitialData2(),
+        ...savedData2,
+    });
+
+}, [fetchedReportData, previousCapitalReportData, isReportLoading, isPrevCapitalReportLoading]);
 
     const debouncedSave = useCallback(debounce((dataToSave) => {
         toast.loading('Đang lưu...');
