@@ -1923,24 +1923,28 @@ const projects = await Promise.all(
                 >
                     <Table size="small" sx={{ minWidth: 1200 }}>
                         <TableHead
-                            sx={{
-                                position: "sticky",
-                                top: 0,
-                                zIndex: 100,
-                                backgroundColor: "#1565c0",
-                                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                                "& th": {
-                                    color: "#fff",
-                                    fontWeight: 700,
-                                    fontSize: { xs: 12, sm: 14, md: 16 },
-                                    textAlign: "center",
-                                    borderBottom: "2px solid #fff",
-                                    whiteSpace: "nowrap",
-                                    px: 2,
-                                    py: 1,
-                                },
-                            }}
-                        >
+    sx={{
+        position: "sticky",
+        top: 0,
+        zIndex: 100,
+        // Đặt nền xanh cho toàn bộ khu vực a
+        backgroundColor: "#1565c0", 
+        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+        
+        // Áp dụng style cho tất cả các ô tiêu đề (th) bên trong
+        "& th": {
+            color: "#ffffff !important", // Chữ màu trắng (thêm !important để ưu tiên)
+            backgroundColor: "#1565c0 !important", // Nền màu xanh (thêm !important để đảm bảo)
+            fontWeight: 700,
+            fontSize: { xs: 12, sm: 14, md: 16 },
+            textAlign: "center",
+            borderBottom: "2px solid #fff",
+            whiteSpace: "nowrap",
+            px: 2,
+            py: 1,
+        },
+    }}
+>
                             <TableRow>
                                 {[
                                     "CÔNG TRÌNH",
