@@ -346,7 +346,7 @@ const OverallReportPageContent = () => {
         });
         setData1(prev => ({ ...prev, dauKyCalculated: newDauKy, hienTaiCalculated: newHienTai }));
     }, [data1.accountCodes, balances, chartOfAccounts]);
-    
+
     // ✅ STEP 1: TỰ ĐỘNG TÍNH TOÁN CỘT "ĐÃ VAY" KHI SỐ HIỆU TK THAY ĐỔI
     useEffect(() => {
         if (!balances || !chartOfAccounts || !data2.tienVay) return;
@@ -390,13 +390,13 @@ const OverallReportPageContent = () => {
         const d_loiNhuanTM = (d_calc.phaiThuKhac || 0) - (d_calc.noPhaiTraKhac || 0);
         const h_loiNhuanTM = (h_calc.phaiThuKhac || 0) - (h_calc.noPhaiTraKhac || 0);
 
-        const d_taiSanCo = (d_calc.taiSanCongTy || 0) + (d_calc.taiSanNhaMay || 0) + (d_calc.phaiThuKhac || 0) + d_loiNhuanTM + (d_calc.tienMat || 0) + (d_calc.noPhaiTraKhac || 0);
+        const d_taiSanCo = (d_calc.taiSanCongTy || 0) + (d_calc.taiSanNhaMay || 0)  + d_loiNhuanTM + (d_calc.tienMat || 0)
         const d_vonSuDung = (data1.vonNhaMay_dauKy || 0) + (data1.vonThiCong_dauKy || 0) + (d_calc.vonChoVay || 0);
         const d_tongCongCo = d_taiSanCo + d_vonSuDung;
         const d_tongNo = (d_calc.vonVay || 0) + (d_calc.vonGop || 0);
         const d_tongGiaTri = d_tongCongCo - d_tongNo;
 
-        const h_taiSanCo = (h_calc.taiSanCongTy || 0) + (h_calc.taiSanNhaMay || 0) + (h_calc.phaiThuKhac || 0) + h_loiNhuanTM + (h_calc.tienMat || 0) + (h_calc.noPhaiTraKhac || 0);
+        const h_taiSanCo = (h_calc.taiSanCongTy || 0) + (h_calc.taiSanNhaMay || 0)  + h_loiNhuanTM + (h_calc.tienMat || 0) 
         const h_vonSuDung = (capitalReportData?.productionTotalActual || 0) + (capitalReportData?.constructionGrandTotalActual || 0) + (h_calc.vonChoVay || 0);
         const h_tongCongCo = h_taiSanCo + h_vonSuDung;
         const h_tongNo = (h_calc.vonVay || 0) + (h_calc.vonGop || 0);
@@ -407,13 +407,13 @@ const OverallReportPageContent = () => {
             hienTai: { taiSanCo: h_taiSanCo, vonSuDung: h_vonSuDung, tongCongCo: h_tongCongCo, tongNo: h_tongNo, tongGiaTri: h_tongGiaTri, loiNhuanTM: h_loiNhuanTM }
         };
     }, [data1, capitalReportData]);
-    
+
     // ✅ STEP 2: CẬP NHẬT LẠI CÁCH TÍNH TỔNG CHO BẢNG TIỀN VAY
     const totals2 = useMemo(() => {
         const soChuyenTiep = data2.taiSanQuyTruoc + data2.tmQuyTruoc;
         const loiNhuan3BP = data2.loiNhuanXayDung + data2.loiNhuanSanXuat + data2.khauHao + data2.tangGiamLoiNhuan + data2.dauTuDA + data2.lnChuyenSang;
         const tienSD3Mang = data2.tienXayDungSD + data2.tienSanXuatSD + data2.tienDauTuSD + data2.cpRuiRo + data2.dauTuNMMuon + data2.choMuonDoiTac;
-        
+
         // Tổng sẽ được tính dựa trên giá trị của từng dòng trong data2.tienVay
         const tienVayTotals = data2.tienVay.reduce((acc, item) => ({
             duocVay: acc.duocVay + item.duocVay,
@@ -422,7 +422,7 @@ const OverallReportPageContent = () => {
         }), { duocVay: 0, daVay: 0, conDuocVay: 0 });
 
         const no01Totals = data2.no01.reduce((acc, item) => ({ conLai: acc.conLai + (item.noDauKy + item.phatSinh - item.traNo) }), { conLai: 0 });
-        
+
         return { soChuyenTiep, loiNhuan3BP, tienSD3Mang, tienVayTotals, no01Totals };
     }, [data2]);
 

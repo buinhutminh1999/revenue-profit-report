@@ -12,11 +12,11 @@ import RequireRole from '../components/auth/RequireRole';
 
 // --- LAZY-LOAD CÁC TRANG ---
 const lazyLoad = (Component) => (
-  <Suspense fallback={<LoadingScreen isSuspense />}>
-    <PageTransition>
-      <Component />
-    </PageTransition>
-  </Suspense>
+    <Suspense fallback={<LoadingScreen isSuspense />}>
+        <PageTransition>
+            <Component />
+        </PageTransition>
+    </Suspense>
 );
 
 // Core Pages
@@ -35,7 +35,7 @@ const BalanceSheet = lazy(() => import('../pages/BalanceSheet'));
 const ChartOfAccountsPage = lazy(() => import('../pages/ChartOfAccountsPage'));
 const CostAllocationQuarter = lazy(() => import('../pages/CostAllocationQuarter'));
 const CategoryConfig = lazy(() => import('../pages/CategoryConfig'));
-
+const ProjectDetailsLayout = lazy(() => import('../pages/ProjectDetailsLayout'));
 // Report Modules
 const ProfitReportQuarter = lazy(() => import('../pages/ProfitReportQuarter'));
 const ProfitReportYear = lazy(() => import('../pages/ProfitReportYear'));
@@ -53,66 +53,71 @@ const CloseQuarterPage = lazy(() => import('../pages/CloseQuarterPage'));
 
 // --- COMPONENT ĐỊNH TUYẾN CHÍNH ---
 export default function Router() {
-  const { isAuthenticated, user } = useAuth(); // Lấy thêm 'user' để kiểm tra vai trò
+    const { isAuthenticated, user } = useAuth(); // Lấy thêm 'user' để kiểm tra vai trò
 
-  return (
-    <BrowserRouter>
-      <ProgressBar />
-      <Routes>
-        {/* Route công khai */}
-        <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : lazyLoad(LoginPage)} />
-        
-        {/* Route được bảo vệ, yêu cầu đăng nhập */}
-        <Route 
-          path="/*" 
-          element={isAuthenticated ? <Layout /> : <Navigate to="/login" replace />}
-        >
-            {/* Các route con sẽ được render bên trong Layout */}
-            <Route index element={lazyLoad(Home)} />
-            <Route path="user" element={lazyLoad(UserProfile)} />
+    return (
+        <BrowserRouter>
+            <ProgressBar />
+            <Routes>
+                {/* Route công khai */}
+                <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : lazyLoad(LoginPage)} />
 
-            {/* Các module chính */}
-            <Route path="construction-plan" element={lazyLoad(ConstructionPlan)} />
-            <Route path="project-manager" element={lazyLoad(ProjectsList)} />
-            <Route path="accounts-receivable" element={lazyLoad(AccountsReceivable)} />
-            <Route path="construction-payables" element={lazyLoad(ConstructionPayables)} />
-            <Route path="allocations" element={lazyLoad(CostAllocation)} />
-            <Route path="balance-sheet" element={lazyLoad(BalanceSheet)} />
-            <Route path="profit-change" element={lazyLoad(ProfitChange)} />
-            
-            {/* Các module báo cáo */}
-            <Route path="profit-report-quarter" element={lazyLoad(ProfitReportQuarter)} />
-            <Route path="profit-report-year" element={lazyLoad(ProfitReportYear)} />
-            <Route path="broker-debt-report" element={lazyLoad(BrokerDebtReport)} />
-            <Route path="overall-report" element={lazyLoad(OverallReportPage)} />
-            <Route path="capital-utilization" element={lazyLoad(CapitalUtilizationReport)} />
+                {/* Route được bảo vệ, yêu cầu đăng nhập */}
+                <Route
+                    path="/*"
+                    element={isAuthenticated ? <Layout /> : <Navigate to="/login" replace />}
+                >
+                    {/* Các route con sẽ được render bên trong Layout */}
+                    <Route index element={lazyLoad(Home)} />
+                    <Route path="user" element={lazyLoad(UserProfile)} />
 
-            {/* Các route yêu cầu quyền truy cập cụ thể */}
-            <Route 
-              path="cost-allocation-quarter" 
-              element={<RequireRole >{lazyLoad(CostAllocationQuarter)}</RequireRole>} 
-            />
-            <Route 
-              path="chart-of-accounts" 
-              element={<RequireRole >{lazyLoad(ChartOfAccountsPage)}</RequireRole>} 
-            />
-            <Route 
-              path="categories" 
-              element={<RequireRole >{lazyLoad(CategoryConfig)}</RequireRole>} 
-            />
+                    {/* Các module chính */}
+                    <Route path="construction-plan" element={lazyLoad(ConstructionPlan)} />
+                    <Route path="project-manager" element={lazyLoad(ProjectsList)} />
+                    <Route path="accounts-receivable" element={lazyLoad(AccountsReceivable)} />
+                    <Route path="construction-payables" element={lazyLoad(ConstructionPayables)} />
+                    <Route path="allocations" element={lazyLoad(CostAllocation)} />
+                    <Route path="balance-sheet" element={lazyLoad(BalanceSheet)} />
+                    <Route path="profit-change" element={lazyLoad(ProfitChange)} />
+                    <Route
+                        path="project-details/:id"
+                        element={
+                            lazyLoad(ProjectDetailsLayout)
+                        }
+                    />
+                    {/* Các module báo cáo */}
+                    <Route path="profit-report-quarter" element={lazyLoad(ProfitReportQuarter)} />
+                    <Route path="profit-report-year" element={lazyLoad(ProfitReportYear)} />
+                    <Route path="broker-debt-report" element={lazyLoad(BrokerDebtReport)} />
+                    <Route path="overall-report" element={lazyLoad(OverallReportPage)} />
+                    <Route path="capital-utilization" element={lazyLoad(CapitalUtilizationReport)} />
 
-            {/* Admin Routes */}
-            <Route path="admin">
-                <Route index element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminDashboard)}</RequireRole>} />
-                <Route path="users" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminUserManager)}</RequireRole>} />
-                <Route path="audit-log" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminAuditLog)}</RequireRole>} />
-                <Route path="close-quarter" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(CloseQuarterPage)}</RequireRole>} />
-            </Route>
+                    {/* Các route yêu cầu quyền truy cập cụ thể */}
+                    <Route
+                        path="cost-allocation-quarter"
+                        element={<RequireRole >{lazyLoad(CostAllocationQuarter)}</RequireRole>}
+                    />
+                    <Route
+                        path="chart-of-accounts"
+                        element={<RequireRole >{lazyLoad(ChartOfAccountsPage)}</RequireRole>}
+                    />
+                    <Route
+                        path="categories"
+                        element={<RequireRole >{lazyLoad(CategoryConfig)}</RequireRole>}
+                    />
 
-            {/* Trang không tìm thấy */}
-            <Route path="*" element={lazyLoad(NotFound)} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-  );
+                    {/* Admin Routes */}
+                    <Route path="admin">
+                        <Route index element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminDashboard)}</RequireRole>} />
+                        <Route path="users" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminUserManager)}</RequireRole>} />
+                        <Route path="audit-log" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminAuditLog)}</RequireRole>} />
+                        <Route path="close-quarter" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(CloseQuarterPage)}</RequireRole>} />
+                    </Route>
+
+                    {/* Trang không tìm thấy */}
+                    <Route path="*" element={lazyLoad(NotFound)} />
+                </Route>
+            </Routes>
+        </BrowserRouter>
+    );
 }
