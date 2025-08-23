@@ -32,27 +32,22 @@ const ACCOUNTS_COLLECTION = 'chartOfAccounts';
 const BALANCES_COLLECTION = 'accountBalances';
 
 const syncedCellsConfig = {
-    '131': ['cuoiKyCo'], '132': ['cuoiKyNo'], '133': ['cuoiKyNo'], '134': ['cuoiKyNo'],
+    '131': ['cuoiKyCo'], '132': ['cuoiKyNo'], '133': ['cuoiKyNo'], '134': ['cuoiKyNo'], '142': ['cuoiKyNo'],
     '135': ['cuoiKyNo'], '339': ['cuoiKyCo'], '338': ['cuoiKyCo'],
     '139': ['cuoiKyCo'], '140': ['cuoiKyNo'], '332': ['cuoiKyCo'], '333': ['cuoiKyCo'],
+
 };
 
-
-// ✅ COMPONENT DIALOG ĐÃ SỬA LỖI "RULES OF HOOKS"
+// Dán và thay thế toàn bộ component này trong file BalanceSheet.js
 const CalculationDetailDialog = ({ open, onClose, data }) => {
     const theme = useTheme();
 
-    // 1. Di chuyển useMemo lên đầu, trước tất cả các câu lệnh return có điều kiện.
     const groupedData = useMemo(() => {
-        if (!data?.items) return {};
-        
-        // Bước 1: Gom nhóm các item theo tên công trình
+        if (!data?.items || data.type !== 'itemDetail') return {};
         const groupedByProject = data.items.reduce((acc, item) => {
             (acc[item.projectName] = acc[item.projectName] || []).push(item);
             return acc;
         }, {});
-
-        // Bước 2: Với mỗi nhóm, tính toán tổng phụ
         Object.keys(groupedByProject).forEach(projectName => {
             const items = groupedByProject[projectName];
             const totals = items.reduce((acc, item) => {
@@ -61,15 +56,11 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
                 acc.result += item.result;
                 return acc;
             }, { noPhaiTraCK: 0, debt: 0, result: 0 });
-
-            // Gán lại cấu trúc dữ liệu
             groupedByProject[projectName] = { items, totals };
         });
-
         return groupedByProject;
-    }, [data?.items]);
+    }, [data]);
 
-    // 2. Câu lệnh return có điều kiện bây giờ nằm sau Hook, hoàn toàn hợp lệ.
     if (!data) return null;
 
     const formatNumber = (num) => (num || 0).toLocaleString('vi-VN');
@@ -79,21 +70,107 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
             toast.error("Không có dữ liệu để xuất.");
             return;
         }
-        const worksheetData = data.items.map(item => ({
-            'Tên Công Trình': item.projectName,
-            'Khoản Mục': item.description,
-            'Nợ Phải Trả CK': item.noPhaiTraCK,
-            'Nợ Phải Trả ĐK (debt)': item.debt,
-            'Kết quả': item.result
-        }));
+        const worksheetData = data.items.map(item => {
+            if (data.type === 'constructionPayablesSummary') {
+                return {
+                    'Tên Công Trình': item.projectName,
+                    'Diễn Giải': item.description,
+                    'Cuối Kỳ Có': item.carryover,
+                    'Cuối Kỳ Nợ': item.tonCuoiKy,
+                    'Kết quả': item.result
+                };
+            }
+            return {
+                'Tên Công Trình': item.projectName,
+                'Khoản Mục': item.description,
+                'Nợ Phải Trả CK': item.noPhaiTraCK,
+                'Nợ Phải Trả ĐK (debt)': item.debt,
+                'Kết quả': item.result
+            };
+        });
         const worksheet = XLSX.utils.json_to_sheet(worksheetData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "ChiTietTinhToan");
         XLSX.writeFile(workbook, `${data.title.replace(/\s/g, '_')}.xlsx`);
     };
 
+    const headerHeight = 40;
+
+    const renderTable = () => {
+        if (data.type === 'constructionPayablesSummary') {
+            return (
+                <Table size="small" stickyHeader>
+                    <TableHead>
+                        <TableRow>
+                            <TableCell sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Tên Công Trình</TableCell>
+                            <TableCell sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Diễn Giải</TableCell>
+                            <TableCell align="right" sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Cuối Kỳ Có</TableCell>
+                            <TableCell align="right" sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Cuối Kỳ Nợ</TableCell>
+                            <TableCell align="right" sx={{ backgroundColor: 'background.paper', fontWeight: 'bold', zIndex: 10 }}>Kết quả</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {data.items.length > 0 ? data.items.map((item, index) => (
+                            <TableRow key={index} hover>
+                                <TableCell>{item.projectName}</TableCell>
+                                <TableCell>{item.description}</TableCell>
+                                <TableCell align="right">{formatNumber(item.carryover)}</TableCell>
+                                <TableCell align="right">{formatNumber(item.tonCuoiKy)}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(item.result)}</TableCell>
+                            </TableRow>
+                        )) : (
+                            <TableRow><TableCell colSpan={5} align="center" sx={{ py: 4 }}><Typography color="text.secondary">Không có khoản mục chi tiết nào.</Typography></TableCell></TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            );
+        }
+
+        return (
+            <Table size="small" stickyHeader>
+                <TableHead>
+                    <TableRow>
+                        <TableCell sx={{ width: '30%', backgroundColor: 'background.paper', zIndex: 10 }}>Khoản Mục</TableCell>
+                        <TableCell align="right" sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Nợ Phải Trả CK</TableCell>
+                        <TableCell align="right" sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Nợ Phải Trả ĐK (debt)</TableCell>
+                        <TableCell align="right" sx={{ backgroundColor: 'background.paper', fontWeight: 'bold', zIndex: 10 }}>Kết quả</TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {Object.keys(groupedData).length > 0 ? Object.keys(groupedData).map(projectName => (
+                        <React.Fragment key={projectName}>
+                            <TableRow>
+                                <TableCell colSpan={4} sx={{ fontWeight: 'bold', backgroundColor: theme.palette.grey[200], position: 'sticky', top: headerHeight, zIndex: 5 }}>
+                                    Công trình: {projectName}
+                                </TableCell>
+                            </TableRow>
+                            {groupedData[projectName].items.map((item, index) => (
+                                <TableRow key={index} sx={{ '&:nth-of-type(odd)': { backgroundColor: theme.palette.background.default } }}>
+                                    <TableCell sx={{ pl: 4 }}>{item.description}</TableCell>
+                                    <TableCell align="right">{formatNumber(item.noPhaiTraCK)}</TableCell>
+                                    <TableCell align="right">{formatNumber(item.debt)}</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(item.result)}</TableCell>
+                                </TableRow>
+                            ))}
+                            <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
+                                <TableCell align="right" sx={{ fontWeight: 'bold', fontStyle: 'italic' }}>Tổng công trình</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(groupedData[projectName].totals.noPhaiTraCK)}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(groupedData[projectName].totals.debt)}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                                    {formatNumber(groupedData[projectName].totals.result)}
+                                </TableCell>
+                            </TableRow>
+                        </React.Fragment>
+                    )) : (
+                        <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4 }}><Typography color="text.secondary">Không có khoản mục chi tiết nào.</Typography></TableCell></TableRow>
+                    )}
+                </TableBody>
+            </Table>
+        );
+    };
+
     return (
-        <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" PaperProps={{ sx: { height: '90vh' } }}>
+        <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg" PaperProps={{ sx: { height: '90vh' } }}>
             <DialogTitle sx={{ p: 2, backgroundColor: 'background.paper', borderBottom: `1px solid ${theme.palette.divider}` }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Box>
@@ -103,75 +180,22 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
                         </Typography>
                     </Box>
                     <Stack direction="row" spacing={1}>
-                        <Button
-                            variant="outlined"
-                            startIcon={<DescriptionIcon />}
-                            onClick={handleExport}
-                            disabled={!data.items || data.items.length === 0}
-                        >
+                        <Button variant="outlined" startIcon={<DescriptionIcon />} onClick={handleExport} disabled={!data.items || data.items.length === 0}>
                             Xuất Excel
                         </Button>
-                        <IconButton onClick={onClose} sx={{ ml: 2 }}>
-                            <CloseIcon />
-                        </IconButton>
+                        <IconButton onClick={onClose} sx={{ ml: 2 }}><CloseIcon /></IconButton>
                     </Stack>
                 </Stack>
             </DialogTitle>
-
-            <DialogContent dividers sx={{ p: 2, bgcolor: 'action.hover' }}>
-                <TableContainer component={Paper} variant="outlined">
-                    <Table size="small" stickyHeader> 
-                        <TableHead>
-                            <TableRow>
-                                <TableCell sx={{width: '30%', backgroundColor: 'background.paper'}}>Khoản Mục</TableCell>
-                                <TableCell align="right" sx={{backgroundColor: 'background.paper'}}>Nợ Phải Trả CK</TableCell>
-                                <TableCell align="right" sx={{backgroundColor: 'background.paper'}}>Nợ Phải Trả ĐK (debt)</TableCell>
-                                <TableCell align="right" sx={{backgroundColor: 'background.paper', fontWeight: 'bold' }}>Kết quả</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {Object.keys(groupedData).length > 0 ? Object.keys(groupedData).map(projectName => (
-                                <React.Fragment key={projectName}>
-                                    <TableRow sx={{ backgroundColor: theme.palette.grey[200] }}>
-                                        <TableCell colSpan={4} sx={{ fontWeight: 'bold' }}>
-                                            Công trình: {projectName}
-                                        </TableCell>
-                                    </TableRow>
-                                    {groupedData[projectName].items.map((item, index) => (
-                                        <TableRow key={index} sx={{ '&:nth-of-type(odd)': { backgroundColor: theme.palette.background.default } }}>
-                                            <TableCell sx={{ pl: 4 }}>{item.description}</TableCell>
-                                            <TableCell align="right">{formatNumber(item.noPhaiTraCK)}</TableCell>
-                                            <TableCell align="right">{formatNumber(item.debt)}</TableCell>
-                                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(item.result)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                    <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                                        <TableCell align="right" sx={{ fontWeight: 'bold', fontStyle: 'italic' }}>Tổng công trình</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(groupedData[projectName].totals.noPhaiTraCK)}</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(groupedData[projectName].totals.debt)}</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                                            {formatNumber(groupedData[projectName].totals.result)}
-                                        </TableCell>
-                                    </TableRow>
-                                </React.Fragment>
-                            )) : (
-                                <TableRow>
-                                    <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
-                                        <Typography color="text.secondary">Không có khoản mục chi tiết nào.</Typography>
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+            <DialogContent dividers sx={{ p: 0, bgcolor: 'action.hover' }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ height: '100%' }}>
+                    {renderTable()}
                 </TableContainer>
             </DialogContent>
-            
             <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}`, backgroundColor: 'background.paper' }}>
                 <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={2}>
-                    <Typography variant="h6" sx={{fontWeight: 'bold'}}>TỔNG CỘNG TOÀN BỘ:</Typography>
-                    <Typography variant="h5" color="primary" sx={{fontWeight: 'bold'}}>
-                        {formatNumber(data.total)}
-                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>TỔNG CỘNG TOÀN BỘ:</Typography>
+                    <Typography variant="h5" color="primary" sx={{ fontWeight: 'bold' }}>{formatNumber(data.total)}</Typography>
                 </Stack>
             </Box>
         </Dialog>
@@ -179,18 +203,77 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
 };
 const useAccountsStructure = () => { return useQuery('accountsStructure', async () => { const q = query(collection(db, ACCOUNTS_COLLECTION), orderBy('accountId')); const snapshot = await getDocs(q); return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); }, { staleTime: Infinity }); };
 const useAccountBalances = (year, quarter) => { return useQuery(['accountBalances', year, quarter], async () => { const balancesObject = {}; const q = query(collection(db, BALANCES_COLLECTION), where("year", "==", year), where("quarter", "==", quarter)); const querySnapshot = await getDocs(q); querySnapshot.forEach((doc) => { balancesObject[doc.data().accountId] = doc.data(); }); return balancesObject; }, { keepPreviousData: true }); };
+// Dán và thay thế toàn bộ hook này
 const useMutateBalances = () => {
     const queryClient = useQueryClient();
+
     const updateBalanceMutation = useMutation(
         async ({ accountId, year, quarter, field, value }) => {
+            const batch = writeBatch(db); // Sử dụng batch để đảm bảo 2 thao tác cùng thành công hoặc thất bại
+
+            // --- Thao tác 1: Cập nhật số dư cho kỳ HIỆN TẠI (như cũ) ---
             const docId = `${accountId}_${year}_${quarter}`;
             const docRef = doc(db, BALANCES_COLLECTION, docId);
             const dataToSet = { accountId, year, quarter, [field]: value };
-            if (field === 'dauKyNo' || field === 'dauKyCo') { dataToSet.isCarriedOver = false; }
-            await setDoc(docRef, dataToSet, { merge: true });
+
+            // Nếu người dùng sửa trực tiếp số dư đầu kỳ, gỡ cờ "isCarriedOver" để mở khóa
+            if (field === 'dauKyNo' || field === 'dauKyCo') {
+                dataToSet.isCarriedOver = false;
+            }
+            batch.set(docRef, dataToSet, { merge: true });
+
+            // --- Thao tác 2: LOGIC MỚI - Tự động cập nhật cho kỳ SAU ---
+            // Chỉ thực hiện khi trường được cập nhật là số dư CUỐI KỲ
+            if (field === 'cuoiKyNo' || field === 'cuoiKyCo') {
+                // 1. Tính toán kỳ kế tiếp
+                let nextYear = year;
+                let nextQuarter = quarter + 1;
+                if (nextQuarter > 4) {
+                    nextQuarter = 1;
+                    nextYear = year + 1;
+                }
+
+                // 2. Xác định trường tương ứng ở kỳ sau ('cuoiKyNo' -> 'dauKyNo')
+                const nextField = (field === 'cuoiKyNo') ? 'dauKyNo' : 'dauKyCo';
+
+                // 3. Chuẩn bị dữ liệu để cập nhật cho kỳ sau
+                const nextDocId = `${accountId}_${nextYear}_${nextQuarter}`;
+                const nextDocRef = doc(db, BALANCES_COLLECTION, nextDocId);
+                const nextDataToSet = {
+                    accountId,
+                    year: nextYear,
+                    quarter: nextQuarter,
+                    [nextField]: value, // Giá trị cuối kỳ này là giá trị đầu kỳ sau
+                    isCarriedOver: true  // Đặt cờ để khóa ô này ở giao diện kỳ sau
+                };
+                batch.set(nextDocRef, nextDataToSet, { merge: true });
+            }
+
+            // Thực hiện cả 2 thao tác ghi cùng lúc
+            await batch.commit();
         },
-        { onSuccess: (_, variables) => { toast.success(`Đã cập nhật [${variables.field}] cho TK ${variables.accountId}`); queryClient.invalidateQueries(['accountBalances', variables.year, variables.quarter]); }, onError: (error) => toast.error(`Lỗi cập nhật: ${error.message}`) }
+        {
+            onSuccess: (_, variables) => {
+                // Làm mới dữ liệu cho cả kỳ hiện tại và kỳ sau để giao diện cập nhật
+                queryClient.invalidateQueries(['accountBalances', variables.year, variables.quarter]);
+
+                if (variables.field === 'cuoiKyNo' || variables.field === 'cuoiKyCo') {
+                    let nextYear = variables.year;
+                    let nextQuarter = variables.quarter + 1;
+                    if (nextQuarter > 4) {
+                        nextQuarter = 1;
+                        nextYear = variables.year + 1;
+                    }
+                    // Quan trọng: Phải làm mới cả quý sau thì mới thấy thay đổi nếu đang mở
+                    queryClient.invalidateQueries(['accountBalances', nextYear, nextQuarter]);
+                }
+
+                toast.success(`Đã cập nhật [${variables.field}] cho TK ${variables.accountId}`);
+            },
+            onError: (error) => toast.error(`Lỗi cập nhật: ${error.message}`)
+        }
     );
+
     return { updateBalanceMutation };
 };
 
@@ -202,8 +285,9 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
     const theme = useTheme();
 
     const isCarriedOverLocked = (fieldName === 'dauKyNo' || fieldName === 'dauKyCo') && account.isCarriedOver === true;
-    const isSyncedLocked = syncedCellsConfig[account.accountId]?.includes(fieldName);
-    const isLocked = isCarriedOverLocked || isSyncedLocked;
+    const isSyncedLocked =
+        syncedCellsConfig[account.accountId]?.includes(fieldName) &&
+        (year !== 2025 || quarter !== 1); const isLocked = isCarriedOverLocked || isSyncedLocked;
 
     const getNumberColor = () => {
         if (fieldName.endsWith('No')) return theme.palette.info.dark;
@@ -318,44 +402,15 @@ const BalanceSheet = () => {
     const [detailData, setDetailData] = useState(null);
     const [actionsMenuAnchor, setActionsMenuAnchor] = useState(null);
 
-    // Tự động chuyển số dư đầu kỳ
-    useEffect(() => {
-        if (!accounts || !balances || isAccountsLoading || isBalancesLoading) return;
-        const hasOpeningBalance = Object.values(balances).some(b => (b.dauKyNo && b.dauKyNo > 0) || (b.dauKyCo && b.dauKyCo > 0));
-        if (hasOpeningBalance) return;
-        const carryOverAutomatically = async () => {
-            let prevYear = selectedYear; let prevQuarter = selectedQuarter - 1;
-            if (prevQuarter === 0) { prevQuarter = 4; prevYear = selectedYear - 1; }
-            const q = query(collection(db, BALANCES_COLLECTION), where("year", "==", prevYear), where("quarter", "==", prevQuarter));
-            const prevQuarterSnapshot = await getDocs(q);
-            if (prevQuarterSnapshot.empty) return;
-            const updates = [];
-            prevQuarterSnapshot.forEach((doc) => {
-                const data = doc.data();
-                if ((data.cuoiKyNo && data.cuoiKyNo > 0) || (data.cuoiKyCo && data.cuoiKyCo > 0)) {
-                    updates.push({ accountId: data.accountId, dauKyNo: data.cuoiKyNo || 0, dauKyCo: data.cuoiKyCo || 0 });
-                }
-            });
-            if (updates.length === 0) return;
-            try {
-                const batch = writeBatch(db);
-                updates.forEach(update => {
-                    const docId = `${update.accountId}_${selectedYear}_${selectedQuarter}`;
-                    const docRef = doc(db, BALANCES_COLLECTION, docId);
-                    batch.set(docRef, { ...update, year: selectedYear, quarter: selectedQuarter, isCarriedOver: true }, { merge: true });
-                });
-                await batch.commit();
-                toast.success(`Đã tự động cập nhật số dư đầu kỳ từ Quý ${prevQuarter}/${prevYear}.`);
-                queryClient.invalidateQueries(['accountBalances', selectedYear, selectedQuarter]);
-            } catch (error) { console.error("Lỗi tự động chuyển số dư:", error); toast.error("Lỗi khi tự động chuyển số dư."); }
-        };
-        carryOverAutomatically();
-    }, [balances, selectedYear, selectedQuarter, accounts, queryClient, isAccountsLoading, isBalancesLoading]);
+    // Dán và thay thế toàn bộ hook useEffect này trong file BalanceSheet.js
 
     // Logic đồng bộ hóa dữ liệu từ các nguồn khác
     useEffect(() => {
-        const syncExternalData = async () => {
-            if (!accounts || !balances || isBalancesLoading) return;
+       const syncExternalData = async () => {
+        // >>> THÊM DÒNG NÀY VÀO ĐỂ DỪNG LOGIC TỰ ĐỘNG Ở Q1 2025 <<<
+        if (selectedYear === 2025 && selectedQuarter === 1) return;
+
+        if (!accounts || !balances || isBalancesLoading) return;
 
             const toNumber = (value) => {
                 if (typeof value === 'number') return value;
@@ -365,7 +420,7 @@ const BalanceSheet = () => {
             };
 
             try {
-                // --- Phần 1: Đồng bộ từ Báo cáo Công nợ (Không đổi) ---
+                // --- Phần 1: Đồng bộ từ Báo cáo Công nợ (GIỮ NGUYÊN NHƯ CŨ) ---
                 const receivableDocRef = doc(db, `accountsReceivable/${selectedYear}/quarters`, `Q${selectedQuarter}`);
                 const receivableDocSnap = await getDoc(receivableDocRef);
 
@@ -374,11 +429,13 @@ const BalanceSheet = () => {
                     const rules = {
                         '131': { field: 'cuoiKyCo', source: receivableData?.kh_sx_ut?.openingDebit },
                         '132': { field: 'cuoiKyNo', source: receivableData?.kh_dt?.openingDebit },
-                        '133': { field: 'cuoiKyNo', source: (receivableData?.pt_kh_sx?.openingDebit || 0) + (receivableData?.pt_nb_xn_sx?.openingDebit || 0) },
+                        '133': { field: 'cuoiKyNo', source: receivableData?.pt_kh_sx?.openingDebit },
                         '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.openingDebit },
                         '135': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.openingDebit },
                         '139': { field: 'cuoiKyCo', source: receivableData?.grand_total?.openingCredit },
                         '140': { field: 'cuoiKyNo', source: receivableData?.pt_dd_ct?.openingDebit },
+                        '142': { field: 'cuoiKyNo', source: receivableData?.pt_sv_sx?.openingDebit },
+
                     };
                     for (const accountId in rules) {
                         const rule = rules[accountId];
@@ -388,18 +445,17 @@ const BalanceSheet = () => {
                     }
                 }
 
-                // --- Phần 2: Đồng bộ từ tất cả các công trình ---
+                // --- Phần 2: Đồng bộ từ công trình VỚI LOGIC MỚI CHO 332, 333, 338, 339 ---
                 const projectsQuery = query(collection(db, 'projects'));
                 const projectsSnapshot = await getDocs(projectsQuery);
 
-                let totalFor339 = 0;
                 let totalFor338 = 0;
                 let totalFor332 = 0;
-                let totalFor333 = 0; // <-- KHỞI TẠO BIẾN MỚI
+                let totalFor333 = 0;
+                let totalFor339 = 0; // Gom 339 vào đây
 
                 if (!projectsSnapshot.empty) {
                     const allProjectsData = projectsSnapshot.docs.map(p => ({ id: p.id, ...p.data() }));
-
                     const quarterDocPromises = allProjectsData.map(p => getDoc(doc(db, `projects/${p.id}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`)));
                     const quarterDocSnapshots = await Promise.all(quarterDocPromises);
 
@@ -407,44 +463,33 @@ const BalanceSheet = () => {
                         if (quarterDocSnap.exists()) {
                             const projectInfo = allProjectsData[index];
                             const items = quarterDocSnap.data().items || [];
+                            const grandTotalRevenue = items.reduce((sum, item) => sum + toNumber(item.revenue || 0), 0);
 
                             items.forEach(item => {
-                                const noPhaiTraCK = toNumber(item.noPhaiTraCK);
-                                const debtValue = toNumber(item.debt);
-                                const calculatedValue = noPhaiTraCK - debtValue;
+                                // Công thức tính chung giống TK 338
+                                const psNo = grandTotalRevenue > 0 ? toNumber(item.noPhaiTraCK) : 0;
+                                const psGiam = grandTotalRevenue === 0 ? toNumber(item.directCost) : toNumber(item.debt);
+                                const dauKyNo = toNumber(item.debt);
+                                const dauKyCo = toNumber(item.openingCredit);
+                                const cuoiKyNo = Math.max(dauKyNo + psNo - psGiam - dauKyCo, 0);
+                                const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
+                                const result = cuoiKyNo - cuoiKyCo;
 
-                                // Điều kiện cho TK 339, 338 (không đổi)
-                                if (item.description === "Chi phí NC + VT để bảo hành công trình") { totalFor339 += calculatedValue; }
-                                if (item.description === "Chi phí dự phòng rủi ro") { totalFor338 += calculatedValue; }
-
-                                // Điều kiện cho TK 332 (không đổi)
-                                if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-VT')) {
-                                    totalFor332 += calculatedValue;
-                                }
-
-                                // ✅ ĐIỀU KIỆN MỚI CHO TK 333
-                                if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-NC')) {
-                                    totalFor333 += calculatedValue;
-                                }
+                                // Phân loại kết quả vào đúng tài khoản
+                                if (item.description === "Chi phí dự phòng rủi ro") totalFor338 += result;
+                                if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-VT')) totalFor332 += result;
+                                if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-NC')) totalFor333 += result;
+                                if (item.description === "Chi phí NC + VT để bảo hành công trình") totalFor339 += result;
                             });
                         }
                     });
                 }
 
-                // Cập nhật các tài khoản
-                if (totalFor339 !== balances['339']?.cuoiKyCo) {
-                    updateBalanceMutation.mutate({ accountId: '339', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor339 });
-                }
-                if (totalFor338 !== balances['338']?.cuoiKyCo) {
-                    updateBalanceMutation.mutate({ accountId: '338', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor338 });
-                }
-                if (totalFor332 !== balances['332']?.cuoiKyCo) {
-                    updateBalanceMutation.mutate({ accountId: '332', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor332 });
-                }
-                // ✅ CẬP NHẬT TỔNG CUỐI CÙNG VÀO TK 333
-                if (totalFor333 !== balances['333']?.cuoiKyCo) {
-                    updateBalanceMutation.mutate({ accountId: '333', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor333 });
-                }
+                // Cập nhật các tài khoản vào Firestore
+                if (totalFor338 !== balances['338']?.cuoiKyCo) { updateBalanceMutation.mutate({ accountId: '338', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor338 }); }
+                if (totalFor332 !== balances['332']?.cuoiKyCo) { updateBalanceMutation.mutate({ accountId: '332', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor332 }); }
+                if (totalFor333 !== balances['333']?.cuoiKyCo) { updateBalanceMutation.mutate({ accountId: '333', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor333 }); }
+                if (totalFor339 !== balances['339']?.cuoiKyCo) { updateBalanceMutation.mutate({ accountId: '339', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor339 }); }
 
             } catch (error) {
                 console.error("Lỗi khi đồng bộ dữ liệu ngoài:", error);
@@ -454,8 +499,11 @@ const BalanceSheet = () => {
         syncExternalData();
     }, [selectedYear, selectedQuarter, accounts, balances, updateBalanceMutation, isBalancesLoading]);
 
-   const handleShowDetails = useCallback(async (accountId) => {
+    // Dán và thay thế toàn bộ hàm này trong file BalanceSheet.js
+    const handleShowDetails = useCallback(async (accountId) => {
+        // Chỉ chạy cho các tài khoản được hỗ trợ xem chi tiết
         if (!['338', '339', '332', '333'].includes(accountId)) return;
+
         const toastId = toast.loading("Đang lấy dữ liệu chi tiết...");
         const toNumber = (value) => {
             if (typeof value === 'number') return value;
@@ -463,45 +511,79 @@ const BalanceSheet = () => {
             const cleanedValue = value.trim().replace(/\./g, '').replace(/,/g, '');
             return isNaN(parseFloat(cleanedValue)) ? 0 : parseFloat(cleanedValue);
         };
+
         try {
+            // Cấu hình riêng cho từng tài khoản
+            const accountConfigs = {
+                '338': { title: 'Chi tiết TK 338 (Chi phí dự phòng rủi ro)', filter: (item, proj) => item.description === "Chi phí dự phòng rủi ro" },
+                '332': { title: 'Chi tiết TK 332 (Vật tư)', filter: (item, proj) => proj.type !== 'Nhà máy' && item.project?.includes('-VT') },
+                '333': { title: 'Chi tiết TK 333 (Nhân công)', filter: (item, proj) => proj.type !== 'Nhà máy' && item.project?.includes('-NC') },
+                '339': { title: 'Chi tiết TK 339 (Bảo hành công trình)', filter: (item, proj) => item.description === "Chi phí NC + VT để bảo hành công trình" }
+            };
+
+            const currentConfig = accountConfigs[accountId];
+            if (!currentConfig) {
+                toast.error(`Chưa có cấu hình chi tiết cho TK ${accountId}`, { id: toastId });
+                return;
+            }
+
             const projectsQuery = query(collection(db, 'projects'));
             const projectsSnapshot = await getDocs(projectsQuery);
             if (projectsSnapshot.empty) {
                 toast.error("Không tìm thấy công trình nào để tính toán.", { id: toastId });
                 return;
             }
-            let totalValue = 0; const detailItems = []; let dialogTitle = '';
+
             const allProjectsData = projectsSnapshot.docs.map(p => ({ id: p.id, ...p.data() }));
             const quarterDocPromises = allProjectsData.map(p => getDoc(doc(db, `projects/${p.id}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`)));
             const quarterDocSnapshots = await Promise.all(quarterDocPromises);
+
+            let totalValue = 0;
+            const detailItems = [];
+
+            // Logic hiển thị chi tiết dùng chung cho cả 4 tài khoản
             quarterDocSnapshots.forEach((quarterDocSnap, index) => {
                 if (quarterDocSnap.exists()) {
                     const projectInfo = allProjectsData[index];
                     const items = quarterDocSnap.data().items || [];
-                    items.forEach(item => {
-                        const noPhaiTraCK = toNumber(item.noPhaiTraCK);
-                        const debtValue = toNumber(item.debt);
-                        const result = noPhaiTraCK - debtValue;
-                        if ((accountId === '339' && item.description === "Chi phí NC + VT để bảo hành công trình") || (accountId === '338' && item.description === "Chi phí dự phòng rủi ro") || (accountId === '332' && projectInfo.type !== 'Nhà máy' && item.project?.includes('-VT')) || (accountId === '333' && projectInfo.type !== 'Nhà máy' && item.project?.includes('-NC'))) {
-                            totalValue += result;
-                            detailItems.push({ projectName: projectInfo.name || 'Không rõ', description: item.description, noPhaiTraCK, debt: debtValue, result });
-                        }
+                    const grandTotalRevenue = items.reduce((sum, item) => sum + toNumber(item.revenue || 0), 0);
+                    const filteredItems = items.filter(item => currentConfig.filter(item, projectInfo));
+
+                    filteredItems.forEach(item => {
+                        const psNo = grandTotalRevenue > 0 ? toNumber(item.noPhaiTraCK) : 0;
+                        const psGiam = grandTotalRevenue === 0 ? toNumber(item.directCost) : toNumber(item.debt);
+                        const dauKyNo = toNumber(item.debt);
+                        const dauKyCo = toNumber(item.openingCredit);
+                        const cuoiKyNo = Math.max(dauKyNo + psNo - psGiam - dauKyCo, 0);
+                        const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
+                        const result = cuoiKyNo - cuoiKyCo;
+
+                        totalValue += result;
+                        detailItems.push({
+                            projectName: projectInfo.name || 'Không rõ',
+                            description: item.description,
+                            tonCuoiKy: cuoiKyNo, // Cuối Kỳ Nợ
+                            carryover: cuoiKyCo, // Cuối Kỳ Có
+                            result: result,
+                        });
                     });
                 }
             });
-            if(accountId === '339') dialogTitle = 'Chi tiết tính toán TK 339 - Chi phí bảo hành';
-            else if (accountId === '338') dialogTitle = 'Chi tiết tính toán TK 338 - Chi phí dự phòng';
-            else if (accountId === '332') dialogTitle = 'Chi tiết tính toán TK 332 - Công trình có VT';
-            else if (accountId === '333') dialogTitle = 'Chi tiết tính toán TK 333 - Công trình có NC';
-            setDetailData({ title: dialogTitle, items: detailItems, total: totalValue });
+
+            setDetailData({
+                title: currentConfig.title,
+                type: 'constructionPayablesSummary', // Luôn dùng dialog kiểu của TK 338
+                items: detailItems,
+                total: totalValue
+            });
             setDetailDialogOpen(true);
             toast.dismiss(toastId);
+
         } catch (error) {
             console.error("Lỗi khi lấy chi tiết tính toán:", error);
             toast.error("Không thể lấy dữ liệu chi tiết.", { id: toastId });
         }
     }, [selectedYear, selectedQuarter]);
-
     const handleDeleteByPeriod = async () => {
         const confirmation = window.confirm(`BẠN CÓ CHẮC CHẮN MUỐN XÓA TOÀN BỘ DỮ LIỆU SỐ DƯ CỦA QUÝ ${selectedQuarter}/${selectedYear} KHÔNG?\n\n⚠️ Thao tác này KHÔNG THỂ hoàn tác!`);
         if (!confirmation) return;
