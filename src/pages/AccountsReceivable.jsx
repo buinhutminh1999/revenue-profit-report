@@ -16,19 +16,69 @@ import { collection, onSnapshot, query, addDoc, deleteDoc, writeBatch, where, ge
 import { toNum } from "../utils/numberUtils";
 
 // DATA & CONFIG
-const categories = [ { id: 'thi_cong', label: 'I. Thi công', children: [ { id: 'pt_cdt_xd', label: 'I.1. Phải thu chủ đầu tư - XD' }, { id: 'pt_dd_ct', label: 'I.2. Nợ phải thu dở dang công trình' }, ] }, { id: 'nha_may', label: 'II. Nhà máy', children: [ { id: 'pt_kh_sx', label: 'II.1. Phải thu khách hàng - SX' }, { id: 'pt_nb_xn_sx', label: 'II.2. Phải thu nội bộ XN - SX' }, { id: 'kh_sx_ut', label: 'II.3. Khách hàng sản xuất ứng trước tiền hàng' }, ] }, { id: 'kh_dt', label: 'III. KH-ĐT' }, { id: 'khac', label: 'IV. Nợ phải thu khác' } ];
-const tableColumns = [ { field: "project", headerName: "Diễn giải", type: "string" }, { field: "openingDebit", headerName: "Phải Thu ĐK", type: "number" }, { field: "openingCredit", headerName: "Trả Trước ĐK", type: "number" }, { field: "debitIncrease", headerName: "Phát Sinh Tăng", type: "number" }, { field: "creditDecrease", headerName: "Phát Sinh Giảm", type: "number" }, { field: "closingDebit", headerName: "Phải Thu CK", type: "number" }, { field: "closingCredit", headerName: "Trả Trước CK", type: "number" }, ];
+const categories = [
+    {
+        id: 'thi_cong',
+        label: 'I. Thi công',
+        children: [
+            { id: 'pt_cdt_xd', label: 'I.1. Phải thu chủ đầu tư - XD' },
+            { id: 'pt_dd_ct', label: 'I.2. Nợ phải thu dở dang công trình' },
+        ]
+    },
+    {
+        id: 'nha_may',
+        label: 'II. Nhà máy',
+        children: [
+            { id: 'pt_kh_sx', label: 'II.1. Phải thu khách hàng - SX' },
+            { id: 'pt_nb_xn_sx', label: 'II.2. Phải thu nội bộ XN - SX' },
+            { id: 'kh_sx_ut', label: 'II.3. Khách hàng sản xuất ứng trước tiền hàng' },
+            { id: 'pt_sv_sx', label: 'II.4. Phải thu Sao Việt - SX' }, // <-- MỤC MỚI ĐÃ ĐƯỢC THÊM
+        ]
+    },
+    { id: 'kh_dt', label: 'III. KH-ĐT' },
+    { id: 'khac', label: 'IV. Nợ phải thu khác' }
+];
+
+const tableColumns = [
+    { field: "project", headerName: "Diễn giải", type: "string" },
+    { field: "openingDebit", headerName: "Phải Thu ĐK", type: "number" },
+    { field: "openingCredit", headerName: "Trả Trước ĐK", type: "number" },
+    { field: "debitIncrease", headerName: "Phát Sinh Tăng", type: "number" },
+    { field: "creditDecrease", headerName: "Phát Sinh Giảm", type: "number" },
+    { field: "closingDebit", headerName: "Phải Thu CK", type: "number" },
+    { field: "closingCredit", headerName: "Trả Trước CK", type: "number" },
+];
 
 // HELPER COMPONENTS
-const MetricCard = ({ title, value, icon, color, loading }) => ( <Paper variant="outlined" sx={{ p: 2, display: 'flex', alignItems: 'center', height: '100%', borderRadius: 2 }}> <Box sx={{ mr: 2, color: `${color}.main` }}>{icon}</Box> <Box> <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{title}</Typography> {loading ? <Skeleton width={80} /> : <Typography variant="h6" fontWeight="600"><NumericFormat value={toNum(value)} displayType="text" thousandSeparator="," /></Typography>} </Box> </Paper> );
-const NoRowsOverlay = () => ( <Stack height="100%" alignItems="center" justifyContent="center" sx={{ color: "text.secondary", p: 4 }}> <ErrorOutline sx={{ mb: 1}} /> <Typography variant="body2"> Không có dữ liệu. </Typography> </Stack> );
-const CurrencyDisplay = ({ value }) => ( <NumericFormat value={toNum(value)} displayType="text" thousandSeparator="," /> );
+const MetricCard = ({ title, value, icon, color, loading }) => (
+    <Paper variant="outlined" sx={{ p: 2, display: 'flex', alignItems: 'center', height: '100%', borderRadius: 2 }}>
+        <Box sx={{ mr: 2, color: `${color}.main` }}>{icon}</Box>
+        <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{title}</Typography>
+            {loading ? <Skeleton width={80} /> : <Typography variant="h6" fontWeight="600"><NumericFormat value={toNum(value)} displayType="text" thousandSeparator="," /></Typography>}
+        </Box>
+    </Paper>
+);
+const NoRowsOverlay = () => (
+    <Stack height="100%" alignItems="center" justifyContent="center" sx={{ color: "text.secondary", p: 4 }}>
+        <ErrorOutline sx={{ mb: 1}} />
+        <Typography variant="body2"> Không có dữ liệu. </Typography>
+    </Stack>
+);
+const CurrencyDisplay = ({ value }) => (
+    <NumericFormat value={toNum(value)} displayType="text" thousandSeparator="," />
+);
 
 // CORE LOGIC & UI COMPONENT
 export default function AccountsReceivable() {
     const currentYear = new Date().getFullYear();
     const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
-    const quarterOptions = [ { value: 1, label: "Quý 1" }, { value: 2, label: "Quý 2" }, { value: 3, label: "Quý 3" }, { value: 4, label: "Quý 4" }];
+    const quarterOptions = [
+        { value: 1, label: "Quý 1" },
+        { value: 2, label: "Quý 2" },
+        { value: 3, label: "Quý 3" },
+        { value: 4, label: "Quý 4" }
+    ];
     const [selectedYear, setSelectedYear] = useState(currentYear);
     const [selectedQuarter, setSelectedQuarter] = useState(Math.ceil((new Date().getMonth() + 1) / 3));
     const [rows, setRows] = useState([]);
@@ -44,23 +94,43 @@ export default function AccountsReceivable() {
     // CRUD & Data Logic
     const handleAddRow = useCallback(async (categoryId) => {
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
-        const newRowData = { project: "Nội dung mới", category: categoryId, openingDebit: 0, openingCredit: 0, debitIncrease: 0, creditDecrease: 0, closingDebit: 0, closingCredit: 0 };
+        const newRowData = {
+            project: "Nội dung mới",
+            category: categoryId,
+            openingDebit: 0,
+            openingCredit: 0,
+            debitIncrease: 0,
+            creditDecrease: 0,
+            closingDebit: 0,
+            closingCredit: 0
+        };
         const promise = addDoc(collection(db, collectionPath), newRowData);
-        toast.promise(promise, { loading: 'Đang thêm dòng mới...', success: 'Thêm dòng thành công!', error: 'Lỗi khi thêm dòng mới.' });
+        toast.promise(promise, {
+            loading: 'Đang thêm dòng mới...',
+            success: 'Thêm dòng thành công!',
+            error: 'Lỗi khi thêm dòng mới.'
+        });
     }, [selectedYear, selectedQuarter]);
+
     const handleDeleteRow = useCallback((id) => {
         setItemToDelete(id);
         setDeleteDialogOpen(true);
     }, []);
+
     const confirmDelete = async () => {
         if (itemToDelete) {
             setDeleteDialogOpen(false);
             const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
             const promise = deleteDoc(doc(db, collectionPath, itemToDelete));
-            toast.promise(promise, { loading: 'Đang xóa...', success: 'Đã xóa thành công!', error: 'Lỗi khi xóa.' });
+            toast.promise(promise, {
+                loading: 'Đang xóa...',
+                success: 'Đã xóa thành công!',
+                error: 'Lỗi khi xóa.'
+            });
             setItemToDelete(null);
         }
     };
+
     const confirmPaste = async () => {
         if (!pasteContext || !activeCell) return;
         setPasteDialogOpen(false);
@@ -95,9 +165,15 @@ export default function AccountsReceivable() {
                 });
                 await batch.commit();
                 resolve(`Đã cập nhật ${parsedRows.length} dòng thành công!`);
-            } catch (error) { reject("Đã xảy ra lỗi khi dán dữ liệu."); }
+            } catch (error) {
+                reject("Đã xảy ra lỗi khi dán dữ liệu.");
+            }
         });
-        toast.promise(promise, { loading: 'Đang xử lý dữ liệu dán...', success: msg => msg, error: err => err });
+        toast.promise(promise, {
+            loading: 'Đang xử lý dữ liệu dán...',
+            success: msg => msg,
+            error: err => err
+        });
         setPasteContext(null);
     };
 
@@ -128,7 +204,9 @@ export default function AccountsReceivable() {
         };
         const container = tableContainerRef.current;
         if (container) container.addEventListener('paste', handlePaste);
-        return () => { if (container) container.removeEventListener('paste', handlePaste); };
+        return () => {
+            if (container) container.removeEventListener('paste', handlePaste);
+        };
     }, [activeCell]);
 
     // Data Transformation for Display
@@ -155,7 +233,6 @@ export default function AccountsReceivable() {
                     Object.keys(zeroSummary).forEach(key => categorySummary[key] += childSummary[key]);
                 });
 
-                // **FIX**: Gộp dòng tổng của mục cha vào dòng tiêu đề cha
                 result.push({ id: `p-header-${category.id}`, type: 'parent-header', project: category.label, ...categorySummary });
                 result.push(...childDisplayRows);
             } else {
@@ -166,7 +243,6 @@ export default function AccountsReceivable() {
                     return acc;
                 }, { ...zeroSummary });
                 
-                // **FIX**: Gộp dòng tổng vào dòng tiêu đề
                 result.push({ id: `header-${category.id}`, type: 'group-header', project: category.label, categoryId: category.id, ...summary });
                 result.push(...childDisplayRows);
                 Object.keys(zeroSummary).forEach(key => categorySummary[key] += summary[key]);
@@ -202,8 +278,18 @@ export default function AccountsReceivable() {
                     </Box>
                     <Paper variant="outlined" sx={{ p: 1, borderRadius: 2 }}>
                         <Stack direction="row" spacing={1} alignItems="center">
-                            <FormControl variant="outlined" size="small" sx={{ minWidth: 120 }}><InputLabel>Quý</InputLabel><Select value={selectedQuarter} label="Quý" onChange={(e) => setSelectedQuarter(e.target.value)}>{quarterOptions.map((o) => (<MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>))}</Select></FormControl>
-                            <FormControl variant="outlined" size="small" sx={{ minWidth: 110 }}><InputLabel>Năm</InputLabel><Select value={selectedYear} label="Năm" onChange={(e) => setSelectedYear(e.target.value)}>{yearOptions.map((y) => (<MenuItem key={y} value={y}>{y}</MenuItem>))}</Select></FormControl>
+                            <FormControl variant="outlined" size="small" sx={{ minWidth: 120 }}>
+                                <InputLabel>Quý</InputLabel>
+                                <Select value={selectedQuarter} label="Quý" onChange={(e) => setSelectedQuarter(e.target.value)}>
+                                    {quarterOptions.map((o) => (<MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>))}
+                                </Select>
+                            </FormControl>
+                            <FormControl variant="outlined" size="small" sx={{ minWidth: 110 }}>
+                                <InputLabel>Năm</InputLabel>
+                                <Select value={selectedYear} label="Năm" onChange={(e) => setSelectedYear(e.target.value)}>
+                                    {yearOptions.map((y) => (<MenuItem key={y} value={y}>{y}</MenuItem>))}
+                                </Select>
+                            </FormControl>
                         </Stack>
                     </Paper>
                 </Stack>
@@ -241,7 +327,6 @@ export default function AccountsReceivable() {
                                             if (row.type === 'grand-total') return { ...baseStyles, backgroundColor: 'primary.dark', color: 'primary.contrastText', '& > *': { fontWeight: 'bold' } };
                                             if (row.type === 'parent-header') return { ...baseStyles, backgroundColor: 'primary.light', '& > *': { fontWeight: 600 } };
                                             if (row.type === 'group-header') return { ...baseStyles, backgroundColor: 'grey.100', '& > *': { fontWeight: 600 } };
-                                            // **FIX**: Thêm hiệu ứng tô màu nền khi hover cho dòng dữ liệu
                                             if (isDataRow) return { ...baseStyles, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: row.rowIndex % 2 === 1 ? '#f9f9f9' : 'transparent', '&:hover': { backgroundColor: '#f0f0f0' } };
                                             return baseStyles;
                                         };
@@ -251,7 +336,6 @@ export default function AccountsReceivable() {
                                                 {tableColumns.map((col) => (
                                                     <TableCell key={col.field} align={col.type === 'number' ? 'right' : 'left'} onClick={() => handleCellClick(row, col.field)}>
                                                         {col.field === 'project' ? row.project : 
-                                                            // **FIX**: Hiển thị số trên mọi dòng (bao gồm cả parent-header)
                                                             (row[col.field] != null) && (
                                                                 (col.field === 'debitIncrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]}/>} color="warning" size="small"/> :
                                                                 (col.field === 'creditDecrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]}/>} color="success" size="small"/> :
@@ -263,7 +347,6 @@ export default function AccountsReceivable() {
                                                     </TableCell>
                                                 ))}
                                                 <TableCell align="center" sx={{ minWidth: 100 }}>
-                                                    {/* **FIX**: Bỏ hiệu ứng hover, hiển thị nút luôn */}
                                                     {row.type === 'data' && ( <IconButton size="small" onClick={() => handleDeleteRow(row.id)}><DeleteIcon fontSize="small" /></IconButton> )}
                                                     {row.type === 'group-header' && ( <IconButton size="small" onClick={() => handleAddRow(row.categoryId)}><AddIcon fontSize="small" /></IconButton> )}
                                                 </TableCell>
