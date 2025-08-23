@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-    Typography, Box, useTheme, CircularProgress, Alert, IconButton, Stack,
-    FormControl, InputLabel, Select, MenuItem, Grid, Button, Tooltip, LinearProgress, Card, CardContent, CardHeader, Divider, TextField
+    Typography, Box, useTheme, Alert, IconButton, Stack,
+    FormControl, InputLabel, Select, MenuItem, Grid, Button, Tooltip, Card, CardContent, CardHeader, Divider, TextField,
+    Dialog, DialogTitle, DialogContent, DialogActions, Menu, ListItemIcon, Skeleton
 } from '@mui/material';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { getFirestore, collection, getDocs, query, orderBy, where, writeBatch, doc, setDoc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx'; // Import thư viện để xuất Excel
 import {
     ExpandMore as ExpandMoreIcon,
     ChevronRight as ChevronRightIcon,
@@ -17,7 +19,10 @@ import {
     UnfoldLess as UnfoldLessIcon,
     DeleteForever as DeleteForeverIcon,
     Lock as LockIcon,
-    Info as InfoIcon
+    Info as InfoIcon,
+    MoreVert as MoreVertIcon,
+    CloudUpload as CloudUploadIcon,
+    Close as CloseIcon // Thêm icon đóng
 } from '@mui/icons-material';
 import PasteDataDialog from '../components/PasteDataDialog';
 
@@ -26,37 +31,154 @@ const db = getFirestore();
 const ACCOUNTS_COLLECTION = 'chartOfAccounts';
 const BALANCES_COLLECTION = 'accountBalances';
 
-// Cấu hình các ô được đồng bộ tự động, không cho phép sửa tay
 const syncedCellsConfig = {
     '131': ['cuoiKyCo'], '132': ['cuoiKyNo'], '133': ['cuoiKyNo'], '134': ['cuoiKyNo'],
-    '135': ['cuoiKyNo'], '339': ['cuoiKyCo'], '338': ['cuoiKyCo'], // Thêm TK 338
+    '135': ['cuoiKyNo'], '339': ['cuoiKyCo'], '338': ['cuoiKyCo'],
+    '139': ['cuoiKyCo'], '140': ['cuoiKyNo'], '332': ['cuoiKyCo'], '333': ['cuoiKyCo'],
 };
 
 
-// ===== HOOKS & COMPONENTS PHỤ =====
+// ✅ COMPONENT DIALOG ĐÃ SỬA LỖI "RULES OF HOOKS"
+const CalculationDetailDialog = ({ open, onClose, data }) => {
+    const theme = useTheme();
 
-const useAccountsStructure = () => {
-    return useQuery('accountsStructure', async () => {
-        const collectionRef = collection(db, ACCOUNTS_COLLECTION);
-        const q = query(collectionRef, orderBy('accountId'));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    }, { staleTime: Infinity });
-};
+    // 1. Di chuyển useMemo lên đầu, trước tất cả các câu lệnh return có điều kiện.
+    const groupedData = useMemo(() => {
+        if (!data?.items) return {};
+        
+        // Bước 1: Gom nhóm các item theo tên công trình
+        const groupedByProject = data.items.reduce((acc, item) => {
+            (acc[item.projectName] = acc[item.projectName] || []).push(item);
+            return acc;
+        }, {});
 
-const useAccountBalances = (year, quarter) => {
-    return useQuery(['accountBalances', year, quarter], async () => {
-        const balancesObject = {};
-        const q = query(collection(db, BALANCES_COLLECTION), where("year", "==", year), where("quarter", "==", quarter));
-        const querySnapshot = await getDocs(q);
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            balancesObject[data.accountId] = data;
+        // Bước 2: Với mỗi nhóm, tính toán tổng phụ
+        Object.keys(groupedByProject).forEach(projectName => {
+            const items = groupedByProject[projectName];
+            const totals = items.reduce((acc, item) => {
+                acc.noPhaiTraCK += item.noPhaiTraCK;
+                acc.debt += item.debt;
+                acc.result += item.result;
+                return acc;
+            }, { noPhaiTraCK: 0, debt: 0, result: 0 });
+
+            // Gán lại cấu trúc dữ liệu
+            groupedByProject[projectName] = { items, totals };
         });
-        return balancesObject;
-    }, { keepPreviousData: true });
-};
 
+        return groupedByProject;
+    }, [data?.items]);
+
+    // 2. Câu lệnh return có điều kiện bây giờ nằm sau Hook, hoàn toàn hợp lệ.
+    if (!data) return null;
+
+    const formatNumber = (num) => (num || 0).toLocaleString('vi-VN');
+
+    const handleExport = () => {
+        if (!data.items || data.items.length === 0) {
+            toast.error("Không có dữ liệu để xuất.");
+            return;
+        }
+        const worksheetData = data.items.map(item => ({
+            'Tên Công Trình': item.projectName,
+            'Khoản Mục': item.description,
+            'Nợ Phải Trả CK': item.noPhaiTraCK,
+            'Nợ Phải Trả ĐK (debt)': item.debt,
+            'Kết quả': item.result
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "ChiTietTinhToan");
+        XLSX.writeFile(workbook, `${data.title.replace(/\s/g, '_')}.xlsx`);
+    };
+
+    return (
+        <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" PaperProps={{ sx: { height: '90vh' } }}>
+            <DialogTitle sx={{ p: 2, backgroundColor: 'background.paper', borderBottom: `1px solid ${theme.palette.divider}` }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Box>
+                        <Typography variant="h6" component="div">{data.title}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Chi tiết các khoản mục được dùng để tính tổng
+                        </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={1}>
+                        <Button
+                            variant="outlined"
+                            startIcon={<DescriptionIcon />}
+                            onClick={handleExport}
+                            disabled={!data.items || data.items.length === 0}
+                        >
+                            Xuất Excel
+                        </Button>
+                        <IconButton onClick={onClose} sx={{ ml: 2 }}>
+                            <CloseIcon />
+                        </IconButton>
+                    </Stack>
+                </Stack>
+            </DialogTitle>
+
+            <DialogContent dividers sx={{ p: 2, bgcolor: 'action.hover' }}>
+                <TableContainer component={Paper} variant="outlined">
+                    <Table size="small" stickyHeader> 
+                        <TableHead>
+                            <TableRow>
+                                <TableCell sx={{width: '30%', backgroundColor: 'background.paper'}}>Khoản Mục</TableCell>
+                                <TableCell align="right" sx={{backgroundColor: 'background.paper'}}>Nợ Phải Trả CK</TableCell>
+                                <TableCell align="right" sx={{backgroundColor: 'background.paper'}}>Nợ Phải Trả ĐK (debt)</TableCell>
+                                <TableCell align="right" sx={{backgroundColor: 'background.paper', fontWeight: 'bold' }}>Kết quả</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {Object.keys(groupedData).length > 0 ? Object.keys(groupedData).map(projectName => (
+                                <React.Fragment key={projectName}>
+                                    <TableRow sx={{ backgroundColor: theme.palette.grey[200] }}>
+                                        <TableCell colSpan={4} sx={{ fontWeight: 'bold' }}>
+                                            Công trình: {projectName}
+                                        </TableCell>
+                                    </TableRow>
+                                    {groupedData[projectName].items.map((item, index) => (
+                                        <TableRow key={index} sx={{ '&:nth-of-type(odd)': { backgroundColor: theme.palette.background.default } }}>
+                                            <TableCell sx={{ pl: 4 }}>{item.description}</TableCell>
+                                            <TableCell align="right">{formatNumber(item.noPhaiTraCK)}</TableCell>
+                                            <TableCell align="right">{formatNumber(item.debt)}</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(item.result)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                    <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold', fontStyle: 'italic' }}>Tổng công trình</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(groupedData[projectName].totals.noPhaiTraCK)}</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(groupedData[projectName].totals.debt)}</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                                            {formatNumber(groupedData[projectName].totals.result)}
+                                        </TableCell>
+                                    </TableRow>
+                                </React.Fragment>
+                            )) : (
+                                <TableRow>
+                                    <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                                        <Typography color="text.secondary">Không có khoản mục chi tiết nào.</Typography>
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </DialogContent>
+            
+            <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}`, backgroundColor: 'background.paper' }}>
+                <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={2}>
+                    <Typography variant="h6" sx={{fontWeight: 'bold'}}>TỔNG CỘNG TOÀN BỘ:</Typography>
+                    <Typography variant="h5" color="primary" sx={{fontWeight: 'bold'}}>
+                        {formatNumber(data.total)}
+                    </Typography>
+                </Stack>
+            </Box>
+        </Dialog>
+    );
+};
+const useAccountsStructure = () => { return useQuery('accountsStructure', async () => { const q = query(collection(db, ACCOUNTS_COLLECTION), orderBy('accountId')); const snapshot = await getDocs(q); return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); }, { staleTime: Infinity }); };
+const useAccountBalances = (year, quarter) => { return useQuery(['accountBalances', year, quarter], async () => { const balancesObject = {}; const q = query(collection(db, BALANCES_COLLECTION), where("year", "==", year), where("quarter", "==", quarter)); const querySnapshot = await getDocs(q); querySnapshot.forEach((doc) => { balancesObject[doc.data().accountId] = doc.data(); }); return balancesObject; }, { keepPreviousData: true }); };
 const useMutateBalances = () => {
     const queryClient = useQueryClient();
     const updateBalanceMutation = useMutation(
@@ -64,34 +186,17 @@ const useMutateBalances = () => {
             const docId = `${accountId}_${year}_${quarter}`;
             const docRef = doc(db, BALANCES_COLLECTION, docId);
             const dataToSet = { accountId, year, quarter, [field]: value };
-            if (field === 'dauKyNo' || field === 'dauKyCo') {
-                dataToSet.isCarriedOver = false;
-            }
+            if (field === 'dauKyNo' || field === 'dauKyCo') { dataToSet.isCarriedOver = false; }
             await setDoc(docRef, dataToSet, { merge: true });
         },
-        {
-            onSuccess: (_, variables) => {
-                toast.success(`Đã cập nhật [${variables.field}] cho TK ${variables.accountId}`);
-                queryClient.invalidateQueries(['accountBalances', variables.year, variables.quarter]);
-            },
-            onError: (error) => toast.error(`Lỗi cập nhật: ${error.message}`)
-        }
+        { onSuccess: (_, variables) => { toast.success(`Đã cập nhật [${variables.field}] cho TK ${variables.accountId}`); queryClient.invalidateQueries(['accountBalances', variables.year, variables.quarter]); }, onError: (error) => toast.error(`Lỗi cập nhật: ${error.message}`) }
     );
     return { updateBalanceMutation };
 };
 
-const ProcessReportToast = ({ t, successes, errors, warnings }) => (
-    <Card sx={{ maxWidth: 400, pointerEvents: 'all' }} elevation={4}>
-        <CardContent>
-            <Typography variant="h6" gutterBottom>Kết quả xử lý</Typography>
-            {successes.length > 0 && ( <Alert severity="success" sx={{ mb: 1 }}> Cập nhật thành công: <strong>{successes.length} tài khoản</strong> </Alert> )}
-            {errors.length > 0 && ( <Alert severity="error" sx={{ mb: 1 }}> Thất bại: <strong>{errors.length} dòng</strong> <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}> {errors.slice(0, 5).map(e => <li key={e.row}>Dòng {e.row} (TK {e.accountId}): {e.message}</li>)} {errors.length > 5 && <li>... và {errors.length - 5} lỗi khác.</li>} </Box> </Alert> )}
-            {warnings.length > 0 && ( <Alert severity="warning"> Bỏ qua: <strong>{warnings.length} dòng</strong> <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}> {warnings.slice(0, 5).map(w => <li key={w.row}>Dòng {w.row}: {w.message}</li>)} {warnings.length > 5 && <li>... và {warnings.length - 5} cảnh báo khác.</li>} </Box> </Alert> )}
-        </CardContent>
-    </Card>
-);
+const ProcessReportToast = ({ t, successes, errors, warnings }) => (<Card sx={{ maxWidth: 400, pointerEvents: 'all' }} elevation={4}><CardContent><Typography variant="h6" gutterBottom>Kết quả xử lý</Typography>{successes.length > 0 && (<Alert severity="success" sx={{ mb: 1 }}> Cập nhật thành công: <strong>{successes.length} tài khoản</strong> </Alert>)}{errors.length > 0 && (<Alert severity="error" sx={{ mb: 1 }}> Thất bại: <strong>{errors.length} dòng</strong> <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}> {errors.slice(0, 5).map(e => <li key={e.row}>Dòng {e.row} (TK {e.accountId}): {e.message}</li>)} {errors.length > 5 && <li>... và {errors.length - 5} lỗi khác.</li>} </Box> </Alert>)}{warnings.length > 0 && (<Alert severity="warning"> Bỏ qua: <strong>{warnings.length} dòng</strong> <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}> {warnings.slice(0, 5).map(w => <li key={w.row}>Dòng {w.row}: {w.message}</li>)} {warnings.length > 5 && <li>... và {warnings.length - 5} cảnh báo khác.</li>} </Box> </Alert>)}</CardContent></Card>);
 
-const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation }) => {
+const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation, onShowDetails }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [value, setValue] = useState('');
     const theme = useTheme();
@@ -99,10 +204,15 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
     const isCarriedOverLocked = (fieldName === 'dauKyNo' || fieldName === 'dauKyCo') && account.isCarriedOver === true;
     const isSyncedLocked = syncedCellsConfig[account.accountId]?.includes(fieldName);
     const isLocked = isCarriedOverLocked || isSyncedLocked;
-    
+
+    const getNumberColor = () => {
+        if (fieldName.endsWith('No')) return theme.palette.info.dark;
+        if (fieldName.endsWith('Co')) return theme.palette.warning.dark;
+        return 'inherit';
+    };
     const getLockReason = () => {
-        if (isCarriedOverLocked) return "Số dư này được tự động chuyển từ kỳ trước và không thể sửa đổi.";
-        if (isSyncedLocked) return "Số dư này được đồng bộ tự động từ dữ liệu khác và không thể sửa đổi.";
+        if (isCarriedOverLocked) return "Số dư này được tự động chuyển từ kỳ trước.";
+        if (isSyncedLocked) return "Số dư này được đồng bộ tự động. Click để xem chi tiết.";
         return "";
     };
 
@@ -110,7 +220,10 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
     const displayValue = formatNumber(account[fieldName]);
 
     const handleStartEditing = () => {
-        if (isLocked) return;
+        if (isLocked) {
+            if (isSyncedLocked && onShowDetails) onShowDetails(account.accountId);
+            return;
+        }
         setValue(account[fieldName] ? String(account[fieldName]) : '');
         setIsEditing(true);
     };
@@ -124,7 +237,6 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
             updateMutation.mutate({ accountId: account.accountId, year, quarter, field: fieldName, value: newValue });
         }
     };
-
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') handleSave();
         if (e.key === 'Escape') setIsEditing(false);
@@ -132,9 +244,9 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
 
     if (isLocked) {
         return (
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', backgroundColor: theme.palette.grey[100], cursor: 'not-allowed', padding: '2px 4px', borderRadius: 1 }}>
+            <Box onClick={handleStartEditing} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', backgroundColor: theme.palette.grey[100], padding: '2px 4px', borderRadius: 1, cursor: isSyncedLocked ? 'pointer' : 'not-allowed', '&:hover': { backgroundColor: isSyncedLocked ? theme.palette.grey[200] : theme.palette.grey[100] } }}>
                 <Tooltip title={getLockReason()}>
-                    <LockIcon sx={{ fontSize: 14, mr: 0.5, color: theme.palette.text.secondary }}/>
+                    <LockIcon sx={{ fontSize: 14, mr: 0.5, color: theme.palette.text.secondary }} />
                 </Tooltip>
                 <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
                     {displayValue === '0' ? '-' : displayValue}
@@ -142,26 +254,13 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
             </Box>
         );
     }
-    
     if (isEditing) {
-        return (
-            <TextField
-                value={value} onChange={(e) => setValue(e.target.value)}
-                onBlur={handleSave} onKeyDown={handleKeyDown}
-                autoFocus variant="standard" fullWidth size="small"
-                sx={{ "& input": { textAlign: "right", padding: '2px 0' } }}
-            />
-        );
+        return (<TextField value={value} onChange={(e) => setValue(e.target.value)} onBlur={handleSave} onKeyDown={handleKeyDown} autoFocus variant="standard" fullWidth size="small" sx={{ "& input": { textAlign: "right", padding: '2px 0' } }} />);
     }
-    
-    return (
-        <Typography variant="body2" onClick={handleStartEditing} sx={{ textAlign: 'right', width: '100%', cursor: 'pointer', minHeight: '24px', padding: '2px 0', borderRadius: 1, '&:hover': { backgroundColor: theme.palette.action.hover } }}>
-            {displayValue === '0' ? '-' : displayValue}
-        </Typography>
-    );
+    return (<Typography variant="body2" onClick={handleStartEditing} sx={{ color: getNumberColor(), textAlign: 'right', width: '100%', cursor: 'pointer', minHeight: '24px', padding: '2px 0', borderRadius: 1, '&:hover': { backgroundColor: theme.palette.action.hover } }}> {displayValue === '0' ? '-' : displayValue} </Typography>);
 };
 
-const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, updateMutation }) => {
+const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, updateMutation, onShowDetails }) => {
     const theme = useTheme();
     const isParent = account.children && account.children.length > 0;
     const isExpanded = expanded.includes(account.id);
@@ -169,30 +268,34 @@ const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, up
         if (typeof value !== 'number' || isNaN(value) || value === 0) return <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400 }}>-</Typography>;
         return value.toLocaleString('vi-VN');
     };
-    const rowStyle = { backgroundColor: isParent ? theme.palette.grey[100] : 'transparent', fontWeight: isParent ? 'bold' : 'normal' };
+    const rowStyle = { backgroundColor: isParent ? theme.palette.grey[100] : 'transparent', fontWeight: isParent ? 'bold' : 'normal', };
+    const stickyCellSx = { position: 'sticky', zIndex: 2, backgroundColor: isParent ? theme.palette.grey[100] : 'white' };
 
     return (
         <React.Fragment>
             <TableRow hover sx={rowStyle}>
-                <TableCell style={{ paddingLeft: `${8 + level * 24}px` }}>
-                     <Stack direction="row" alignItems="center" spacing={0.5}>
-                         {isParent ? ( <IconButton size="small" onClick={() => onToggle(account.id)} sx={{ mr: 1 }}> {isExpanded ? <ExpandMoreIcon fontSize="inherit" /> : <ChevronRightIcon fontSize="inherit" />} </IconButton> ) : (<Box sx={{ width: 40 }} />)}
-                         <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400 }}>{account.accountId}</Typography>
-                     </Stack>
+                <TableCell sx={{ ...stickyCellSx, left: 0, minWidth: 200 }} style={{ paddingLeft: `${8 + level * 24}px` }}>
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                        {isParent ? (<IconButton size="small" onClick={() => onToggle(account.id)} sx={{ mr: 1 }}> {isExpanded ? <ExpandMoreIcon fontSize="inherit" /> : <ChevronRightIcon fontSize="inherit" />} </IconButton>) : (<Box sx={{ width: 40 }} />)}
+                        <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400 }}>{account.accountId}</Typography>
+                    </Stack>
                 </TableCell>
-                <TableCell align="left" sx={{ fontWeight: isParent ? 700 : 400 }}>{account.accountName}</TableCell>
+                <TableCell sx={{ ...stickyCellSx, left: 200, minWidth: 250 }} align="left">{account.accountName}</TableCell>
                 {['dauKyNo', 'dauKyCo', 'cuoiKyNo', 'cuoiKyCo'].map((field) => (
-                    <TableCell key={field} align="right" sx={{ fontWeight: (field === 'cuoiKyNo' || field === 'cuoiKyCo') && !isParent ? 'bold' : 'inherit', color: (field === 'cuoiKyNo' || field === 'cuoiKyCo') && !isParent ? theme.palette.primary.main : 'inherit' }}>
-                        {isParent ? ( <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatStaticCurrency(account[field])}</Typography> ) : ( <EditableBalanceCell account={account} fieldName={field} year={year} quarter={quarter} updateMutation={updateMutation} /> )}
+                    <TableCell key={field} align="right" sx={{ minWidth: 120 }}>
+                        {isParent ? (<Typography variant="body2" sx={{ fontWeight: 700 }}>{formatStaticCurrency(account[field])}</Typography>) : (<EditableBalanceCell account={account} fieldName={field} year={year} quarter={quarter} updateMutation={updateMutation} onShowDetails={onShowDetails} />)}
                     </TableCell>
                 ))}
             </TableRow>
             {isParent && isExpanded && account.children.map(child => (
-                <BalanceSheetRow key={child.id} account={child} level={level + 1} expanded={expanded} onToggle={onToggle} year={year} quarter={quarter} updateMutation={updateMutation} />
+                <BalanceSheetRow key={child.id} account={child} level={level + 1} expanded={expanded} onToggle={onToggle} year={year} quarter={quarter} updateMutation={updateMutation} onShowDetails={onShowDetails} />
             ))}
         </React.Fragment>
     );
 };
+
+const TableSkeleton = ({ columnCount }) => ([...Array(15)].map((_, index) => (<TableRow key={index}> {[...Array(columnCount)].map((_, i) => (<TableCell key={i}><Skeleton animation="wave" /></TableCell>))} </TableRow>)));
+const EmptyState = ({ onUpdateClick }) => (<TableRow> <TableCell colSpan={6}> <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 6 }}> <CloudUploadIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} /> <Typography variant="h6" color="text.secondary" gutterBottom>Chưa có dữ liệu cho kỳ này</Typography> <Typography color="text.secondary" sx={{ mb: 2 }}>Hãy bắt đầu bằng cách cập nhật số liệu.</Typography> <Button variant="contained" startIcon={<FileUploadIcon />} onClick={onUpdateClick}>Cập nhật</Button> </Box> </TableCell> </TableRow>);
 
 // ===== COMPONENT CHÍNH =====
 const BalanceSheet = () => {
@@ -204,12 +307,16 @@ const BalanceSheet = () => {
 
     const { data: accounts, isLoading: isAccountsLoading, isError: isAccountsError, error: accountsError } = useAccountsStructure();
     const { data: balances, isLoading: isBalancesLoading, isError: isBalancesError, error: balancesError } = useAccountBalances(selectedYear, selectedQuarter);
-    
+
     const [expanded, setExpanded] = useState([]);
     const [isPasteDialogOpen, setIsPasteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const queryClient = useQueryClient();
     const { updateBalanceMutation } = useMutateBalances();
+
+    const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+    const [detailData, setDetailData] = useState(null);
+    const [actionsMenuAnchor, setActionsMenuAnchor] = useState(null);
 
     // Tự động chuyển số dư đầu kỳ
     useEffect(() => {
@@ -217,8 +324,7 @@ const BalanceSheet = () => {
         const hasOpeningBalance = Object.values(balances).some(b => (b.dauKyNo && b.dauKyNo > 0) || (b.dauKyCo && b.dauKyCo > 0));
         if (hasOpeningBalance) return;
         const carryOverAutomatically = async () => {
-            let prevYear = selectedYear;
-            let prevQuarter = selectedQuarter - 1;
+            let prevYear = selectedYear; let prevQuarter = selectedQuarter - 1;
             if (prevQuarter === 0) { prevQuarter = 4; prevYear = selectedYear - 1; }
             const q = query(collection(db, BALANCES_COLLECTION), where("year", "==", prevYear), where("quarter", "==", prevQuarter));
             const prevQuarterSnapshot = await getDocs(q);
@@ -245,7 +351,7 @@ const BalanceSheet = () => {
         };
         carryOverAutomatically();
     }, [balances, selectedYear, selectedQuarter, accounts, queryClient, isAccountsLoading, isBalancesLoading]);
-    
+
     // Logic đồng bộ hóa dữ liệu từ các nguồn khác
     useEffect(() => {
         const syncExternalData = async () => {
@@ -259,7 +365,7 @@ const BalanceSheet = () => {
             };
 
             try {
-                // --- Phần 1: Đồng bộ từ Báo cáo Công nợ ---
+                // --- Phần 1: Đồng bộ từ Báo cáo Công nợ (Không đổi) ---
                 const receivableDocRef = doc(db, `accountsReceivable/${selectedYear}/quarters`, `Q${selectedQuarter}`);
                 const receivableDocSnap = await getDoc(receivableDocRef);
 
@@ -271,6 +377,8 @@ const BalanceSheet = () => {
                         '133': { field: 'cuoiKyNo', source: (receivableData?.pt_kh_sx?.openingDebit || 0) + (receivableData?.pt_nb_xn_sx?.openingDebit || 0) },
                         '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.openingDebit },
                         '135': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.openingDebit },
+                        '139': { field: 'cuoiKyCo', source: receivableData?.grand_total?.openingCredit },
+                        '140': { field: 'cuoiKyNo', source: receivableData?.pt_dd_ct?.openingDebit },
                     };
                     for (const accountId in rules) {
                         const rule = rules[accountId];
@@ -283,48 +391,59 @@ const BalanceSheet = () => {
                 // --- Phần 2: Đồng bộ từ tất cả các công trình ---
                 const projectsQuery = query(collection(db, 'projects'));
                 const projectsSnapshot = await getDocs(projectsQuery);
-                
-                // ✅ KHỞI TẠO BIẾN TÍNH TỔNG CHO CẢ 2 TÀI KHOẢN
+
                 let totalFor339 = 0;
                 let totalFor338 = 0;
+                let totalFor332 = 0;
+                let totalFor333 = 0; // <-- KHỞI TẠO BIẾN MỚI
 
                 if (!projectsSnapshot.empty) {
-                    const projectIds = projectsSnapshot.docs.map(p => p.id);
-                    const quarterDocPromises = projectIds.map(id => getDoc(doc(db, `projects/${id}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`)));
+                    const allProjectsData = projectsSnapshot.docs.map(p => ({ id: p.id, ...p.data() }));
+
+                    const quarterDocPromises = allProjectsData.map(p => getDoc(doc(db, `projects/${p.id}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`)));
                     const quarterDocSnapshots = await Promise.all(quarterDocPromises);
 
-                    quarterDocSnapshots.forEach(quarterDocSnap => {
+                    quarterDocSnapshots.forEach((quarterDocSnap, index) => {
                         if (quarterDocSnap.exists()) {
+                            const projectInfo = allProjectsData[index];
                             const items = quarterDocSnap.data().items || [];
-                            
-                            // ✅ TÍNH TOÁN CHO CẢ 2 TK TRONG CÙNG 1 VÒNG LẶP
+
                             items.forEach(item => {
                                 const noPhaiTraCK = toNumber(item.noPhaiTraCK);
                                 const debtValue = toNumber(item.debt);
                                 const calculatedValue = noPhaiTraCK - debtValue;
 
-                                // Điều kiện cho TK 339
-                                if (item.description === "Chi phí NC + VT để bảo hành công trình") {
-                                    totalFor339 += calculatedValue;
+                                // Điều kiện cho TK 339, 338 (không đổi)
+                                if (item.description === "Chi phí NC + VT để bảo hành công trình") { totalFor339 += calculatedValue; }
+                                if (item.description === "Chi phí dự phòng rủi ro") { totalFor338 += calculatedValue; }
+
+                                // Điều kiện cho TK 332 (không đổi)
+                                if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-VT')) {
+                                    totalFor332 += calculatedValue;
                                 }
-                                
-                                // Điều kiện cho TK 338
-                                if (item.description === "Chi phí dự phòng rủi ro") {
-                                    totalFor338 += calculatedValue;
+
+                                // ✅ ĐIỀU KIỆN MỚI CHO TK 333
+                                if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-NC')) {
+                                    totalFor333 += calculatedValue;
                                 }
                             });
                         }
                     });
                 }
-                
-                // Cập nhật tổng cuối cùng vào TK 339
+
+                // Cập nhật các tài khoản
                 if (totalFor339 !== balances['339']?.cuoiKyCo) {
                     updateBalanceMutation.mutate({ accountId: '339', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor339 });
                 }
-                
-                // Cập nhật tổng cuối cùng vào TK 338
                 if (totalFor338 !== balances['338']?.cuoiKyCo) {
                     updateBalanceMutation.mutate({ accountId: '338', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor338 });
+                }
+                if (totalFor332 !== balances['332']?.cuoiKyCo) {
+                    updateBalanceMutation.mutate({ accountId: '332', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor332 });
+                }
+                // ✅ CẬP NHẬT TỔNG CUỐI CÙNG VÀO TK 333
+                if (totalFor333 !== balances['333']?.cuoiKyCo) {
+                    updateBalanceMutation.mutate({ accountId: '333', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor333 });
                 }
 
             } catch (error) {
@@ -334,6 +453,54 @@ const BalanceSheet = () => {
         };
         syncExternalData();
     }, [selectedYear, selectedQuarter, accounts, balances, updateBalanceMutation, isBalancesLoading]);
+
+   const handleShowDetails = useCallback(async (accountId) => {
+        if (!['338', '339', '332', '333'].includes(accountId)) return;
+        const toastId = toast.loading("Đang lấy dữ liệu chi tiết...");
+        const toNumber = (value) => {
+            if (typeof value === 'number') return value;
+            if (typeof value !== 'string' || !value) return 0;
+            const cleanedValue = value.trim().replace(/\./g, '').replace(/,/g, '');
+            return isNaN(parseFloat(cleanedValue)) ? 0 : parseFloat(cleanedValue);
+        };
+        try {
+            const projectsQuery = query(collection(db, 'projects'));
+            const projectsSnapshot = await getDocs(projectsQuery);
+            if (projectsSnapshot.empty) {
+                toast.error("Không tìm thấy công trình nào để tính toán.", { id: toastId });
+                return;
+            }
+            let totalValue = 0; const detailItems = []; let dialogTitle = '';
+            const allProjectsData = projectsSnapshot.docs.map(p => ({ id: p.id, ...p.data() }));
+            const quarterDocPromises = allProjectsData.map(p => getDoc(doc(db, `projects/${p.id}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`)));
+            const quarterDocSnapshots = await Promise.all(quarterDocPromises);
+            quarterDocSnapshots.forEach((quarterDocSnap, index) => {
+                if (quarterDocSnap.exists()) {
+                    const projectInfo = allProjectsData[index];
+                    const items = quarterDocSnap.data().items || [];
+                    items.forEach(item => {
+                        const noPhaiTraCK = toNumber(item.noPhaiTraCK);
+                        const debtValue = toNumber(item.debt);
+                        const result = noPhaiTraCK - debtValue;
+                        if ((accountId === '339' && item.description === "Chi phí NC + VT để bảo hành công trình") || (accountId === '338' && item.description === "Chi phí dự phòng rủi ro") || (accountId === '332' && projectInfo.type !== 'Nhà máy' && item.project?.includes('-VT')) || (accountId === '333' && projectInfo.type !== 'Nhà máy' && item.project?.includes('-NC'))) {
+                            totalValue += result;
+                            detailItems.push({ projectName: projectInfo.name || 'Không rõ', description: item.description, noPhaiTraCK, debt: debtValue, result });
+                        }
+                    });
+                }
+            });
+            if(accountId === '339') dialogTitle = 'Chi tiết tính toán TK 339 - Chi phí bảo hành';
+            else if (accountId === '338') dialogTitle = 'Chi tiết tính toán TK 338 - Chi phí dự phòng';
+            else if (accountId === '332') dialogTitle = 'Chi tiết tính toán TK 332 - Công trình có VT';
+            else if (accountId === '333') dialogTitle = 'Chi tiết tính toán TK 333 - Công trình có NC';
+            setDetailData({ title: dialogTitle, items: detailItems, total: totalValue });
+            setDetailDialogOpen(true);
+            toast.dismiss(toastId);
+        } catch (error) {
+            console.error("Lỗi khi lấy chi tiết tính toán:", error);
+            toast.error("Không thể lấy dữ liệu chi tiết.", { id: toastId });
+        }
+    }, [selectedYear, selectedQuarter]);
 
     const handleDeleteByPeriod = async () => {
         const confirmation = window.confirm(`BẠN CÓ CHẮC CHẮN MUỐN XÓA TOÀN BỘ DỮ LIỆU SỐ DƯ CỦA QUÝ ${selectedQuarter}/${selectedYear} KHÔNG?\n\n⚠️ Thao tác này KHÔNG THỂ hoàn tác!`);
@@ -359,13 +526,13 @@ const BalanceSheet = () => {
             setIsDeleting(false);
         }
     };
-    
+
     const parentAccountIds = useMemo(() => {
         if (!accounts) return [];
         const parentIds = new Set(accounts.filter(acc => acc.parentId).map(acc => acc.parentId));
         return accounts.filter(acc => parentIds.has(acc.accountId) || !acc.parentId).map(acc => acc.id);
     }, [accounts]);
-    
+
     const handleExpandAll = useCallback(() => setExpanded(parentAccountIds), [parentAccountIds]);
     const handleCollapseAll = useCallback(() => setExpanded([]), []);
 
@@ -404,7 +571,7 @@ const BalanceSheet = () => {
         toast.dismiss(toastId);
         toast.custom((t) => <ProcessReportToast t={t} successes={successes} errors={errors} warnings={warnings} />, { duration: 6000 });
     };
-    
+
     const mergedData = useMemo(() => {
         if (!accounts || !balances) return [];
         return accounts.map(acc => ({ ...acc, ...(balances[acc.accountId] || {}) }));
@@ -437,74 +604,56 @@ const BalanceSheet = () => {
         setExpanded(prev => prev.includes(accountId) ? prev.filter(id => id !== accountId) : [...prev, accountId]);
     }, []);
 
-    if (isAccountsLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', my: 10 }}><CircularProgress /></Box>;
-    if (isAccountsError || isBalancesError) return <Box sx={{ p: 3 }}><Alert severity="error">Lỗi: {accountsError?.message || balancesError?.message}</Alert></Box>;
-    
+
+    if (isAccountsError || balancesError) return <Box sx={{ p: 3 }}><Alert severity="error">Lỗi: {accountsError?.message || balancesError?.message}</Alert></Box>;
+
     return (
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
-            <PasteDataDialog open={isPasteDialogOpen} onClose={() => setIsPasteDialogOpen(false)} onSave={handlePasteAndSave}/>
+            <CalculationDetailDialog open={detailDialogOpen} onClose={() => setDetailDialogOpen(false)} data={detailData} />
+            <PasteDataDialog open={isPasteDialogOpen} onClose={() => setIsPasteDialogOpen(false)} onSave={handlePasteAndSave} />
             <Card elevation={2}>
-                <CardHeader title="Bảng Cân Đối Kế Toán" subheader="Xem và quản lý số dư các tài khoản" sx={{ pb: 1 }}/>
-                <Divider/>
+                <CardHeader title="Bảng Cân Đối Kế Toán" subheader="Xem và quản lý số dư các tài khoản" sx={{ pb: 1 }} />
+                <Divider />
                 <CardContent>
                     <Grid container spacing={2} alignItems="center" justifyContent="space-between">
-                        <Grid item container spacing={2} alignItems="center" xs={12} lg={6}>
-                             <Grid item xs={12} sm={6} md={4}>
-                                 <FormControl fullWidth size="small">
-                                     <InputLabel>Quý</InputLabel>
-                                     <Select value={selectedQuarter} label="Quý" onChange={(e) => setSelectedQuarter(e.target.value)}>
-                                         {[1, 2, 3, 4].map(q => <MenuItem key={q} value={q}>Quý {q}</MenuItem>)}
-                                     </Select>
-                                 </FormControl>
-                             </Grid>
-                             <Grid item xs={12} sm={6} md={4}>
-                                 <FormControl fullWidth size="small">
-                                     <InputLabel>Năm</InputLabel>
-                                     <Select value={selectedYear} label="Năm" onChange={(e) => setSelectedYear(e.target.value)}>
-                                         {yearOptions.map(year => <MenuItem key={year} value={year}>{year}</MenuItem>)}
-                                     </Select>
-                                 </FormControl>
-                             </Grid>
+                        <Grid item container spacing={2} alignItems="center" xs={12} md={6}>
+                            <Grid item xs={12} sm={6} md={4}><FormControl fullWidth size="small"><InputLabel>Quý</InputLabel><Select value={selectedQuarter} label="Quý" onChange={(e) => setSelectedQuarter(e.target.value)}>{[1, 2, 3, 4].map(q => <MenuItem key={q} value={q}>Quý {q}</MenuItem>)}</Select></FormControl></Grid>
+                            <Grid item xs={12} sm={6} md={4}><FormControl fullWidth size="small"><InputLabel>Năm</InputLabel><Select value={selectedYear} label="Năm" onChange={(e) => setSelectedYear(e.target.value)}>{yearOptions.map(year => <MenuItem key={year} value={year}>{year}</MenuItem>)}</Select></FormControl></Grid>
                         </Grid>
-                        <Grid item xs={12} lg={6}>
-                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent={{ xs: 'flex-start', lg: 'flex-end' }}>
-                                 <Stack direction="row" spacing={1} flexWrap="wrap">
-                                     <Tooltip title="Mở rộng tất cả"><IconButton onClick={handleExpandAll}><UnfoldMoreIcon /></IconButton></Tooltip>
-                                     <Tooltip title="Thu gọn tất cả"><IconButton onClick={handleCollapseAll}><UnfoldLessIcon /></IconButton></Tooltip>
-                                     <Button variant="contained" startIcon={<FileUploadIcon />} onClick={() => setIsPasteDialogOpen(true)}>Cập nhật</Button>
-                                     <Button variant="outlined" startIcon={<DescriptionIcon />}>Xuất Excel</Button>
-                                     <Button variant="outlined" startIcon={<PrintIcon />}>In</Button>
-                                 </Stack>
-                                 <Tooltip title={`Xóa toàn bộ dữ liệu của Quý ${selectedQuarter}/${selectedYear}`}>
-                                     <span>
-                                         <Button variant="contained" color="error" startIcon={<DeleteForeverIcon />} onClick={handleDeleteByPeriod} disabled={isDeleting || isBalancesLoading || !balances || Object.keys(balances).length === 0} sx={{ mt: { xs: 1, sm: 0 }, width: { xs: '100%', sm: 'auto' } }}>
-                                             {isDeleting ? 'Đang xóa...' : 'Xóa dữ liệu kỳ'}
-                                         </Button>
-                                     </span>
-                                 </Tooltip>
-                             </Stack>
+                        <Grid item xs={12} md="auto">
+                            <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+                                <Tooltip title="Mở rộng tất cả"><IconButton onClick={handleExpandAll}><UnfoldMoreIcon /></IconButton></Tooltip>
+                                <Tooltip title="Thu gọn tất cả"><IconButton onClick={handleCollapseAll}><UnfoldLessIcon /></IconButton></Tooltip>
+                                <Button variant="contained" startIcon={<FileUploadIcon />} onClick={() => setIsPasteDialogOpen(true)}>Cập nhật</Button>
+                                <Tooltip title="Hành động khác"><IconButton onClick={(e) => setActionsMenuAnchor(e.currentTarget)}><MoreVertIcon /></IconButton></Tooltip>
+                                <Menu anchorEl={actionsMenuAnchor} open={Boolean(actionsMenuAnchor)} onClose={() => setActionsMenuAnchor(null)}>
+                                    <MenuItem onClick={() => { setActionsMenuAnchor(null); }}> <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>Xuất Excel </MenuItem>
+                                    <MenuItem onClick={() => { setActionsMenuAnchor(null); }}> <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>In Bảng </MenuItem>
+                                    <Divider />
+                                    <MenuItem onClick={() => { handleDeleteByPeriod(); setActionsMenuAnchor(null); }} sx={{ color: 'error.main' }} disabled={isDeleting || isBalancesLoading || !balances || Object.keys(balances).length === 0}>
+                                        <ListItemIcon><DeleteForeverIcon fontSize="small" color="error" /></ListItemIcon>Xóa dữ liệu kỳ
+                                    </MenuItem>
+                                </Menu>
+                            </Stack>
                         </Grid>
                     </Grid>
                 </CardContent>
 
-                <Box sx={{ px: 2, pb: 1 }}>
-                    <Alert severity="info" icon={<InfoIcon fontSize="inherit" />} sx={{ fontSize: '0.875rem' }}>
-                        <b>Mẹo:</b> Các ô số dư đầu kỳ có nền xám và biểu tượng khóa <LockIcon sx={{ fontSize: 12, verticalAlign: 'middle' }}/> được chuyển tự động từ kỳ trước và sẽ bị khóa. Các ô được đồng bộ từ nguồn khác cũng sẽ bị khóa.
-                    </Alert>
-                </Box>
+                <Box sx={{ px: 2, pb: 1 }}> <Alert severity="info" icon={<InfoIcon fontSize="inherit" />} sx={{ fontSize: '0.875rem' }}><b>Mẹo:</b> Các ô số dư có nền xám và biểu tượng khóa <LockIcon sx={{ fontSize: 12, verticalAlign: 'middle' }} /> là các ô tự động, click để xem chi tiết hoặc sẽ bị khóa.</Alert></Box>
 
                 <Paper variant="outlined" sx={{ m: 2, mt: 0, borderRadius: 1, overflow: 'hidden' }}>
                     <TableContainer sx={{ maxHeight: 'calc(100vh - 420px)' }}>
-                       {isBalancesLoading && <LinearProgress sx={{ position: 'absolute', top: 0, width: '100%' }} />}
                         <Table stickyHeader size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell rowSpan={2} sx={{ width: '25%', fontWeight: 700, whiteSpace: 'nowrap' }}>Số hiệu TK</TableCell>
-                                    <TableCell rowSpan={2} sx={{ width: '30%', fontWeight: 700 }}>Tên tài khoản</TableCell>
+                                    <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: 'background.paper', minWidth: 200, fontWeight: 700, borderRight: `1px solid ${theme.palette.divider}` }}>Số hiệu TK</TableCell>
+                                    <TableCell sx={{ position: 'sticky', left: 200, zIndex: 3, backgroundColor: 'background.paper', minWidth: 250, fontWeight: 700, borderRight: `1px solid ${theme.palette.divider}` }}>Tên tài khoản</TableCell>
                                     <TableCell align="center" colSpan={2} sx={{ fontWeight: 700, borderLeft: `1px solid ${theme.palette.divider}` }}>Số dư đầu kỳ</TableCell>
                                     <TableCell align="center" colSpan={2} sx={{ fontWeight: 700, borderLeft: `1px solid ${theme.palette.divider}` }}>Số dư cuối kỳ</TableCell>
                                 </TableRow>
                                 <TableRow>
+                                    <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: 'background.paper', borderRight: `1px solid ${theme.palette.divider}` }}></TableCell>
+                                    <TableCell sx={{ position: 'sticky', left: 200, zIndex: 3, backgroundColor: 'background.paper', borderRight: `1px solid ${theme.palette.divider}` }}></TableCell>
                                     <TableCell align="center" sx={{ fontWeight: 700, borderLeft: `1px solid ${theme.palette.divider}` }}>Nợ</TableCell>
                                     <TableCell align="center" sx={{ fontWeight: 700 }}>Có</TableCell>
                                     <TableCell align="center" sx={{ fontWeight: 700, borderLeft: `1px solid ${theme.palette.divider}` }}>Nợ</TableCell>
@@ -512,16 +661,14 @@ const BalanceSheet = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {accountTree.length > 0 ? (
+                                {isAccountsLoading || isBalancesLoading ? (
+                                    <TableSkeleton columnCount={6} />
+                                ) : accountTree.length > 0 ? (
                                     accountTree.map((rootAccount) => (
-                                        <BalanceSheetRow key={rootAccount.id} account={rootAccount} level={0} expanded={expanded} onToggle={handleToggle} year={selectedYear} quarter={selectedQuarter} updateMutation={updateBalanceMutation} />
+                                        <BalanceSheetRow key={rootAccount.id} account={rootAccount} level={0} expanded={expanded} onToggle={handleToggle} year={selectedYear} quarter={selectedQuarter} updateMutation={updateBalanceMutation} onShowDetails={handleShowDetails} />
                                     ))
                                 ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={6} align="center" sx={{ py: 10 }}>
-                                            <Typography color="text.secondary">Không có dữ liệu cho kỳ đã chọn.</Typography>
-                                        </TableCell>
-                                    </TableRow>
+                                    <EmptyState onUpdateClick={() => setIsPasteDialogOpen(true)} />
                                 )}
                             </TableBody>
                         </Table>

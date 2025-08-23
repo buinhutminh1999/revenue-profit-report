@@ -42,7 +42,7 @@ const categories = [
 const tableColumns = [
     { field: "project", headerName: "Diễn giải", type: "string" },
     { field: "openingDebit", headerName: "Phải Thu ĐK", type: "number" },
-    { field: "openingCredit", headerName: "Trả Trước ĐK", type: "number" },
+    { field: "openingCredit", headerName: "Khách hàng/ CĐT ứng trước", type: "number" },
     { field: "debitIncrease", headerName: "Phát Sinh Tăng", type: "number" },
     { field: "creditDecrease", headerName: "Phát Sinh Giảm", type: "number" },
     { field: "closingDebit", headerName: "Phải Thu CK", type: "number" },
@@ -323,7 +323,9 @@ const updateAndSaveTotals = useCallback(async (currentRows, year, quarter) => {
                                 <TableRow>
                                     <TableCell>Diễn giải</TableCell>
                                     <TableCell align="right" sx={{ minWidth: 140 }}>Phải Thu ĐK</TableCell>
-                                    <TableCell align="right" sx={{ minWidth: 140 }}>Trả Trước ĐK</TableCell>
+                                    <TableCell align="right" sx={{ minWidth: 140 }}>Khách hàng / 
+                                        <br />
+                                        CĐT ứng trước</TableCell>
                                     <TableCell align="right" sx={{ minWidth: 150 }}>Phát Sinh Tăng</TableCell>
                                     <TableCell align="right" sx={{ minWidth: 150 }}>Phát Sinh Giảm</TableCell>
                                     <TableCell align="right" sx={{ minWidth: 140 }}>Phải Thu CK</TableCell>
