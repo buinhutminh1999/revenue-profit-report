@@ -106,10 +106,26 @@ const ProcessReportToast = ({ t, successes, errors, warnings }) => (
 
 const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation }) => {
     const [isEditing, setIsEditing] = useState(false);
-    const [value, setValue] = useState(account[fieldName] || '');
+    // Khởi tạo state rỗng, sẽ cập nhật khi người dùng click
+    const [value, setValue] = useState('');
     const theme = useTheme();
 
     const isLocked = (fieldName === 'dauKyNo' || fieldName === 'dauKyCo') && account.isCarriedOver === true;
+
+    const formatNumber = (num) => (num || 0).toLocaleString('vi-VN');
+    
+    // Lấy giá trị hiển thị hiện tại
+    const displayValue = formatNumber(account[fieldName]);
+
+    // ✅ HÀM MỚI: Xử lý khi click vào để sửa
+    const handleStartEditing = () => {
+        if (isLocked) return;
+        
+        // Nếu giá trị là 0 (hiển thị là '-'), ô nhập liệu sẽ rỗng để tiện nhập số mới.
+        // Ngược lại, nó sẽ hiển thị đúng con số đang có.
+        setValue(account[fieldName] ? String(account[fieldName]) : '');
+        setIsEditing(true);
+    };
 
     const handleSave = () => {
         if (isLocked) return;
@@ -123,10 +139,11 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') handleSave();
-        if (e.key === 'Escape') setIsEditing(false);
+        if (e.key === 'Escape') {
+            setIsEditing(false);
+            // Không cần làm gì thêm, giá trị cũ vẫn được giữ
+        }
     };
-    
-    const formatNumber = (num) => (num || 0).toLocaleString('vi-VN');
 
     if (isLocked) {
         return (
@@ -139,7 +156,7 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
                     <LockIcon sx={{ fontSize: 14, mr: 0.5, color: theme.palette.text.secondary }}/>
                 </Tooltip>
                 <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                    {formatNumber(account[fieldName]) === '0' ? '-' : formatNumber(account[fieldName])}
+                    {displayValue === '0' ? '-' : displayValue}
                 </Typography>
             </Box>
         );
@@ -158,14 +175,15 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
     
     return (
         <Typography
-            variant="body2" onClick={() => setIsEditing(true)}
+            variant="body2" 
+            onClick={handleStartEditing} // ✅ SỬ DỤNG HÀM MỚI
             sx={{
                 textAlign: 'right', width: '100%', cursor: 'pointer',
                 minHeight: '24px', padding: '2px 0', borderRadius: 1,
                 '&:hover': { backgroundColor: theme.palette.action.hover }
             }}
         >
-            {formatNumber(account[fieldName]) === '0' ? '-' : formatNumber(account[fieldName])}
+            {displayValue === '0' ? '-' : displayValue}
         </Typography>
     );
 };
