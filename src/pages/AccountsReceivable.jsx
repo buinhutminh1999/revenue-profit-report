@@ -12,7 +12,7 @@ import {
 } from "@mui/icons-material";
 import { NumericFormat } from "react-number-format";
 import { db } from "../services/firebase-config";
-import { collection, onSnapshot, query, addDoc, deleteDoc, writeBatch, where, getDocs, doc } from "firebase/firestore";
+import { collection, onSnapshot, query, addDoc, deleteDoc, writeBatch, where, getDocs, doc, setDoc } from "firebase/firestore";
 import { toNum } from "../utils/numberUtils";
 
 // DATA & CONFIG
@@ -32,7 +32,7 @@ const categories = [
             { id: 'pt_kh_sx', label: 'II.1. Phải thu khách hàng - SX' },
             { id: 'pt_nb_xn_sx', label: 'II.2. Phải thu nội bộ XN - SX' },
             { id: 'kh_sx_ut', label: 'II.3. Khách hàng sản xuất ứng trước tiền hàng' },
-            { id: 'pt_sv_sx', label: 'II.4. Phải thu Sao Việt - SX' }, // <-- MỤC MỚI ĐÃ ĐƯỢC THÊM
+            { id: 'pt_sv_sx', label: 'II.4. Phải thu Sao Việt - SX' },
         ]
     },
     { id: 'kh_dt', label: 'III. KH-ĐT' },
@@ -73,12 +73,7 @@ const CurrencyDisplay = ({ value }) => (
 export default function AccountsReceivable() {
     const currentYear = new Date().getFullYear();
     const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
-    const quarterOptions = [
-        { value: 1, label: "Quý 1" },
-        { value: 2, label: "Quý 2" },
-        { value: 3, label: "Quý 3" },
-        { value: 4, label: "Quý 4" }
-    ];
+    const quarterOptions = [ { value: 1, label: "Quý 1" }, { value: 2, label: "Quý 2" }, { value: 3, label: "Quý 3" }, { value: 4, label: "Quý 4" } ];
     const [selectedYear, setSelectedYear] = useState(currentYear);
     const [selectedQuarter, setSelectedQuarter] = useState(Math.ceil((new Date().getMonth() + 1) / 3));
     const [rows, setRows] = useState([]);
@@ -94,22 +89,9 @@ export default function AccountsReceivable() {
     // CRUD & Data Logic
     const handleAddRow = useCallback(async (categoryId) => {
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
-        const newRowData = {
-            project: "Nội dung mới",
-            category: categoryId,
-            openingDebit: 0,
-            openingCredit: 0,
-            debitIncrease: 0,
-            creditDecrease: 0,
-            closingDebit: 0,
-            closingCredit: 0
-        };
+        const newRowData = { project: "Nội dung mới", category: categoryId, openingDebit: 0, openingCredit: 0, debitIncrease: 0, creditDecrease: 0, closingDebit: 0, closingCredit: 0 };
         const promise = addDoc(collection(db, collectionPath), newRowData);
-        toast.promise(promise, {
-            loading: 'Đang thêm dòng mới...',
-            success: 'Thêm dòng thành công!',
-            error: 'Lỗi khi thêm dòng mới.'
-        });
+        toast.promise(promise, { loading: 'Đang thêm dòng mới...', success: 'Thêm dòng thành công!', error: 'Lỗi khi thêm dòng mới.' });
     }, [selectedYear, selectedQuarter]);
 
     const handleDeleteRow = useCallback((id) => {
@@ -122,11 +104,7 @@ export default function AccountsReceivable() {
             setDeleteDialogOpen(false);
             const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
             const promise = deleteDoc(doc(db, collectionPath, itemToDelete));
-            toast.promise(promise, {
-                loading: 'Đang xóa...',
-                success: 'Đã xóa thành công!',
-                error: 'Lỗi khi xóa.'
-            });
+            toast.promise(promise, { loading: 'Đang xóa...', success: 'Đã xóa thành công!', error: 'Lỗi khi xóa.' });
             setItemToDelete(null);
         }
     };
@@ -165,18 +143,63 @@ export default function AccountsReceivable() {
                 });
                 await batch.commit();
                 resolve(`Đã cập nhật ${parsedRows.length} dòng thành công!`);
-            } catch (error) {
-                reject("Đã xảy ra lỗi khi dán dữ liệu.");
-            }
+            } catch (error) { reject("Đã xảy ra lỗi khi dán dữ liệu."); }
         });
-        toast.promise(promise, {
-            loading: 'Đang xử lý dữ liệu dán...',
-            success: msg => msg,
-            error: err => err
-        });
+        toast.promise(promise, { loading: 'Đang xử lý dữ liệu dán...', success: msg => msg, error: err => err });
         setPasteContext(null);
     };
 
+// ✅ HÀM MỚI: TÍNH TOÁN VÀ LƯU SỐ TỔNG (PHIÊN BẢN SỬA LỖI ĐƯỜNG DẪN)
+const updateAndSaveTotals = useCallback(async (currentRows, year, quarter) => {
+    const summaryData = {};
+    const numericFields = tableColumns.filter(c => c.type === 'number').map(c => c.field);
+    const zeroSummary = numericFields.reduce((acc, field) => ({ ...acc, [field]: 0 }), {});
+
+    const calculateSummary = (filteredRows) => {
+        return filteredRows.reduce((acc, row) => {
+            numericFields.forEach(key => acc[key] += toNum(row[key]));
+            return acc;
+        }, { ...zeroSummary });
+    };
+    
+    categories.forEach(category => {
+        if (category.children && category.children.length > 0) {
+            const parentTotal = { ...zeroSummary };
+            category.children.forEach(child => {
+                const childRows = currentRows.filter(row => row.category === child.id);
+                const childSummary = calculateSummary(childRows);
+                summaryData[child.id] = childSummary;
+                numericFields.forEach(key => parentTotal[key] += childSummary[key]);
+            });
+            summaryData[category.id] = parentTotal;
+        } else {
+            const categoryRows = currentRows.filter(row => row.category === category.id);
+            summaryData[category.id] = calculateSummary(categoryRows);
+        }
+    });
+
+    const grandTotal = { ...zeroSummary };
+    categories.forEach(category => {
+        const categoryTotal = summaryData[category.id];
+        if (categoryTotal) {
+            numericFields.forEach(key => {
+                grandTotal[key] += categoryTotal[key];
+            });
+        }
+    });
+    summaryData['grand_total'] = grandTotal;
+
+    try {
+        // ✅ DÒNG SỬA LỖI: Đường dẫn đến document của quý, không phải document con
+        const summaryDocRef = doc(db, `accountsReceivable/${year}/quarters`, `Q${quarter}`);
+        
+        // Dùng { merge: true } để không ghi đè các trường khác nếu có
+        await setDoc(summaryDocRef, summaryData, { merge: true });
+    } catch (error) {
+        console.error("Lỗi khi lưu số tổng:", error);
+        toast.error("Không thể lưu số liệu tổng hợp.");
+    }
+}, []);
     // Firebase Data Fetching
     useEffect(() => {
         setIsLoading(true);
@@ -186,12 +209,16 @@ export default function AccountsReceivable() {
             const fetchedRows = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), type: 'data' }));
             setRows(fetchedRows);
             setIsLoading(false);
+            
+            // ✅ GỌI HÀM LƯU SỐ TỔNG MỖI KHI DỮ LIỆU THAY ĐỔI
+            updateAndSaveTotals(fetchedRows, selectedYear, selectedQuarter);
+
         }, (error) => {
             setIsLoading(false);
             toast.error("Không thể tải dữ liệu từ máy chủ.");
         });
         return () => unsubscribe();
-    }, [selectedYear, selectedQuarter]);
+    }, [selectedYear, selectedQuarter, updateAndSaveTotals]);
     
     // Paste Event Listener
     useEffect(() => {
@@ -204,9 +231,7 @@ export default function AccountsReceivable() {
         };
         const container = tableContainerRef.current;
         if (container) container.addEventListener('paste', handlePaste);
-        return () => {
-            if (container) container.removeEventListener('paste', handlePaste);
-        };
+        return () => { if (container) container.removeEventListener('paste', handlePaste); };
     }, [activeCell]);
 
     // Data Transformation for Display
@@ -278,18 +303,8 @@ export default function AccountsReceivable() {
                     </Box>
                     <Paper variant="outlined" sx={{ p: 1, borderRadius: 2 }}>
                         <Stack direction="row" spacing={1} alignItems="center">
-                            <FormControl variant="outlined" size="small" sx={{ minWidth: 120 }}>
-                                <InputLabel>Quý</InputLabel>
-                                <Select value={selectedQuarter} label="Quý" onChange={(e) => setSelectedQuarter(e.target.value)}>
-                                    {quarterOptions.map((o) => (<MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>))}
-                                </Select>
-                            </FormControl>
-                            <FormControl variant="outlined" size="small" sx={{ minWidth: 110 }}>
-                                <InputLabel>Năm</InputLabel>
-                                <Select value={selectedYear} label="Năm" onChange={(e) => setSelectedYear(e.target.value)}>
-                                    {yearOptions.map((y) => (<MenuItem key={y} value={y}>{y}</MenuItem>))}
-                                </Select>
-                            </FormControl>
+                            <FormControl variant="outlined" size="small" sx={{ minWidth: 120 }}><InputLabel>Quý</InputLabel><Select value={selectedQuarter} label="Quý" onChange={(e) => setSelectedQuarter(e.target.value)}>{quarterOptions.map((o) => (<MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>))}</Select></FormControl>
+                            <FormControl variant="outlined" size="small" sx={{ minWidth: 110 }}><InputLabel>Năm</InputLabel><Select value={selectedYear} label="Năm" onChange={(e) => setSelectedYear(e.target.value)}>{yearOptions.map((y) => (<MenuItem key={y} value={y}>{y}</MenuItem>))}</Select></FormControl>
                         </Stack>
                     </Paper>
                 </Stack>
@@ -362,7 +377,6 @@ export default function AccountsReceivable() {
                 </Paper>
             </motion.div>
 
-            {/* DIALOGS (UNCHANGED) */}
             <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
                 <DialogTitle>Xác nhận xóa</DialogTitle>
                 <DialogContent><DialogContentText>Bạn có chắc chắn muốn xóa dòng này không? Thao tác này không thể hoàn tác.</DialogContentText></DialogContent>

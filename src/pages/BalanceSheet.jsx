@@ -5,7 +5,7 @@ import {
     FormControl, InputLabel, Select, MenuItem, Grid, Button, Tooltip, LinearProgress, Card, CardContent, CardHeader, Divider, TextField
 } from '@mui/material';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { getFirestore, collection, getDocs, query, orderBy, where, writeBatch, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, writeBatch, doc, setDoc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import {
     ExpandMore as ExpandMoreIcon,
@@ -25,6 +25,13 @@ import PasteDataDialog from '../components/PasteDataDialog';
 const db = getFirestore();
 const ACCOUNTS_COLLECTION = 'chartOfAccounts';
 const BALANCES_COLLECTION = 'accountBalances';
+
+// Cấu hình các ô được đồng bộ tự động, không cho phép sửa tay
+const syncedCellsConfig = {
+    '131': ['cuoiKyCo'], '132': ['cuoiKyNo'], '133': ['cuoiKyNo'], '134': ['cuoiKyNo'],
+    '135': ['cuoiKyNo'], '339': ['cuoiKyCo'], '338': ['cuoiKyCo'], // Thêm TK 338
+};
+
 
 // ===== HOOKS & COMPONENTS PHỤ =====
 
@@ -77,52 +84,33 @@ const ProcessReportToast = ({ t, successes, errors, warnings }) => (
     <Card sx={{ maxWidth: 400, pointerEvents: 'all' }} elevation={4}>
         <CardContent>
             <Typography variant="h6" gutterBottom>Kết quả xử lý</Typography>
-            {successes.length > 0 && (
-                <Alert severity="success" sx={{ mb: 1 }}>
-                    Cập nhật thành công: <strong>{successes.length} tài khoản</strong>
-                </Alert>
-            )}
-            {errors.length > 0 && (
-                <Alert severity="error" sx={{ mb: 1 }}>
-                    Thất bại: <strong>{errors.length} dòng</strong>
-                    <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}>
-                        {errors.slice(0, 5).map(e => <li key={e.row}>Dòng {e.row} (TK {e.accountId}): {e.message}</li>)}
-                        {errors.length > 5 && <li>... và {errors.length - 5} lỗi khác.</li>}
-                    </Box>
-                </Alert>
-            )}
-            {warnings.length > 0 && (
-                <Alert severity="warning">
-                    Bỏ qua: <strong>{warnings.length} dòng</strong>
-                    <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}>
-                        {warnings.slice(0, 5).map(w => <li key={w.row}>Dòng {w.row}: {w.message}</li>)}
-                         {warnings.length > 5 && <li>... và {warnings.length - 5} cảnh báo khác.</li>}
-                    </Box>
-                </Alert>
-            )}
+            {successes.length > 0 && ( <Alert severity="success" sx={{ mb: 1 }}> Cập nhật thành công: <strong>{successes.length} tài khoản</strong> </Alert> )}
+            {errors.length > 0 && ( <Alert severity="error" sx={{ mb: 1 }}> Thất bại: <strong>{errors.length} dòng</strong> <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}> {errors.slice(0, 5).map(e => <li key={e.row}>Dòng {e.row} (TK {e.accountId}): {e.message}</li>)} {errors.length > 5 && <li>... và {errors.length - 5} lỗi khác.</li>} </Box> </Alert> )}
+            {warnings.length > 0 && ( <Alert severity="warning"> Bỏ qua: <strong>{warnings.length} dòng</strong> <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}> {warnings.slice(0, 5).map(w => <li key={w.row}>Dòng {w.row}: {w.message}</li>)} {warnings.length > 5 && <li>... và {warnings.length - 5} cảnh báo khác.</li>} </Box> </Alert> )}
         </CardContent>
     </Card>
 );
 
 const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation }) => {
     const [isEditing, setIsEditing] = useState(false);
-    // Khởi tạo state rỗng, sẽ cập nhật khi người dùng click
     const [value, setValue] = useState('');
     const theme = useTheme();
 
-    const isLocked = (fieldName === 'dauKyNo' || fieldName === 'dauKyCo') && account.isCarriedOver === true;
+    const isCarriedOverLocked = (fieldName === 'dauKyNo' || fieldName === 'dauKyCo') && account.isCarriedOver === true;
+    const isSyncedLocked = syncedCellsConfig[account.accountId]?.includes(fieldName);
+    const isLocked = isCarriedOverLocked || isSyncedLocked;
+    
+    const getLockReason = () => {
+        if (isCarriedOverLocked) return "Số dư này được tự động chuyển từ kỳ trước và không thể sửa đổi.";
+        if (isSyncedLocked) return "Số dư này được đồng bộ tự động từ dữ liệu khác và không thể sửa đổi.";
+        return "";
+    };
 
     const formatNumber = (num) => (num || 0).toLocaleString('vi-VN');
-    
-    // Lấy giá trị hiển thị hiện tại
     const displayValue = formatNumber(account[fieldName]);
 
-    // ✅ HÀM MỚI: Xử lý khi click vào để sửa
     const handleStartEditing = () => {
         if (isLocked) return;
-        
-        // Nếu giá trị là 0 (hiển thị là '-'), ô nhập liệu sẽ rỗng để tiện nhập số mới.
-        // Ngược lại, nó sẽ hiển thị đúng con số đang có.
         setValue(account[fieldName] ? String(account[fieldName]) : '');
         setIsEditing(true);
     };
@@ -139,20 +127,13 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') handleSave();
-        if (e.key === 'Escape') {
-            setIsEditing(false);
-            // Không cần làm gì thêm, giá trị cũ vẫn được giữ
-        }
+        if (e.key === 'Escape') setIsEditing(false);
     };
 
     if (isLocked) {
         return (
-            <Box sx={{
-                display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-                height: '100%', backgroundColor: theme.palette.grey[100],
-                cursor: 'not-allowed', padding: '2px 4px', borderRadius: 1,
-            }}>
-                <Tooltip title="Số dư này được tự động chuyển từ kỳ trước và không thể sửa đổi.">
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', backgroundColor: theme.palette.grey[100], cursor: 'not-allowed', padding: '2px 4px', borderRadius: 1 }}>
+                <Tooltip title={getLockReason()}>
                     <LockIcon sx={{ fontSize: 14, mr: 0.5, color: theme.palette.text.secondary }}/>
                 </Tooltip>
                 <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
@@ -174,15 +155,7 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
     }
     
     return (
-        <Typography
-            variant="body2" 
-            onClick={handleStartEditing} // ✅ SỬ DỤNG HÀM MỚI
-            sx={{
-                textAlign: 'right', width: '100%', cursor: 'pointer',
-                minHeight: '24px', padding: '2px 0', borderRadius: 1,
-                '&:hover': { backgroundColor: theme.palette.action.hover }
-            }}
-        >
+        <Typography variant="body2" onClick={handleStartEditing} sx={{ textAlign: 'right', width: '100%', cursor: 'pointer', minHeight: '24px', padding: '2px 0', borderRadius: 1, '&:hover': { backgroundColor: theme.palette.action.hover } }}>
             {displayValue === '0' ? '-' : displayValue}
         </Typography>
     );
@@ -192,51 +165,30 @@ const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, up
     const theme = useTheme();
     const isParent = account.children && account.children.length > 0;
     const isExpanded = expanded.includes(account.id);
-
     const formatStaticCurrency = (value) => {
         if (typeof value !== 'number' || isNaN(value) || value === 0) return <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400 }}>-</Typography>;
         return value.toLocaleString('vi-VN');
     };
-
-    const rowStyle = {
-        backgroundColor: isParent ? theme.palette.grey[100] : 'transparent',
-        fontWeight: isParent ? 'bold' : 'normal',
-    };
+    const rowStyle = { backgroundColor: isParent ? theme.palette.grey[100] : 'transparent', fontWeight: isParent ? 'bold' : 'normal' };
 
     return (
         <React.Fragment>
             <TableRow hover sx={rowStyle}>
                 <TableCell style={{ paddingLeft: `${8 + level * 24}px` }}>
                      <Stack direction="row" alignItems="center" spacing={0.5}>
-                         {isParent ? (
-                             <IconButton size="small" onClick={() => onToggle(account.id)} sx={{ mr: 1 }}>
-                                 {isExpanded ? <ExpandMoreIcon fontSize="inherit" /> : <ChevronRightIcon fontSize="inherit" />}
-                             </IconButton>
-                         ) : (<Box sx={{ width: 40 }} />)}
+                         {isParent ? ( <IconButton size="small" onClick={() => onToggle(account.id)} sx={{ mr: 1 }}> {isExpanded ? <ExpandMoreIcon fontSize="inherit" /> : <ChevronRightIcon fontSize="inherit" />} </IconButton> ) : (<Box sx={{ width: 40 }} />)}
                          <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400 }}>{account.accountId}</Typography>
                      </Stack>
                 </TableCell>
                 <TableCell align="left" sx={{ fontWeight: isParent ? 700 : 400 }}>{account.accountName}</TableCell>
-
                 {['dauKyNo', 'dauKyCo', 'cuoiKyNo', 'cuoiKyCo'].map((field) => (
-                    <TableCell key={field} align="right" sx={{
-                        fontWeight: (field === 'cuoiKyNo' || field === 'cuoiKyCo') && !isParent ? 'bold' : 'inherit',
-                        color: (field === 'cuoiKyNo' || field === 'cuoiKyCo') && !isParent ? theme.palette.primary.main : 'inherit'
-                    }}>
-                        {isParent ? (
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatStaticCurrency(account[field])}</Typography>
-                        ) : (
-                            <EditableBalanceCell 
-                                account={account} fieldName={field} year={year}
-                                quarter={quarter} updateMutation={updateMutation}
-                            />
-                        )}
+                    <TableCell key={field} align="right" sx={{ fontWeight: (field === 'cuoiKyNo' || field === 'cuoiKyCo') && !isParent ? 'bold' : 'inherit', color: (field === 'cuoiKyNo' || field === 'cuoiKyCo') && !isParent ? theme.palette.primary.main : 'inherit' }}>
+                        {isParent ? ( <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatStaticCurrency(account[field])}</Typography> ) : ( <EditableBalanceCell account={account} fieldName={field} year={year} quarter={quarter} updateMutation={updateMutation} /> )}
                     </TableCell>
                 ))}
             </TableRow>
             {isParent && isExpanded && account.children.map(child => (
-                <BalanceSheetRow key={child.id} account={child} level={level + 1} expanded={expanded} onToggle={onToggle}
-                    year={year} quarter={quarter} updateMutation={updateMutation} />
+                <BalanceSheetRow key={child.id} account={child} level={level + 1} expanded={expanded} onToggle={onToggle} year={year} quarter={quarter} updateMutation={updateMutation} />
             ))}
         </React.Fragment>
     );
@@ -259,59 +211,133 @@ const BalanceSheet = () => {
     const queryClient = useQueryClient();
     const { updateBalanceMutation } = useMutateBalances();
 
+    // Tự động chuyển số dư đầu kỳ
     useEffect(() => {
         if (!accounts || !balances || isAccountsLoading || isBalancesLoading) return;
-
         const hasOpeningBalance = Object.values(balances).some(b => (b.dauKyNo && b.dauKyNo > 0) || (b.dauKyCo && b.dauKyCo > 0));
         if (hasOpeningBalance) return;
-
         const carryOverAutomatically = async () => {
             let prevYear = selectedYear;
             let prevQuarter = selectedQuarter - 1;
             if (prevQuarter === 0) { prevQuarter = 4; prevYear = selectedYear - 1; }
-
             const q = query(collection(db, BALANCES_COLLECTION), where("year", "==", prevYear), where("quarter", "==", prevQuarter));
             const prevQuarterSnapshot = await getDocs(q);
             if (prevQuarterSnapshot.empty) return;
-
             const updates = [];
             prevQuarterSnapshot.forEach((doc) => {
                 const data = doc.data();
                 if ((data.cuoiKyNo && data.cuoiKyNo > 0) || (data.cuoiKyCo && data.cuoiKyCo > 0)) {
-                    updates.push({
-                        accountId: data.accountId,
-                        dauKyNo: data.cuoiKyNo || 0,
-                        dauKyCo: data.cuoiKyCo || 0,
-                    });
+                    updates.push({ accountId: data.accountId, dauKyNo: data.cuoiKyNo || 0, dauKyCo: data.cuoiKyCo || 0 });
                 }
             });
-
             if (updates.length === 0) return;
-
             try {
                 const batch = writeBatch(db);
                 updates.forEach(update => {
                     const docId = `${update.accountId}_${selectedYear}_${selectedQuarter}`;
                     const docRef = doc(db, BALANCES_COLLECTION, docId);
-                    batch.set(docRef, {
-                        ...update, year: selectedYear, quarter: selectedQuarter, isCarriedOver: true
-                    }, { merge: true });
+                    batch.set(docRef, { ...update, year: selectedYear, quarter: selectedQuarter, isCarriedOver: true }, { merge: true });
                 });
                 await batch.commit();
                 toast.success(`Đã tự động cập nhật số dư đầu kỳ từ Quý ${prevQuarter}/${prevYear}.`);
                 queryClient.invalidateQueries(['accountBalances', selectedYear, selectedQuarter]);
-            } catch (error) {
-                console.error("Lỗi tự động chuyển số dư:", error);
-                toast.error("Lỗi khi tự động chuyển số dư.");
-            }
+            } catch (error) { console.error("Lỗi tự động chuyển số dư:", error); toast.error("Lỗi khi tự động chuyển số dư."); }
         };
         carryOverAutomatically();
     }, [balances, selectedYear, selectedQuarter, accounts, queryClient, isAccountsLoading, isBalancesLoading]);
     
+    // Logic đồng bộ hóa dữ liệu từ các nguồn khác
+    useEffect(() => {
+        const syncExternalData = async () => {
+            if (!accounts || !balances || isBalancesLoading) return;
+
+            const toNumber = (value) => {
+                if (typeof value === 'number') return value;
+                if (typeof value !== 'string' || !value) return 0;
+                const cleanedValue = value.trim().replace(/\./g, '').replace(/,/g, '');
+                return isNaN(parseFloat(cleanedValue)) ? 0 : parseFloat(cleanedValue);
+            };
+
+            try {
+                // --- Phần 1: Đồng bộ từ Báo cáo Công nợ ---
+                const receivableDocRef = doc(db, `accountsReceivable/${selectedYear}/quarters`, `Q${selectedQuarter}`);
+                const receivableDocSnap = await getDoc(receivableDocRef);
+
+                if (receivableDocSnap.exists()) {
+                    const receivableData = receivableDocSnap.data();
+                    const rules = {
+                        '131': { field: 'cuoiKyCo', source: receivableData?.kh_sx_ut?.openingDebit },
+                        '132': { field: 'cuoiKyNo', source: receivableData?.kh_dt?.openingDebit },
+                        '133': { field: 'cuoiKyNo', source: (receivableData?.pt_kh_sx?.openingDebit || 0) + (receivableData?.pt_nb_xn_sx?.openingDebit || 0) },
+                        '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.openingDebit },
+                        '135': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.openingDebit },
+                    };
+                    for (const accountId in rules) {
+                        const rule = rules[accountId];
+                        if (typeof rule.source === 'number' && rule.source !== balances[accountId]?.[rule.field]) {
+                            updateBalanceMutation.mutate({ accountId, year: selectedYear, quarter: selectedQuarter, field: rule.field, value: rule.source });
+                        }
+                    }
+                }
+
+                // --- Phần 2: Đồng bộ từ tất cả các công trình ---
+                const projectsQuery = query(collection(db, 'projects'));
+                const projectsSnapshot = await getDocs(projectsQuery);
+                
+                // ✅ KHỞI TẠO BIẾN TÍNH TỔNG CHO CẢ 2 TÀI KHOẢN
+                let totalFor339 = 0;
+                let totalFor338 = 0;
+
+                if (!projectsSnapshot.empty) {
+                    const projectIds = projectsSnapshot.docs.map(p => p.id);
+                    const quarterDocPromises = projectIds.map(id => getDoc(doc(db, `projects/${id}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`)));
+                    const quarterDocSnapshots = await Promise.all(quarterDocPromises);
+
+                    quarterDocSnapshots.forEach(quarterDocSnap => {
+                        if (quarterDocSnap.exists()) {
+                            const items = quarterDocSnap.data().items || [];
+                            
+                            // ✅ TÍNH TOÁN CHO CẢ 2 TK TRONG CÙNG 1 VÒNG LẶP
+                            items.forEach(item => {
+                                const noPhaiTraCK = toNumber(item.noPhaiTraCK);
+                                const debtValue = toNumber(item.debt);
+                                const calculatedValue = noPhaiTraCK - debtValue;
+
+                                // Điều kiện cho TK 339
+                                if (item.description === "Chi phí NC + VT để bảo hành công trình") {
+                                    totalFor339 += calculatedValue;
+                                }
+                                
+                                // Điều kiện cho TK 338
+                                if (item.description === "Chi phí dự phòng rủi ro") {
+                                    totalFor338 += calculatedValue;
+                                }
+                            });
+                        }
+                    });
+                }
+                
+                // Cập nhật tổng cuối cùng vào TK 339
+                if (totalFor339 !== balances['339']?.cuoiKyCo) {
+                    updateBalanceMutation.mutate({ accountId: '339', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor339 });
+                }
+                
+                // Cập nhật tổng cuối cùng vào TK 338
+                if (totalFor338 !== balances['338']?.cuoiKyCo) {
+                    updateBalanceMutation.mutate({ accountId: '338', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor338 });
+                }
+
+            } catch (error) {
+                console.error("Lỗi khi đồng bộ dữ liệu ngoài:", error);
+                toast.error("Không thể đồng bộ dữ liệu ngoài.");
+            }
+        };
+        syncExternalData();
+    }, [selectedYear, selectedQuarter, accounts, balances, updateBalanceMutation, isBalancesLoading]);
+
     const handleDeleteByPeriod = async () => {
         const confirmation = window.confirm(`BẠN CÓ CHẮC CHẮN MUỐN XÓA TOÀN BỘ DỮ LIỆU SỐ DƯ CỦA QUÝ ${selectedQuarter}/${selectedYear} KHÔNG?\n\n⚠️ Thao tác này KHÔNG THỂ hoàn tác!`);
         if (!confirmation) return;
-
         setIsDeleting(true);
         const toastId = toast.loading(`Đang xóa dữ liệu Quý ${selectedQuarter}/${selectedYear}...`);
         try {
@@ -344,47 +370,26 @@ const BalanceSheet = () => {
     const handleCollapseAll = useCallback(() => setExpanded([]), []);
 
     const handlePasteAndSave = async (pastedText) => {
-        if (!pastedText || !accounts) {
-            toast.error("Không có dữ liệu để dán hoặc hệ thống tài khoản chưa sẵn sàng.");
-            return;
-        }
-
+        if (!pastedText || !accounts) { toast.error("Không có dữ liệu để dán hoặc hệ thống tài khoản chưa sẵn sàng."); return; }
         const toastId = toast.loading('Đang kiểm tra và xử lý dữ liệu...');
         const validAccountIds = new Set(accounts.map(acc => acc.accountId));
         const rows = pastedText.trim().split('\n');
         const successes = [], errors = [], warnings = [];
-
         const parseCurrency = (value) => {
             if (typeof value !== 'string' || !value) return 0;
             const cleanedValue = value.trim().replace(/\./g, '').replace(/,/g, '');
             return isNaN(parseFloat(cleanedValue)) ? 0 : parseFloat(cleanedValue);
         };
-
         rows.forEach((row, index) => {
             const rowNum = index + 1;
             const columns = row.split('\t');
             const accountId = columns[0]?.trim();
-
-            if (!accountId) {
-                warnings.push({ row: rowNum, message: 'Thiếu mã tài khoản.' });
-                return;
-            }
-            if (!validAccountIds.has(accountId)) {
-                errors.push({ row: rowNum, accountId, message: 'Mã TK không tồn tại.' });
-                return;
-            }
-
+            if (!accountId) { warnings.push({ row: rowNum, message: 'Thiếu mã tài khoản.' }); return; }
+            if (!validAccountIds.has(accountId)) { errors.push({ row: rowNum, accountId, message: 'Mã TK không tồn tại.' }); return; }
             const dauKyNo = parseCurrency(columns[2]);
             const dauKyCo = parseCurrency(columns[3]);
-            successes.push({
-                accountId, dauKyNo, dauKyCo,
-                cuoiKyNo: parseCurrency(columns[5]),
-                cuoiKyCo: parseCurrency(columns[6]),
-                year: selectedYear, quarter: selectedQuarter,
-                isCarriedOver: !(dauKyNo > 0 || dauKyCo > 0)
-            });
+            successes.push({ accountId, dauKyNo, dauKyCo, cuoiKyNo: parseCurrency(columns[5]), cuoiKyCo: parseCurrency(columns[6]), year: selectedYear, quarter: selectedQuarter, isCarriedOver: !(dauKyNo > 0 || dauKyCo > 0) });
         });
-
         if (successes.length > 0) {
             try {
                 const batch = writeBatch(db);
@@ -394,13 +399,8 @@ const BalanceSheet = () => {
                 });
                 await batch.commit();
                 queryClient.invalidateQueries(['accountBalances', selectedYear, selectedQuarter]);
-            } catch (error) {
-                toast.dismiss(toastId);
-                toast.error(`Lỗi khi cập nhật database: ${error.message}`);
-                return;
-            }
+            } catch (error) { toast.dismiss(toastId); toast.error(`Lỗi khi cập nhật database: ${error.message}`); return; }
         }
-        
         toast.dismiss(toastId);
         toast.custom((t) => <ProcessReportToast t={t} successes={successes} errors={errors} warnings={warnings} />, { duration: 6000 });
     };
@@ -477,10 +477,7 @@ const BalanceSheet = () => {
                                  </Stack>
                                  <Tooltip title={`Xóa toàn bộ dữ liệu của Quý ${selectedQuarter}/${selectedYear}`}>
                                      <span>
-                                         <Button variant="contained" color="error" startIcon={<DeleteForeverIcon />} onClick={handleDeleteByPeriod}
-                                             disabled={isDeleting || isBalancesLoading || !balances || Object.keys(balances).length === 0}
-                                             sx={{ mt: { xs: 1, sm: 0 }, width: { xs: '100%', sm: 'auto' } }}
-                                         >
+                                         <Button variant="contained" color="error" startIcon={<DeleteForeverIcon />} onClick={handleDeleteByPeriod} disabled={isDeleting || isBalancesLoading || !balances || Object.keys(balances).length === 0} sx={{ mt: { xs: 1, sm: 0 }, width: { xs: '100%', sm: 'auto' } }}>
                                              {isDeleting ? 'Đang xóa...' : 'Xóa dữ liệu kỳ'}
                                          </Button>
                                      </span>
@@ -492,7 +489,7 @@ const BalanceSheet = () => {
 
                 <Box sx={{ px: 2, pb: 1 }}>
                     <Alert severity="info" icon={<InfoIcon fontSize="inherit" />} sx={{ fontSize: '0.875rem' }}>
-                        <b>Mẹo:</b> Các ô số dư đầu kỳ có nền xám và biểu tượng khóa <LockIcon sx={{ fontSize: 12, verticalAlign: 'middle' }}/> được chuyển tự động từ kỳ trước và sẽ bị khóa.
+                        <b>Mẹo:</b> Các ô số dư đầu kỳ có nền xám và biểu tượng khóa <LockIcon sx={{ fontSize: 12, verticalAlign: 'middle' }}/> được chuyển tự động từ kỳ trước và sẽ bị khóa. Các ô được đồng bộ từ nguồn khác cũng sẽ bị khóa.
                     </Alert>
                 </Box>
 
@@ -517,8 +514,7 @@ const BalanceSheet = () => {
                             <TableBody>
                                 {accountTree.length > 0 ? (
                                     accountTree.map((rootAccount) => (
-                                        <BalanceSheetRow key={rootAccount.id} account={rootAccount} level={0} expanded={expanded} onToggle={handleToggle}
-                                            year={selectedYear} quarter={selectedQuarter} updateMutation={updateBalanceMutation} />
+                                        <BalanceSheetRow key={rootAccount.id} account={rootAccount} level={0} expanded={expanded} onToggle={handleToggle} year={selectedYear} quarter={selectedQuarter} updateMutation={updateBalanceMutation} />
                                     ))
                                 ) : (
                                     <TableRow>
