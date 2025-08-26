@@ -567,7 +567,7 @@ export default function ProfitReportQuarter() {
             rows[idxVuotBPXD].profit = profitBPXD;
         }
         if (idxVuotBPSX !== -1) {
-            profitBPSX = toNum(costOverSX);
+            profitBPSX = -toNum(costOverSX);
             rows[idxVuotBPSX].profit = profitBPSX;
         }
         if (idxVuotBPDT !== -1) {
@@ -603,20 +603,23 @@ export default function ProfitReportQuarter() {
                 (r.name || "").toUpperCase() ===
                 finalProfitRowName.toUpperCase()
         );
-        const idxVuotQ2 = rows.findIndex(
+
+        // ✅ Sửa tên 'idxVuotQ2' thành 'idxVuotQuarter'
+        const idxVuotQuarter = rows.findIndex(
             (r) =>
                 (r.name || "").toUpperCase() ===
                 vuotQuarterRowName.toUpperCase()
         );
 
         // Chỉ tính toán khi tìm thấy tất cả các hàng cần thiết
-        if (idxLNRong !== -1 && idxLNFinal !== -1 && idxVuotQ2 !== -1) {
+        if (idxLNRong !== -1 && idxLNFinal !== -1 && idxVuotQuarter !== -1) {
             // Lấy giá trị lợi nhuận từ các hàng
             const loiNhuanSauGiamTru = toNum(rows[idxLNFinal].profit);
-            const vuotQ2Profit = toNum(rows[idxVuotQ2].profit);
-
-            // Công thức mới
-            rows[idxLNRong].profit = loiNhuanSauGiamTru - vuotQ2Profit;
+            // ✅ Sửa tên 'vuotQ2Profit' thành 'vuotQuarterProfit'
+            const vuotQuarterProfit = toNum(rows[idxVuotQuarter].profit);
+            console.log('vuotQuarterProfit', vuotQuarterProfit)
+            // Công thức tính toán vẫn giữ nguyên
+            rows[idxLNRong].profit = loiNhuanSauGiamTru - vuotQuarterProfit;
         }
 
         return rows;
@@ -635,159 +638,159 @@ export default function ProfitReportQuarter() {
                         )
                     );
                     if (snap.exists()) return toNum(snap.data()[fieldName]);
-                } catch {}
+                } catch { }
                 return 0;
             };
 
             // Lấy cpVuot từ công trình cụ thể cho II. SẢN XUẤT
-// Lấy cpVuot từ công trình cụ thể cho II. SẢN XUẤT
-const getCpVuotSanXuat = async () => {
-    try {
-        const docRef = doc(db, `projects/HKZyMDRhyXJzJiOauzVe/years/${selectedYear}/quarters/${selectedQuarter}`);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            
-            // Kiểm tra nếu có items và cộng dồn cpVuot của từng item
-            if (Array.isArray(data.items) && data.items.length > 0) {
-                const totalCpVuot = data.items.reduce((sum, item) => {
-                    return sum + toNum(item.cpVuot || 0);
-                }, 0);
-                return totalCpVuot;
-            }
-            
-            // Nếu không có items hoặc items rỗng, lấy cpVuot ở cấp document
-            if (data.cpVuot !== undefined) {
-                return toNum(data.cpVuot);
-            }
-        }
-    } catch (error) {
-        console.error("Lỗi khi lấy cpVuot cho Sản xuất:", error);
-    }
-    return 0;
-};
+            // Lấy cpVuot từ công trình cụ thể cho II. SẢN XUẤT
+            const getCpVuotSanXuat = async () => {
+                try {
+                    const docRef = doc(db, `projects/HKZyMDRhyXJzJiOauzVe/years/${selectedYear}/quarters/${selectedQuarter}`);
+                    const docSnap = await getDoc(docRef);
 
-const [
-    projectsSnapshot,
-    cpVuotCurr,
-    cpVuotNhaMay,  // Giờ sẽ cộng dồn từ items hoặc lấy từ document
-    cpVuotKhdt,
-    profitChangesDoc,
-] = await Promise.all([
-    getDocs(collection(db, "projects")),
-    getCostOverQuarter("totalThiCongCumQuarterOnly"),
-    getCpVuotSanXuat(),  // Thay đổi ở đây
-    getCostOverQuarter("totalKhdtCumQuarterOnly"),
-    getDoc(
-        doc(
-            db,
-            "profitChanges",
-            `${selectedYear}_${selectedQuarter}`
-        )
-    ),
-]);
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
 
-const projects = await Promise.all(
-    projectsSnapshot.docs.map(async (d) => {
-        const data = d.data();
-        let revenue = 0;
-        let cost = 0;
+                        // Kiểm tra nếu có items và cộng dồn cpVuot của từng item
+                        if (Array.isArray(data.items) && data.items.length > 0) {
+                            const totalCpVuot = data.items.reduce((sum, item) => {
+                                return sum + toNum(item.cpVuot || 0);
+                            }, 0);
+                            return totalCpVuot;
+                        }
 
-        try {
-            const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
-            const qSnap = await getDoc(doc(db, qPath));
-
-            if (qSnap.exists()) {
-                // Lấy tổng doanh thu của quý (overallRevenue)
-                revenue = toNum(qSnap.data().overallRevenue);
-
-                // Lấy loại công trình để áp dụng logic điều kiện
-                const projectType = (data.type || "").toLowerCase();
-
-                // Bắt đầu kiểm tra điều kiện
-                if (projectType.includes("nhà máy")) {
-                    // TRƯỜNG HỢP 1: NẾU LÀ CÔNG TRÌNH SẢN XUẤT (NHÀ MÁY)
-                    // -> Luôn tính chi phí bằng tổng của `totalCost`
-                    if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
-                        cost = qSnap
-                            .data()
-                            .items.reduce(
-                                (sum, item) => sum + toNum(item.totalCost || 0),
-                                0
-                            );
+                        // Nếu không có items hoặc items rỗng, lấy cpVuot ở cấp document
+                        if (data.cpVuot !== undefined) {
+                            return toNum(data.cpVuot);
+                        }
                     }
-                } else {
-                    // TRƯỜNG HỢP 2: CÁC LOẠI CÔNG TRÌNH CÒN LẠI (Dân dụng, Kè, CĐT, v.v.)
-                    // -> Áp dụng logic tính toán phức tạp
-                    if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
-                        const totalItemsRevenue = qSnap
-                            .data()
-                            .items.reduce(
-                                (sum, item) => sum + toNum(item.revenue || 0),
-                                0
-                            );
+                } catch (error) {
+                    console.error("Lỗi khi lấy cpVuot cho Sản xuất:", error);
+                }
+                return 0;
+            };
 
-                        if (totalItemsRevenue === 0 && revenue === 0) {
-                            // Điều kiện đặc biệt: Nếu cả 2 doanh thu = 0 -> chi phí = 0
-                            cost = 0;
-                        } else {
-                            // Logic cũ
-                            if (totalItemsRevenue === 0) {
-                                // Nếu chỉ doanh thu chi tiết = 0 -> chi phí = tổng `cpSauQuyetToan`
-                                cost = qSnap
-                                    .data()
-                                    .items.reduce(
-                                        (sum, item) =>
-                                            sum + toNum(item.cpSauQuyetToan || 0),
-                                        0
-                                    );
+            const [
+                projectsSnapshot,
+                cpVuotCurr,
+                cpVuotNhaMay,  // Giờ sẽ cộng dồn từ items hoặc lấy từ document
+                cpVuotKhdt,
+                profitChangesDoc,
+            ] = await Promise.all([
+                getDocs(collection(db, "projects")),
+                getCostOverQuarter("totalThiCongCumQuarterOnly"),
+                getCpVuotSanXuat(),  // Thay đổi ở đây
+                getCostOverQuarter("totalKhdtCumQuarterOnly"),
+                getDoc(
+                    doc(
+                        db,
+                        "profitChanges",
+                        `${selectedYear}_${selectedQuarter}`
+                    )
+                ),
+            ]);
+
+            const projects = await Promise.all(
+                projectsSnapshot.docs.map(async (d) => {
+                    const data = d.data();
+                    let revenue = 0;
+                    let cost = 0;
+
+                    try {
+                        const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
+                        const qSnap = await getDoc(doc(db, qPath));
+
+                        if (qSnap.exists()) {
+                            // Lấy tổng doanh thu của quý (overallRevenue)
+                            revenue = toNum(qSnap.data().overallRevenue);
+
+                            // Lấy loại công trình để áp dụng logic điều kiện
+                            const projectType = (data.type || "").toLowerCase();
+
+                            // Bắt đầu kiểm tra điều kiện
+                            if (projectType.includes("nhà máy")) {
+                                // TRƯỜNG HỢP 1: NẾU LÀ CÔNG TRÌNH SẢN XUẤT (NHÀ MÁY)
+                                // -> Luôn tính chi phí bằng tổng của `totalCost`
+                                if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
+                                    cost = qSnap
+                                        .data()
+                                        .items.reduce(
+                                            (sum, item) => sum + toNum(item.totalCost || 0),
+                                            0
+                                        );
+                                }
                             } else {
-                                // Nếu có doanh thu chi tiết -> chi phí = tổng `totalCost`
-                                cost = qSnap
-                                    .data()
-                                    .items.reduce(
-                                        (sum, item) =>
-                                            sum + toNum(item.totalCost || 0),
-                                        0
-                                    );
+                                // TRƯỜNG HỢP 2: CÁC LOẠI CÔNG TRÌNH CÒN LẠI (Dân dụng, Kè, CĐT, v.v.)
+                                // -> Áp dụng logic tính toán phức tạp
+                                if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
+                                    const totalItemsRevenue = qSnap
+                                        .data()
+                                        .items.reduce(
+                                            (sum, item) => sum + toNum(item.revenue || 0),
+                                            0
+                                        );
+
+                                    if (totalItemsRevenue === 0 && revenue === 0) {
+                                        // Điều kiện đặc biệt: Nếu cả 2 doanh thu = 0 -> chi phí = 0
+                                        cost = 0;
+                                    } else {
+                                        // Logic cũ
+                                        if (totalItemsRevenue === 0) {
+                                            // Nếu chỉ doanh thu chi tiết = 0 -> chi phí = tổng `cpSauQuyetToan`
+                                            cost = qSnap
+                                                .data()
+                                                .items.reduce(
+                                                    (sum, item) =>
+                                                        sum + toNum(item.cpSauQuyetToan || 0),
+                                                    0
+                                                );
+                                        } else {
+                                            // Nếu có doanh thu chi tiết -> chi phí = tổng `totalCost`
+                                            cost = qSnap
+                                                .data()
+                                                .items.reduce(
+                                                    (sum, item) =>
+                                                        sum + toNum(item.totalCost || 0),
+                                                    0
+                                                );
+                                        }
+                                    }
+                                } else if (revenue === 0) {
+                                    // Xử lý trường hợp không có 'items' và không có doanh thu
+                                    cost = 0;
+                                }
                             }
                         }
-                    } else if (revenue === 0) {
-                        // Xử lý trường hợp không có 'items' và không có doanh thu
-                        cost = 0;
+                    } catch (error) {
+                        console.error("Lỗi khi lấy dữ liệu công trình:", d.id, error);
                     }
-                }
-            }
-        } catch (error) {
-            console.error("Lỗi khi lấy dữ liệu công trình:", d.id, error);
-        }
 
-        // Lợi nhuận luôn được tính lại dựa trên doanh thu và chi phí vừa xác định
-        const profit = revenue - cost;
-        const plannedProfitMargin = data.estimatedProfitMargin || null;
+                    // Lợi nhuận luôn được tính lại dựa trên doanh thu và chi phí vừa xác định
+                    const profit = revenue - cost;
+                    const plannedProfitMargin = data.estimatedProfitMargin || null;
 
-        // Trả về đối tượng công trình hoàn chỉnh để hiển thị
-        return {
-            projectId: d.id,
-            name: data.name,
-            revenue,
-            cost,
-            profit,
-            percent: plannedProfitMargin,
-            costOverQuarter: null,
-            target: null,
-            note: "",
-            suggest: "",
-            type: data.type || "",
-            editable: true,
-        };
-    })
-);
+                    // Trả về đối tượng công trình hoàn chỉnh để hiển thị
+                    return {
+                        projectId: d.id,
+                        name: data.name,
+                        revenue,
+                        cost,
+                        profit,
+                        percent: plannedProfitMargin,
+                        costOverQuarter: null,
+                        target: null,
+                        note: "",
+                        suggest: "",
+                        type: data.type || "",
+                        editable: true,
+                    };
+                })
+            );
 
-// =================================================================
-// ✅ KẾT THÚC KHỐI CODE THAY THẾ
-// =================================================================
+            // =================================================================
+            // ✅ KẾT THÚC KHỐI CODE THAY THẾ
+            // =================================================================
 
             const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
             const saved = await getDoc(
@@ -1213,59 +1216,81 @@ const projects = await Promise.all(
             );
             if (idxVI_update !== -1)
                 finalRows[idxVI_update].profit = totalIncreaseProfit;
-            finalRows = updateGroupI1(finalRows);
+             // BƯỚC 1: Cập nhật các nhóm con và các mục chi tiết
+        finalRows = updateGroupI1(finalRows);
+        finalRows = updateGroupI3(finalRows);
+        finalRows = updateGroupI4(finalRows);
+        finalRows = updateLDXRow(finalRows);
+        finalRows = updateDTLNLDXRow(finalRows);
+        finalRows = updateSalanRow(finalRows);
+        finalRows = updateThuNhapKhacRow(finalRows);
+        finalRows = updateGroupII1(finalRows);
+        finalRows = updateDauTuRow(finalRows);
 
-            finalRows = updateGroupI3(finalRows);
-            finalRows = updateGroupI4(finalRows);
+        // BƯỚC 2: Cập nhật các mục tổng hợp lớn (phụ thuộc vào các nhóm con)
+        finalRows = updateXayDungRow(finalRows);
+        finalRows = updateSanXuatRow(finalRows);
+        
+        // BƯỚC 3: Tính toán dòng TỔNG (phụ thuộc vào các mục lớn)
+        finalRows = calculateTotals(finalRows);
 
-            finalRows = updateXayDungRow(finalRows);
-            finalRows = updateLDXRow(finalRows);
-            finalRows = updateDTLNLDXRow(finalRows);
-            finalRows = updateSalanRow(finalRows);
-            finalRows = updateThuNhapKhacRow(finalRows);
-            finalRows = updateDauTuRow(finalRows);
-            finalRows = updateGroupII1(finalRows); // <-- THÊM DÒNG NÀY
+        // BƯỚC 4: Cập nhật Lợi nhuận Quý (phụ thuộc vào TỔNG)
+        const idxTotal = finalRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
+        );
+        const idxIV = finalRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
+        );
+        if (idxIV !== -1 && idxTotal !== -1) {
+            finalRows[idxIV].profit = toNum(finalRows[idxTotal].profit);
+        }
 
-            finalRows = updateSanXuatRow(finalRows);
-            finalRows = updateVuotCPRows(finalRows);
-            finalRows = calculateTotals(finalRows);
-            finalRows = updateLoiNhuanRongRow(finalRows); // <-- THÊM DÒNG NÀY
+        // BƯỚC 5: Tính "LỢI NHUẬN SAU GIẢM TRỪ" (phụ thuộc vào Lợi nhuận Quý và các mục V, VI, VII, VIII)
+        const idxV = finalRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
+        );
+        const idxVI = finalRows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
+        );
+        const idxVII = finalRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
+        );
+        const idxVIII = finalRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "VIII. GIẢM LÃI ĐT DỰ ÁN"
+        );
+        const idxLNFinal = finalRows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase()
+        );
 
-            const idxTotal = finalRows.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
-            );
-            const idxIV = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() ===
-                    `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
-            );
-            if (idxIV !== -1 && idxTotal !== -1) {
-                finalRows[idxIV].profit = toNum(finalRows[idxTotal].profit);
-            }
+        if (
+            idxLNFinal !== -1 &&
+            idxIV !== -1 &&
+            idxV !== -1 &&
+            idxVI !== -1 &&
+            idxVII !== -1 &&
+            idxVIII !== -1
+        ) {
+            finalRows[idxLNFinal].profit =
+                toNum(finalRows[idxIV].profit) -
+                toNum(finalRows[idxV].profit) +
+                toNum(finalRows[idxVI].profit) -
+                toNum(finalRows[idxVII].profit) -
+                toNum(finalRows[idxVIII].profit);
+        }
+        
+        // BƯỚC 6: Cập nhật các khoản vượt chi
+        finalRows = updateVuotCPRows(finalRows);
 
-            const idxV = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
-            );
-            const idxVI = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
-            );
-            const idxVII = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() ===
-                    `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
-            );
-            const idxVIII = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() ===
-                    "VIII. GIẢM LÃI ĐT DỰ ÁN"
-            );
-            const idxLNFinal = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() ===
-                    finalProfitRowName.toUpperCase()
-            );
+        // BƯỚC 7: Tính LỢI NHUẬN RÒNG (phụ thuộc vào "LỢI NHUẬN SAU GIẢM TRỪ" và "VƯỢT QUÝ")
+        finalRows = updateLoiNhuanRongRow(finalRows); 
 
             if (
                 idxLNFinal !== -1 &&
@@ -1450,30 +1475,28 @@ const projects = await Promise.all(
             const cost = toNum(newRows[idx].cost);
             newRows[idx].profit = rev - cost;
         }
-        // ✅ KẾT THÚC LOGIC MỚI
-        // ----------------------------------------------------------------
-
-        // --- TÍNH TOÁN LẠI CÁC DÒNG TỔNG HỢP ---
-        // (Đoạn này giữ nguyên các hàm update của bạn)
+        // --- TÍNH TOÁN LẠI CÁC DÒNG TỔNG HỢP THEO ĐÚNG THỨ TỰ ---
         let finalRows = newRows;
-        finalRows = updateGroupI1(finalRows);
 
+        // BƯỚC 1: Cập nhật các nhóm con và các mục chi tiết
+        finalRows = updateGroupI1(finalRows);
         finalRows = updateGroupI3(finalRows);
         finalRows = updateGroupI4(finalRows);
-        finalRows = updateXayDungRow(finalRows); // <-- Giả sử bạn có hàm này
         finalRows = updateLDXRow(finalRows);
         finalRows = updateDTLNLDXRow(finalRows);
         finalRows = updateSalanRow(finalRows);
         finalRows = updateThuNhapKhacRow(finalRows);
+        finalRows = updateGroupII1(finalRows);
         finalRows = updateDauTuRow(finalRows);
-        finalRows = updateGroupII1(finalRows); // <-- Giả sử bạn có hàm này
-        finalRows = updateSanXuatRow(finalRows); // <-- Giả sử bạn có hàm này
-        finalRows = updateVuotCPRows(finalRows);
 
+        // BƯỚC 2: Cập nhật các mục tổng hợp lớn (phụ thuộc vào các nhóm con)
+        finalRows = updateXayDungRow(finalRows);
+        finalRows = updateSanXuatRow(finalRows);
+
+        // BƯỚC 3: Tính toán dòng TỔNG (phụ thuộc vào các mục lớn)
         finalRows = calculateTotals(finalRows);
 
-        // --- TÍNH TOÁN LẠI CÁC DÒNG LỢI NHUẬN CUỐI CÙNG ---
-        // (Đoạn này giữ nguyên logic tính lợi nhuận cuối cùng của bạn)
+        // BƯỚC 4: Cập nhật Lợi nhuận Quý (phụ thuộc vào TỔNG)
         const idxTotal = finalRows.findIndex(
             (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
         );
@@ -1486,6 +1509,7 @@ const projects = await Promise.all(
             finalRows[idxIV].profit = toNum(finalRows[idxTotal].profit);
         }
 
+        // BƯỚC 5: Tính "LỢI NHUẬN SAU GIẢM TRỪ" (phụ thuộc vào Lợi nhuận Quý và các mục V, VI, VII, VIII)
         const idxV = finalRows.findIndex(
             (r) => (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
         );
@@ -1523,8 +1547,13 @@ const projects = await Promise.all(
                 toNum(finalRows[idxVII].profit) -
                 toNum(finalRows[idxVIII].profit);
         }
-        finalRows = updateLoiNhuanRongRow(finalRows); // <-- THÊM DÒNG NÀY
+        // BƯỚC 6: Cập nhật các khoản vượt chi
+        finalRows = updateVuotCPRows(finalRows);
 
+        // BƯỚC 7: Tính LỢI NHUẬN RÒNG (phụ thuộc vào "LỢI NHUẬN SAU GIẢM TRỪ" và "VƯỢT QUÝ")
+        finalRows = updateLoiNhuanRongRow(finalRows);
+
+        // Cập nhật state cuối cùng để UI hiển thị
         setRows(finalRows);
     };
     const isDetailUnderI1 = (idx) => {
@@ -1923,28 +1952,28 @@ const projects = await Promise.all(
                 >
                     <Table size="small" sx={{ minWidth: 1200 }}>
                         <TableHead
-    sx={{
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        // Đặt nền xanh cho toàn bộ khu vực a
-        backgroundColor: "#1565c0", 
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-        
-        // Áp dụng style cho tất cả các ô tiêu đề (th) bên trong
-        "& th": {
-            color: "#ffffff !important", // Chữ màu trắng (thêm !important để ưu tiên)
-            backgroundColor: "#1565c0 !important", // Nền màu xanh (thêm !important để đảm bảo)
-            fontWeight: 700,
-            fontSize: { xs: 12, sm: 14, md: 16 },
-            textAlign: "center",
-            borderBottom: "2px solid #fff",
-            whiteSpace: "nowrap",
-            px: 2,
-            py: 1,
-        },
-    }}
->
+                            sx={{
+                                position: "sticky",
+                                top: 0,
+                                zIndex: 100,
+                                // Đặt nền xanh cho toàn bộ khu vực a
+                                backgroundColor: "#1565c0",
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+
+                                // Áp dụng style cho tất cả các ô tiêu đề (th) bên trong
+                                "& th": {
+                                    color: "#ffffff !important", // Chữ màu trắng (thêm !important để ưu tiên)
+                                    backgroundColor: "#1565c0 !important", // Nền màu xanh (thêm !important để đảm bảo)
+                                    fontWeight: 700,
+                                    fontSize: { xs: 12, sm: 14, md: 16 },
+                                    textAlign: "center",
+                                    borderBottom: "2px solid #fff",
+                                    whiteSpace: "nowrap",
+                                    px: 2,
+                                    py: 1,
+                                },
+                            }}
+                        >
                             <TableRow>
                                 {[
                                     "CÔNG TRÌNH",
@@ -1990,29 +2019,29 @@ const projects = await Promise.all(
                                             .includes("LỢI NHUẬN SAU GIẢM TRỪ")
                                             ? "#f3e5f5"
                                             : r.name?.includes("TỔNG")
-                                            ? "#e8f5e9"
-                                            : r.name?.match(/^[IVX]+\./)
-                                            ? "#fff9c4"
-                                            : idx % 2 === 0
-                                            ? "#ffffff"
-                                            : "#f9f9f9",
+                                                ? "#e8f5e9"
+                                                : r.name?.match(/^[IVX]+\./)
+                                                    ? "#fff9c4"
+                                                    : idx % 2 === 0
+                                                        ? "#ffffff"
+                                                        : "#f9f9f9",
                                         "&:hover": { bgcolor: "#f5f5f5" },
                                         fontWeight: r.name
                                             ?.toUpperCase()
                                             .includes("LỢI NHUẬN SAU GIẢM TRỪ")
                                             ? 900
                                             : r.name?.includes("TỔNG")
-                                            ? 800
-                                            : r.name?.match(/^[IVX]+\./)
-                                            ? 700
-                                            : 400,
+                                                ? 800
+                                                : r.name?.match(/^[IVX]+\./)
+                                                    ? 700
+                                                    : 400,
                                         fontSize: r.name
                                             ?.toUpperCase()
                                             .includes("LỢI NHUẬN SAU GIẢM TRỪ")
                                             ? 20
                                             : r.name?.match(/^[IVX]+\./)
-                                            ? 18
-                                            : "inherit",
+                                                ? 18
+                                                : "inherit",
                                     }}
                                 >
                                     <TableCell
@@ -2046,16 +2075,16 @@ const projects = await Promise.all(
                                         {
                                             // THÊM ĐIỀU KIỆN MỚI Ở ĐÂY
                                             isDetailUnderI1(idx) ||
-                                            isDetailUnderII1(idx)
+                                                isDetailUnderII1(idx)
                                                 ? "–" // Nếu là chi tiết của I.1 hoặc II.1, luôn hiển thị "–"
                                                 : r.projectId &&
-                                                  toNum(r.cost) > 0 // Giữ lại logic cũ cho các trường hợp khác
-                                                ? `${(
-                                                      (toNum(r.profit) /
-                                                          toNum(r.cost)) *
-                                                      100
-                                                  ).toFixed(2)}%`
-                                                : "–"
+                                                    toNum(r.cost) > 0 // Giữ lại logic cũ cho các trường hợp khác
+                                                    ? `${(
+                                                        (toNum(r.profit) /
+                                                            toNum(r.cost)) *
+                                                        100
+                                                    ).toFixed(2)}%`
+                                                    : "–"
                                         }
                                     </TableCell>
                                     {isDTLNLDX(r) ? (
@@ -2085,11 +2114,11 @@ const projects = await Promise.all(
                                         sx={{ ...cellStyle, px: 2, py: 1 }}
                                     >
                                         {isDTLNLDX(r) ||
-                                        (r.name || "").trim().toUpperCase() ===
+                                            (r.name || "").trim().toUpperCase() ===
                                             "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY" ||
-                                        (r.name || "").trim().toUpperCase() ===
+                                            (r.name || "").trim().toUpperCase() ===
                                             "I.2. KÈ" ||
-                                        (r.name || "").trim().toUpperCase() ===
+                                            (r.name || "").trim().toUpperCase() ===
                                             "TỔNG" ? (
                                             <Typography
                                                 sx={{
@@ -2103,7 +2132,7 @@ const projects = await Promise.all(
                                             format(
                                                 r.revenue
                                                     ? (r.profit / r.revenue) *
-                                                          100
+                                                    100
                                                     : null,
                                                 "percent",
                                                 r

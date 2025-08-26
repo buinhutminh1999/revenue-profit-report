@@ -146,8 +146,13 @@ export const calcAllFields = (
 
     row.carryoverMinus = calcCarryoverMinus(row);
     row.totalCost = calcTotalCost(row);
-    row.cpVuot = calcCpVuot(row);
-    row.carryoverEnd = calcCarryoverEnd(row, projectType);
+// BẮT ĐẦU THAY ĐỔI
+    const project = row.project || "";
+    if (project.includes("-VT") || project.includes("-NC")) {
+        row.cpVuot = "0"; // Nếu là dòng -VT hoặc -NC, gán CP Vượt = 0
+    } else {
+        row.cpVuot = calcCpVuot(row); // Ngược lại, tính toán bình thường
+    }    row.carryoverEnd = calcCarryoverEnd(row, projectType);
 
     if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP")) {
         // THAY ĐỔI DUY NHẤT Ở ĐÂY: Truyền thêm "projectType"
@@ -170,5 +175,6 @@ export const getHiddenColumnsForProject = (project) =>
               "carryoverEnd",
               "hskh",
               "revenue",
+              "cpVuot"
           ]
         : [];
