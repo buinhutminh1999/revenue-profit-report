@@ -550,6 +550,10 @@ export default function ProfitReportQuarter() {
         const costOverDT =
             rows.find((r) => (r.name || "").toUpperCase() === "III. ĐẦU TƯ")
                 ?.costOverQuarter || 0;
+                 // ✅ BỔ SUNG: Tìm và lấy lợi nhuận từ hàng "Chi phí đã trả trước"
+    const chiPhiTraTruocProfit = 
+        rows.find((r) => (r.name || "").toUpperCase() === "+ CHI PHÍ ĐÃ TRẢ TRƯỚC")
+            ?.profit || 0;
         const idxVuotBPXD = rows.findIndex(
             (r) => (r.name || "").toUpperCase() === "+VƯỢT CP BPXD"
         );
@@ -567,7 +571,7 @@ export default function ProfitReportQuarter() {
             rows[idxVuotBPXD].profit = profitBPXD;
         }
         if (idxVuotBPSX !== -1) {
-            profitBPSX = -toNum(costOverSX);
+            profitBPSX = toNum(costOverSX);
             rows[idxVuotBPSX].profit = profitBPSX;
         }
         if (idxVuotBPDT !== -1) {
@@ -581,7 +585,7 @@ export default function ProfitReportQuarter() {
             (r) => (r.name || "").toUpperCase() === vuotQuarterName
         );
         if (idxCpVuot !== -1) {
-            rows[idxCpVuot].profit = profitBPXD + profitBPSX + profitBPDT;
+            rows[idxCpVuot].profit = profitBPXD + profitBPSX + profitBPDT + toNum(chiPhiTraTruocProfit);
         }
         // --- KẾT THÚC THAY ĐỔI ---
 
@@ -1183,7 +1187,7 @@ export default function ProfitReportQuarter() {
                 (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
             );
             if (idxSX !== -1)
-                processedRows[idxSX].costOverQuarter = cpVuotNhaMay || 0;
+                processedRows[idxSX].costOverQuarter = -toNum(cpVuotNhaMay) || 0;
 
             const idxDT = processedRows.findIndex(
                 (r) => (r.name || "").trim().toUpperCase() === "III. ĐẦU TƯ"

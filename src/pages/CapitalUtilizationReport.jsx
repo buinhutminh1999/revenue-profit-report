@@ -208,6 +208,21 @@ const useCapitalReport = (year, quarter) => {
                     ],
                 },
                 investment: {
+                    bacLongXuyen: [
+                        { id: 'blx1', stt: '1', name: 'ĐẤT MỸ THỚI 8 CÔNG', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx2', stt: '2', name: 'ĐẤT BÌNH ĐỨC 4 CÔNG', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx3', stt: '3', name: 'ĐẤT MỸ THỚI 3 CÔNG', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx4', stt: '4', name: 'DA AN VƯƠNG', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx5', stt: '5', name: 'KHU DÂN CƯ MỸ LỘC', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx6', stt: '6', name: 'ĐẤT MỸ THỚI 18 CÔNG', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx7', stt: '7', name: 'ĐẤT NÚI SẬP', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx8', stt: '8', name: 'CĂN NHÀ SỐ 1 D8', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx9', stt: '9', name: 'CĂN NHÀ SỐ 2 F14', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx10', stt: '10', name: 'CĂN NHÀ SỐ 3 L15', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx11', stt: '11', name: 'CĂN NHÀ SỐ 4 J14', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx12', stt: '12', name: 'BLX LÔ M9,M10,M11,M12', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                        { id: 'blx13', stt: '13', name: 'ĐẤT PHÚ TÂN', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
+                    ],
                     projectDetails: [
                         {
                             id: 13,
@@ -648,112 +663,101 @@ const CapitalUtilizationReport = () => {
         return parents;
     }, [chartOfAccounts, balances]);
 
-    // ✅ BƯỚC 2: NÂNG CẤP LOGIC TÍNH TOÁN `useEffect`
+ // >>> BẠN HÃY DÁN ĐOẠN CODE useEffect MỚI VÀO ĐÂY <<<
     useEffect(() => {
-        if (fetchedData && balances && chartOfAccounts) {
-            // Thêm chartOfAccounts vào điều kiện
-            let updatedData = JSON.parse(JSON.stringify(fetchedData));
+        // Chỉ set state khi fetchedData có dữ liệu và reportData đang là null
+        if (fetchedData && !reportData) {
+            setReportData(fetchedData);
+        }
+    }, [fetchedData, reportData]); useEffect(() => {
+    // Chỉ chạy khi cả 3 nguồn dữ liệu đã sẵn sàng
+    if (reportData && balances && chartOfAccounts) {
+        let updatedData = JSON.parse(JSON.stringify(reportData));
+        let hasChanged = false;
 
-            const updateActualValue = (items) =>
-                items.map((item) => {
-                    if (!item.codes || item.codes.length === 0)
+        const updateItems = (items, fieldToUpdate) => {
+            // ... (Giữ nguyên toàn bộ logic của hàm updateItems)
+            return items.map(item => {
+                if (!item.codes || item.codes.length === 0) {
+                    if (fieldToUpdate === 'actual' && item.actual !== 0) {
+                        hasChanged = true;
                         return { ...item, actual: 0 };
-
-                    // Lấy tất cả các tài khoản cần tính tổng (cha + con)
-                    const allAccountsToSum = item.codes.flatMap((parentCode) =>
-                        getAccountAndAllChildren(parentCode, chartOfAccounts)
-                    );
-
-                    // Loại bỏ các mã trùng lặp nếu có
-                    const uniqueAccountsToSum = [...new Set(allAccountsToSum)];
-
-                    let totalActual = uniqueAccountsToSum.reduce( // Đổi const thành let
-                        (sum, code) => {
-                            const balanceInfo = balances[code];
-                            if (balanceInfo) {
-                                return sum + (balanceInfo.cuoiKyNo || balanceInfo.cuoiKyCo || 0);
-                            }
-                            return sum;
-                        }, 0
-                    );
-
-                    // THÊM ĐIỀU KIỆN KIỂM TRA Ở ĐÂY
-                    if (item.id === 4 || item.id === 5) {
-                        totalActual = -totalActual; // Nếu là dòng 4 hoặc 5, đổi kết quả thành số âm
                     }
+                    // Sửa lại chỗ này để reset cả 'cost' nếu cần
+                    if (fieldToUpdate === 'cost' && item.cost !== 0) {
+                        hasChanged = true;
+                        return { ...item, cost: 0 };
+                    }
+                    return item;
+                }
+                const allAccountsToSum = item.codes.flatMap(code => getAccountAndAllChildren(code, chartOfAccounts));
+                const uniqueAccounts = [...new Set(allAccountsToSum)];
+                let total = uniqueAccounts.reduce((sum, code) => {
+                    const balance = balances[code];
+                    const value = (balance?.cuoiKyNo || 0) > 0 ? balance.cuoiKyNo : (balance?.cuoiKyCo || 0);
+                    return sum + value;
+                }, 0);
 
-                    return { ...item, actual: totalActual };
-                });
+                if (fieldToUpdate === 'actual' && (item.id === 4 || item.id === 5 || item.id === 10 || item.id === 11 || item.id === 12)) {
+                    total = -total;
+                }
+                
+                if (item[fieldToUpdate] !== total) {
+                    hasChanged = true;
+                }
+                return { ...item, [fieldToUpdate]: total };
+            });
+        };
 
-            updatedData.production = updateActualValue(updatedData.production);
-            updatedData.construction.usage = updateActualValue(
-                updatedData.construction.usage
-            );
-            updatedData.construction.revenue = updateActualValue(
-                updatedData.construction.revenue
-            );
+        updatedData.production = updateItems(updatedData.production, 'actual');
+        updatedData.construction.usage = updateItems(updatedData.construction.usage, 'actual');
+        updatedData.construction.revenue = updateItems(updatedData.construction.revenue, 'actual');
+        updatedData.investment.bacLongXuyen = updateItems(updatedData.investment.bacLongXuyen, 'cost');
+        updatedData.investment.projectDetails = updateItems(updatedData.investment.projectDetails, 'cost');
+        
+        // Chỉ cập nhật state nếu có sự thay đổi thực sự
+        if (hasChanged) {
             setReportData(updatedData);
         }
-    }, [fetchedData, balances, chartOfAccounts]); // Thêm balances và chartOfAccounts vào dependency
+    }
+    // Chỉ phụ thuộc vào dữ liệu từ bên ngoài, không phụ thuộc vào chính state mà nó thay đổi
+}, [balances, chartOfAccounts]);
+   const debouncedSave = useMemo(
+    () =>
+        debounce((data) => {
+            if (!data) return;
+            const dataToSave = JSON.parse(JSON.stringify(data));
 
-    const debouncedSave = useMemo(
-        () =>
-            debounce((data) => {
-                if (!data) return;
-                const dataToSave = JSON.parse(JSON.stringify(data));
+            // Dọn dẹp dữ liệu tự động tính
+            const cleanActualData = (items) => items.map(({ actual, ...rest }) => rest);
+            dataToSave.production = cleanActualData(dataToSave.production);
+            dataToSave.construction.usage = cleanActualData(dataToSave.construction.usage);
+            dataToSave.construction.revenue = cleanActualData(dataToSave.construction.revenue);
 
-                // Giữ nguyên logic xóa trường 'actual' khỏi các dòng chi tiết
-                const cleanDataForSaving = (items) =>
-                    items.map(({ actual, ...rest }) => rest);
-                dataToSave.production = cleanDataForSaving(
-                    dataToSave.production
-                );
-                dataToSave.construction.usage = cleanDataForSaving(
-                    dataToSave.construction.usage
-                );
-                dataToSave.construction.revenue = cleanDataForSaving(
-                    dataToSave.construction.revenue
-                );
+            // Dọn dẹp cho cả 2 phần của bảng đầu tư
+            const cleanCostData = (items) => items.map(({ cost, ...rest }) => rest);
+            dataToSave.investment.bacLongXuyen = cleanCostData(dataToSave.investment.bacLongXuyen);
+            dataToSave.investment.projectDetails = cleanCostData(dataToSave.investment.projectDetails);
 
-                // --- BÁO CÁO I: LƯU TỔNG CỘNG SẢN XUẤT ---
-                const totalProdActual = data.production.reduce(
-                    (acc, item) => acc + (item.actual || 0),
-                    0
-                );
-                const totalProdPlan = data.production.reduce(
-                    (acc, item) => acc + (item.plan || 0),
-                    0
-                );
-                dataToSave.productionTotalActual = totalProdActual;
-                dataToSave.productionTotalPlan = totalProdPlan;
+            // Tính toán và gán các giá trị tổng để lưu
+            dataToSave.productionTotalActual = data.production.reduce((acc, item) => acc + (item.actual || 0), 0);
+            dataToSave.productionTotalPlan = data.production.reduce((acc, item) => acc + (item.plan || 0), 0);
 
-                // ✅ BÁO CÁO II: CHỈ LƯU DÒNG TỔNG CỘNG (a-b) CUỐI CÙNG
-                // Vẫn tính toán các tổng phụ để có kết quả cuối cùng...
-                const totalConsUsageActual = data.construction.usage.reduce(
-                    (acc, item) => acc + (item.actual || 0),
-                    0
-                );
-                const totalConsUsagePlan = data.construction.usage.reduce(
-                    (acc, item) => acc + (item.plan || 0),
-                    0
-                );
-                const totalConsRevenueActual = data.construction.revenue.reduce(
-                    (acc, item) => acc + (item.actual || 0),
-                    0
-                );
-                const totalConsRevenuePlan = data.construction.revenue.reduce(
-                    (acc, item) => acc + (item.plan || 0),
-                    0
-                );
+            const totalConsUsageActual = data.construction.usage.reduce((acc, item) => acc + (item.actual || 0), 0);
+            const totalConsUsagePlan = data.construction.usage.reduce((acc, item) => acc + (item.plan || 0), 0);
+            const totalConsRevenueActual = data.construction.revenue.reduce((acc, item) => acc + (item.actual || 0), 0);
+            const totalConsRevenuePlan = data.construction.revenue.reduce((acc, item) => acc + (item.plan || 0), 0);
+            dataToSave.constructionGrandTotalActual = totalConsUsageActual + totalConsRevenueActual;
+            dataToSave.constructionGrandTotalPlan = totalConsUsagePlan + totalConsRevenuePlan;
 
-                // ...nhưng chỉ gán kết quả cuối cùng (a-b) vào dataToSave
-                dataToSave.constructionGrandTotalActual = totalConsUsageActual - totalConsRevenueActual;
-                dataToSave.constructionGrandTotalPlan = totalConsUsagePlan - totalConsRevenuePlan;
-                // Lưu dữ liệu đã được tinh gọn
-                saveData({ year, quarter, data: dataToSave });
-            }, 1500),
-        [year, quarter, saveData]
-    );
+            const totalInvestmentA = data.investment.bacLongXuyen.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.deducted || 0)), 0);
+            const totalInvestmentB = data.investment.projectDetails.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0);
+            dataToSave.investmentTotalRemaining = totalInvestmentA + totalInvestmentB;
+
+            saveData({ year, quarter, data: dataToSave });
+        }, 1500),
+    [year, quarter, saveData]
+);
     const handleDataChange = useCallback(
         (section, id, field, newValue) => {
             setReportData((prevData) => {
@@ -1341,333 +1345,85 @@ const CapitalUtilizationReport = () => {
                     titleTypographyProps={{ variant: "h6", fontWeight: 600 }}
                 />
                 <TableContainer>
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow
-                                sx={{
-                                    "& > th": {
-                                        fontWeight: "bold",
-                                        backgroundColor:
-                                            theme.palette.grey[100],
-                                        borderBottom: `2px solid ${theme.palette.divider}`,
-                                    },
-                                }}
-                            >
-                                <TableCell>STT</TableCell>
-                                <TableCell sx={{ minWidth: 200 }}>
-                                    Số hiệu TK
-                                </TableCell>
-                                <TableCell sx={{ minWidth: 250 }}>
-                                    Diễn giải
-                                </TableCell>
-                                <TableCell align="right" sx={{ minWidth: 150 }}>
-                                    Nguyên giá
-                                </TableCell>
-                                <TableCell align="right" sx={{ minWidth: 150 }}>
-                                    Lãi
-                                </TableCell>
-                                <TableCell align="right" sx={{ minWidth: 150 }}>
-                                    Giá trị đầu tư
-                                </TableCell>
-                                <TableCell align="right" sx={{ minWidth: 150 }}>
-                                    Đã trừ lãi
-                                </TableCell>
-                                <TableCell align="right" sx={{ minWidth: 150 }}>
-                                    Còn lại
-                                </TableCell>
-                            </TableRow>
-                        </TableHead>
-                       <TableBody>
-    <TableRow
-        sx={{
-            "& > td": {
-                fontWeight: 500,
-                fontStyle: "italic",
-                backgroundColor:
-                    theme.palette.action.hover,
-            },
-        }}
-    >
-        <TableCell colSpan={8}>
-            a. DA Bắc Long xuyên:
-        </TableCell>
-    </TableRow>
+    <Table size="small">
+        <TableHead>
+            <TableRow sx={{ "& > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[100] } }}>
+                <TableCell>STT</TableCell>
+                <TableCell sx={{ minWidth: 200 }}>Số hiệu TK</TableCell>
+                <TableCell sx={{ minWidth: 250 }}>Diễn giải</TableCell>
+                <TableCell align="right" sx={{ minWidth: 150 }}>Nguyên giá</TableCell>
+                <TableCell align="right" sx={{ minWidth: 150 }}>Lãi</TableCell>
+                <TableCell align="right" sx={{ minWidth: 150 }}>Giá trị đầu tư</TableCell>
+                <TableCell align="right" sx={{ minWidth: 150 }}>Đã trừ lãi</TableCell>
+                <TableCell align="right" sx={{ minWidth: 150 }}>Còn lại</TableCell>
+            </TableRow>
+        </TableHead>
+        <TableBody>
+            {/* --- Phần a: DA Bắc Long xuyên (Dữ liệu động) --- */}
+            <TableRow sx={{ "& > td": { fontWeight: 500, fontStyle: "italic", backgroundColor: theme.palette.action.hover } }}>
+                <TableCell colSpan={8}>a. DA Bắc Long xuyên:</TableCell>
+            </TableRow>
+            {reportData.investment.bacLongXuyen.map((row) => {
+                 const totalValue = (row.cost || 0) + (row.profit || 0);
+                 const remaining = totalValue - (row.deducted || 0);
+                 return (
+                    <TableRow key={row.id} hover>
+                        <TableCell sx={{ pl: 4 }}>{row.stt}</TableCell>
+                        <TableCell>
+                            <MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange("investment", "bacLongXuyen", row.id, "codes", e.target.value)} accountsData={chartOfAccounts} />
+                        </TableCell>
+                        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>{row.name}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.cost)}</TableCell>
+                        <TableCell><EditableCell value={row.profit} onSave={(v) => handleNestedDataChange("investment", "bacLongXuyen", row.id, "profit", v)} /></TableCell>
+                        <TableCell align="right">{formatCurrency(totalValue)}</TableCell>
+                        <TableCell><EditableCell value={row.deducted} onSave={(v) => handleNestedDataChange("investment", "bacLongXuyen", row.id, "deducted", v)} /></TableCell>
+                        <TableCell align="right">{formatCurrency(remaining)}</TableCell>
+                    </TableRow>
+                 );
+            })}
+            <TableRow sx={{ "& > td": { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] }}}>
+                <TableCell colSpan={7} align="center">TỔNG CỘNG (a)</TableCell>
+                <TableCell align="right">{formatCurrency(reportData.investment.bacLongXuyen.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.deducted || 0)), 0))}</TableCell>
+            </TableRow>
+            
+            {/* --- Phần b: Đầu tư DA mới và mua đất (Dữ liệu động) --- */}
+            <TableRow sx={{ "& > td": { fontWeight: 500, fontStyle: "italic", backgroundColor: theme.palette.action.hover } }}>
+                <TableCell colSpan={8}>b. Đầu tư DA mới và mua đất</TableCell>
+            </TableRow>
+            {reportData.investment.projectDetails.map((row) => {
+                const totalValue = (row.cost || 0) + (row.profit || 0);
+                const remaining = totalValue - (row.lessProfit || 0);
+                return (
+                    <TableRow key={row.id} hover>
+                        <TableCell>{row.stt}</TableCell>
+                        <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange("investment", "projectDetails", row.id, "codes", e.target.value)} accountsData={chartOfAccounts} /></TableCell>
+                        <TableCell>{row.name}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.cost)}</TableCell>
+                        <TableCell><EditableCell value={row.profit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "profit", v)} /></TableCell>
+                        <TableCell align="right">{formatCurrency(totalValue)}</TableCell>
+                        <TableCell><EditableCell value={row.lessProfit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "lessProfit", v)} /></TableCell>
+                        <TableCell align="right" sx={{ fontWeight: "bold", backgroundColor: theme.palette.grey[200] }}>{formatCurrency(remaining)}</TableCell>
+                    </TableRow>
+                );
+            })}
+             <TableRow sx={{ "& > td": { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] }}}>
+                <TableCell colSpan={7} align="center">TỔNG CỘNG (b)</TableCell>
+                <TableCell align="right">{formatCurrency(reportData.investment.projectDetails.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0))}</TableCell>
+            </TableRow>
 
-    {/* START: ĐOẠN MÃ ĐÃ SỬA LẠI ĐÚNG CẤU TRÚC */}
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>1</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            ĐẤT MỸ THỚI 8 CÔNG
-        </TableCell>
-        <TableCell align="right">15.135.079.000</TableCell>
-        <TableCell align="right">4.989.331.946</TableCell>
-        <TableCell align="right">20.124.410.946</TableCell>
-        <TableCell align="right">19.746.033.971</TableCell>
-        <TableCell align="right">378.376.975</TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>2</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            ĐẤT BÌNH ĐỨC 4 CÔNG
-        </TableCell>
-        <TableCell align="right">6.800.000.000</TableCell>
-        <TableCell align="right">2.445.230.611</TableCell>
-        <TableCell align="right">9.245.230.611</TableCell>
-        <TableCell align="right">9.075.230.611</TableCell>
-        <TableCell align="right">170.000.000</TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>3</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            ĐẤT MỸ THỚI 3 CÔNG
-        </TableCell>
-        <TableCell align="right">3.600.000.000</TableCell>
-        <TableCell align="right">824.469.846</TableCell>
-        <TableCell align="right">4.424.469.846</TableCell>
-        <TableCell align="right">4.334.469.846</TableCell>
-        <TableCell align="right">90.000.000</TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>4</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            DA AN VƯƠNG
-        </TableCell>
-        <TableCell align="right">98.086.399.133</TableCell>
-        <TableCell align="right">31.916.092.142</TableCell>
-        <TableCell align="right">130.002.491.275</TableCell>
-        <TableCell align="right">127.550.331.296</TableCell>
-        <TableCell align="right">2.452.159.978</TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>5</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            KHU DÂN CƯ MỸ LỘC
-        </TableCell>
-        <TableCell align="right">300.024.075</TableCell>
-        <TableCell align="right">70.482.962</TableCell>
-        <TableCell align="right">370.507.037</TableCell>
-        <TableCell align="right">363.006.435</TableCell>
-        <TableCell align="right">7.500.602</TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>6</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            ĐẤT MỸ THỚI 18 CÔNG
-        </TableCell>
-        <TableCell align="right">37.931.795.000</TableCell>
-        <TableCell align="right">13.333.815.466</TableCell>
-        <TableCell align="right">51.265.610.466</TableCell>
-        <TableCell align="right">50.317.315.591</TableCell>
-        <TableCell align="right">948.294.875</TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>7</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            ĐẤT NÚI SẬP
-        </TableCell>
-        <TableCell align="right">401.132.000</TableCell>
-        <TableCell align="right">-</TableCell>
-        <TableCell align="right">401.132.000</TableCell>
-        <TableCell align="right">401.132.000</TableCell>
-        <TableCell align="right"></TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>8</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            CĂN NHÀ SỐ 1 D8
-        </TableCell>
-        <TableCell align="right">1.312.920.251</TableCell>
-        <TableCell align="right">309.868.138</TableCell>
-        <TableCell align="right">1.622.788.389</TableCell>
-        <TableCell align="right">1.622.788.389</TableCell>
-        <TableCell align="right">-</TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>9</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            CĂN NHÀ SỐ 2 F14
-        </TableCell>
-        <TableCell align="right">1.340.728.651</TableCell>
-        <TableCell align="right">305.012.088</TableCell>
-        <TableCell align="right">1.645.740.739</TableCell>
-        <TableCell align="right">1.645.740.739</TableCell>
-        <TableCell align="right">-</TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>10</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            CĂN NHÀ SỐ 3 L15
-        </TableCell>
-        <TableCell align="right">2.442.737.016</TableCell>
-        <TableCell align="right">540.472.888</TableCell>
-        <TableCell align="right">2.983.209.904</TableCell>
-        <TableCell align="right">2.983.209.904</TableCell>
-        <TableCell align="right">-</TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>11</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            CĂN NHÀ SỐ 4 J14
-        </TableCell>
-        <TableCell align="right">1.253.912.802</TableCell>
-        <TableCell align="right">274.899.593</TableCell>
-        <TableCell align="right">1.528.812.395</TableCell>
-        <TableCell align="right">1.528.812.395</TableCell>
-        <TableCell align="right">-</TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>12</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            BLX LÔ M9,M10,M11,M12
-        </TableCell>
-        <TableCell align="right">2.752.519.782</TableCell>
-        <TableCell align="right">264.676.153</TableCell>
-        <TableCell align="right">3.017.195.935</TableCell>
-        <TableCell align="right">3.017.195.935</TableCell>
-        <TableCell align="right">-</TableCell>
-    </TableRow>
-    <TableRow hover>
-        <TableCell sx={{ pl: 4 }}>13</TableCell>
-        <TableCell></TableCell>
-        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>
-            ĐẤT PHÚ TÂN
-        </TableCell>
-        <TableCell align="right">405.840.000</TableCell>
-        <TableCell align="right"></TableCell>
-        <TableCell align="right">405.840.000</TableCell>
-        <TableCell align="right">405.840.000</TableCell>
-        <TableCell align="right"></TableCell>
-    </TableRow>
-    <TableRow sx={{ "& > td": { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] }}}>
-        <TableCell colSpan={3} align="center">TỔNG CỘNG</TableCell>
-        <TableCell align="right">171.763.087.710</TableCell>
-        <TableCell align="right">55.274.351.833</TableCell>
-        <TableCell align="right">227.037.439.543</TableCell>
-        <TableCell align="right">222.991.107.113</TableCell>
-        <TableCell align="right">4.046.332.430</TableCell>
-    </TableRow>
-    {/* END: ĐOẠN MÃ SỬA LẠI */}
-
-    <TableRow
-        sx={{
-            "& > td": {
-                fontWeight: 500,
-                fontStyle: "italic",
-                backgroundColor:
-                    theme.palette.action.hover,
-            },
-        }}
-    >
-        <TableCell colSpan={8}>
-            b. Đầu tư DA mới và mua đất
-        </TableCell>
-    </TableRow>
-    {reportData.investment.projectDetails.map((row) => {
-        const totalValue = row.cost + row.profit;
-        const remaining = totalValue - row.lessProfit;
-        return (
-            <TableRow
-                key={row.id}
-                hover
-                sx={{
-                    "&:nth-of-type(odd)": {
-                        backgroundColor:
-                            theme.palette.action.hover,
-                    },
-                }}
-            >
-                <TableCell>{row.stt}</TableCell>
-                <TableCell>
-                    <MultiAccountSelect
-                        value={row.codes}
-                        onChange={(e) =>
-                            handleNestedDataChange(
-                                "investment",
-                                "projectDetails",
-                                row.id,
-                                "codes",
-                                e.target.value
-                            )
-                        }
-                        accountsData={
-                            parentAccountsForSelection
-                        }
-                    />
-                </TableCell>
-                <TableCell>{row.name}</TableCell>
+             {/* --- Dòng TỔNG CỘNG (a+b) --- */}
+             <TableRow sx={{ "& > td, & > th": { fontWeight: 'bold', fontSize: '1rem', backgroundColor: theme.palette.primary.light, color: 'white' }}}>
+                <TableCell colSpan={7} align="center">TỔNG CỘNG ĐẦU TƯ (a+b)</TableCell>
                 <TableCell align="right">
-                    <EditableCell
-                        value={row.cost}
-                        onSave={(v) =>
-                            handleNestedDataChange(
-                                "investment",
-                                "projectDetails",
-                                row.id,
-                                "cost",
-                                v
-                            )
-                        }
-                    />
-                </TableCell>
-                <TableCell align="right">
-                    <EditableCell
-                        value={row.profit}
-                        onSave={(v) =>
-                            handleNestedDataChange(
-                                "investment",
-                                "projectDetails",
-                                row.id,
-                                "profit",
-                                v
-                            )
-                        }
-                    />
-                </TableCell>
-                <TableCell align="right">
-                    {formatCurrency(totalValue)}
-                </TableCell>
-                <TableCell align="right">
-                    <EditableCell
-                        value={row.lessProfit}
-                        onSave={(v) =>
-                            handleNestedDataChange(
-                                "investment",
-                                "projectDetails",
-                                row.id,
-                                "lessProfit",
-                                v
-                            )
-                        }
-                    />
-                </TableCell>
-                <TableCell
-                    align="right"
-                    sx={{
-                        fontWeight: "bold",
-                        backgroundColor:
-                            theme.palette.grey[200],
-                    }}
-                >
-                    {formatCurrency(remaining)}
+                    {formatCurrency(
+                         reportData.investment.bacLongXuyen.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.deducted || 0)), 0) +
+                         reportData.investment.projectDetails.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0)
+                    )}
                 </TableCell>
             </TableRow>
-        );
-    })}
-</TableBody>
-                    </Table>
-                </TableContainer>
+        </TableBody>
+    </Table>
+</TableContainer>
             </Card>
 
             <Card>

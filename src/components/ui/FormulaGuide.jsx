@@ -159,11 +159,18 @@ const FormulaGuide = ({ open, onClose }) => {
                 {/* --- NHÓM CÔNG TRÌNH VẬT TƯ & NHÂN CÔNG --- */}
                  <SectionHeader icon={<GroupsIcon color="action" />}>Công Thức Cho CT Vật Tư & Nhân Công</SectionHeader>
                 <Grid container spacing={3}>
-                    <Grid item xs={12}>
+                    <Grid item xs={12} md={6}>
                         <FormulaItem
                             title="Tổng Chi Phí"
                             projectType="Vật Tư & Nhân Công"
-                            formula={`Tồn ĐK - Nợ Phải Trả ĐK + CP Trực Tiếp + Nợ Phải Trả CK - Tồn Kho/Ứng KH`}
+                            formula={`Tồn ĐK - Nợ Phải Trả ĐK + CP Trực Tiếp + Phân Bổ + Nợ Phải Trả CK - Tồn Kho/Ứng KH`}
+                        />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                        <FormulaItem
+                            title="Nợ Phải Trả CK"
+                            projectType="Vật Tư & Nhân Công"
+                            formula={`Nợ Phải Trả ĐK - Chi Phí Trực Tiếp`}
                         />
                     </Grid>
                 </Grid>
