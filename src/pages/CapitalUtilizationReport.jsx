@@ -208,21 +208,7 @@ const useCapitalReport = (year, quarter) => {
                     ],
                 },
                 investment: {
-                    bacLongXuyen: [
-                        { id: 'blx1', stt: '1', name: 'ĐẤT MỸ THỚI 8 CÔNG', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx2', stt: '2', name: 'ĐẤT BÌNH ĐỨC 4 CÔNG', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx3', stt: '3', name: 'ĐẤT MỸ THỚI 3 CÔNG', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx4', stt: '4', name: 'DA AN VƯƠNG', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx5', stt: '5', name: 'KHU DÂN CƯ MỸ LỘC', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx6', stt: '6', name: 'ĐẤT MỸ THỚI 18 CÔNG', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx7', stt: '7', name: 'ĐẤT NÚI SẬP', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx8', stt: '8', name: 'CĂN NHÀ SỐ 1 D8', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx9', stt: '9', name: 'CĂN NHÀ SỐ 2 F14', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx10', stt: '10', name: 'CĂN NHÀ SỐ 3 L15', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx11', stt: '11', name: 'CĂN NHÀ SỐ 4 J14', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx12', stt: '12', name: 'BLX LÔ M9,M10,M11,M12', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                        { id: 'blx13', stt: '13', name: 'ĐẤT PHÚ TÂN', codes: [], cost: 0, profit: 0, investmentValue: 0, deducted: 0, remaining: 0 },
-                    ],
+
                     projectDetails: [
                         {
                             id: 13,
@@ -232,6 +218,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 14,
@@ -241,6 +229,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 15,
@@ -250,6 +240,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 16,
@@ -259,6 +251,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 17,
@@ -268,6 +262,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 18,
@@ -277,6 +273,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 19,
@@ -286,6 +284,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 20,
@@ -295,6 +295,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 21,
@@ -304,6 +306,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 22,
@@ -313,6 +317,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 23,
@@ -322,6 +328,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 24,
@@ -331,6 +339,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                         {
                             id: 25,
@@ -340,6 +350,8 @@ const useCapitalReport = (year, quarter) => {
                             cost: 0,
                             profit: 0,
                             lessProfit: 0,
+                            investmentValue: 0, // <-- THÊM DÒNG NÀY
+                            remaining: 0,       // <-- THÊM DÒNG NÀY
                         },
                     ],
                 },
@@ -663,101 +675,99 @@ const CapitalUtilizationReport = () => {
         return parents;
     }, [chartOfAccounts, balances]);
 
- // >>> BẠN HÃY DÁN ĐOẠN CODE useEffect MỚI VÀO ĐÂY <<<
+    // >>> BẠN HÃY DÁN ĐOẠN CODE useEffect MỚI VÀO ĐÂY <<<
     useEffect(() => {
         // Chỉ set state khi fetchedData có dữ liệu và reportData đang là null
         if (fetchedData && !reportData) {
             setReportData(fetchedData);
         }
-    }, [fetchedData, reportData]); useEffect(() => {
-    // Chỉ chạy khi cả 3 nguồn dữ liệu đã sẵn sàng
-    if (reportData && balances && chartOfAccounts) {
-        let updatedData = JSON.parse(JSON.stringify(reportData));
-        let hasChanged = false;
+    }, [fetchedData, reportData]);
+    useEffect(() => {
+        // Chỉ chạy khi cả 3 nguồn dữ liệu đã sẵn sàng
+        if (reportData && balances && chartOfAccounts) {
+            let updatedData = JSON.parse(JSON.stringify(reportData));
+            let hasChanged = false;
 
-        const updateItems = (items, fieldToUpdate) => {
-            // ... (Giữ nguyên toàn bộ logic của hàm updateItems)
-            return items.map(item => {
-                if (!item.codes || item.codes.length === 0) {
-                    if (fieldToUpdate === 'actual' && item.actual !== 0) {
-                        hasChanged = true;
-                        return { ...item, actual: 0 };
+            const updateItems = (items, fieldToUpdate) => {
+                // ... (Giữ nguyên toàn bộ logic của hàm updateItems)
+                return items.map(item => {
+                    if (!item.codes || item.codes.length === 0) {
+                        if (fieldToUpdate === 'actual' && item.actual !== 0) {
+                            hasChanged = true;
+                            return { ...item, actual: 0 };
+                        }
+                        // Sửa lại chỗ này để reset cả 'cost' nếu cần
+                        if (fieldToUpdate === 'cost' && item.cost !== 0) {
+                            hasChanged = true;
+                            return { ...item, cost: 0 };
+                        }
+                        return item;
                     }
-                    // Sửa lại chỗ này để reset cả 'cost' nếu cần
-                    if (fieldToUpdate === 'cost' && item.cost !== 0) {
-                        hasChanged = true;
-                        return { ...item, cost: 0 };
+                    const allAccountsToSum = item.codes.flatMap(code => getAccountAndAllChildren(code, chartOfAccounts));
+                    const uniqueAccounts = [...new Set(allAccountsToSum)];
+                    let total = uniqueAccounts.reduce((sum, code) => {
+                        const balance = balances[code];
+                        const value = (balance?.cuoiKyNo || 0) > 0 ? balance.cuoiKyNo : (balance?.cuoiKyCo || 0);
+                        return sum + value;
+                    }, 0);
+
+                    if (fieldToUpdate === 'actual' && (item.id === 4 || item.id === 5 || item.id === 10 || item.id === 11 || item.id === 12)) {
+                        total = -total;
                     }
-                    return item;
-                }
-                const allAccountsToSum = item.codes.flatMap(code => getAccountAndAllChildren(code, chartOfAccounts));
-                const uniqueAccounts = [...new Set(allAccountsToSum)];
-                let total = uniqueAccounts.reduce((sum, code) => {
-                    const balance = balances[code];
-                    const value = (balance?.cuoiKyNo || 0) > 0 ? balance.cuoiKyNo : (balance?.cuoiKyCo || 0);
-                    return sum + value;
-                }, 0);
 
-                if (fieldToUpdate === 'actual' && (item.id === 4 || item.id === 5 || item.id === 10 || item.id === 11 || item.id === 12)) {
-                    total = -total;
-                }
-                
-                if (item[fieldToUpdate] !== total) {
-                    hasChanged = true;
-                }
-                return { ...item, [fieldToUpdate]: total };
-            });
-        };
+                    if (item[fieldToUpdate] !== total) {
+                        hasChanged = true;
+                    }
+                    return { ...item, [fieldToUpdate]: total };
+                });
+            };
 
-        updatedData.production = updateItems(updatedData.production, 'actual');
-        updatedData.construction.usage = updateItems(updatedData.construction.usage, 'actual');
-        updatedData.construction.revenue = updateItems(updatedData.construction.revenue, 'actual');
-        updatedData.investment.bacLongXuyen = updateItems(updatedData.investment.bacLongXuyen, 'cost');
-        updatedData.investment.projectDetails = updateItems(updatedData.investment.projectDetails, 'cost');
-        
-        // Chỉ cập nhật state nếu có sự thay đổi thực sự
-        if (hasChanged) {
-            setReportData(updatedData);
+            updatedData.construction.revenue = updateItems(updatedData.construction.revenue, 'actual');
+            // updatedData.investment.projectDetails = updateItems(updatedData.investment.projectDetails, 'cost');
+
+            // Chỉ cập nhật state nếu có sự thay đổi thực sự
+            if (hasChanged) {
+                setReportData(updatedData);
+            }
         }
-    }
-    // Chỉ phụ thuộc vào dữ liệu từ bên ngoài, không phụ thuộc vào chính state mà nó thay đổi
-}, [balances, chartOfAccounts]);
-   const debouncedSave = useMemo(
-    () =>
-        debounce((data) => {
-            if (!data) return;
-            const dataToSave = JSON.parse(JSON.stringify(data));
+        // Chỉ phụ thuộc vào dữ liệu từ bên ngoài, không phụ thuộc vào chính state mà nó thay đổi
+    }, [balances, chartOfAccounts]);
+    const debouncedSave = useMemo(
+        () =>
+            debounce((data) => {
+                if (!data) return;
+                const dataToSave = JSON.parse(JSON.stringify(data));
 
-            // Dọn dẹp dữ liệu tự động tính
-            const cleanActualData = (items) => items.map(({ actual, ...rest }) => rest);
-            dataToSave.production = cleanActualData(dataToSave.production);
-            dataToSave.construction.usage = cleanActualData(dataToSave.construction.usage);
-            dataToSave.construction.revenue = cleanActualData(dataToSave.construction.revenue);
+                // Dọn dẹp dữ liệu tự động tính
+                const cleanActualData = (items) => items.map(({ actual, ...rest }) => rest);
+                dataToSave.production = cleanActualData(dataToSave.production);
+                dataToSave.construction.usage = cleanActualData(dataToSave.construction.usage);
+                dataToSave.construction.revenue = cleanActualData(dataToSave.construction.revenue);
 
-            // Dọn dẹp cho cả 2 phần của bảng đầu tư
-            const cleanCostData = (items) => items.map(({ cost, ...rest }) => rest);
-            dataToSave.investment.bacLongXuyen = cleanCostData(dataToSave.investment.bacLongXuyen);
-            dataToSave.investment.projectDetails = cleanCostData(dataToSave.investment.projectDetails);
+                // Dọn dẹp cho bảng đầu tư
+                const cleanCostData = (items) => items.map(({ cost, ...rest }) => rest);
+                // Dòng bacLongXuyen đã được xóa
+                dataToSave.investment.projectDetails = cleanCostData(dataToSave.investment.projectDetails);
 
-            // Tính toán và gán các giá trị tổng để lưu
-            dataToSave.productionTotalActual = data.production.reduce((acc, item) => acc + (item.actual || 0), 0);
-            dataToSave.productionTotalPlan = data.production.reduce((acc, item) => acc + (item.plan || 0), 0);
+                // Tính toán và gán các giá trị tổng để lưu
+                dataToSave.productionTotalActual = data.production.reduce((acc, item) => acc + (item.actual || 0), 0);
+                dataToSave.productionTotalPlan = data.production.reduce((acc, item) => acc + (item.plan || 0), 0);
 
-            const totalConsUsageActual = data.construction.usage.reduce((acc, item) => acc + (item.actual || 0), 0);
-            const totalConsUsagePlan = data.construction.usage.reduce((acc, item) => acc + (item.plan || 0), 0);
-            const totalConsRevenueActual = data.construction.revenue.reduce((acc, item) => acc + (item.actual || 0), 0);
-            const totalConsRevenuePlan = data.construction.revenue.reduce((acc, item) => acc + (item.plan || 0), 0);
-            dataToSave.constructionGrandTotalActual = totalConsUsageActual + totalConsRevenueActual;
-            dataToSave.constructionGrandTotalPlan = totalConsUsagePlan + totalConsRevenuePlan;
+                const totalConsUsageActual = data.construction.usage.reduce((acc, item) => acc + (item.actual || 0), 0);
+                const totalConsUsagePlan = data.construction.usage.reduce((acc, item) => acc + (item.plan || 0), 0);
+                const totalConsRevenueActual = data.construction.revenue.reduce((acc, item) => acc + (item.actual || 0), 0);
+                const totalConsRevenuePlan = data.construction.revenue.reduce((acc, item) => acc + (item.plan || 0), 0);
+                dataToSave.constructionGrandTotalActual = totalConsUsageActual + totalConsRevenueActual;
+                dataToSave.constructionGrandTotalPlan = totalConsUsagePlan + totalConsRevenuePlan;
 
-            const totalInvestmentA = data.investment.bacLongXuyen.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.deducted || 0)), 0);
-            const totalInvestmentB = data.investment.projectDetails.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0);
-            dataToSave.investmentTotalRemaining = totalInvestmentA + totalInvestmentB;
+                // Tính tổng còn lại của bộ phận Đầu tư
+                const totalInvestmentB = data.investment.projectDetails.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0);
+                dataToSave.investmentTotalRemaining = totalInvestmentB;
 
-            saveData({ year, quarter, data: dataToSave });
-        }, 1500),
-    [year, quarter, saveData]
-);
+                saveData({ year, quarter, data: dataToSave });
+            }, 1500),
+        [year, quarter, saveData]
+    );
     const handleDataChange = useCallback(
         (section, id, field, newValue) => {
             setReportData((prevData) => {
@@ -792,7 +802,46 @@ const CapitalUtilizationReport = () => {
         },
         [debouncedSave]
     );
+    const handleInvestmentPaste = useCallback((event) => {
+        event.preventDefault(); // Ngăn hành động dán mặc định
 
+        const pastedText = event.clipboardData.getData("text/plain");
+        const pastedRows = pastedText.trim().split("\n").map(row => row.split("\t"));
+
+        if (pastedRows.length === 0) return;
+
+        toast.promise(
+            new Promise((resolve) => {
+                setReportData(prevData => {
+                    const newData = JSON.parse(JSON.stringify(prevData));
+                    const targetRows = newData.investment.projectDetails;
+
+                    pastedRows.forEach((pastedCells, index) => {
+                        if (index < targetRows.length) {
+                            const targetRow = targetRows[index];
+                            const parsePastedValue = (val) => parseFloat(String(val || '0').replace(/,/g, '')) || 0;
+
+                            // Cập nhật tất cả các cột từ dữ liệu đã dán
+                            if (pastedCells[0] !== undefined) targetRow.cost = parsePastedValue(pastedCells[0]);
+                            if (pastedCells[1] !== undefined) targetRow.profit = parsePastedValue(pastedCells[1]);
+                            if (pastedCells[2] !== undefined) targetRow.investmentValue = parsePastedValue(pastedCells[2]);
+                            if (pastedCells[3] !== undefined) targetRow.lessProfit = parsePastedValue(pastedCells[3]);
+                            if (pastedCells[4] !== undefined) targetRow.remaining = parsePastedValue(pastedCells[4]);
+                        }
+                    });
+
+                    debouncedSave(newData);
+                    resolve(pastedRows.length);
+                    return newData;
+                });
+            }),
+            {
+                loading: 'Đang dán dữ liệu...',
+                success: (count) => `Đã dán và cập nhật thành công ${count} hàng.`,
+                error: 'Có lỗi xảy ra khi dán dữ liệu.',
+            }
+        );
+    }, [debouncedSave]);
     if (isReportLoading || isBalancesLoading || isChartLoading || !reportData) {
         return (
             <Box sx={{ display: "flex", justifyContent: "center", p: 5 }}>
@@ -1344,86 +1393,46 @@ const CapitalUtilizationReport = () => {
                     title="III. BỘ PHẬN ĐẦU TƯ"
                     titleTypographyProps={{ variant: "h6", fontWeight: 600 }}
                 />
-                <TableContainer>
-    <Table size="small">
-        <TableHead>
-            <TableRow sx={{ "& > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[100] } }}>
-                <TableCell>STT</TableCell>
-                <TableCell sx={{ minWidth: 200 }}>Số hiệu TK</TableCell>
-                <TableCell sx={{ minWidth: 250 }}>Diễn giải</TableCell>
-                <TableCell align="right" sx={{ minWidth: 150 }}>Nguyên giá</TableCell>
-                <TableCell align="right" sx={{ minWidth: 150 }}>Lãi</TableCell>
-                <TableCell align="right" sx={{ minWidth: 150 }}>Giá trị đầu tư</TableCell>
-                <TableCell align="right" sx={{ minWidth: 150 }}>Đã trừ lãi</TableCell>
-                <TableCell align="right" sx={{ minWidth: 150 }}>Còn lại</TableCell>
-            </TableRow>
-        </TableHead>
-        <TableBody>
-            {/* --- Phần a: DA Bắc Long xuyên (Dữ liệu động) --- */}
-            <TableRow sx={{ "& > td": { fontWeight: 500, fontStyle: "italic", backgroundColor: theme.palette.action.hover } }}>
-                <TableCell colSpan={8}>a. DA Bắc Long xuyên:</TableCell>
-            </TableRow>
-            {reportData.investment.bacLongXuyen.map((row) => {
-                 const totalValue = (row.cost || 0) + (row.profit || 0);
-                 const remaining = totalValue - (row.deducted || 0);
-                 return (
-                    <TableRow key={row.id} hover>
-                        <TableCell sx={{ pl: 4 }}>{row.stt}</TableCell>
-                        <TableCell>
-                            <MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange("investment", "bacLongXuyen", row.id, "codes", e.target.value)} accountsData={chartOfAccounts} />
-                        </TableCell>
-                        <TableCell sx={{ pl: 4, fontStyle: "italic" }}>{row.name}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.cost)}</TableCell>
-                        <TableCell><EditableCell value={row.profit} onSave={(v) => handleNestedDataChange("investment", "bacLongXuyen", row.id, "profit", v)} /></TableCell>
-                        <TableCell align="right">{formatCurrency(totalValue)}</TableCell>
-                        <TableCell><EditableCell value={row.deducted} onSave={(v) => handleNestedDataChange("investment", "bacLongXuyen", row.id, "deducted", v)} /></TableCell>
-                        <TableCell align="right">{formatCurrency(remaining)}</TableCell>
-                    </TableRow>
-                 );
-            })}
-            <TableRow sx={{ "& > td": { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] }}}>
-                <TableCell colSpan={7} align="center">TỔNG CỘNG (a)</TableCell>
-                <TableCell align="right">{formatCurrency(reportData.investment.bacLongXuyen.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.deducted || 0)), 0))}</TableCell>
-            </TableRow>
-            
-            {/* --- Phần b: Đầu tư DA mới và mua đất (Dữ liệu động) --- */}
-            <TableRow sx={{ "& > td": { fontWeight: 500, fontStyle: "italic", backgroundColor: theme.palette.action.hover } }}>
-                <TableCell colSpan={8}>b. Đầu tư DA mới và mua đất</TableCell>
-            </TableRow>
-            {reportData.investment.projectDetails.map((row) => {
-                const totalValue = (row.cost || 0) + (row.profit || 0);
-                const remaining = totalValue - (row.lessProfit || 0);
-                return (
-                    <TableRow key={row.id} hover>
-                        <TableCell>{row.stt}</TableCell>
-                        <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange("investment", "projectDetails", row.id, "codes", e.target.value)} accountsData={chartOfAccounts} /></TableCell>
-                        <TableCell>{row.name}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(row.cost)}</TableCell>
-                        <TableCell><EditableCell value={row.profit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "profit", v)} /></TableCell>
-                        <TableCell align="right">{formatCurrency(totalValue)}</TableCell>
-                        <TableCell><EditableCell value={row.lessProfit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "lessProfit", v)} /></TableCell>
-                        <TableCell align="right" sx={{ fontWeight: "bold", backgroundColor: theme.palette.grey[200] }}>{formatCurrency(remaining)}</TableCell>
-                    </TableRow>
-                );
-            })}
-             <TableRow sx={{ "& > td": { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] }}}>
-                <TableCell colSpan={7} align="center">TỔNG CỘNG (b)</TableCell>
-                <TableCell align="right">{formatCurrency(reportData.investment.projectDetails.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0))}</TableCell>
-            </TableRow>
+                <TableContainer onPaste={handleInvestmentPaste}>
+                    <Table size="small">
+                        <TableHead>
+                            <TableRow sx={{ "& > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[100] } }}>
+                                <TableCell>STT</TableCell>
+                                <TableCell sx={{ minWidth: 200 }}>Số hiệu TK</TableCell>
+                                <TableCell sx={{ minWidth: 250 }}>Diễn giải</TableCell>
+                                <TableCell align="right" sx={{ minWidth: 150 }}>Nguyên giá</TableCell>
+                                <TableCell align="right" sx={{ minWidth: 150 }}>Lãi</TableCell>
+                                <TableCell align="right" sx={{ minWidth: 150 }}>Giá trị đầu tư</TableCell>
+                                <TableCell align="right" sx={{ minWidth: 150 }}>Đã trừ lãi</TableCell>
+                                <TableCell align="right" sx={{ minWidth: 150 }}>Còn lại</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {reportData.investment.projectDetails.map((row) => {
+                                const totalValue = (row.cost || 0) + (row.profit || 0);
+                                const remaining = totalValue - (row.lessProfit || 0);
+                                return (
+                                    <TableRow key={row.id} hover>
+                                        <TableCell>{row.stt}</TableCell>
+                                        <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange("investment", "projectDetails", row.id, "codes", e.target.value)} accountsData={chartOfAccounts} /></TableCell>
+                                        <TableCell>{row.name}</TableCell>
 
-             {/* --- Dòng TỔNG CỘNG (a+b) --- */}
-             <TableRow sx={{ "& > td, & > th": { fontWeight: 'bold', fontSize: '1rem', backgroundColor: theme.palette.primary.light, color: 'white' }}}>
-                <TableCell colSpan={7} align="center">TỔNG CỘNG ĐẦU TƯ (a+b)</TableCell>
-                <TableCell align="right">
-                    {formatCurrency(
-                         reportData.investment.bacLongXuyen.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.deducted || 0)), 0) +
-                         reportData.investment.projectDetails.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0)
-                    )}
-                </TableCell>
-            </TableRow>
-        </TableBody>
-    </Table>
-</TableContainer>
+                                        {/* Chuyển tất cả các ô thành EditableCell để có thể dán và sửa */}
+                                        <TableCell><EditableCell value={row.cost} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "cost", v)} /></TableCell>
+                                        <TableCell><EditableCell value={row.profit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "profit", v)} /></TableCell>
+                                        <TableCell><EditableCell value={row.investmentValue} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "investmentValue", v)} /></TableCell>
+                                        <TableCell><EditableCell value={row.lessProfit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "lessProfit", v)} /></TableCell>
+                                        <TableCell><EditableCell value={row.remaining} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "remaining", v)} /></TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                            <TableRow sx={{ "& > td": { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] } }}>
+                                <TableCell colSpan={7} align="center">TỔNG CỘNG</TableCell>
+                                <TableCell align="right">{formatCurrency(reportData.investment.projectDetails.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0))}</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </TableContainer>
             </Card>
 
             <Card>

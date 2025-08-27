@@ -437,107 +437,127 @@ export default function ProfitReportQuarter() {
         return rows;
     };
     const updateGroupII1 = (inputRows) => {
-        const rows = [...inputRows];
-        const idxMain = rows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
+    const rows = [...inputRows];
+    const idxMain = rows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
+    );
+
+    if (idxMain === -1) return rows;
+
+    const detailRows = [];
+    for (let i = idxMain + 1; i < rows.length; i++) {
+        const name = (rows[i].name || "").trim().toUpperCase();
+        if (/^II\.[2-9]/.test(name) || /^[IVX]+\./.test(name)) {
+            break;
+        }
+        if (!name) continue;
+        detailRows.push(rows[i]);
+    }
+
+    if (detailRows.length > 0) {
+        const revenue = detailRows.reduce(
+            (s, r) => s + toNum(r.revenue),
+            0
         );
+        const cost = detailRows.reduce((s, r) => s + toNum(r.cost), 0);
 
-        if (idxMain === -1) return rows;
+        // --- BẮT ĐẦU SỬA ĐỔI ---
+        // CÔNG THỨC MỚI (ĐÚNG): Cộng dồn trực tiếp từ cột Lợi nhuận của các hàng con
+        const profit = detailRows.reduce(
+            (s, r) => s + toNum(r.profit),
+            0
+        );
+        // --- KẾT THÚC SỬA ĐỔI ---
+        
+        const percent = revenue ? (profit / revenue) * 100 : null;
 
-        const detailRows = [];
-        // Lặp qua các hàng ngay sau "II.1. SẢN XUẤT"
-        for (let i = idxMain + 1; i < rows.length; i++) {
-            const name = (rows[i].name || "").trim().toUpperCase();
-            // Dừng lại khi gặp mục lớn tiếp theo (II.2, II.3, III, etc.)
-            if (/^II\.[2-9]/.test(name) || /^[IVX]+\./.test(name)) {
-                break;
-            }
-            if (!name) continue;
-            detailRows.push(rows[i]);
-        }
-
-        if (detailRows.length > 0) {
-            const revenue = detailRows.reduce(
-                (s, r) => s + toNum(r.revenue),
-                0
-            );
-            const cost = detailRows.reduce((s, r) => s + toNum(r.cost), 0);
-            const profit = revenue - cost;
-            const percent = revenue ? (profit / revenue) * 100 : null;
-
-            rows[idxMain] = {
-                ...rows[idxMain],
-                revenue,
-                cost,
-                profit,
-                percent,
-            };
-        }
-        return rows;
-    };
+        rows[idxMain] = {
+            ...rows[idxMain],
+            revenue,
+            cost,
+            profit,
+            percent,
+        };
+    }
+    return rows;
+};
     const calculateTotals = (currentRows) => {
-        const updatedRows = [...currentRows];
-        const idxTotal = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
-        );
-        const idxIXD = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
-        );
-        const idxII1 = updatedRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
-        );
-        const idxII2 = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "II.2. DT + LN ĐƯỢC CHIA TỪ LDX"
-        );
-        const idxII3 = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)"
-        );
-        const idxII4 = updatedRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY"
-        );
+    const updatedRows = [...currentRows];
+    
+    // Tìm index của các hàng cần thiết
+    const idxTotal = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
+    );
+    const idxIXD = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+    );
+    const idxII1 = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
+    );
+    const idxII2 = updatedRows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            "II.2. DT + LN ĐƯỢC CHIA TỪ LDX"
+    );
+    const idxII3 = updatedRows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)"
+    );
+    const idxII4 = updatedRows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY"
+    );
+    // --- BẮT ĐẦU THÊM MỚI ---
+    const idxIDT = updatedRows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "III. ĐẦU TƯ"
+    );
+    // --- KẾT THÚC THÊM MỚI ---
 
-        if (
-            idxTotal !== -1 &&
-            idxIXD !== -1 &&
-            idxII1 !== -1 &&
-            idxII2 !== -1 &&
-            idxII3 !== -1 &&
-            idxII4 !== -1
-        ) {
-            const totalRevenue =
-                toNum(updatedRows[idxIXD]?.revenue) +
-                toNum(updatedRows[idxII1]?.revenue) +
-                toNum(updatedRows[idxII2]?.revenue) +
-                toNum(updatedRows[idxII3]?.revenue) +
-                toNum(updatedRows[idxII4]?.revenue);
-            const totalCost =
-                toNum(updatedRows[idxIXD]?.cost) +
-                toNum(updatedRows[idxII1]?.cost) +
-                toNum(updatedRows[idxII2]?.cost) +
-                toNum(updatedRows[idxII3]?.cost) +
-                toNum(updatedRows[idxII4]?.cost);
-            const totalProfit =
-                toNum(updatedRows[idxIXD]?.profit) +
-                toNum(updatedRows[idxII1]?.profit) +
-                toNum(updatedRows[idxII2]?.profit) +
-                toNum(updatedRows[idxII3]?.profit) +
-                toNum(updatedRows[idxII4]?.profit);
-            updatedRows[idxTotal] = {
-                ...updatedRows[idxTotal],
-                revenue: totalRevenue || null,
-                cost: totalCost || null,
-                profit: totalProfit || null,
-                percent: null,
-            };
-        }
-        return updatedRows;
-    };
+    if (
+        idxTotal !== -1 &&
+        idxIXD !== -1 &&
+        idxII1 !== -1 &&
+        idxII2 !== -1 &&
+        idxII3 !== -1 &&
+        idxII4 !== -1 &&
+        idxIDT !== -1 // <-- Thêm điều kiện kiểm tra
+    ) {
+        const totalRevenue =
+            toNum(updatedRows[idxIXD]?.revenue) +
+            toNum(updatedRows[idxII1]?.revenue) +
+            toNum(updatedRows[idxII2]?.revenue) +
+            toNum(updatedRows[idxII3]?.revenue) +
+            toNum(updatedRows[idxII4]?.revenue) +
+            toNum(updatedRows[idxIDT]?.revenue); // <-- Cộng thêm doanh thu Đầu tư
+            
+        const totalCost =
+            toNum(updatedRows[idxIXD]?.cost) +
+            toNum(updatedRows[idxII1]?.cost) +
+            toNum(updatedRows[idxII2]?.cost) +
+            toNum(updatedRows[idxII3]?.cost) +
+            toNum(updatedRows[idxII4]?.cost) +
+            toNum(updatedRows[idxIDT]?.cost); // <-- Cộng thêm chi phí Đầu tư
+
+        const totalProfit =
+            toNum(updatedRows[idxIXD]?.profit) +
+            toNum(updatedRows[idxII1]?.profit) +
+            toNum(updatedRows[idxII2]?.profit) +
+            toNum(updatedRows[idxII3]?.profit) +
+            toNum(updatedRows[idxII4]?.profit) +
+            toNum(updatedRows[idxIDT]?.profit); // <-- Cộng thêm lợi nhuận Đầu tư
+
+        updatedRows[idxTotal] = {
+            ...updatedRows[idxTotal],
+            revenue: totalRevenue || null,
+            cost: totalCost || null,
+            profit: totalProfit || null,
+            percent: null,
+        };
+    }
+    return updatedRows;
+};
 
     const updateVuotCPRows = (inputRows) => {
         const rows = [...inputRows];

@@ -157,7 +157,7 @@ export default function ProfitSummaryTable({
                         const revenuePercent = toNum(item.revenue.target) === 0 ? 0 : (toNum(item.revenue.actual) / toNum(item.revenue.target)) * 100;
                         const profitEvaluation = toNum(item.profit.actual) - toNum(item.profit.target);
                         const profitPercent = toNum(item.profit.target) === 0 ? 0 : (toNum(item.profit.actual) / toNum(item.profit.target)) * 100;
-                        const adjustedProfit = toNum(item.profit.actual) - toNum(item.profit.costOver);
+                        const adjustedProfit = toNum(item.profit.actual) + toNum(item.profit.costOver);
 
                         return (
                             <React.Fragment key={item.name}>

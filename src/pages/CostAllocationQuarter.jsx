@@ -1291,7 +1291,7 @@ const totalDeficit = useMemo(() => {
                         });
 
                         const typeSpecificData = {
-                            pct: currentRow.pct ?? 0,
+                            [pctKey]: currentRow.pct ?? 0,
                             value: currentRow[valKey] ?? 0,
                             used: currentRow.used ?? 0,
                             allocated: currentRow.allocated ?? 0,
