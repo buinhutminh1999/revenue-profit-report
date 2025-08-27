@@ -1,4 +1,3 @@
-// ... (Tất cả các hàm import và các hook giữ nguyên như file trước)
 import React, {
     useEffect,
     useState,
@@ -80,281 +79,44 @@ const useCapitalReport = (year, quarter) => {
         async () => {
             const initialReportData = {
                 production: [
-                    {
-                        id: 1,
-                        stt: "1",
-                        codes: [],
-                        item: "Hàng tồn kho NVL",
-                        plan: 0,
-                        actual: 0,
-                        advantages: "",
-                        notes: "",
-                    },
-                    {
-                        id: 2,
-                        stt: "2",
-                        codes: [],
-                        item: "Tồn kho Thành phẩm",
-                        plan: 0,
-                        actual: 0,
-                        advantages: "",
-                        notes: "",
-                    },
-                    {
-                        id: 3,
-                        stt: "3",
-                        codes: [],
-                        item: "Nợ phải thu khách hàng",
-                        plan: 0,
-                        actual: 0,
-                        advantages: "",
-                        notes: "",
-                    },
-                    {
-                        id: 4,
-                        stt: "4",
-                        codes: [],
-                        item: "Nợ phải trả nhà cung cấp",
-                        plan: 0,
-                        actual: 0,
-                        advantages: "",
-                        notes: "",
-                    },
-                    {
-                        id: 5,
-                        stt: "5",
-                        codes: [],
-                        item: "Khách hàng ứng trước tiền hàng",
-                        plan: 0,
-                        actual: 0,
-                        advantages: "",
-                        notes: "",
-                    },
+                    { id: 1, stt: "1", codes: [], item: "Hàng tồn kho NVL", plan: 0, actual: 0, advantages: "", notes: "" },
+                    { id: 2, stt: "2", codes: [], item: "Tồn kho Thành phẩm", plan: 0, actual: 0, advantages: "", notes: "" },
+                    { id: 3, stt: "3", codes: [], item: "Nợ phải thu khách hàng", plan: 0, actual: 0, advantages: "", notes: "" },
+                    { id: 4, stt: "4", codes: [], item: "Nợ phải trả nhà cung cấp", plan: 0, actual: 0, advantages: "", notes: "" },
+                    { id: 5, stt: "5", codes: [], item: "Khách hàng ứng trước tiền hàng", plan: 0, actual: 0, advantages: "", notes: "" },
                 ],
                 construction: {
                     usage: [
-                        {
-                            id: 6,
-                            stt: "1",
-                            codes: [],
-                            item: "Chủ đầu tư nợ",
-                            plan: 0,
-                            actual: 0,
-                            advantages: "",
-                            notes: "",
-                        },
-                        {
-                            id: 7,
-                            stt: "2",
-                            codes: [],
-                            item: "Khối lượng dang dở",
-                            plan: 0,
-                            actual: 0,
-                            advantages: "",
-                            notes: "",
-                        },
-                        {
-                            id: 8,
-                            stt: "3",
-                            codes: [],
-                            item: "Tồn kho vật tư",
-                            plan: 0,
-                            actual: 0,
-                            advantages: "",
-                            notes: "",
-                        },
-                        {
-                            id: 9,
-                            stt: "4",
-                            codes: [],
-                            item: "Ứng trước tiền cho nhà cung cấp",
-                            plan: 0,
-                            actual: 0,
-                            advantages: "",
-                            notes: "",
-                        },
+                        { id: 6, stt: "1", codes: [], item: "Chủ đầu tư nợ", plan: 0, actual: 0, advantages: "", notes: "" },
+                        { id: 7, stt: "2", codes: [], item: "Khối lượng dang dở", plan: 0, actual: 0, advantages: "", notes: "" },
+                        { id: 8, stt: "3", codes: [], item: "Tồn kho vật tư", plan: 0, actual: 0, advantages: "", notes: "" },
+                        { id: 9, stt: "4", codes: [], item: "Ứng trước tiền cho nhà cung cấp", plan: 0, actual: 0, advantages: "", notes: "" },
                     ],
                     revenue: [
-                        {
-                            id: 10,
-                            stt: "1",
-                            codes: [],
-                            item: "Tiền ứng trước chủ đầu tư",
-                            plan: 0,
-                            actual: 0,
-                            advantages: "",
-                            notes: "",
-                        },
-                        {
-                            id: 11,
-                            stt: "2",
-                            codes: [],
-                            item: "Tiền tạm giữ theo HĐ nhân công đã ký",
-                            plan: 0,
-                            actual: 0,
-                            advantages: "",
-                            notes: "",
-                        },
-                        {
-                            id: 12,
-                            stt: "3",
-                            codes: [],
-                            item: "Nợ vật tư",
-                            plan: 0,
-                            actual: 0,
-                            advantages: "",
-                            notes: "",
-                        },
+                        { id: 10, stt: "1", codes: [], item: "Tiền ứng trước chủ đầu tư", plan: 0, actual: 0, advantages: "", notes: "" },
+                        { id: 11, stt: "2", codes: [], item: "Tiền tạm giữ theo HĐ nhân công đã ký", plan: 0, actual: 0, advantages: "", notes: "" },
+                        { id: 12, stt: "3", codes: [], item: "Nợ vật tư", plan: 0, actual: 0, advantages: "", notes: "" },
                     ],
                 },
+                // BẮT ĐẦU THAY ĐỔI: Cập nhật cấu trúc dữ liệu cho Bảng III
                 investment: {
-
                     projectDetails: [
-                        {
-                            id: 13,
-                            stt: "1",
-                            codes: [],
-                            name: "ĐẤT MỸ THỚI 8 CÔNG",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 14,
-                            stt: "2",
-                            codes: [],
-                            name: "ĐẤT BÌNH ĐỨC 4 CÔNG",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 15,
-                            stt: "3",
-                            codes: [],
-                            name: "ĐẤT MỸ THỚI 3 CÔNG",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 16,
-                            stt: "4",
-                            codes: [],
-                            name: "DA AN VƯƠNG",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 17,
-                            stt: "5",
-                            codes: [],
-                            name: "KHU DÂN CƯ MỸ LỘC",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 18,
-                            stt: "6",
-                            codes: [],
-                            name: "ĐẤT MỸ THỚI 18 CÔNG",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 19,
-                            stt: "7",
-                            codes: [],
-                            name: "ĐẤT NÚI SẬP",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 20,
-                            stt: "8",
-                            codes: [],
-                            name: "CĂN NHÀ SỐ 1 D8",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 21,
-                            stt: "9",
-                            codes: [],
-                            name: "CĂN NHÀ SỐ 2 F14",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 22,
-                            stt: "10",
-                            codes: [],
-                            name: "CĂN NHÀ SỐ 3 L15",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 23,
-                            stt: "11",
-                            codes: [],
-                            name: "CĂN NHÀ SỐ 4 J14",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 24,
-                            stt: "12",
-                            codes: [],
-                            name: "BLX LÔ M9,M10,M11,M12",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
-                        {
-                            id: 25,
-                            stt: "13",
-                            codes: [],
-                            name: "ĐẤT PHÚ TÂN",
-                            cost: 0,
-                            profit: 0,
-                            lessProfit: 0,
-                            investmentValue: 0, // <-- THÊM DÒNG NÀY
-                            remaining: 0,       // <-- THÊM DÒNG NÀY
-                        },
+                        { id: 13, stt: "1", codes: [], name: "ĐẤT MỸ THỚI 8 CÔNG", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 14, stt: "2", codes: [], name: "ĐẤT BÌNH ĐỨC 4 CÔNG", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 15, stt: "3", codes: [], name: "ĐẤT MỸ THỚI 3 CÔNG", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 16, stt: "4", codes: [], name: "DA AN VƯƠNG", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 17, stt: "5", codes: [], name: "KHU DÂN CƯ MỸ LỘC", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 18, stt: "6", codes: [], name: "ĐẤT MỸ THỚI 18 CÔNG", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 19, stt: "7", codes: [], name: "ĐẤT NÚI SẬP", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 20, stt: "8", codes: [], name: "CĂN NHÀ SỐ 1 D8", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 21, stt: "9", codes: [], name: "CĂN NHÀ SỐ 2 F14", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 22, stt: "10", codes: [], name: "CĂN NHÀ SỐ 3 L15", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 23, stt: "11", codes: [], name: "CĂN NHÀ SỐ 4 J14", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 24, stt: "12", codes: [], name: "BLX LÔ M9,M10,M11,M12", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
+                        { id: 25, stt: "13", codes: [], name: "ĐẤT PHÚ TÂN", cost: 0, profit: 0, lessProfit: 0, investmentValue: 0, remaining: 0 },
                     ],
                 },
+                // KẾT THÚC THAY ĐỔI
             };
 
             const docRef = doc(db, REPORT_COLLECTION, docId);
@@ -452,8 +214,8 @@ const EditableCell = React.memo(
             setIsEditing(false);
             const newValue = isNumeric
                 ? parseFloat(
-                    String(value).replace(/\./g, "").replace(/,/g, "")
-                ) || 0
+                      String(value).replace(/\./g, "").replace(/,/g, "")
+                  ) || 0
                 : value;
             if (initialValue !== newValue) onSave(newValue);
         };
@@ -514,8 +276,8 @@ const EditableCell = React.memo(
                     {isNumeric
                         ? formatCurrency(initialValue)
                         : initialValue || (
-                            <em style={{ color: "#9e9e9e" }}>Nhập...</em>
-                        )}
+                              <em style={{ color: "#9e9e9e" }}>Nhập...</em>
+                          )}
                 </Typography>
             </Box>
         );
@@ -608,17 +370,10 @@ const MultiAccountSelect = React.memo(({ value, onChange, accountsData }) => {
         </FormControl>
     );
 });
-// ✅ BƯỚC 1: HÀM TRỢ GIÚP TÌM TÀI KHOẢN CON
-/**
- * Tìm tất cả các tài khoản con (và cháu...) của một tài khoản cha.
- * @param {string} parentId - Mã tài khoản cha cần tìm.
- * @param {object} allAccounts - Object chứa toàn bộ hệ thống tài khoản.
- * @returns {string[]} Mảng chứa mã của tài khoản cha và tất cả con cháu.
- */
-const getAccountAndAllChildren = (parentId, allAccounts) => {
-    const children = new Set([parentId]); // Bắt đầu với chính tài khoản cha
-    const accountsToSearch = [parentId];
 
+const getAccountAndAllChildren = (parentId, allAccounts) => {
+    const children = new Set([parentId]);
+    const accountsToSearch = [parentId];
     while (accountsToSearch.length > 0) {
         const currentParentId = accountsToSearch.shift();
         for (const accountId in allAccounts) {
@@ -675,99 +430,96 @@ const CapitalUtilizationReport = () => {
         return parents;
     }, [chartOfAccounts, balances]);
 
-    // >>> BẠN HÃY DÁN ĐOẠN CODE useEffect MỚI VÀO ĐÂY <<<
     useEffect(() => {
-        // Chỉ set state khi fetchedData có dữ liệu và reportData đang là null
-        if (fetchedData && !reportData) {
-            setReportData(fetchedData);
-        }
-    }, [fetchedData, reportData]);
-    useEffect(() => {
-        // Chỉ chạy khi cả 3 nguồn dữ liệu đã sẵn sàng
-        if (reportData && balances && chartOfAccounts) {
-            let updatedData = JSON.parse(JSON.stringify(reportData));
-            let hasChanged = false;
-
-            const updateItems = (items, fieldToUpdate) => {
-                // ... (Giữ nguyên toàn bộ logic của hàm updateItems)
-                return items.map(item => {
-                    if (!item.codes || item.codes.length === 0) {
-                        if (fieldToUpdate === 'actual' && item.actual !== 0) {
-                            hasChanged = true;
-                            return { ...item, actual: 0 };
-                        }
-                        // Sửa lại chỗ này để reset cả 'cost' nếu cần
-                        if (fieldToUpdate === 'cost' && item.cost !== 0) {
-                            hasChanged = true;
-                            return { ...item, cost: 0 };
-                        }
-                        return item;
+        if (fetchedData && balances && chartOfAccounts) {
+            let updatedData = JSON.parse(JSON.stringify(fetchedData));
+            const updateActualValue = (items) =>
+                items.map((item) => {
+                    if (!item.codes || item.codes.length === 0)
+                        return { ...item, actual: 0 };
+                    const allAccountsToSum = item.codes.flatMap((parentCode) =>
+                        getAccountAndAllChildren(parentCode, chartOfAccounts)
+                    );
+                    const uniqueAccountsToSum = [...new Set(allAccountsToSum)];
+                    let totalActual = uniqueAccountsToSum.reduce(
+                        (sum, code) => {
+                            const balanceInfo = balances[code];
+                            if (balanceInfo) {
+                                return sum + (balanceInfo.cuoiKyNo || balanceInfo.cuoiKyCo || 0);
+                            }
+                            return sum;
+                        }, 0
+                    );
+                    if (item.id === 4 || item.id === 5) {
+                        totalActual = -totalActual;
                     }
-                    const allAccountsToSum = item.codes.flatMap(code => getAccountAndAllChildren(code, chartOfAccounts));
-                    const uniqueAccounts = [...new Set(allAccountsToSum)];
-                    let total = uniqueAccounts.reduce((sum, code) => {
-                        const balance = balances[code];
-                        const value = (balance?.cuoiKyNo || 0) > 0 ? balance.cuoiKyNo : (balance?.cuoiKyCo || 0);
-                        return sum + value;
-                    }, 0);
-
-                    if (fieldToUpdate === 'actual' && (item.id === 4 || item.id === 5 || item.id === 10 || item.id === 11 || item.id === 12)) {
-                        total = -total;
-                    }
-
-                    if (item[fieldToUpdate] !== total) {
-                        hasChanged = true;
-                    }
-                    return { ...item, [fieldToUpdate]: total };
+                    return { ...item, actual: totalActual };
                 });
-            };
 
-            updatedData.construction.revenue = updateItems(updatedData.construction.revenue, 'actual');
-            // updatedData.investment.projectDetails = updateItems(updatedData.investment.projectDetails, 'cost');
-
-            // Chỉ cập nhật state nếu có sự thay đổi thực sự
-            if (hasChanged) {
-                setReportData(updatedData);
-            }
+            updatedData.production = updateActualValue(updatedData.production);
+            updatedData.construction.usage = updateActualValue(
+                updatedData.construction.usage
+            );
+            updatedData.construction.revenue = updateActualValue(
+                updatedData.construction.revenue
+            );
+            setReportData(updatedData);
         }
-        // Chỉ phụ thuộc vào dữ liệu từ bên ngoài, không phụ thuộc vào chính state mà nó thay đổi
-    }, [balances, chartOfAccounts]);
+    }, [fetchedData, balances, chartOfAccounts]);
+    
+    // BẮT ĐẦU THAY ĐỔI: Cập nhật hàm debouncedSave
     const debouncedSave = useMemo(
         () =>
             debounce((data) => {
                 if (!data) return;
                 const dataToSave = JSON.parse(JSON.stringify(data));
-
-                // Dọn dẹp dữ liệu tự động tính
-                const cleanActualData = (items) => items.map(({ actual, ...rest }) => rest);
-                dataToSave.production = cleanActualData(dataToSave.production);
-                dataToSave.construction.usage = cleanActualData(dataToSave.construction.usage);
-                dataToSave.construction.revenue = cleanActualData(dataToSave.construction.revenue);
-
-                // Dọn dẹp cho bảng đầu tư
-                const cleanCostData = (items) => items.map(({ cost, ...rest }) => rest);
-                // Dòng bacLongXuyen đã được xóa
-                dataToSave.investment.projectDetails = cleanCostData(dataToSave.investment.projectDetails);
-
-                // Tính toán và gán các giá trị tổng để lưu
-                dataToSave.productionTotalActual = data.production.reduce((acc, item) => acc + (item.actual || 0), 0);
-                dataToSave.productionTotalPlan = data.production.reduce((acc, item) => acc + (item.plan || 0), 0);
-
-                const totalConsUsageActual = data.construction.usage.reduce((acc, item) => acc + (item.actual || 0), 0);
-                const totalConsUsagePlan = data.construction.usage.reduce((acc, item) => acc + (item.plan || 0), 0);
-                const totalConsRevenueActual = data.construction.revenue.reduce((acc, item) => acc + (item.actual || 0), 0);
-                const totalConsRevenuePlan = data.construction.revenue.reduce((acc, item) => acc + (item.plan || 0), 0);
-                dataToSave.constructionGrandTotalActual = totalConsUsageActual + totalConsRevenueActual;
-                dataToSave.constructionGrandTotalPlan = totalConsUsagePlan + totalConsRevenuePlan;
+                const cleanDataForSaving = (items) =>
+                    items.map(({ actual, ...rest }) => rest);
+                dataToSave.production = cleanDataForSaving(
+                    dataToSave.production
+                );
+                dataToSave.construction.usage = cleanDataForSaving(
+                    dataToSave.construction.usage
+                );
+                dataToSave.construction.revenue = cleanDataForSaving(
+                    dataToSave.construction.revenue
+                );
+                const totalProdActual = data.production.reduce(
+                    (acc, item) => acc + (item.actual || 0), 0
+                );
+                const totalProdPlan = data.production.reduce(
+                    (acc, item) => acc + (item.plan || 0), 0
+                );
+                dataToSave.productionTotalActual = totalProdActual;
+                dataToSave.productionTotalPlan = totalProdPlan;
+                const totalConsUsageActual = data.construction.usage.reduce(
+                    (acc, item) => acc + (item.actual || 0), 0
+                );
+                const totalConsUsagePlan = data.construction.usage.reduce(
+                    (acc, item) => acc + (item.plan || 0), 0
+                );
+                const totalConsRevenueActual = data.construction.revenue.reduce(
+                    (acc, item) => acc + (item.actual || 0), 0
+                );
+                const totalConsRevenuePlan = data.construction.revenue.reduce(
+                    (acc, item) => acc + (item.plan || 0), 0
+                );
+                dataToSave.constructionGrandTotalActual = totalConsUsageActual - totalConsRevenueActual;
+                dataToSave.constructionGrandTotalPlan = totalConsUsagePlan - totalConsRevenuePlan;
 
                 // Tính tổng còn lại của bộ phận Đầu tư
-                const totalInvestmentB = data.investment.projectDetails.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0);
-                dataToSave.investmentTotalRemaining = totalInvestmentB;
+                const totalInvestmentRemaining = data.investment.projectDetails.reduce(
+                    (acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)),
+                    0
+                );
+                dataToSave.investmentTotalRemaining = totalInvestmentRemaining;
 
                 saveData({ year, quarter, data: dataToSave });
             }, 1500),
         [year, quarter, saveData]
     );
+    // KẾT THÚC THAY ĐỔI
+    
     const handleDataChange = useCallback(
         (section, id, field, newValue) => {
             setReportData((prevData) => {
@@ -802,9 +554,10 @@ const CapitalUtilizationReport = () => {
         },
         [debouncedSave]
     );
-    const handleInvestmentPaste = useCallback((event) => {
-        event.preventDefault(); // Ngăn hành động dán mặc định
 
+    // BẮT ĐẦU THAY ĐỔI: Thêm hàm xử lý Paste
+    const handleInvestmentPaste = useCallback((event) => {
+        event.preventDefault();
         const pastedText = event.clipboardData.getData("text/plain");
         const pastedRows = pastedText.trim().split("\n").map(row => row.split("\t"));
 
@@ -819,9 +572,10 @@ const CapitalUtilizationReport = () => {
                     pastedRows.forEach((pastedCells, index) => {
                         if (index < targetRows.length) {
                             const targetRow = targetRows[index];
-                            const parsePastedValue = (val) => parseFloat(String(val || '0').replace(/,/g, '')) || 0;
+                            const parsePastedValue = (val) => parseFloat(String(val || '0').replace(/\./g, '').replace(/,/g, '.')) || 0;
 
-                            // Cập nhật tất cả các cột từ dữ liệu đã dán
+                            // Cập nhật các cột từ dữ liệu đã dán, theo đúng thứ tự
+                            // Nguyên giá, Lãi, Giá trị đầu tư, Đã trừ lãi, Còn lại
                             if (pastedCells[0] !== undefined) targetRow.cost = parsePastedValue(pastedCells[0]);
                             if (pastedCells[1] !== undefined) targetRow.profit = parsePastedValue(pastedCells[1]);
                             if (pastedCells[2] !== undefined) targetRow.investmentValue = parsePastedValue(pastedCells[2]);
@@ -842,6 +596,8 @@ const CapitalUtilizationReport = () => {
             }
         );
     }, [debouncedSave]);
+    // KẾT THÚC THAY ĐỔI
+
     if (isReportLoading || isBalancesLoading || isChartLoading || !reportData) {
         return (
             <Box sx={{ display: "flex", justifyContent: "center", p: 5 }}>
@@ -859,33 +615,23 @@ const CapitalUtilizationReport = () => {
         );
     }
 
-    // Sửa lại cách tính tổng cho đơn giản và chính xác
     const totalProdPlan = reportData.production.reduce(
-        (acc, item) => acc + (item.plan || 0),
-        0
+        (acc, item) => acc + (item.plan || 0), 0
     );
-
-    // Tính tổng cột "Số tiền thực SD"
     const totalProdActual = reportData.production.reduce(
-        (acc, item) => acc + (item.actual || 0),
-        0
+        (acc, item) => acc + (item.actual || 0), 0
     );
-
     const totalConsUsagePlan = reportData.construction.usage.reduce(
-        (acc, item) => acc + (item.plan || 0),
-        0
+        (acc, item) => acc + (item.plan || 0), 0
     );
     const totalConsRevenuePlan = reportData.construction.revenue.reduce(
-        (acc, item) => acc + (item.plan || 0),
-        0
+        (acc, item) => acc + (item.plan || 0), 0
     );
     const totalConsUsageActual = reportData.construction.usage.reduce(
-        (acc, item) => acc + (item.actual || 0),
-        0
+        (acc, item) => acc + (item.actual || 0), 0
     );
     const totalConsRevenueActual = reportData.construction.revenue.reduce(
-        (acc, item) => acc + (item.actual || 0),
-        0
+        (acc, item) => acc + (item.actual || 0), 0
     );
 
     return (
@@ -906,8 +652,7 @@ const CapitalUtilizationReport = () => {
             <Paper elevation={0} variant="outlined" sx={{ p: 2, mb: 3 }}>
                 <Grid container spacing={2} alignItems="center">
                     <Grid item>
-                        {" "}
-                        <FilterListIcon color="action" />{" "}
+                        <FilterListIcon color="action" />
                     </Grid>
                     <Grid item>
                         <Typography fontWeight="bold">
@@ -957,142 +702,48 @@ const CapitalUtilizationReport = () => {
                 <TableContainer>
                     <Table size="small">
                         <TableHead>
-                            <TableRow
-                                sx={{
-                                    "& > th": {
-                                        fontWeight: "bold",
-                                        backgroundColor:
-                                            theme.palette.grey[100],
-                                        borderBottom: `2px solid ${theme.palette.divider}`,
-                                    },
-                                }}
-                            >
+                            <TableRow sx={{ "& > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
                                 <TableCell>STT</TableCell>
-                                <TableCell sx={{ minWidth: 200 }}>
-                                    Số hiệu TK
-                                </TableCell>
-                                <TableCell sx={{ minWidth: 250 }}>
-                                    Kế hoạch sử dụng vốn
-                                </TableCell>
-                                <TableCell align="right" sx={{ minWidth: 150 }}>
-                                    Số tiền KH
-                                </TableCell>
-                                <TableCell align="right" sx={{ minWidth: 150 }}>
-                                    Số tiền thực SD
-                                </TableCell>
-                                <TableCell sx={{ minWidth: 200 }}>
-                                    Thuận lợi & Khó khăn
-                                </TableCell>
-                                <TableCell sx={{ minWidth: 200 }}>
-                                    Ghi chú
-                                </TableCell>
+                                <TableCell sx={{ minWidth: 200 }}>Số hiệu TK</TableCell>
+                                <TableCell sx={{ minWidth: 250 }}>Kế hoạch sử dụng vốn</TableCell>
+                                <TableCell align="right" sx={{ minWidth: 150 }}>Số tiền KH</TableCell>
+                                <TableCell align="right" sx={{ minWidth: 150 }}>Số tiền thực SD</TableCell>
+                                <TableCell sx={{ minWidth: 200 }}>Thuận lợi & Khó khăn</TableCell>
+                                <TableCell sx={{ minWidth: 200 }}>Ghi chú</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {reportData.production.map((row) => {
-                                // ✅ SỬA LẠI CÁCH HIỂN THỊ
-                                const isNegativeRow = row.id === 4 || row.id === 5;
-                                // Tạo giá trị âm để hiển thị cho các dòng 4 và 5
-                                const actualValue = isNegativeRow ? -row.actual : row.actual;
-
                                 return (
-                                    <TableRow
-                                        key={row.id}
-                                        hover
-                                        sx={{
-                                            "&:nth-of-type(odd)": {
-                                                backgroundColor:
-                                                    theme.palette.action.hover,
-                                            },
-                                        }}
-                                    >
+                                    <TableRow key={row.id} hover sx={{ "&:nth-of-type(odd)": { backgroundColor: theme.palette.action.hover } }}>
                                         <TableCell>{row.stt}</TableCell>
                                         <TableCell>
                                             <MultiAccountSelect
                                                 value={row.codes}
-                                                onChange={(e) =>
-                                                    handleDataChange(
-                                                        "production",
-                                                        row.id,
-                                                        "codes",
-                                                        e.target.value
-                                                    )
-                                                }
-                                                accountsData={
-                                                    parentAccountsForSelection
-                                                }
+                                                onChange={(e) => handleDataChange("production", row.id, "codes", e.target.value)}
+                                                accountsData={parentAccountsForSelection}
                                             />
                                         </TableCell>
                                         <TableCell>{row.item}</TableCell>
                                         <TableCell align="right">
-                                            <EditableCell
-                                                value={row.plan}
-                                                onSave={(v) =>
-                                                    handleDataChange(
-                                                        "production",
-                                                        row.id,
-                                                        "plan",
-                                                        v
-                                                    )
-                                                }
-                                            />
+                                            <EditableCell value={row.plan} onSave={(v) => handleDataChange("production", row.id, "plan", v)} />
                                         </TableCell>
-                                        <TableCell
-                                            align="right"
-                                            sx={{
-                                                fontWeight: "bold",
-                                                color: "primary.main",
-                                            }}
-                                        >
+                                        <TableCell align="right" sx={{ fontWeight: "bold", color: "primary.main" }}>
                                             {formatCurrency(row.actual)}
                                         </TableCell>
                                         <TableCell>
-                                            <EditableCell
-                                                value={row.advantages}
-                                                onSave={(v) =>
-                                                    handleDataChange(
-                                                        "production",
-                                                        row.id,
-                                                        "advantages",
-                                                        v
-                                                    )
-                                                }
-                                                isNumeric={false}
-                                            />
+                                            <EditableCell value={row.advantages} onSave={(v) => handleDataChange("production", row.id, "advantages", v)} isNumeric={false} />
                                         </TableCell>
                                         <TableCell>
-                                            <EditableCell
-                                                value={row.notes}
-                                                onSave={(v) =>
-                                                    handleDataChange(
-                                                        "production",
-                                                        row.id,
-                                                        "notes",
-                                                        v
-                                                    )
-                                                }
-                                                isNumeric={false}
-                                            />
+                                            <EditableCell value={row.notes} onSave={(v) => handleDataChange("production", row.id, "notes", v)} isNumeric={false} />
                                         </TableCell>
                                     </TableRow>
                                 );
                             })}
-                            <TableRow
-                                sx={{
-                                    "& > td, & > th": {
-                                        fontWeight: "bold",
-                                        backgroundColor:
-                                            theme.palette.grey[200],
-                                    },
-                                }}
-                            >
+                            <TableRow sx={{ "& > td, & > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[200] } }}>
                                 <TableCell colSpan={3}>Tổng Cộng</TableCell>
-                                <TableCell align="right">
-                                    {formatCurrency(totalProdPlan)}
-                                </TableCell>
-                                <TableCell align="right">
-                                    {formatCurrency(totalProdActual)}
-                                </TableCell>
+                                <TableCell align="right">{formatCurrency(totalProdPlan)}</TableCell>
+                                <TableCell align="right">{formatCurrency(totalProdActual)}</TableCell>
                                 <TableCell colSpan={2}></TableCell>
                             </TableRow>
                         </TableBody>
@@ -1100,7 +751,6 @@ const CapitalUtilizationReport = () => {
                 </TableContainer>
             </Card>
 
-            {/* Các bảng II và III giữ nguyên không đổi */}
             <Card sx={{ mb: 3 }}>
                 <CardHeader
                     title="II. BỘ PHẬN XÂY DỰNG"
@@ -1109,278 +759,77 @@ const CapitalUtilizationReport = () => {
                 <TableContainer>
                     <Table size="small">
                         <TableHead>
-                            <TableRow
-                                sx={{
-                                    "& > th": {
-                                        fontWeight: "bold",
-                                        backgroundColor:
-                                            theme.palette.grey[100],
-                                        borderBottom: `2px solid ${theme.palette.divider}`,
-                                    },
-                                }}
-                            >
+                            <TableRow sx={{ "& > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
                                 <TableCell>STT</TableCell>
-                                <TableCell sx={{ minWidth: 200 }}>
-                                    Số hiệu TK
-                                </TableCell>
-                                <TableCell sx={{ minWidth: 250 }}>
-                                    Kế hoạch sử dụng vốn
-                                </TableCell>
-                                <TableCell align="right" sx={{ minWidth: 150 }}>
-                                    Số tiền KH
-                                </TableCell>
-                                <TableCell align="right" sx={{ minWidth: 150 }}>
-                                    Số tiền thực SD
-                                </TableCell>
-                                <TableCell sx={{ minWidth: 200 }}>
-                                    Thuận lợi & Khó khăn
-                                </TableCell>
-                                <TableCell sx={{ minWidth: 200 }}>
-                                    Ghi chú
-                                </TableCell>
+                                <TableCell sx={{ minWidth: 200 }}>Số hiệu TK</TableCell>
+                                <TableCell sx={{ minWidth: 250 }}>Kế hoạch sử dụng vốn</TableCell>
+                                <TableCell align="right" sx={{ minWidth: 150 }}>Số tiền KH</TableCell>
+                                <TableCell align="right" sx={{ minWidth: 150 }}>Số tiền thực SD</TableCell>
+                                <TableCell sx={{ minWidth: 200 }}>Thuận lợi & Khó khăn</TableCell>
+                                <TableCell sx={{ minWidth: 200 }}>Ghi chú</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            <TableRow
-                                sx={{
-                                    "& > td": {
-                                        fontWeight: "bold",
-                                        backgroundColor:
-                                            theme.palette.grey[200],
-                                    },
-                                }}
-                            >
+                            <TableRow sx={{ "& > td": { fontWeight: "bold", backgroundColor: theme.palette.grey[200] } }}>
                                 <TableCell>a</TableCell>
-                                <TableCell colSpan={2}>
-                                    Vốn dự kiến sử dụng
-                                </TableCell>
-                                <TableCell align="right">
-                                    {formatCurrency(totalConsUsagePlan)}
-                                </TableCell>
-                                <TableCell align="right">
-                                    {formatCurrency(totalConsUsageActual)}
-                                </TableCell>
+                                <TableCell colSpan={2}>Vốn dự kiến sử dụng</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsUsagePlan)}</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsUsageActual)}</TableCell>
                                 <TableCell colSpan={2}></TableCell>
                             </TableRow>
                             {reportData.construction.usage.map((row) => (
-                                <TableRow
-                                    key={row.id}
-                                    hover
-                                    sx={{
-                                        "&:nth-of-type(even)": {
-                                            backgroundColor:
-                                                theme.palette.action.hover,
-                                        },
-                                    }}
-                                >
+                                <TableRow key={row.id} hover sx={{ "&:nth-of-type(even)": { backgroundColor: theme.palette.action.hover } }}>
                                     <TableCell>{row.stt}</TableCell>
                                     <TableCell>
-                                        <MultiAccountSelect
-                                            value={row.codes}
-                                            onChange={(e) =>
-                                                handleNestedDataChange(
-                                                    "construction",
-                                                    "usage",
-                                                    row.id,
-                                                    "codes",
-                                                    e.target.value
-                                                )
-                                            }
-                                            accountsData={
-                                                parentAccountsForSelection
-                                            }
-                                        />
+                                        <MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange("construction", "usage", row.id, "codes", e.target.value)} accountsData={parentAccountsForSelection} />
                                     </TableCell>
-                                    <TableCell sx={{ pl: 4 }}>
-                                        {row.item}
-                                    </TableCell>
+                                    <TableCell sx={{ pl: 4 }}>{row.item}</TableCell>
                                     <TableCell align="right">
-                                        <EditableCell
-                                            value={row.plan}
-                                            onSave={(v) =>
-                                                handleNestedDataChange(
-                                                    "construction",
-                                                    "usage",
-                                                    row.id,
-                                                    "plan",
-                                                    v
-                                                )
-                                            }
-                                        />
+                                        <EditableCell value={row.plan} onSave={(v) => handleNestedDataChange("construction", "usage", row.id, "plan", v)} />
                                     </TableCell>
-                                    <TableCell
-                                        align="right"
-                                        sx={{
-                                            fontWeight: "bold",
-                                            color: "primary.main",
-                                        }}
-                                    >
+                                    <TableCell align="right" sx={{ fontWeight: "bold", color: "primary.main" }}>
                                         {formatCurrency(row.actual)}
                                     </TableCell>
                                     <TableCell>
-                                        <EditableCell
-                                            value={row.advantages}
-                                            onSave={(v) =>
-                                                handleNestedDataChange(
-                                                    "construction",
-                                                    "usage",
-                                                    row.id,
-                                                    "advantages",
-                                                    v
-                                                )
-                                            }
-                                            isNumeric={false}
-                                        />
+                                        <EditableCell value={row.advantages} onSave={(v) => handleNestedDataChange("construction", "usage", row.id, "advantages", v)} isNumeric={false} />
                                     </TableCell>
                                     <TableCell>
-                                        <EditableCell
-                                            value={row.notes}
-                                            onSave={(v) =>
-                                                handleNestedDataChange(
-                                                    "construction",
-                                                    "usage",
-                                                    row.id,
-                                                    "notes",
-                                                    v
-                                                )
-                                            }
-                                            isNumeric={false}
-                                        />
+                                        <EditableCell value={row.notes} onSave={(v) => handleNestedDataChange("construction", "usage", row.id, "notes", v)} isNumeric={false} />
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            <TableRow
-                                sx={{
-                                    "& > td": {
-                                        fontWeight: "bold",
-                                        backgroundColor:
-                                            theme.palette.grey[200],
-                                    },
-                                }}
-                            >
+                            <TableRow sx={{ "& > td": { fontWeight: "bold", backgroundColor: theme.palette.grey[200] } }}>
                                 <TableCell>b</TableCell>
-                                <TableCell colSpan={2}>
-                                    Vốn dự kiến thu được
-                                </TableCell>
-                                <TableCell align="right">
-                                    {formatCurrency(totalConsRevenuePlan)}
-                                </TableCell>
-                                <TableCell align="right">
-                                    {formatCurrency(totalConsRevenueActual)}
-                                </TableCell>
+                                <TableCell colSpan={2}>Vốn dự kiến thu được</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsRevenuePlan)}</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsRevenueActual)}</TableCell>
                                 <TableCell colSpan={2}></TableCell>
                             </TableRow>
                             {reportData.construction.revenue.map((row) => (
-                                <TableRow
-                                    key={row.id}
-                                    hover
-                                    sx={{
-                                        "&:nth-of-type(even)": {
-                                            backgroundColor:
-                                                theme.palette.action.hover,
-                                        },
-                                    }}
-                                >
+                                <TableRow key={row.id} hover sx={{ "&:nth-of-type(even)": { backgroundColor: theme.palette.action.hover } }}>
                                     <TableCell>{row.stt}</TableCell>
                                     <TableCell>
-                                        <MultiAccountSelect
-                                            value={row.codes}
-                                            onChange={(e) =>
-                                                handleNestedDataChange(
-                                                    "construction",
-                                                    "revenue",
-                                                    row.id,
-                                                    "codes",
-                                                    e.target.value
-                                                )
-                                            }
-                                            accountsData={
-                                                parentAccountsForSelection
-                                            }
-                                        />
+                                        <MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange("construction", "revenue", row.id, "codes", e.target.value)} accountsData={parentAccountsForSelection} />
                                     </TableCell>
-                                    <TableCell sx={{ pl: 4 }}>
-                                        {row.item}
-                                    </TableCell>
+                                    <TableCell sx={{ pl: 4 }}>{row.item}</TableCell>
                                     <TableCell align="right">
-                                        <EditableCell
-                                            value={row.plan}
-                                            onSave={(v) =>
-                                                handleNestedDataChange(
-                                                    "construction",
-                                                    "revenue",
-                                                    row.id,
-                                                    "plan",
-                                                    v
-                                                )
-                                            }
-                                        />
+                                        <EditableCell value={row.plan} onSave={(v) => handleNestedDataChange("construction", "revenue", row.id, "plan", v)} />
                                     </TableCell>
-                                    <TableCell
-                                        align="right"
-                                        sx={{
-                                            fontWeight: "bold",
-                                            color: "primary.main",
-                                        }}
-                                    >
+                                    <TableCell align="right" sx={{ fontWeight: "bold", color: "primary.main" }}>
                                         {formatCurrency(row.actual)}
                                     </TableCell>
                                     <TableCell>
-                                        <EditableCell
-                                            value={row.advantages}
-                                            onSave={(v) =>
-                                                handleNestedDataChange(
-                                                    "construction",
-                                                    "revenue",
-                                                    row.id,
-                                                    "advantages",
-                                                    v
-                                                )
-                                            }
-                                            isNumeric={false}
-                                        />
+                                        <EditableCell value={row.advantages} onSave={(v) => handleNestedDataChange("construction", "revenue", row.id, "advantages", v)} isNumeric={false} />
                                     </TableCell>
                                     <TableCell>
-                                        <EditableCell
-                                            value={row.notes}
-                                            onSave={(v) =>
-                                                handleNestedDataChange(
-                                                    "construction",
-                                                    "revenue",
-                                                    row.id,
-                                                    "notes",
-                                                    v
-                                                )
-                                            }
-                                            isNumeric={false}
-                                        />
+                                        <EditableCell value={row.notes} onSave={(v) => handleNestedDataChange("construction", "revenue", row.id, "notes", v)} isNumeric={false} />
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            <TableRow
-                                sx={{
-                                    "& > td, & > th": {
-                                        fontWeight: "bold",
-                                        backgroundColor:
-                                            theme.palette.grey[300],
-                                    },
-                                }}
-                            >
-                                <TableCell colSpan={3}>
-                                    TỔNG CỘNG (a-b)
-                                </TableCell>
-                                <TableCell align="right">
-                                    {formatCurrency(
-                                        totalConsUsagePlan -
-                                        totalConsRevenuePlan
-                                    )}
-                                </TableCell>
-                                <TableCell align="right">
-                                    {formatCurrency(
-                                        totalConsUsageActual -
-                                        totalConsRevenueActual
-                                    )}
-                                </TableCell>
+                            <TableRow sx={{ "& > td, & > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[300] } }}>
+                                <TableCell colSpan={3}>TỔNG CỘNG (a-b)</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsUsagePlan - totalConsRevenuePlan)}</TableCell>
+                                <TableCell align="right">{formatCurrency(totalConsUsageActual - totalConsRevenueActual)}</TableCell>
                                 <TableCell colSpan={2}></TableCell>
                             </TableRow>
                         </TableBody>
@@ -1388,6 +837,7 @@ const CapitalUtilizationReport = () => {
                 </TableContainer>
             </Card>
 
+            {/* BẮT ĐẦU THAY ĐỔI: Cập nhật toàn bộ Card III */}
             <Card sx={{ mb: 3 }}>
                 <CardHeader
                     title="III. BỘ PHẬN ĐẦU TƯ"
@@ -1396,7 +846,7 @@ const CapitalUtilizationReport = () => {
                 <TableContainer onPaste={handleInvestmentPaste}>
                     <Table size="small">
                         <TableHead>
-                            <TableRow sx={{ "& > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[100] } }}>
+                            <TableRow sx={{ "& > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
                                 <TableCell>STT</TableCell>
                                 <TableCell sx={{ minWidth: 200 }}>Số hiệu TK</TableCell>
                                 <TableCell sx={{ minWidth: 250 }}>Diễn giải</TableCell>
@@ -1409,31 +859,43 @@ const CapitalUtilizationReport = () => {
                         </TableHead>
                         <TableBody>
                             {reportData.investment.projectDetails.map((row) => {
-                                const totalValue = (row.cost || 0) + (row.profit || 0);
-                                const remaining = totalValue - (row.lessProfit || 0);
+                                // Logic tính toán vẫn giữ lại để tham khảo nhưng giá trị hiển thị sẽ là từ state
                                 return (
-                                    <TableRow key={row.id} hover>
+                                    <TableRow key={row.id} hover sx={{ "&:nth-of-type(odd)": { backgroundColor: theme.palette.action.hover } }}>
                                         <TableCell>{row.stt}</TableCell>
-                                        <TableCell><MultiAccountSelect value={row.codes} onChange={(e) => handleNestedDataChange("investment", "projectDetails", row.id, "codes", e.target.value)} accountsData={chartOfAccounts} /></TableCell>
+                                        <TableCell>
+                                            <MultiAccountSelect
+                                                value={row.codes}
+                                                onChange={(e) => handleNestedDataChange("investment", "projectDetails", row.id, "codes", e.target.value)}
+                                                accountsData={chartOfAccounts} // Dùng tất cả tài khoản
+                                            />
+                                        </TableCell>
                                         <TableCell>{row.name}</TableCell>
-
-                                        {/* Chuyển tất cả các ô thành EditableCell để có thể dán và sửa */}
-                                        <TableCell><EditableCell value={row.cost} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "cost", v)} /></TableCell>
-                                        <TableCell><EditableCell value={row.profit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "profit", v)} /></TableCell>
-                                        <TableCell><EditableCell value={row.investmentValue} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "investmentValue", v)} /></TableCell>
-                                        <TableCell><EditableCell value={row.lessProfit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "lessProfit", v)} /></TableCell>
-                                        <TableCell><EditableCell value={row.remaining} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "remaining", v)} /></TableCell>
+                                        
+                                        {/* Chuyển các ô thành EditableCell để có thể dán và sửa */}
+                                        <TableCell align="right"><EditableCell value={row.cost} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "cost", v)} /></TableCell>
+                                        <TableCell align="right"><EditableCell value={row.profit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "profit", v)} /></TableCell>
+                                        <TableCell align="right"><EditableCell value={row.investmentValue} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "investmentValue", v)} /></TableCell>
+                                        <TableCell align="right"><EditableCell value={row.lessProfit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "lessProfit", v)} /></TableCell>
+                                        <TableCell align="right"><EditableCell value={row.remaining} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "remaining", v)} /></TableCell>
                                     </TableRow>
                                 );
                             })}
-                            <TableRow sx={{ "& > td": { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] } }}>
-                                <TableCell colSpan={7} align="center">TỔNG CỘNG</TableCell>
-                                <TableCell align="right">{formatCurrency(reportData.investment.projectDetails.reduce((acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0))}</TableCell>
-                            </TableRow>
+                             <TableRow sx={{ "& > td, & > th": { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] } }}>
+                                 <TableCell colSpan={7} align="center">TỔNG CỘNG</TableCell>
+                                 <TableCell align="right">
+                                     {formatCurrency(
+                                         reportData.investment.projectDetails.reduce(
+                                             (acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0
+                                         )
+                                     )}
+                                 </TableCell>
+                             </TableRow>
                         </TableBody>
                     </Table>
                 </TableContainer>
             </Card>
+            {/* KẾT THÚC THAY ĐỔI */}
 
             <Card>
                 <CardHeader
@@ -1441,14 +903,8 @@ const CapitalUtilizationReport = () => {
                     titleTypographyProps={{ variant: "h6", fontWeight: 600 }}
                 />
                 <CardContent>
-                    <Typography
-                        component="ul"
-                        sx={{ pl: 2, "& li": { mb: 1 } }}
-                    >
-                        <li>
-                            Bộ phận đầu tư sử dụng vốn bao nhiêu thì tính lãi
-                            theo qui định.
-                        </li>
+                    <Typography component="ul" sx={{ pl: 2, "& li": { mb: 1 } }}>
+                        <li>Bộ phận đầu tư sử dụng vốn bao nhiêu thì tính lãi theo qui định.</li>
                         <li>Bộ phận nhà máy sử dụng vốn đúng qui định.</li>
                         <li>Bộ phận xây dựng sử dụng vốn đúng qui định.</li>
                     </Typography>
