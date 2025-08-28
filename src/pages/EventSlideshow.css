@@ -1,0 +1,218 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700;900&display=swap');
+
+:root {
+    --text-color: #ffffff;
+    --secondary-text-color: #c8f5f0; 
+    --glow-color: rgba(128, 203, 196, 0.5);
+    --logo-blue-color: #2e63a0; 
+}
+
+/* Áp dụng trực tiếp cho container của component thay vì body/html */
+.slideshow-body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    font-family: 'Montserrat', sans-serif;
+    color: var(--text-color);
+    background-color: #002622;
+    overflow: hidden;
+    cursor: none; 
+    position: fixed; /* Đảm bảo component chiếm toàn màn hình */
+    top: 0;
+    left: 0;
+}
+
+#interactive-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+.content-container {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+    padding-top: 150px;
+    box-sizing: border-box;
+    background: radial-gradient(
+        circle at center,
+        rgba(0, 56, 51, 0.5) 0%,
+        rgba(0, 38, 34, 0) 65%
+    );
+    animation: pulse-glow 8s ease-in-out infinite;
+}
+
+.blended-text {
+    font-size: 6rem;
+    mix-blend-mode: screen; 
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.2), 0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+.company-info {
+    display: flex;
+    justify-content: flex-start; 
+    align-items: center;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 20px 40px;
+    box-sizing: border-box;
+    z-index: 10;
+}
+
+.logo {
+    width: 180px; 
+    margin-right: 25px;
+    opacity: 0;
+    animation: fadeIn 1.5s 0.2s ease-out forwards; 
+    mix-blend-mode: screen;
+}
+
+h1 {
+    font-size: 4.5rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 5px;
+    margin: 0;
+    opacity: 1;
+}
+
+.typing-effect {
+    white-space: nowrap;
+    overflow: hidden;
+    border-right: .15em solid var(--glow-color);
+    animation: 
+        typing 3.5s steps(30, end) 1.8s 1 normal both,
+        blink-caret .75s step-end infinite 1.8s;
+}
+
+.subtitle {
+    font-size: 6rem; 
+    margin: 0;
+    opacity: 0;
+    animation: fadeIn 1.5s 0.2s ease-out forwards;
+    color: var(--logo-blue-color);
+    font-weight: 700;
+    text-shadow: 0 0 10px rgba(41, 171, 226, 0.6);
+}
+
+.divider {
+    width: 120px;
+    height: 3px;
+    margin: 35px auto;
+    opacity: 0;
+    mix-blend-mode: screen;
+    animation: 
+        fadeIn 1.5s 5.5s ease-out forwards,
+        divider-breath 4s ease-in-out infinite 5.5s;
+}
+
+.status-text, #countdown {
+    transition: opacity 0.5s ease-in-out;
+}
+
+.status-text {
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+    opacity: 0;
+    animation: fadeIn 1.5s 5.8s ease-out forwards;
+}
+
+#countdown {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    opacity: 0;
+    animation: fadeIn 1.5s 5.8s ease-out forwards;
+}
+
+.date {
+    font-size: 1.3rem;
+    opacity: 0;
+    animation: fadeIn 1.5s 6.1s ease-out forwards;
+}
+
+.fading-out {
+    opacity: 0 !important;
+}
+
+.footer-info {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 25px;
+    box-sizing: border-box;
+    text-align: center;
+    z-index: 5;
+}
+
+.info-line {
+    color: var(--secondary-text-color);
+    text-shadow: 1px 1px 5px rgba(0,0,0,0.6);
+    margin: 8px 0;
+    opacity: 0;
+    animation: fadeIn 1.2s ease-out forwards;
+    font-size: 1.4rem;
+}
+.info-line strong {
+    color: var(--text-color);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-glow {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
+}
+
+@keyframes typing {
+    from { width: 0 }
+    to { width: 100% }
+}
+@keyframes blink-caret {
+    from, to { border-color: transparent }
+    50% { border-color: var(--glow-color); }
+}
+
+@keyframes divider-breath {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+@media (max-width: 768px) {
+    .company-info { padding: 15px 20px; }
+    .logo { width: 120px; margin-right: 15px; }
+    .subtitle { font-size: 1.8rem; }
+    
+    h1 { font-size: 2.8rem; }
+    #countdown { font-size: 1.8rem; }
+    .info-line { font-size: 1.0rem; }
+    .footer-info { padding: 15px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .logo, .subtitle, .divider, .status-text, #countdown, .date, .info-line, .content-container, .typing-effect {
+        animation: fadeIn 1s ease-out forwards !important;
+        animation-delay: 0s !important;
+    }
+    .typing-effect {
+        border-right: none;
+    }
+}

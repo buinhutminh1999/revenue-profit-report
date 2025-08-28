@@ -2,7 +2,7 @@
 
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion'; // <<< THÊM IMPORT
+import { AnimatePresence } from 'framer-motion';
 
 // --- CÁC COMPONENT CỐT LÕI ---
 import { useAuth } from '../App';
@@ -12,7 +12,7 @@ import PageTransition from '../components/common/PageTransition';
 import ProgressBar from '../components/common/ProgressBar';
 import RequireRole from '../components/auth/RequireRole';
 
-// --- LAZY-LOAD CÁC TRANG (GIỮ NGUYÊN NHƯ BAN ĐẦU) ---
+// --- LAZY-LOAD CÁC TRANG ---
 const lazyLoad = (Component) => (
     <Suspense fallback={<LoadingScreen isSuspense />}>
         <PageTransition>
@@ -26,6 +26,8 @@ const Home = lazy(() => import('../components/Home'));
 const LoginPage = lazy(() => import('../pages/LoginPage'));
 const NotFound = lazy(() => import('../components/NotFound'));
 const UserProfile = lazy(() => import('../pages/UserProfile'));
+const EventSlideshow = lazy(() => import('../pages/EventSlideshow'));
+const EventEditor = lazy(() => import('../pages/EventEditor')); // <<< VỊ TRÍ 1: THÊM DÒNG NÀY
 
 // Main Modules
 const ConstructionPlan = lazy(() => import('../components/ConstructionPlan/ConstructionPlan'));
@@ -54,8 +56,7 @@ const AdminAuditLog = lazy(() => import('../pages/AdminAuditLog'));
 const CloseQuarterPage = lazy(() => import('../pages/CloseQuarterPage'));
 
 
-// --- COMPONENT ĐỊNH TUYẾN CHÍNH (ĐÃ SỬA LỖI) ---
-// Bọc ngoài cùng với BrowserRouter
+// --- COMPONENT ĐỊNH TUYẾN CHÍNH ---
 export default function Router() {
     return (
         <BrowserRouter>
@@ -64,25 +65,27 @@ export default function Router() {
     );
 }
 
-// Component con để sử dụng hook `useLocation`
 function AppRoutes() {
-    const { isAuthenticated, user } = useAuth();
-    const location = useLocation(); // Lấy location để làm key cho AnimatePresence
+    const { isAuthenticated } = useAuth();
+    const location = useLocation();
 
     return (
         <>
             <ProgressBar />
-            {/* ▼▼▼ BỌC <Routes> BẰNG <AnimatePresence> ĐỂ SỬA LỖI ANIMATION ▼▼▼ */}
             <AnimatePresence mode="wait">
                 <Routes location={location} key={location.pathname}>
                     {/* Route công khai */}
                     <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : lazyLoad(LoginPage)} />
+                    <Route path="/event" element={lazyLoad(EventSlideshow)} />
 
                     {/* Route được bảo vệ, yêu cầu đăng nhập */}
                     <Route
                         path="/*"
                         element={isAuthenticated ? <Layout /> : <Navigate to="/login" replace />}
                     >
+                        {/* Trang quản trị sự kiện */}
+                        <Route path="event-editor" element={lazyLoad(EventEditor)} /> {/* <<< VỊ TRÍ 2: THÊM DÒNG NÀY */}
+
                         {/* Các route con sẽ được render bên trong Layout */}
                         <Route index element={lazyLoad(Home)} />
                         <Route path="user" element={lazyLoad(UserProfile)} />
@@ -131,7 +134,6 @@ function AppRoutes() {
                     </Route>
                 </Routes>
             </AnimatePresence>
-            {/* ▲▲▲ KẾT THÚC KHỐI SỬA LỖI ▲▲▲ */}
         </>
     );
 }

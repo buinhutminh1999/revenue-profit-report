@@ -1,13 +1,12 @@
 // src/App.jsx
 
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { onAuthStateChanged } from 'firebase/auth'; // Chỉ cần import hàm này
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'; // Chỉ cần import các hàm này
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { Toaster } from 'react-hot-toast';
 
-// ▼▼▼ THAY ĐỔI QUAN TRỌNG ▼▼▼
-import { auth, db } from '../src/services/firebase-config'; // Import auth và db đã được khởi tạo
+import { auth, db } from '../src/services/firebase-config';
 import CustomThemeProvider from './styles/ThemeContext';
 import Router from './routes';
 import LoadingScreen from './components/common/LoadingScreen';
@@ -42,16 +41,28 @@ export default function App() {
           await setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true });
           setUserInfo({ ...user, ...docSnap.data() });
         } else {
+          // ▼▼▼ KHỐI MÃ ĐÃ ĐƯỢC SỬA LỖI ▼▼▼
+          let newDisplayName = 'New User'; // Tên mặc định
+
+          if (user.displayName) {
+            newDisplayName = user.displayName;
+          } else if (user.email) {
+            newDisplayName = user.email.split('@')[0];
+          } else {
+            newDisplayName = `User-${user.uid.substring(0, 6)}`;
+          }
+
           const newUserProfile = {
-            displayName: user.displayName || user.email.split('@')[0],
-            email: user.email,
-            photoURL: user.photoURL,
+            displayName: newDisplayName,
+            email: user.email || '', // Đảm bảo không lưu giá trị null
+            photoURL: user.photoURL || '', // Đảm bảo không lưu giá trị null
             role: 'user',
             createdAt: serverTimestamp(),
             lastLogin: serverTimestamp(),
           };
           await setDoc(userRef, newUserProfile);
           setUserInfo({ ...user, ...newUserProfile });
+          // ▲▲▲ KẾT THÚC PHẦN SỬA LỖI ▲▲▲
         }
       } else {
         setUserInfo(null);
