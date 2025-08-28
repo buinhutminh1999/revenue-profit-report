@@ -128,7 +128,7 @@ export default function ProfitSummaryTable({
             id: 'II',
             name: 'SẢN XUẤT',
             revenue: { target: revenueTargetSanXuat, actual: revenueSanXuat, targetKey: 'revenueTargetSanXuat' },
-            profit: { target: profitTargetSanXuat, actual: profitSanXuat, costOver: costOverSanXuat, targetKey: 'profitTargetXayDung' },
+            profit: { target: profitTargetSanXuat, actual: profitSanXuat, costOver: costOverSanXuat, targetKey: 'profitTargetSanXuat' },
         },
         {
             id: 'III',

@@ -1337,7 +1337,6 @@ export default function ProfitReportQuarter() {
                 const cost = toNum(r.cost);
                 const profit = toNum(r.profit);
                 const nameUpper = (r.name || "").trim().toUpperCase();
-
                 if (
                     nameUpper === "I.1. DÂN DỤNG + GIAO THÔNG" ||
                     nameUpper === "I.2. KÈ"

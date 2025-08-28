@@ -94,7 +94,9 @@ const useProfitReportData = (selectedYear) => {
             costAddedToProfitForGroupI,
             costOverCumulativeForGroupI,
             costAddedToProfitForGroupII,
-            costOverCumulativeForGroupII
+            costOverCumulativeForGroupII,
+            costOverCumulativeForGroupIII
+
         ) => {
             let updatedRows = [...currentRows];
 
@@ -198,6 +200,8 @@ const useProfitReportData = (selectedYear) => {
                 updatedRows[idxIII] = {
                     ...updatedRows[idxIII],
                     ...groupIIISum,
+                    // ✅ THÊM DÒNG NÀY ĐỂ GÁN GIÁ TRỊ
+                    costOverCumulative: costOverCumulativeForGroupIII,
                 };
 
             const idxTotal = updatedRows.findIndex(
@@ -519,91 +523,92 @@ const useProfitReportData = (selectedYear) => {
                 );
             }
 
-          let costAddedForGroupI = 0;
-let costOverForGroupI = 0;
-let costAddedForGroupII = 0;
-let costOverForGroupII = 0;
+            let costAddedForGroupI = 0;
+            let costOverForGroupI = 0;
+            let costAddedForGroupII = 0;
+            let costOverForGroupII = 0;
+            let costOverForGroupIII = 0; // ✅ THÊM BIẾN NÀY
 
-const now = new Date();
-const currentMonth = now.getMonth();
-const currentQuarterIndex = Math.floor(currentMonth / 3);
 
-let targetQuarter;
-let targetYear = selectedYear;
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentQuarterIndex = Math.floor(currentMonth / 3);
 
-if (selectedYear < now.getFullYear()) {
-    targetQuarter = "Q4";
-} else {
-    if (currentQuarterIndex === 0) {
-        targetQuarter = "Q4";
-        targetYear = selectedYear - 1;
-    } else {
-        const quarters = ["Q1", "Q2", "Q3", "Q4"];
-        targetQuarter = quarters[currentQuarterIndex - 1];
-    }
-}
+            let targetQuarter;
+            let targetYear = selectedYear;
 
-// Lấy dữ liệu cho Group I từ costAllocationsQuarter như cũ
-const docId = `${targetYear}_${targetQuarter}`;
-try {
-    const costAllocationDoc = await getDoc(
-        doc(db, "costAllocationsQuarter", docId)
-    );
-    if (costAllocationDoc.exists()) {
-        const data = costAllocationDoc.data();
-        
-        costAddedForGroupI = toNum(data.totalSurplusThiCong);
-        costOverForGroupI = toNum(data.totalDeficitThiCong);
-        costAddedForGroupII = toNum(data.totalSurplusNhaMay); // Giữ nguyên cho CP CỘNG VÀO LN
-        
-        console.log(
-            `Đã lấy dữ liệu từ quý gần nhất: ${targetQuarter}/${targetYear}`
-        );
-    }
-} catch (error) {
-    console.error("Lỗi khi lấy dữ liệu phân bổ chi phí:", error);
-}
-
-// ✅ THÊM MỚI: Lấy carryoverEnd cho II. SẢN XUẤT từ công trình cụ thể
-try {
-    const sanXuatDoc = await getDoc(
-        doc(db, `projects/HKZyMDRhyXJzJiOauzVe/years/${targetYear}/quarters/${targetQuarter}`)
-    );
-    
-    if (sanXuatDoc.exists()) {
-        const data = sanXuatDoc.data();
-        
-        // Kiểm tra nếu có items và cộng dồn carryoverEnd của từng item
-        if (Array.isArray(data.items) && data.items.length > 0) {
-            const totalCarryoverEnd = data.items.reduce((sum, item) => {
-                return sum + toNum(item.carryoverEnd || 0);
-            }, 0);
-            costOverForGroupII = totalCarryoverEnd;
-            console.log(
-                `Đã cộng dồn carryoverEnd từ ${data.items.length} items cho Sản xuất: ${costOverForGroupII}`
-            );
-        } else {
-            // Nếu không có items, lấy carryoverEnd ở cấp document (fallback)
-            if (data.carryoverEnd !== undefined) {
-                costOverForGroupII = toNum(data.carryoverEnd);
-                console.log(
-                    `Đã lấy carryoverEnd ở cấp document cho Sản xuất: ${costOverForGroupII}`
-                );
+            if (selectedYear < now.getFullYear()) {
+                targetQuarter = "Q4";
             } else {
-                costOverForGroupII = 0;
-                console.log("Không tìm thấy carryoverEnd cho Sản xuất");
+                if (currentQuarterIndex === 0) {
+                    targetQuarter = "Q4";
+                    targetYear = selectedYear - 1;
+                } else {
+                    const quarters = ["Q1", "Q2", "Q3", "Q4"];
+                    targetQuarter = quarters[currentQuarterIndex - 1];
+                }
             }
-        }
-    } else {
-        costOverForGroupII = 0;
-        console.log(
-            `Không tìm thấy dữ liệu cho Sản xuất trong quý ${targetQuarter}/${targetYear}`
-        );
-    }
-} catch (error) {
-    console.error("Lỗi khi lấy carryoverEnd cho Sản xuất:", error);
-    costOverForGroupII = 0;
-}
+
+            // Lấy dữ liệu cho Group I từ costAllocationsQuarter như cũ
+            const docId = `${targetYear}_${targetQuarter}`;
+            try {
+                const costAllocationDoc = await getDoc(
+                    doc(db, "costAllocationsQuarter", docId)
+                );
+                if (costAllocationDoc.exists()) {
+                    const data = costAllocationDoc.data();
+
+                    costAddedForGroupI = toNum(data.totalSurplusThiCong);
+                    costOverForGroupI = toNum(data.totalDeficitThiCong);
+                    costAddedForGroupII = toNum(data.totalSurplusNhaMay); // Giữ nguyên cho CP CỘNG VÀO LN
+
+                    costOverForGroupIII = toNum(data.totalDeficitKHDT);
+
+                }
+            } catch (error) {
+                console.error("Lỗi khi lấy dữ liệu phân bổ chi phí:", error);
+            }
+
+            // ✅ THÊM MỚI: Lấy carryoverEnd cho II. SẢN XUẤT từ công trình cụ thể
+            try {
+                const sanXuatDoc = await getDoc(
+                    doc(db, `projects/HKZyMDRhyXJzJiOauzVe/years/${targetYear}/quarters/${targetQuarter}`)
+                );
+
+                if (sanXuatDoc.exists()) {
+                    const data = sanXuatDoc.data();
+
+                    // Kiểm tra nếu có items và cộng dồn carryoverEnd của từng item
+                    if (Array.isArray(data.items) && data.items.length > 0) {
+                        const totalCarryoverEnd = data.items.reduce((sum, item) => {
+                            return sum + toNum(item.carryoverEnd || 0);
+                        }, 0);
+                        costOverForGroupII = -totalCarryoverEnd;
+                        console.log(
+                            `Đã cộng dồn carryoverEnd từ ${data.items.length} items cho Sản xuất: ${costOverForGroupII}`
+                        );
+                    } else {
+                        // Nếu không có items, lấy carryoverEnd ở cấp document (fallback)
+                        if (data.carryoverEnd !== undefined) {
+                            costOverForGroupII = -toNum(data.carryoverEnd);
+                            console.log(
+                                `Đã lấy carryoverEnd ở cấp document cho Sản xuất: ${costOverForGroupII}`
+                            );
+                        } else {
+                            costOverForGroupII = 0;
+                            console.log("Không tìm thấy carryoverEnd cho Sản xuất");
+                        }
+                    }
+                } else {
+                    costOverForGroupII = 0;
+                    console.log(
+                        `Không tìm thấy dữ liệu cho Sản xuất trong quý ${targetQuarter}/${targetYear}`
+                    );
+                }
+            } catch (error) {
+                console.error("Lỗi khi lấy carryoverEnd cho Sản xuất:", error);
+                costOverForGroupII = 0;
+            }
 
             const projectsSnapshot = await getDocs(collection(db, "projects"));
             const savedReportDoc = await getDoc(
@@ -619,118 +624,118 @@ try {
                 savedRowsData
             );
             // ======================================================================
-           // =================================================================
-// ✅ SAO CHÉP VÀ THAY THẾ TOÀN BỘ KHỐI CODE BÊN DƯỚI
-// =================================================================
+            // =================================================================
+            // ✅ SAO CHÉP VÀ THAY THẾ TOÀN BỘ KHỐI CODE BÊN DƯỚI
+            // =================================================================
 
-const projects = await Promise.all(
-    projectsSnapshot.docs.map(async (d) => {
-        const data = d.data();
-        const quarterlyData = {
-            revenues: {},
-            costs: {},
-            profits: {},
-        };
+            const projects = await Promise.all(
+                projectsSnapshot.docs.map(async (d) => {
+                    const data = d.data();
+                    const quarterlyData = {
+                        revenues: {},
+                        costs: {},
+                        profits: {},
+                    };
 
-        for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-            try {
-                const qSnap = await getDoc(
-                    doc(
-                        db,
-                        `projects/${d.id}/years/${selectedYear}/quarters/${quarter}`
-                    )
-                );
-
-                if (qSnap.exists()) {
-                    const qData = qSnap.data();
-                    const revenue = toNum(qData.overallRevenue);
-                    let cost = 0; // Khởi tạo chi phí cho quý này
-
-                    // ==========================================================
-                    // ✅ LOGIC TÍNH CHI PHÍ MỚI ĐƯỢC ÁP DỤNG TẠI ĐÂY
-                    // ==========================================================
-                    const projectType = (data.type || "").toLowerCase();
-
-                    if (projectType.includes("nhà máy")) {
-                        // TRƯỜNG HỢP 1: NẾU LÀ CÔNG TRÌNH SẢN XUẤT (NHÀ MÁY)
-                        // -> Luôn tính chi phí bằng tổng của `totalCost`
-                        if (Array.isArray(qData.items) && qData.items.length > 0) {
-                            cost = qData.items.reduce(
-                                (sum, item) => sum + toNum(item.totalCost || 0),
-                                0
-                            );
-                        }
-                    } else {
-                        // TRƯỜNG HỢP 2: CÁC LOẠI CÔNG TRÌNH CÒN LẠI
-                        // -> Áp dụng logic tính toán phức tạp
-                        if (Array.isArray(qData.items) && qData.items.length > 0) {
-                            const totalItemsRevenue = qData.items.reduce(
-                                (sum, item) => sum + toNum(item.revenue || 0),
-                                0
+                    for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+                        try {
+                            const qSnap = await getDoc(
+                                doc(
+                                    db,
+                                    `projects/${d.id}/years/${selectedYear}/quarters/${quarter}`
+                                )
                             );
 
-                            if (totalItemsRevenue === 0 && revenue === 0) {
-                                cost = 0;
-                            } else {
-                                if (totalItemsRevenue === 0) {
-                                    cost = qData.items.reduce(
-                                        (sum, item) => sum + toNum(item.cpSauQuyetToan || 0),
-                                        0
-                                    );
+                            if (qSnap.exists()) {
+                                const qData = qSnap.data();
+                                const revenue = toNum(qData.overallRevenue);
+                                let cost = 0; // Khởi tạo chi phí cho quý này
+
+                                // ==========================================================
+                                // ✅ LOGIC TÍNH CHI PHÍ MỚI ĐƯỢC ÁP DỤNG TẠI ĐÂY
+                                // ==========================================================
+                                const projectType = (data.type || "").toLowerCase();
+
+                                if (projectType.includes("nhà máy")) {
+                                    // TRƯỜNG HỢP 1: NẾU LÀ CÔNG TRÌNH SẢN XUẤT (NHÀ MÁY)
+                                    // -> Luôn tính chi phí bằng tổng của `totalCost`
+                                    if (Array.isArray(qData.items) && qData.items.length > 0) {
+                                        cost = qData.items.reduce(
+                                            (sum, item) => sum + toNum(item.totalCost || 0),
+                                            0
+                                        );
+                                    }
                                 } else {
-                                    cost = qData.items.reduce(
-                                        (sum, item) => sum + toNum(item.totalCost || 0),
-                                        0
-                                    );
+                                    // TRƯỜNG HỢP 2: CÁC LOẠI CÔNG TRÌNH CÒN LẠI
+                                    // -> Áp dụng logic tính toán phức tạp
+                                    if (Array.isArray(qData.items) && qData.items.length > 0) {
+                                        const totalItemsRevenue = qData.items.reduce(
+                                            (sum, item) => sum + toNum(item.revenue || 0),
+                                            0
+                                        );
+
+                                        if (totalItemsRevenue === 0 && revenue === 0) {
+                                            cost = 0;
+                                        } else {
+                                            if (totalItemsRevenue === 0) {
+                                                cost = qData.items.reduce(
+                                                    (sum, item) => sum + toNum(item.cpSauQuyetToan || 0),
+                                                    0
+                                                );
+                                            } else {
+                                                cost = qData.items.reduce(
+                                                    (sum, item) => sum + toNum(item.totalCost || 0),
+                                                    0
+                                                );
+                                            }
+                                        }
+                                    } else if (revenue === 0) {
+                                        cost = 0;
+                                    }
                                 }
+                                // ==========================================================
+                                // ✅ KẾT THÚC LOGIC TÍNH CHI PHÍ MỚI
+                                // ==========================================================
+
+                                quarterlyData.revenues[quarter] = revenue;
+                                quarterlyData.costs[quarter] = cost;
+                                quarterlyData.profits[quarter] = revenue - cost;
                             }
-                        } else if (revenue === 0) {
-                            cost = 0;
+                        } catch (error) {
+                            console.error(`Lỗi khi lấy dữ liệu quý ${quarter} cho dự án ${d.id}:`, error);
                         }
                     }
-                    // ==========================================================
-                    // ✅ KẾT THÚC LOGIC TÍNH CHI PHÍ MỚI
-                    // ==========================================================
 
-                    quarterlyData.revenues[quarter] = revenue;
-                    quarterlyData.costs[quarter] = cost;
-                    quarterlyData.profits[quarter] = revenue - cost;
-                }
-            } catch (error) {
-                console.error(`Lỗi khi lấy dữ liệu quý ${quarter} cho dự án ${d.id}:`, error);
-            }
-        }
+                    const totalRevenue = Object.values(quarterlyData.revenues).reduce((s, v) => s + v, 0);
+                    const totalCost = Object.values(quarterlyData.costs).reduce((s, v) => s + v, 0);
 
-        const totalRevenue = Object.values(quarterlyData.revenues).reduce((s, v) => s + v, 0);
-        const totalCost = Object.values(quarterlyData.costs).reduce((s, v) => s + v, 0);
+                    return {
+                        ...(savedRowsData.find((row) => row.name === data.name) || {}),
+                        projectId: d.id,
+                        name: data.name,
+                        type: data.type || "",
+                        revenue: totalRevenue,
+                        ...Object.fromEntries(
+                            Object.entries(quarterlyData.revenues).map(([k, v]) => [`revenue${k}`, v])
+                        ),
+                        cost: totalCost,
+                        ...Object.fromEntries(
+                            Object.entries(quarterlyData.costs).map(([k, v]) => [`cost${k}`, v])
+                        ),
+                        profit: totalRevenue - totalCost,
+                        ...Object.fromEntries(
+                            Object.entries(quarterlyData.profits).map(([k, v]) => [`profit${k}`, v])
+                        ),
+                        percent: totalRevenue
+                            ? ((totalRevenue - totalCost) / totalRevenue) * 100
+                            : null,
+                    };
+                })
+            );
 
-        return {
-            ...(savedRowsData.find((row) => row.name === data.name) || {}),
-            projectId: d.id,
-            name: data.name,
-            type: data.type || "",
-            revenue: totalRevenue,
-            ...Object.fromEntries(
-                Object.entries(quarterlyData.revenues).map(([k, v]) => [`revenue${k}`, v])
-            ),
-            cost: totalCost,
-            ...Object.fromEntries(
-                Object.entries(quarterlyData.costs).map(([k, v]) => [`cost${k}`, v])
-            ),
-            profit: totalRevenue - totalCost,
-            ...Object.fromEntries(
-                Object.entries(quarterlyData.profits).map(([k, v]) => [`profit${k}`, v])
-            ),
-            percent: totalRevenue
-                ? ((totalRevenue - totalCost) / totalRevenue) * 100
-                : null,
-        };
-    })
-);
-
-// =================================================================
-// ✅ KẾT THÚC KHỐI CODE THAY THẾ
-// =================================================================
+            // =================================================================
+            // ✅ KẾT THÚC KHỐI CODE THAY THẾ
+            // =================================================================
 
             let rowTemplate = [...savedRowsData];
             if (rowTemplate.length === 0) {
@@ -748,6 +753,8 @@ const projects = await Promise.all(
                     "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)",
                     "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
                     "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
+                    "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY",
+                    "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
                     "III. ĐẦU TƯ",
                     "IV. TỔNG",
                     `BP XD CHUYỂN TIẾP LN N${selectedYear}`,
@@ -912,6 +919,8 @@ const projects = await Promise.all(
                 "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)",
                 "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
                 "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
+                "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY",
+                "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)"
             ];
 
             for (const rowName of rowsToAggregate) {
@@ -977,256 +986,318 @@ const projects = await Promise.all(
                 }
             }
             // Thêm đoạn code này vào phần TỔNG HỢP DỮ LIỆU TỪ BÁO CÁO QUÝ
-// (sau phần xử lý các hàng liên doanh, khoảng dòng 600-650)
+            // (sau phần xử lý các hàng liên doanh, khoảng dòng 600-650)
 
-// ======================================================================
-// LOAD DỮ LIỆU CHO I.4. XÍ NGHIỆP XD II
-// ======================================================================
-// Biến để lưu các công trình chi tiết của Xí nghiệp XD II
-const xiNghiepXD2Projects = [];
+            // ======================================================================
+            // LOAD DỮ LIỆU CHO I.4. XÍ NGHIỆP XD II
+            // ======================================================================
+            // Biến để lưu các công trình chi tiết của Xí nghiệp XD II
+            const xiNghiepXD2Projects = [];
 
-for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-    try {
-        const docId = `${selectedYear}_${quarter}`;
-        const profitReportSnap = await getDoc(
-            doc(db, "profitReports", docId)
-        );
-
-        if (profitReportSnap.exists()) {
-            const reportData = profitReportSnap.data();
-            if (Array.isArray(reportData.rows)) {
-                // Lọc các dự án có type = "xnxd2"
-                const xnxd2Rows = reportData.rows.filter(
-                    (row) => row.type === "xnxd2"
-                );
-
-                // Xử lý từng dự án
-                xnxd2Rows.forEach((projectRow) => {
-                    // Tìm xem dự án này đã tồn tại trong danh sách chưa
-                    let existingProject = xiNghiepXD2Projects.find(
-                        (p) => p.name === projectRow.name
+            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+                try {
+                    const docId = `${selectedYear}_${quarter}`;
+                    const profitReportSnap = await getDoc(
+                        doc(db, "profitReports", docId)
                     );
 
-                    if (!existingProject) {
-                        // Nếu chưa tồn tại, tạo mới
-                        existingProject = {
-                            name: projectRow.name,
-                            type: "xnxd2",
-                            revenue: 0,
-                            revenueQ1: 0,
-                            revenueQ2: 0,
-                            revenueQ3: 0,
-                            revenueQ4: 0,
-                            cost: 0,
-                            costQ1: 0,
-                            costQ2: 0,
-                            costQ3: 0,
-                            costQ4: 0,
-                            profit: 0,
-                            profitQ1: 0,
-                            profitQ2: 0,
-                            profitQ3: 0,
-                            profitQ4: 0,
-                        };
-                        xiNghiepXD2Projects.push(existingProject);
+                    if (profitReportSnap.exists()) {
+                        const reportData = profitReportSnap.data();
+                        if (Array.isArray(reportData.rows)) {
+                            // Lọc các dự án có type = "xnxd2"
+                            const xnxd2Rows = reportData.rows.filter(
+                                (row) => row.type === "xnxd2"
+                            );
+
+                            // Xử lý từng dự án
+                            xnxd2Rows.forEach((projectRow) => {
+                                // Tìm xem dự án này đã tồn tại trong danh sách chưa
+                                let existingProject = xiNghiepXD2Projects.find(
+                                    (p) => p.name === projectRow.name
+                                );
+
+                                if (!existingProject) {
+                                    // Nếu chưa tồn tại, tạo mới
+                                    existingProject = {
+                                        name: projectRow.name,
+                                        type: "xnxd2",
+                                        revenue: 0,
+                                        revenueQ1: 0,
+                                        revenueQ2: 0,
+                                        revenueQ3: 0,
+                                        revenueQ4: 0,
+                                        cost: 0,
+                                        costQ1: 0,
+                                        costQ2: 0,
+                                        costQ3: 0,
+                                        costQ4: 0,
+                                        profit: 0,
+                                        profitQ1: 0,
+                                        profitQ2: 0,
+                                        profitQ3: 0,
+                                        profitQ4: 0,
+                                    };
+                                    xiNghiepXD2Projects.push(existingProject);
+                                }
+
+                                // Cập nhật dữ liệu cho quý tương ứng
+                                existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
+                                existingProject[`cost${quarter}`] = toNum(projectRow.cost);
+                                existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                            });
+                        }
                     }
-
-                    // Cập nhật dữ liệu cho quý tương ứng
-                    existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
-                    existingProject[`cost${quarter}`] = toNum(projectRow.cost);
-                    existingProject[`profit${quarter}`] = toNum(projectRow.profit);
-                });
-            }
-        }
-    } catch (error) {
-        console.error(
-            `Lỗi khi lấy dữ liệu Xí nghiệp XD II cho ${quarter}/${selectedYear}:`,
-            error
-        );
-    }
-}
-
-// Tính tổng cả năm cho từng dự án
-xiNghiepXD2Projects.forEach((project) => {
-    project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce(
-        (sum, q) => sum + (project[`revenue${q}`] || 0),
-        0
-    );
-    project.cost = ["Q1", "Q2", "Q3", "Q4"].reduce(
-        (sum, q) => sum + (project[`cost${q}`] || 0),
-        0
-    );
-    project.profit = ["Q1", "Q2", "Q3", "Q4"].reduce(
-        (sum, q) => sum + (project[`profit${q}`] || 0),
-        0
-    );
-});
-
-// Tìm vị trí để chèn các dự án Xí nghiệp XD II vào rowTemplate
-const xiNghiepHeaderIndex = rowTemplate.findIndex(
-    (r) => r.name === "I.4. Xí nghiệp XD II"
-);
-
-if (xiNghiepHeaderIndex !== -1) {
-    // Chèn các dự án chi tiết sau header I.4
-    let insertPosition = xiNghiepHeaderIndex + 1;
-    
-    // Xóa các dự án cũ nếu có (để tránh duplicate)
-    while (insertPosition < rowTemplate.length && 
-           !rowTemplate[insertPosition].name.match(/^[IVX]+\./) &&
-           rowTemplate[insertPosition].type === "xnxd2") {
-        rowTemplate.splice(insertPosition, 1);
-    }
-    
-    // Chèn các dự án mới
-    xiNghiepXD2Projects.forEach((project, index) => {
-        rowTemplate.splice(insertPosition + index, 0, project);
-    });
-}
-const nhaMayProjects = [];
-
-for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-    try {
-        const docId = `${selectedYear}_${quarter}`;
-        const profitReportSnap = await getDoc(
-            doc(db, "profitReports", docId)
-        );
-
-        if (profitReportSnap.exists()) {
-            const reportData = profitReportSnap.data();
-            if (Array.isArray(reportData.rows)) {
-                // Lọc các dự án có type = "Nhà máy"
-                const nhaMayRows = reportData.rows.filter(
-                    (row) => row.type === "Nhà máy"
-                );
-
-                // Xử lý từng dự án
-                nhaMayRows.forEach((projectRow) => {
-                    // Tìm xem dự án này đã tồn tại trong danh sách chưa
-                    let existingProject = nhaMayProjects.find(
-                        (p) => p.name === projectRow.name
+                } catch (error) {
+                    console.error(
+                        `Lỗi khi lấy dữ liệu Xí nghiệp XD II cho ${quarter}/${selectedYear}:`,
+                        error
                     );
-
-                    if (!existingProject) {
-                        // Nếu chưa tồn tại, tạo mới
-                        existingProject = {
-                            name: projectRow.name,
-                            type: "Nhà máy",
-                            revenue: 0,
-                            revenueQ1: 0,
-                            revenueQ2: 0,
-                            revenueQ3: 0,
-                            revenueQ4: 0,
-                            cost: 0,
-                            costQ1: 0,
-                            costQ2: 0,
-                            costQ3: 0,
-                            costQ4: 0,
-                            profit: 0,
-                            profitQ1: 0,
-                            profitQ2: 0,
-                            profitQ3: 0,
-                            profitQ4: 0,
-                        };
-                        nhaMayProjects.push(existingProject);
-                    }
-
-                    // Cập nhật dữ liệu cho quý tương ứng
-                    existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
-                    existingProject[`cost${quarter}`] = toNum(projectRow.cost);
-                    existingProject[`profit${quarter}`] = toNum(projectRow.profit);
-                });
+                }
             }
-        }
-    } catch (error) {
-        console.error(
-            `Lỗi khi lấy dữ liệu Nhà máy cho ${quarter}/${selectedYear}:`,
-            error
-        );
-    }
-}
 
-// Tính tổng cả năm cho từng dự án
-nhaMayProjects.forEach((project) => {
-    project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce(
-        (sum, q) => sum + (project[`revenue${q}`] || 0),
-        0
-    );
-    project.cost = ["Q1", "Q2", "Q3", "Q4"].reduce(
-        (sum, q) => sum + (project[`cost${q}`] || 0),
-        0
-    );
-    project.profit = ["Q1", "Q2", "Q3", "Q4"].reduce(
-        (sum, q) => sum + (project[`profit${q}`] || 0),
-        0
-    );
-});
-
-// Tìm vị trí để chèn các dự án Nhà máy vào rowTemplate
-const sanXuatHeaderIndex = rowTemplate.findIndex(
-    (r) => r.name === "II.1. SẢN XUẤT"
-);
-
-if (sanXuatHeaderIndex !== -1) {
-    // Chèn các dự án chi tiết sau header II.1
-    let insertPosition = sanXuatHeaderIndex + 1;
-    
-    // Xóa các dự án cũ nếu có (để tránh duplicate)
-    while (insertPosition < rowTemplate.length && 
-           !rowTemplate[insertPosition].name.match(/^[IVX]+\./) &&
-           rowTemplate[insertPosition].type === "Nhà máy") {
-        rowTemplate.splice(insertPosition, 1);
-    }
-    
-    // Chèn các dự án mới
-    nhaMayProjects.forEach((project, index) => {
-        rowTemplate.splice(insertPosition + index, 0, project);
-    });
-}
-
-// ======================================================================
-projects.forEach((p) => {
-    const index = rowTemplate.findIndex((r) => r.name === p.name);
-    if (index > -1) {
-        rowTemplate[index] = { ...rowTemplate[index], ...p };
-    } else {
-        let insertIndex = -1;
-
-        if (p.type === "Thi công") {
-            if ((p.name || "").toUpperCase().includes("KÈ")) {
-                insertIndex = rowTemplate.findIndex(
-                    (r) => r.name === `I.3. CÔNG TRÌNH CÔNG TY CĐT`
+            // Tính tổng cả năm cho từng dự án
+            xiNghiepXD2Projects.forEach((project) => {
+                project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce(
+                    (sum, q) => sum + (project[`revenue${q}`] || 0),
+                    0
                 );
-            } else {
-                insertIndex = rowTemplate.findIndex(
-                    (r) => r.name === `I.2. KÈ`
+                project.cost = ["Q1", "Q2", "Q3", "Q4"].reduce(
+                    (sum, q) => sum + (project[`cost${q}`] || 0),
+                    0
                 );
-            }
-        } 
-        // COMMENT HOẶC XÓA PHẦN NÀY vì đã lấy từ báo cáo quý
-        // else if (p.type.toLowerCase().includes("nhà máy")) {
-        //     insertIndex = rowTemplate.findIndex(
-        //         (r) => r.name === `II.2. DT + LN ĐƯỢC CHIA TỪ LDX`
-        //     );
-        // }
-        else if (p.type === "KH-ĐT") {
-            insertIndex = rowTemplate.findIndex(
-                (r) => r.name === "IV. TỔNG"
+                project.profit = ["Q1", "Q2", "Q3", "Q4"].reduce(
+                    (sum, q) => sum + (project[`profit${q}`] || 0),
+                    0
+                );
+            });
+
+            // Tìm vị trí để chèn các dự án Xí nghiệp XD II vào rowTemplate
+            const xiNghiepHeaderIndex = rowTemplate.findIndex(
+                (r) => r.name === "I.4. Xí nghiệp XD II"
             );
-        }
 
-        if (insertIndex > -1) {
-            rowTemplate.splice(insertIndex, 0, p);
-        }
-    }
-});
+            if (xiNghiepHeaderIndex !== -1) {
+                // Chèn các dự án chi tiết sau header I.4
+                let insertPosition = xiNghiepHeaderIndex + 1;
+
+                // Xóa các dự án cũ nếu có (để tránh duplicate)
+                while (insertPosition < rowTemplate.length &&
+                    !rowTemplate[insertPosition].name.match(/^[IVX]+\./) &&
+                    rowTemplate[insertPosition].type === "xnxd2") {
+                    rowTemplate.splice(insertPosition, 1);
+                }
+
+                // Chèn các dự án mới
+                xiNghiepXD2Projects.forEach((project, index) => {
+                    rowTemplate.splice(insertPosition + index, 0, project);
+                });
+            }
+            const nhaMayProjects = [];
+
+            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+                try {
+                    const docId = `${selectedYear}_${quarter}`;
+                    const profitReportSnap = await getDoc(
+                        doc(db, "profitReports", docId)
+                    );
+
+                    if (profitReportSnap.exists()) {
+                        const reportData = profitReportSnap.data();
+                        if (Array.isArray(reportData.rows)) {
+                            // Lọc các dự án có type = "Nhà máy"
+                            const nhaMayRows = reportData.rows.filter(
+                                (row) => row.type === "Nhà máy"
+                            );
+
+                            // Xử lý từng dự án
+                            nhaMayRows.forEach((projectRow) => {
+                                // Tìm xem dự án này đã tồn tại trong danh sách chưa
+                                let existingProject = nhaMayProjects.find(
+                                    (p) => p.name === projectRow.name
+                                );
+
+                                if (!existingProject) {
+                                    // Nếu chưa tồn tại, tạo mới
+                                    existingProject = {
+                                        name: projectRow.name,
+                                        type: "Nhà máy",
+                                        revenue: 0,
+                                        revenueQ1: 0,
+                                        revenueQ2: 0,
+                                        revenueQ3: 0,
+                                        revenueQ4: 0,
+                                        cost: 0,
+                                        costQ1: 0,
+                                        costQ2: 0,
+                                        costQ3: 0,
+                                        costQ4: 0,
+                                        profit: 0,
+                                        profitQ1: 0,
+                                        profitQ2: 0,
+                                        profitQ3: 0,
+                                        profitQ4: 0,
+                                    };
+                                    nhaMayProjects.push(existingProject);
+                                }
+
+                                // Cập nhật dữ liệu cho quý tương ứng
+                                existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
+                                existingProject[`cost${quarter}`] = toNum(projectRow.cost);
+                                existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error(
+                        `Lỗi khi lấy dữ liệu Nhà máy cho ${quarter}/${selectedYear}:`,
+                        error
+                    );
+                }
+            }
+
+            // Tính tổng cả năm cho từng dự án
+            nhaMayProjects.forEach((project) => {
+                project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce(
+                    (sum, q) => sum + (project[`revenue${q}`] || 0),
+                    0
+                );
+                project.cost = ["Q1", "Q2", "Q3", "Q4"].reduce(
+                    (sum, q) => sum + (project[`cost${q}`] || 0),
+                    0
+                );
+                project.profit = ["Q1", "Q2", "Q3", "Q4"].reduce(
+                    (sum, q) => sum + (project[`profit${q}`] || 0),
+                    0
+                );
+            });
+
+            // Tìm vị trí để chèn các dự án Nhà máy vào rowTemplate
+            const sanXuatHeaderIndex = rowTemplate.findIndex(
+                (r) => r.name === "II.1. SẢN XUẤT"
+            );
+
+            if (sanXuatHeaderIndex !== -1) {
+                // Chèn các dự án chi tiết sau header II.1
+                let insertPosition = sanXuatHeaderIndex + 1;
+
+                // Xóa các dự án cũ nếu có (để tránh duplicate)
+                while (insertPosition < rowTemplate.length &&
+                    !rowTemplate[insertPosition].name.match(/^[IVX]+\./) &&
+                    rowTemplate[insertPosition].type === "Nhà máy") {
+                    rowTemplate.splice(insertPosition, 1);
+                }
+
+                // Chèn các dự án mới
+                nhaMayProjects.forEach((project, index) => {
+                    rowTemplate.splice(insertPosition + index, 0, project);
+                });
+            }
+            // ======================================================================
+            // ✅ BẮT ĐẦU: LOGIC MỚI CHO III. ĐẦU TƯ
+            // ======================================================================
+            const dauTuProjects = []; // Mảng chứa các dự án đầu tư
+
+            // Vòng lặp để lấy dữ liệu từ nguồn mới (ví dụ: báo cáo quý)
+            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+                try {
+                    const docId = `${selectedYear}_${quarter}`;
+                    const profitReportSnap = await getDoc(
+                        doc(db, "profitReports", docId)
+                    );
+
+                    if (profitReportSnap.exists()) {
+                        const reportData = profitReportSnap.data();
+                        if (Array.isArray(reportData.rows)) {
+                            // Lọc các dự án có type = "KH-ĐT"
+                            const dauTuRows = reportData.rows.filter(
+                                (row) => row.type === "KH-ĐT"
+                            );
+
+                            // Xử lý và tổng hợp dữ liệu (tương tự logic của "Nhà máy")
+                            dauTuRows.forEach((projectRow) => {
+                                let existingProject = dauTuProjects.find(
+                                    (p) => p.name === projectRow.name
+                                );
+
+                                if (!existingProject) {
+                                    existingProject = {
+                                        name: projectRow.name, type: "KH-ĐT",
+                                        revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
+                                        cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
+                                        profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
+                                    };
+                                    dauTuProjects.push(existingProject);
+                                }
+                                existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
+                                existingProject[`cost${quarter}`] = toNum(projectRow.cost);
+                                existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                            });
+                        }
+                    }
+                } catch (error) { /*...*/ }
+            }
+
+            // Tính tổng năm cho từng dự án
+            dauTuProjects.forEach((project) => {
+                project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`revenue${q}`] || 0), 0);
+                project.cost = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`cost${q}`] || 0), 0);
+                project.profit = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`profit${q}`] || 0), 0);
+            });
+
+
+            // Chèn các dự án đã xử lý vào bảng
+            const dauTuHeaderIndex = rowTemplate.findIndex((r) => r.name === "III. ĐẦU TƯ");
+            if (dauTuHeaderIndex !== -1) {
+                dauTuProjects.forEach((project, index) => {
+                    rowTemplate.splice(dauTuHeaderIndex + 1 + index, 0, project);
+                });
+            }
+            // ======================================================================
+            // ✅ KẾT THÚC: LOGIC MỚI CHO III. ĐẦU TƯ
+            // ======================================================================// ======================================================================
+            projects.forEach((p) => {
+                const index = rowTemplate.findIndex((r) => r.name === p.name);
+                if (index > -1) {
+                    rowTemplate[index] = { ...rowTemplate[index], ...p };
+                } else {
+                    let insertIndex = -1;
+
+                    if (p.type === "Thi công") {
+                        if ((p.name || "").toUpperCase().includes("KÈ")) {
+                            insertIndex = rowTemplate.findIndex(
+                                (r) => r.name === `I.3. CÔNG TRÌNH CÔNG TY CĐT`
+                            );
+                        } else {
+                            insertIndex = rowTemplate.findIndex(
+                                (r) => r.name === `I.2. KÈ`
+                            );
+                        }
+                    }
+                    // COMMENT HOẶC XÓA PHẦN NÀY vì đã lấy từ báo cáo quý
+                    // else if (p.type.toLowerCase().includes("nhà máy")) {
+                    //     insertIndex = rowTemplate.findIndex(
+                    //         (r) => r.name === `II.2. DT + LN ĐƯỢC CHIA TỪ LDX`
+                    //     );
+                    // }
+                    // else if (p.type === "KH-ĐT") {
+                    //     insertIndex = rowTemplate.findIndex(
+                    //         (r) => r.name === "IV. TỔNG"
+                    //     );
+                    // }
+
+                    if (insertIndex > -1) {
+                        rowTemplate.splice(insertIndex, 0, p);
+                    }
+                }
+            });
             // Cập nhật dữ liệu cho các hàng có thể chỉnh sửa và tính toán
             const finalRows = runAllCalculations(
                 rowTemplate,
                 costAddedForGroupI,
                 costOverForGroupI,
                 costAddedForGroupII,
-                costOverForGroupII
+                costOverForGroupII,
+                costOverForGroupIII
             );
 
             // Cập nhật dữ liệu cho các hàng có thể chỉnh sửa sau khi tính toán
@@ -1727,12 +1798,12 @@ export default function ProfitReportYear() {
                                                 r.name === "IV. TỔNG"
                                                     ? "#e8f5e9"
                                                     : r.name?.match(/^[IVX]+\./)
-                                                    ? "#fff9c4"
-                                                    : isEditableRow(r.name)
-                                                    ? "#f3e5f5"
-                                                    : idx % 2 === 0
-                                                    ? "#ffffff"
-                                                    : "#f9f9f9",
+                                                        ? "#fff9c4"
+                                                        : isEditableRow(r.name)
+                                                            ? "#f3e5f5"
+                                                            : idx % 2 === 0
+                                                                ? "#ffffff"
+                                                                : "#f9f9f9",
                                             "&:hover": { bgcolor: "#f0f4ff" },
                                         }}
                                     >
@@ -1743,9 +1814,9 @@ export default function ProfitReportYear() {
                                                     r.name?.match(
                                                         /^[IVX]+\./
                                                     ) ||
-                                                    r.name?.includes(
-                                                        "LỢI NHUẬN"
-                                                    )
+                                                        r.name?.includes(
+                                                            "LỢI NHUẬN"
+                                                        )
                                                         ? 700
                                                         : 400,
                                                 minWidth: 350,
