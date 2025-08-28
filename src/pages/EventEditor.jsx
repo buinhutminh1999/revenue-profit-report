@@ -12,7 +12,7 @@ import {
     Box, Card, CardContent, CardHeader, TextField, Button,
     Grid, Typography, CircularProgress, InputAdornment, Container,
     MenuItem, FormControl, InputLabel, Select, Popover, IconButton,
-    Fab, Zoom // Thêm Fab và Zoom cho nút lưu
+    Fab, Zoom
 } from '@mui/material';
 
 // --- MUI Icons ---
@@ -41,7 +41,6 @@ const fieldConfig = {
 };
 
 export default function EventEditor() {
-    // ... (toàn bộ state và logic giữ nguyên, không cần thay đổi)
     const [content, setContent] = useState({
         backgroundType: 'shader',
         backgroundColor: '#001a1e',
@@ -131,16 +130,13 @@ export default function EventEditor() {
     }
 
     return (
-        // ▼▼▼ THAY ĐỔI 1: Bỏ padding ở đây để Card chiếm toàn bộ chiều rộng trên mobile ▼▼▼
         <Box sx={{ bgcolor: 'grey.100', minHeight: '100vh', pb: 10 }}> 
             <Container maxWidth="md" sx={{ p: { xs: 0, sm: 2 } }}>
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                    {/* ▼▼▼ THAY ĐỔI 2: Bỏ thuộc tính `raised` và đặt `boxShadow` bằng 0 trên mobile ▼▼▼ */}
                     <Card sx={{ boxShadow: { xs: 0, sm: 1 }, borderRadius: { xs: 0, sm: 2 } }}>
                         <CardHeader
                             title={
                                 <Typography 
-                                    // Tự động điều chỉnh kích thước chữ
                                     variant="h5" 
                                     component="h1" 
                                     fontWeight="bold" 
@@ -179,7 +175,7 @@ export default function EventEditor() {
                                                 name="backgroundColor"
                                                 value={content.backgroundColor}
                                                 onChange={handleInputChange}
-                                                size="small" // ▼▼▼ THAY ĐỔI 3: Thêm `size="small"` ▼▼▼
+                                                size="small"
                                                 sx={{ mr: 1 }}
                                             />
                                             <IconButton onClick={handlePickerOpen} sx={{ p: 0.5, border: '1px solid rgba(0,0,0,0.23)', borderRadius: 1 }}>
@@ -201,6 +197,9 @@ export default function EventEditor() {
                                         <Grid item xs={12} sm={gridSpan} key={key}>
                                             <TextField
                                                 fullWidth
+                                                // ▼▼▼ SỬA LỖI Ở ĐÂY: Thêm lại `id` và `name` ▼▼▼
+                                                id={key}
+                                                name={key}
                                                 label={config.label}
                                                 type={config.type || 'text'}
                                                 value={content[key] || ''}
@@ -208,7 +207,7 @@ export default function EventEditor() {
                                                 multiline={config.multiline}
                                                 rows={config.rows}
                                                 variant="outlined"
-                                                size="small" // ▼▼▼ THAY ĐỔI 3: Thêm `size="small"` ▼▼▼
+                                                size="small"
                                                 InputProps={{ startAdornment: (<InputAdornment position="start">{config.icon}</InputAdornment>) }}
                                                 InputLabelProps={{ shrink: true }}
                                             />
@@ -217,12 +216,10 @@ export default function EventEditor() {
                                 })}
                             </Grid>
                         </CardContent>
-                        {/* Bỏ CardActions vì đã thay bằng FAB */}
                     </Card>
                 </motion.div>
             </Container>
 
-            {/* ▼▼▼ THAY ĐỔI 4: NÚT LƯU DẠNG FLOATING ACTION BUTTON ▼▼▼ */}
             <Zoom in={true}>
                 <Fab
                     variant="extended"
