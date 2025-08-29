@@ -52,16 +52,24 @@
     );
     animation: pulse-glow 8s ease-in-out infinite;
 }
+.title-container{
+    margin-top: 3rem;
+}
 
 .blended-text {
     font-size: 6rem;
     mix-blend-mode: screen; 
     text-shadow: 0 0 10px rgba(255, 255, 255, 0.2), 0 0 20px rgba(255, 255, 255, 0.1);
+    margin-bottom: 3rem;
 }
-
+.blended-text2{
+    font-size: 2rem;
+    mix-blend-mode: screen; 
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.2), 0 0 20px rgba(255, 255, 255, 0.1);
+}
 .company-info {
     display: flex;
-    justify-content: flex-start; 
+    justify-content: inherit; 
     align-items: center;
     position: absolute;
     top: 0;

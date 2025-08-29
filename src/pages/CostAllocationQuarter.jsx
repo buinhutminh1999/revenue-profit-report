@@ -67,6 +67,7 @@ import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import * as XLSX from "xlsx"; // [THÊM MỚI] Import thư viện xlsx
 import { Download as DownloadIcon } from "@mui/icons-material"; // Thêm icon Download
+import { useLocation } from "react-router-dom";
 // --- Bản đồ ánh xạ các trường dữ liệu ---
 const valueFieldMap = {
     "Thi công": { pctKey: "percentThiCong", valKey: "thiCongValue" },
@@ -79,15 +80,22 @@ const SORT_CONFIG = {
     "Nhà máy": { key: "orderNhaMay" },
     "KH-ĐT": { key: "orderKhdt" },
 };
-// [THÊM MỚI] Hàm tiện ích làm tròn kiểu Excel
 const excelRound = (value, digits) => {
-    if (typeof value !== "number" || typeof digits !== "number") return value;
-    const factor = Math.pow(10, digits);
-    const tempNumber = value * factor;
-    const roundedTempNumber = Math.round(tempNumber);
-    return roundedTempNumber / factor;
+    if (typeof value !== "number" || isNaN(value) || typeof digits !== "number")
+        return value;
+    // Dùng chia rồi nhân để tránh sai số float khi digits âm
+    const divisor = Math.pow(10, -digits); // vd digits = -6 => divisor = 1,000,000
+    if (!isFinite(divisor) || divisor === 0) return value;
+    return Math.round(value / divisor) * divisor;
 };
-const RoundingDialog = ({ open, onClose, onSave, row, visibleProjects, initialRules }) => {
+const RoundingDialog = ({
+    open,
+    onClose,
+    onSave,
+    row,
+    visibleProjects,
+    initialRules,
+}) => {
     // State nội bộ của dialog để quản lý các giá trị đang nhập
     const [rules, setRules] = useState({});
     const [lastRowId, setLastRowId] = useState(null);
@@ -100,7 +108,7 @@ const RoundingDialog = ({ open, onClose, onSave, row, visibleProjects, initialRu
             setRules(initialRules[row.id] || {});
             setLastRowId(row.id);
         }
-        
+
         // Reset lastRowId khi đóng dialog
         if (!open) {
             setLastRowId(null);
@@ -111,7 +119,7 @@ const RoundingDialog = ({ open, onClose, onSave, row, visibleProjects, initialRu
     const handleRuleChange = (projectId, value) => {
         const newRules = { ...rules };
         const parsedValue = parseInt(value, 10);
-        
+
         // Nếu người dùng xóa trống hoặc nhập chữ, giá trị sẽ là NaN
         if (isNaN(parsedValue)) {
             // Xóa quy tắc riêng cho ô này, nó sẽ không được làm tròn
@@ -135,18 +143,22 @@ const RoundingDialog = ({ open, onClose, onSave, row, visibleProjects, initialRu
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
             <DialogTitle>Tùy chỉnh làm tròn cho:</DialogTitle>
             <DialogContent>
-                <Typography variant="h6" gutterBottom>{row.label}</Typography>
+                <Typography variant="h6" gutterBottom>
+                    {row.label}
+                </Typography>
                 <Stack spacing={2} sx={{ mt: 2 }}>
-                    {visibleProjects.map(project => (
+                    {visibleProjects.map((project) => (
                         <TextField
                             key={project.id}
                             label={`Công trình: ${project.name}`}
                             type="number"
                             variant="outlined"
                             // Lấy giá trị từ state nội bộ `rules` của dialog
-                            value={rules[project.id] ?? ''} 
+                            value={rules[project.id] ?? ""}
                             placeholder="Không làm tròn" // Sửa lại placeholder cho đơn giản
-                            onChange={(e) => handleRuleChange(project.id, e.target.value)}
+                            onChange={(e) =>
+                                handleRuleChange(project.id, e.target.value)
+                            }
                             helperText="vd: -3 là hàng nghìn. Để trống để không làm tròn."
                         />
                     ))}
@@ -154,7 +166,9 @@ const RoundingDialog = ({ open, onClose, onSave, row, visibleProjects, initialRu
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose}>Hủy</Button>
-                <Button onClick={handleSave} variant="contained">Lưu thay đổi</Button>
+                <Button onClick={handleSave} variant="contained">
+                    Lưu thay đổi
+                </Button>
             </DialogActions>
         </Dialog>
     );
@@ -201,7 +215,7 @@ const StatCard = React.memo(({ title, value, icon, color, isLoading }) => {
             </motion.div>
         </Grid>
     );
-})
+});
 
 // 📍 THAY THẾ TOÀN BỘ COMPONENT LimitDialog CŨ BẰNG COMPONENT NÀY
 
@@ -331,6 +345,14 @@ export default function CostAllocationQuarter() {
     const [cellRoundingRules, setCellRoundingRules] = useState({});
     const [roundingDialogOpen, setRoundingDialogOpen] = useState(false);
     const [currentRoundingCell, setCurrentRoundingCell] = useState(null);
+      const location = useLocation();
+
+    useEffect(() => {
+    // mỗi khi route thay đổi -> blur mọi thứ trong DataGrid
+    return () => {
+      document.activeElement?.blur();
+    };
+  }, [location.pathname]);
     // <<< THAY ĐỔI 2: Lấy ra trường sắp xếp tương ứng với bộ lọc đang chọn
     const activeSortKey = useMemo(() => {
         return SORT_CONFIG[typeFilter]?.key || "order"; // Mặc định là 'order' nếu không khớp
@@ -464,19 +486,18 @@ export default function CostAllocationQuarter() {
                 // --- SỬA LẠI LOGIC TÌM QUY TẮC LÀM TRÒN ---
 
                 // Chỉ cần lấy quy tắc của ô, không cần fallback nữa
-              // --- SỬA LẠI LOGIC TÌM QUY TẮC LÀM TRÒN ---
-// Lấy row ID gốc (không có suffix __2, __3...)
-const baseRowId = draftRow.id.split("__")[0];
+                // --- SỬA LẠI LOGIC TÌM QUY TẮC LÀM TRÒN ---
+                // Lấy row ID gốc (không có suffix __2, __3...)
+                const baseRowId = draftRow.id.split("__")[0];
 
-// Tìm quy tắc làm tròn cho ô này
-const roundingDigits = cellRoundingRules[draftRow.id]?.[p.id] ?? 
-                      cellRoundingRules[baseRowId]?.[p.id];
+                // Tìm quy tắc làm tròn cho ô này
+                const roundingDigits = cellRoundingRules[draftRow.id]?.[p.id];
 
-// 3. Áp dụng làm tròn NẾU có quy tắc
-const roundedNeed =
-    typeof roundingDigits === "number"
-        ? excelRound(baseNeed, roundingDigits)
-        : baseNeed;
+                // 3. Áp dụng làm tròn NẾU có quy tắc
+                const roundedNeed =
+                    typeof roundingDigits === "number"
+                        ? excelRound(baseNeed, roundingDigits)
+                        : baseNeed;
 
                 originalCalculatedNeeds[p.id] = Math.max(0, roundedNeed);
             });
@@ -508,9 +529,17 @@ const roundedNeed =
                             : limitSetting;
 
                     // Tính toán phân bổ
-                    const allocation = Math.round(
+                    let allocation = Math.round(
                         originalCalculatedNeeds[p.id] * (limitPercent / 100)
                     );
+                    const rd = cellRoundingRules[draftRow.id]?.[p.id];
+                    if (typeof rd === "number")
+                        allocation = excelRound(allocation, rd);
+                    const roundingDigits =
+                        cellRoundingRules[draftRow.id]?.[p.id];
+                    if (typeof roundingDigits === "number") {
+                        allocation = excelRound(allocation, roundingDigits);
+                    }
 
                     // ✅ FIX: Kiểm tra kết quả là một số hợp lệ trước khi gán
                     if (!isNaN(allocation)) {
@@ -570,7 +599,19 @@ const roundedNeed =
                                 allocatedForCalc
                         );
                     });
+                    // 🔁 Áp lại làm tròn theo rule nếu có
+                    visibleProjects.forEach((p) => {
+                        const roundingDigits =
+                            cellRoundingRules[draftRow.id]?.[p.id];
+                        if (typeof roundingDigits === "number") {
+                            scaledNeed[p.id] = excelRound(
+                                scaledNeed[p.id],
+                                roundingDigits
+                            );
+                        }
+                    });
                 }
+
                 const usedIfAdd =
                     Object.values(scaledNeed).reduce((s, v) => s + v, 0) +
                     Object.values(projectDebtFromPrevQuarter).reduce(
@@ -593,29 +634,36 @@ const roundedNeed =
             let totalUsedInPeriod = 0;
             visibleProjects.forEach((p) => {
                 const oldDebt = projectDebtFromPrevQuarter[p.id] || 0;
-                const finalValue =
+                let finalValue =
                     (finalAllocation[p.id] || 0) +
                     (shouldRepayOldDebt ? oldDebt : 0);
+                const rd2 = cellRoundingRules[draftRow.id]?.[p.id];
+                if (typeof rd2 === "number")
+                    finalValue = excelRound(finalValue, rd2);
                 draftRow[p.id] = finalValue;
                 totalUsedInPeriod += finalValue;
             });
 
             draftRow.used = totalUsedInPeriod;
             draftRow.carryOver = carryOverValue;
-            draftRow.cumQuarterOnly = Math.min(totalUsedInPeriod - totalAllocatedForPeriod, 0);
-           const totalNeedAfterLimits = Object.values(finalAllocation).reduce(
+            draftRow.cumQuarterOnly = Math.min(
+                totalUsedInPeriod - totalAllocatedForPeriod,
+                0
+            );
+            const totalNeedAfterLimits = Object.values(finalAllocation).reduce(
                 (sum, need) => sum + need,
                 0
             );
-            
+
             // ✅ TÍNH TOÁN LẠI THEO CÔNG THỨC MỚI
             // Thặng dư lũy kế = Math.max(Sử dụng - Phân bổ + Vượt kỳ trước, 0)
             // Nếu giá trị > 0 thì đó là thặng dư
-            const cumValue = draftRow.usedRaw - totalAllocatedForPeriod + carryOverValue;
-            
+            const cumValue =
+                draftRow.usedRaw - totalAllocatedForPeriod + carryOverValue;
+
             // Thặng dư lũy kế (chỉ lấy giá trị dương)
             draftRow.surplusCumCurrent = Math.max(cumValue, 0);
-            
+
             // Thiếu hụt lũy kế (chỉ lấy giá trị âm)
             draftRow.cumCurrent = Math.min(cumValue, 0);
             return draftRow;
@@ -723,20 +771,22 @@ const roundedNeed =
                 }
                 // [THÊM MỚI] Đọc lại quy tắc làm tròn đã lưu
 
-               //...
-// [SỬA ĐỔI QUAN TRỌNG] Logic tải lại quy tắc làm tròn
-const hasDirtyRounding = Array.from(dirtyCells).some(cell => cell.endsWith("-rounding"));
+                //...
+                // [SỬA ĐỔI QUAN TRỌNG] Logic tải lại quy tắc làm tròn
+                const hasDirtyRounding = Array.from(dirtyCells).some((cell) =>
+                    cell.endsWith("-rounding")
+                );
 
-// Chỉ cập nhật từ Firestore NẾU người dùng chưa chỉnh sửa gì
-if (!hasDirtyRounding && data.cellRoundingRules) {
-    setCellRoundingRules(data.cellRoundingRules);
-}
-//...
+                // Chỉ cập nhật từ Firestore NẾU người dùng chưa chỉnh sửa gì
+                if (!hasDirtyRounding && data.cellRoundingRules) {
+                    setCellRoundingRules(data.cellRoundingRules);
+                }
+                //...
 
                 setExtraRows((prev) =>
                     prev.map((r) => {
                         const baseId = r.id.split("__")[0];
-                        const saved = savedRows.find((x) => x.id === baseId);
+                        const saved = savedRows.find((x) => x.id === r.id);
                         if (!saved) return r;
 
                         const isRowDirty = Array.from(dirtyCells).some(
@@ -754,8 +804,9 @@ if (!hasDirtyRounding && data.cellRoundingRules) {
                                 typeof typeData[pctKey] === "number"
                                     ? typeData[pctKey]
                                     : parseFloat(typeData.pct) || r.pct,
+                            // Nếu có dòng lương tách riêng, chỉ dùng baseId để kiểm tra đúng dòng lương
                             allocated:
-                                baseId === salaryRowId
+                                r.id.split("__")[0] === salaryRowId
                                     ? fixedTotals[typeFilter]
                                     : toNum(
                                           typeData.value ??
@@ -901,9 +952,11 @@ if (!hasDirtyRounding && data.cellRoundingRules) {
                 : r;
         });
     }, [filteredRows, extraRows]);
+
     const rowsInit = useMemo(() => {
         return rowsWithPrev.map((r) => recomputeRow({ ...r }));
-    }, [rowsWithPrev, recomputeRow]);
+    }, [rowsWithPrev, recomputeRow, dataVersion]);
+
     const totalByProject = useMemo(() => {
         const totals = {};
         visibleProjects.forEach((p) => {
@@ -965,33 +1018,33 @@ if (!hasDirtyRounding && data.cellRoundingRules) {
     );
     // --- DÁN 2 KHỐI CODE NÀY VÀO ---
 
-// Tính tổng cho cột THẶNG DƯ (cộng tất cả giá trị surplusCumCurrent)
-const totalSurplus = useMemo(() => {
-    return rowsInit.reduce((sum, row) => {
-        const label = (row.label || "").trim().toUpperCase();
-        // Bỏ qua các dòng đặc biệt
-        if (label === "DOANH THU" || label === "TỔNG CHI PHÍ") {
-            return sum;
-        }
-        // Sử dụng trường surplusCumCurrent (luôn >= 0)
-        const value = toNum(row.surplusCumCurrent) || 0;
-        return sum + value;
-    }, 0);
-}, [rowsInit]);
+    // Tính tổng cho cột THẶNG DƯ (cộng tất cả giá trị surplusCumCurrent)
+    const totalSurplus = useMemo(() => {
+        return rowsInit.reduce((sum, row) => {
+            const label = (row.label || "").trim().toUpperCase();
+            // Bỏ qua các dòng đặc biệt
+            if (label === "DOANH THU" || label === "TỔNG CHI PHÍ") {
+                return sum;
+            }
+            // Sử dụng trường surplusCumCurrent (luôn >= 0)
+            const value = toNum(row.surplusCumCurrent) || 0;
+            return sum + value;
+        }, 0);
+    }, [rowsInit]);
 
-// Tính tổng cho cột THIẾU HỤT (cộng tất cả giá trị cumCurrent âm)
-const totalDeficit = useMemo(() => {
-    return rowsInit.reduce((sum, row) => {
-        const label = (row.label || "").trim().toUpperCase();
-        // Bỏ qua các dòng đặc biệt
-        if (label === "DOANH THU" || label === "TỔNG CHI PHÍ") {
-            return sum;
-        }
-        // Sử dụng trường cumCurrent (luôn <= 0)
-        const value = toNum(row.cumCurrent) || 0;
-        return sum + value;
-    }, 0);
-}, [rowsInit]);
+    // Tính tổng cho cột THIẾU HỤT (cộng tất cả giá trị cumCurrent âm)
+    const totalDeficit = useMemo(() => {
+        return rowsInit.reduce((sum, row) => {
+            const label = (row.label || "").trim().toUpperCase();
+            // Bỏ qua các dòng đặc biệt
+            if (label === "DOANH THU" || label === "TỔNG CHI PHÍ") {
+                return sum;
+            }
+            // Sử dụng trường cumCurrent (luôn <= 0)
+            const value = toNum(row.cumCurrent) || 0;
+            return sum + value;
+        }, 0);
+    }, [rowsInit]);
 
     const rowsWithTotal = useMemo(() => {
         const dataRows = rowsInit.filter(
@@ -1044,6 +1097,7 @@ const totalDeficit = useMemo(() => {
         totalSurplus,
         totalDeficit,
         categories, // Thêm categories vào dependency array
+        dataVersion,
     ]);
     const { totalOverrun } = useMemo(
         () => ({ totalOverrun: totalCumQuarterOnly }),
@@ -1238,11 +1292,11 @@ const totalDeficit = useMemo(() => {
                         return lbl !== "DOANH THU" && lbl !== "TỔNG CHI PHÍ";
                     })
                     .forEach((currentRow) => {
-                        const baseId = currentRow.id.split("__")[0];
+                        const rowId = currentRow.id; // dùng id duy nhất
 
                         // Lấy dòng đã tồn tại từ Map hoặc tạo một dòng mới nếu chưa có
-                        const existingRow = mainRowsMap.get(baseId) || {
-                            id: baseId,
+                        const existingRow = mainRowsMap.get(rowId) || {
+                            id: rowId,
                             label: currentRow.label,
                             byType: {},
                         };
@@ -1283,7 +1337,7 @@ const totalDeficit = useMemo(() => {
                             // --- [KẾT THÚC LOGIC TRUNG TÂM] ---
                         });
 
-                        const prevOver = allPrevOverrun[baseId] || {};
+                        const prevOver = allPrevOverrun[rowId] || {};
                         const fullNeed = {};
                         visibleProjects.forEach((p) => {
                             fullNeed[p.id] =
@@ -1310,7 +1364,7 @@ const totalDeficit = useMemo(() => {
                             existingRow[p.id] = currentRow[p.id] ?? 0;
                         });
 
-                        mainRowsMap.set(baseId, {
+                        mainRowsMap.set(rowId, {
                             ...existingRow,
                             label: currentRow.label,
                             byType: newByType,
@@ -1382,12 +1436,12 @@ const totalDeficit = useMemo(() => {
                 );
 
                 dataToSave.forEach((r) => {
-                    const baseId = r.id;
+                    const rowId = r.id;
                     const carryNext = r.byType?.[typeFilter]?.cumCurrent ?? 0;
                     const fullNeed = r.byType?.[typeFilter]?.overrun ?? {};
 
-                    const existingNextRow = updatedNextRowsMap.get(baseId) || {
-                        id: baseId,
+                    const existingNextRow = updatedNextRowsMap.get(rowId) || {
+                        id: rowId,
                         label: r.label,
                         byType: {},
                     };
@@ -1400,7 +1454,7 @@ const totalDeficit = useMemo(() => {
                         },
                     };
 
-                    updatedNextRowsMap.set(baseId, {
+                    updatedNextRowsMap.set(rowId, {
                         ...existingNextRow,
                         byType: nextRowByType,
                     });
@@ -1616,7 +1670,6 @@ const totalDeficit = useMemo(() => {
                                 : "Chưa có dữ liệu"}
                         </Typography>
                     </Box>
-                  
 
                     <Stack
                         direction="row"
@@ -1661,16 +1714,14 @@ const totalDeficit = useMemo(() => {
                             onChange={(e) => setYear(+e.target.value)}
                             sx={{ width: 100 }}
                         />
-                           <Button
-                                    variant="outlined"
-                                    startIcon={<DownloadIcon />}
-                                    onClick={handleExportExcel}
-                                    disabled={
-                                        loading || rowsWithTotal.length === 0
-                                    }
-                                >
-                                    Xuất Excel
-                                </Button>
+                        <Button
+                            variant="outlined"
+                            startIcon={<DownloadIcon />}
+                            onClick={handleExportExcel}
+                            disabled={loading || rowsWithTotal.length === 0}
+                        >
+                            Xuất Excel
+                        </Button>
                         <Tooltip
                             title={
                                 dirtyCells.size > 0
@@ -1679,7 +1730,6 @@ const totalDeficit = useMemo(() => {
                             }
                         >
                             <span>
-                               
                                 <Button
                                     variant="contained"
                                     onClick={handleSave}
@@ -1804,40 +1854,41 @@ const totalDeficit = useMemo(() => {
                             ? "dirty-cell"
                             : ""
                     }
-                    
                 />
             </Paper>
 
-<RoundingDialog
-    open={roundingDialogOpen}
-    onClose={() => setRoundingDialogOpen(false)}
-    row={currentRoundingCell}
-    visibleProjects={visibleProjects}
-    initialRules={cellRoundingRules} // Prop này rất quan trọng
-    // Đảm bảo không có prop globalRule ở đây
-    onSave={(rowId, newRules) => {
-        // Cập nhật state và trigger recalculation
-        setCellRoundingRules(prev => {
-            const updated = {
-                ...prev,
-                [rowId]: newRules,
-            };
-            return updated;
-        });
-        
-        // Đánh dấu ô bị thay đổi
-        setDirtyCells(prev => {
-            const newDirtyCells = new Set(prev);
-            newDirtyCells.add(`${rowId}-rounding`);
-            return newDirtyCells;
-        });
-        
-        // Force re-render để trigger tính toán lại
-        setDataVersion(Date.now());
-        
-        toast.success("Đã cập nhật quy tắc làm tròn. Bảng sẽ được tính toán lại.");
-    }}
-/>
+            <RoundingDialog
+                open={roundingDialogOpen}
+                onClose={() => setRoundingDialogOpen(false)}
+                row={currentRoundingCell}
+                visibleProjects={visibleProjects}
+                initialRules={cellRoundingRules} // Prop này rất quan trọng
+                // Đảm bảo không có prop globalRule ở đây
+                onSave={(rowId, newRules) => {
+                    // Cập nhật state và trigger recalculation
+                    setCellRoundingRules((prev) => {
+                        const updated = {
+                            ...prev,
+                            [rowId]: newRules,
+                        };
+                        return updated;
+                    });
+
+                    // Đánh dấu ô bị thay đổi
+                    setDirtyCells((prev) => {
+                        const newDirtyCells = new Set(prev);
+                        newDirtyCells.add(`${rowId}-rounding`);
+                        return newDirtyCells;
+                    });
+
+                    // Force re-render để trigger tính toán lại
+                    setDataVersion(Date.now());
+
+                    toast.success(
+                        "Đã cập nhật quy tắc làm tròn. Bảng sẽ được tính toán lại."
+                    );
+                }}
+            />
             <LimitDialog
                 open={limitDialogOpen}
                 onClose={() => setLimitDialogOpen(false)}

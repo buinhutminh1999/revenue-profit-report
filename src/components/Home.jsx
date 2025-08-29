@@ -10,7 +10,7 @@ import { styled } from '@mui/material/styles';
 import { 
     Construction, Building, BookCheck, FileSpreadsheet, BarChart3, 
     Landmark, ClipboardList, BookUser, PieChart, LineChart, TrendingUp,
-    FileCheck2 // <--- Thêm icon mới ở đây
+    FileCheck2, FileBarChart2  // <--- Thêm icon mới ở đây
 } from 'lucide-react';
 
 // Gộp tất cả chức năng và báo cáo vào một danh sách duy nhất
@@ -97,6 +97,14 @@ const allModules = [
         color: '#3b82f6',
         bgColor: '#eff6ff'
     },
+    {
+icon: <FileBarChart2 size={28} />,
+title: "Báo cáo Phân bổ Chi phí",
+to: "/quarterly-cost-allocation-report",
+desc: "Phân bổ chi phí theo doanh thu dự án",
+color: '#0d9488', // Teal color
+bgColor: '#ccfbf1', // Light teal background
+},
     {
         icon: <PieChart size={28} />,
         title: 'Chi Phí Theo Quý',
