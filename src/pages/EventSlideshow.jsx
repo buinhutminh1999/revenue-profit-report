@@ -258,7 +258,7 @@ export default function EventSlideshow() {
             className="subtitle"
             style={{ color: content.companyNameColor || "#ffffff" }}
           >
-            CTY CPXD BÁCH KHOA
+            CÔNG TY CPXD BÁCH KHOA
           </p>
         </div>
 
