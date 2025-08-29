@@ -501,6 +501,7 @@ const CapitalUtilizationReport = () => {
                 const totalConsRevenueActual = data.construction.revenue.reduce(
                     (acc, item) => acc + (item.actual || 0), 0
                 );
+
                 const totalConsRevenuePlan = data.construction.revenue.reduce(
                     (acc, item) => acc + (item.plan || 0), 0
                 );
@@ -597,7 +598,24 @@ const CapitalUtilizationReport = () => {
         );
     }, [debouncedSave]);
     // KẾT THÚC THAY ĐỔI
-
+  // ✅ DI CHUYỂN useMemo LÊN ĐÂY, NGAY SAU CÁC HOOK KHÁC
+    const investmentTotals = useMemo(() => {
+        // Kiểm tra an toàn vì reportData có thể chưa tồn tại ở lần render đầu tiên
+        if (!reportData?.investment?.projectDetails) {
+            return { cost: 0, profit: 0, investmentValue: 0, lessProfit: 0, remaining: 0 };
+        }
+        return reportData.investment.projectDetails.reduce(
+            (acc, row) => {
+                acc.cost += row.cost || 0;
+                acc.profit += row.profit || 0;
+                acc.investmentValue += row.investmentValue || 0;
+                acc.lessProfit += row.lessProfit || 0;
+                acc.remaining += row.remaining || 0;
+                return acc;
+            },
+            { cost: 0, profit: 0, investmentValue: 0, lessProfit: 0, remaining: 0 }
+        );
+    }, [reportData]); // Phụ thuộc vào reportData
     if (isReportLoading || isBalancesLoading || isChartLoading || !reportData) {
         return (
             <Box sx={{ display: "flex", justifyContent: "center", p: 5 }}>
@@ -881,16 +899,14 @@ const CapitalUtilizationReport = () => {
                                     </TableRow>
                                 );
                             })}
-                             <TableRow sx={{ "& > td, & > th": { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] } }}>
-                                 <TableCell colSpan={7} align="center">TỔNG CỘNG</TableCell>
-                                 <TableCell align="right">
-                                     {formatCurrency(
-                                         reportData.investment.projectDetails.reduce(
-                                             (acc, row) => acc + ((row.cost || 0) + (row.profit || 0) - (row.lessProfit || 0)), 0
-                                         )
-                                     )}
-                                 </TableCell>
-                             </TableRow>
+                            <TableRow sx={{ "& > td, & > th": { fontWeight: 'bold', backgroundColor: theme.palette.grey[200] } }}>
+                                <TableCell colSpan={3} align="center">TỔNG CỘNG</TableCell>
+                                <TableCell align="right">{formatCurrency(investmentTotals.cost)}</TableCell>
+                                <TableCell align="right">{formatCurrency(investmentTotals.profit)}</TableCell>
+                                <TableCell align="right">{formatCurrency(investmentTotals.investmentValue)}</TableCell>
+                                <TableCell align="right">{formatCurrency(investmentTotals.lessProfit)}</TableCell>
+                                <TableCell align="right">{formatCurrency(investmentTotals.remaining)}</TableCell>
+                            </TableRow>
                         </TableBody>
                     </Table>
                 </TableContainer>

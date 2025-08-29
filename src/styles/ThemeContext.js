@@ -1,72 +1,23 @@
 import React, { createContext, useMemo, useState, useEffect } from 'react';
 import { createTheme, ThemeProvider, CssBaseline, alpha } from '@mui/material';
 
-export const ColorModeContext = createContext({ 
+export const ColorModeContext = createContext({
   toggleColorMode: () => {},
-  mode: 'light'
+  mode: 'light',
 });
 
-// --- CORE THEME DEFINITIONS ---
-
-// Bảng màu tinh chỉnh, chuyên nghiệp
+// ===== Palette =====
 const createPalette = (mode) => {
   const isLight = mode === 'light';
-  
   return {
     mode,
-    primary: {
-      lighter: '#D4E9FF',
-      light: '#7AB7FF',
-      main: '#2081ED', // Tông màu xanh dương chuyên nghiệp hơn
-      dark: '#105AB8',
-      darker: '#06397A',
-      contrastText: '#FFFFFF',
-    },
-    secondary: {
-      lighter: '#FEE9D1',
-      light: '#FDBA8A',
-      main: '#F78131',
-      dark: '#C0530A',
-      darker: '#8A3200',
-      contrastText: '#FFFFFF',
-    },
-    success: {
-      lighter: '#D8FBDE',
-      light: '#86E8AB',
-      main: '#36B37E',
-      dark: '#1B806A',
-      darker: '#0A5554',
-      contrastText: '#FFFFFF',
-    },
-    info: {
-      lighter: '#D0F2FF',
-      light: '#74CAFF',
-      main: '#1890FF',
-      dark: '#0C53B7',
-      darker: '#04297A',
-      contrastText: '#FFFFFF',
-    },
-    warning: {
-      lighter: '#FFF7CD',
-      light: '#FFE16A',
-      main: '#FFC107',
-      dark: '#B78103',
-      darker: '#7A4F01',
-      contrastText: isLight ? '#212B36' : '#FFFFFF',
-    },
-    error: {
-      lighter: '#FFE7D9',
-      light: '#FFA48D',
-      main: '#FF5630',
-      dark: '#B72136',
-      darker: '#7A0C2E',
-      contrastText: '#FFFFFF',
-    },
-    grey: {
-      0: '#FFFFFF', 100: '#F9FAFB', 200: '#F4F6F8', 300: '#DFE3E8',
-      400: '#C4CDD5', 500: '#919EAB', 600: '#637381', 700: '#454F5B',
-      800: '#212B36', 900: '#161C24',
-    },
+    primary: { lighter:'#D4E9FF', light:'#7AB7FF', main:'#2081ED', dark:'#105AB8', darker:'#06397A', contrastText:'#FFFFFF' },
+    secondary:{ lighter:'#FEE9D1', light:'#FDBA8A', main:'#F78131', dark:'#C0530A', darker:'#8A3200', contrastText:'#FFFFFF' },
+    success:  { lighter:'#D8FBDE', light:'#86E8AB', main:'#36B37E', dark:'#1B806A', darker:'#0A5554', contrastText:'#FFFFFF' },
+    info:     { lighter:'#D0F2FF', light:'#74CAFF', main:'#1890FF', dark:'#0C53B7', darker:'#04297A', contrastText:'#FFFFFF' },
+    warning:  { lighter:'#FFF7CD', light:'#FFE16A', main:'#FFC107', dark:'#B78103', darker:'#7A4F01', contrastText: isLight ? '#212B36' : '#FFFFFF' },
+    error:    { lighter:'#FFE7D9', light:'#FFA48D', main:'#FF5630', dark:'#B72136', darker:'#7A0C2E', contrastText:'#FFFFFF' },
+    grey: { 0:'#FFFFFF',100:'#F9FAFB',200:'#F4F6F8',300:'#DFE3E8',400:'#C4CDD5',500:'#919EAB',600:'#637381',700:'#454F5B',800:'#212B36',900:'#161C24' },
     text: {
       primary: isLight ? '#212B36' : '#FFFFFF',
       secondary: isLight ? '#637381' : '#919EAB',
@@ -74,7 +25,7 @@ const createPalette = (mode) => {
     },
     background: {
       default: isLight ? '#F9FAFB' : '#161C24',
-      paper: isLight ? '#FFFFFF' : '#212B36',
+      paper:   isLight ? '#FFFFFF' : '#212B36',
       neutral: isLight ? '#F4F6F8' : alpha('#919EAB', 0.12),
     },
     action: {
@@ -91,7 +42,7 @@ const createPalette = (mode) => {
   };
 };
 
-// Hệ thống Typography đáp ứng
+// ===== Typography =====
 const createTypography = () => ({
   fontFamily: '"Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif',
   fontWeightRegular: 400,
@@ -112,19 +63,47 @@ const createTypography = () => ({
   button: { fontWeight: 600, fontSize: '0.875rem', textTransform: 'none' },
 });
 
-// Ghi đè các component mặc định
+// ===== Helpers: soft surfaces by color =====
+const softStyles = (clr, mode) => {
+  const bg = alpha(clr.main, mode === 'light' ? 0.10 : 0.16);
+  const bd = alpha(clr.main, mode === 'light' ? 0.20 : 0.24);
+  const tx = mode === 'light' ? clr.dark : clr.light;
+  return { backgroundColor: bg, color: tx, border: `1px solid ${bd}` };
+};
+
+// ===== Components overrides & variants =====
 const createComponents = (theme) => {
   const { palette } = theme;
+
+  const makeChipSoft = (colorKey) => ({
+    props: { variant: 'soft', color: colorKey },
+    style: { ...softStyles(palette[colorKey], palette.mode), fontWeight: 600 },
+  });
+
+  const chipSoftVariants = ['primary','secondary','success','info','warning','error']
+    .map(makeChipSoft);
+
+  const makeAlertSoft = (colorKey) => ({
+    props: { variant: 'soft', severity: colorKey },
+    style: {
+      ...softStyles(palette[colorKey], palette.mode),
+      '& .MuiAlert-icon': { color: palette[colorKey].main },
+    },
+  });
+  const alertSoftVariants = ['success','info','warning','error'].map(makeAlertSoft);
+
   return {
     MuiCssBaseline: {
       styleOverrides: {
-        // ... (Giữ nguyên các style global của bạn cho scrollbar, etc.)
         '::-webkit-scrollbar': { width: 8, height: 8 },
         '::-webkit-scrollbar-track': { backgroundColor: 'transparent' },
         '::-webkit-scrollbar-thumb': {
           backgroundColor: alpha(palette.grey[500], 0.48),
           borderRadius: 4,
           '&:hover': { backgroundColor: alpha(palette.grey[500], 0.64) },
+        },
+        body: {
+          backgroundImage: 'none',
         },
       },
     },
@@ -133,30 +112,32 @@ const createComponents = (theme) => {
       styleOverrides: {
         root: { borderRadius: 8, fontWeight: 600 },
         contained: { '&:hover': { boxShadow: 'none' } },
+        outlined: {
+          borderColor: alpha(palette.text.primary, 0.16),
+          '&:hover': { borderColor: alpha(palette.text.primary, 0.28), backgroundColor: alpha(palette.primary.main, 0.04) },
+        },
+      },
+    },
+    MuiLink: {
+      styleOverrides: {
+        root: { cursor: 'pointer', textUnderlineOffset: 3, '&:hover': { textDecorationColor: alpha(palette.primary.main, 0.7) } },
       },
     },
     MuiCard: {
       styleOverrides: {
         root: {
           borderRadius: 16,
-          boxShadow: '0 0 2px 0 rgba(145, 158, 171, 0.2), 0 12px 24px -4px rgba(145, 158, 171, 0.12)',
+          boxShadow: '0 0 2px 0 rgba(145, 158, 171, 0.20), 0 12px 24px -4px rgba(145, 158, 171, 0.12)',
           position: 'relative',
+          border: `1px solid ${alpha(palette.divider, 0.6)}`,
         },
       },
     },
-    MuiPaper: {
-        styleOverrides: {
-            root: { backgroundImage: 'none' }
-        }
-    },
-    MuiTableRow: { // Thêm hiệu ứng hover cho bảng
-        styleOverrides: {
-            root: {
-                '&:hover': {
-                    backgroundColor: palette.action.hover,
-                }
-            }
-        }
+    MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
+    MuiTableRow: {
+      styleOverrides: {
+        root: { '&:hover': { backgroundColor: palette.action.hover } },
+      },
     },
     MuiTableCell: {
       styleOverrides: {
@@ -169,52 +150,88 @@ const createComponents = (theme) => {
     },
     MuiTooltip: {
       styleOverrides: {
-        tooltip: {
-          backgroundColor: palette.grey[800],
-          borderRadius: 8,
-        },
-        arrow: {
-          color: palette.grey[800],
+        tooltip: { backgroundColor: palette.grey[800], borderRadius: 8 },
+        arrow: { color: palette.grey[800] },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          borderRadius: 16,
+          boxShadow: theme.shadows[20],
+          backgroundColor: alpha(palette.background.paper, 0.9),
+          backdropFilter: 'blur(8px)',
+          border: `1px solid ${alpha(palette.divider, 0.6)}`,
         },
       },
     },
-    MuiDialog: { // Thêm hiệu ứng glassmorphism
-        styleOverrides: {
-            paper: {
-                borderRadius: 16,
-                boxShadow: theme.shadows[20],
-                ...(palette.mode === 'light' 
-                  ? { backgroundColor: alpha(palette.background.paper, 0.9), backdropFilter: 'blur(8px)' } 
-                  : { backgroundColor: alpha(palette.background.paper, 0.9), backdropFilter: 'blur(8px)' }
-                )
-            }
-        }
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          borderRadius: 12,
+          backgroundColor: alpha(palette.background.paper, 0.9),
+          backdropFilter: 'blur(8px)',
+          border: `1px solid ${alpha(palette.divider, 0.6)}`,
+        },
+      },
     },
-    MuiMenu: { // Thêm hiệu ứng glassmorphism
-        styleOverrides: {
-            paper: {
-                borderRadius: 12,
-                 ...(palette.mode === 'light' 
-                  ? { backgroundColor: alpha(palette.background.paper, 0.9), backdropFilter: 'blur(8px)' } 
-                  : { backgroundColor: alpha(palette.background.paper, 0.9), backdropFilter: 'blur(8px)' }
-                )
-            }
-        }
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          boxShadow: 'none',
+          backgroundColor: alpha(palette.background.default, 0.8),
+          backdropFilter: 'blur(8px)',
+          borderBottom: `1px solid ${alpha(palette.divider, 0.6)}`,
+        },
+      },
     },
-    MuiAppBar: { // Thêm hiệu ứng glassmorphism mặc định cho AppBar
-        styleOverrides: {
-            root: {
-                boxShadow: 'none',
-                ...(palette.mode === 'light' 
-                  ? { backgroundColor: alpha(palette.background.default, 0.8), backdropFilter: 'blur(8px)' }
-                  : { backgroundColor: alpha(palette.background.default, 0.8), backdropFilter: 'blur(8px)' }
-                )
-            }
-        }
-    }
+    // --- Chip with custom 'soft' variant ---
+    MuiChip: {
+      variants: [
+        { props: { variant: 'soft' }, style: { fontWeight: 600, border: `1px solid ${alpha(palette.divider, 0.5)}` } },
+        ...chipSoftVariants,
+      ],
+    },
+    // --- Alert with custom 'soft' variant ---
+    MuiAlert: {
+      variants: [
+        { props: { variant: 'soft' }, style: { borderRadius: 12, border: `1px solid ${alpha(palette.divider, 0.5)}` } },
+        ...alertSoftVariants,
+      ],
+    },
+    // --- DataGrid tuning (MUI X) ---
+    MuiDataGrid: {
+      styleOverrides: {
+        root: {
+          border: `1px solid ${alpha(palette.divider, 0.6)}`,
+          backgroundColor: palette.background.paper,
+          '--DataGrid-containerBackground': palette.background.paper,
+        },
+        columnHeaders: {
+          backgroundColor: palette.background.neutral,
+          borderBottom: `1px solid ${alpha(palette.divider, 0.6)}`,
+        },
+        virtualScroller: {
+          '& .MuiDataGrid-row:hover': { backgroundColor: palette.action.hover },
+        },
+        toolbarContainer: {
+          borderBottom: `1px solid ${alpha(palette.divider, 0.6)}`,
+          gap: 8,
+          padding: '8px 12px',
+        },
+      },
+    },
+    // Focus ring subtle cho các control
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(palette.text.primary, 0.16) },
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: alpha(palette.primary.main, 0.6), boxShadow: `0 0 0 3px ${alpha(palette.primary.main, 0.14)}` },
+        },
+      },
+    },
   };
 };
-
 
 export default function CustomThemeProvider({ children }) {
   const [mode, setMode] = useState(() => localStorage.getItem('themeMode') || 'light');
@@ -233,33 +250,40 @@ export default function CustomThemeProvider({ children }) {
   const theme = useMemo(() => {
     const palette = createPalette(mode);
     const typography = createTypography();
-    
+
     let themeInstance = createTheme({
       palette,
       typography,
-      shape: { borderRadius: 12 }, // Bo góc mềm mại hơn
+      shape: { borderRadius: 12 },
+      shadows: [
+        'none',
+        '0 1px 2px rgba(16,24,40,0.08)',
+        '0 2px 6px rgba(16,24,40,0.08)',
+        '0 4px 10px rgba(16,24,40,0.10)',
+        '0 6px 14px rgba(16,24,40,0.12)',
+        '0 8px 20px rgba(16,24,40,0.14)',
+        ...Array(19).fill('0 12px 24px rgba(16,24,40,0.16)'),
+      ],
     });
-    
-    themeInstance.components = createComponents(themeInstance);
 
+    themeInstance.components = createComponents(themeInstance);
     return themeInstance;
   }, [mode]);
-  
-  // Nâng cao: Tích hợp CSS Variables
+
+  // Expose CSS variables (optional)
   useEffect(() => {
     const root = document.documentElement;
-    Object.keys(theme.palette).forEach(key => {
-        const colorGroup = theme.palette[key];
-        if (typeof colorGroup === 'object') {
-            Object.keys(colorGroup).forEach(colorKey => {
-                if (typeof colorGroup[colorKey] === 'string') {
-                    root.style.setProperty(`--mui-palette-${key}-${colorKey}`, colorGroup[colorKey]);
-                }
-            });
-        }
+    Object.keys(theme.palette).forEach((key) => {
+      const group = theme.palette[key];
+      if (group && typeof group === 'object') {
+        Object.keys(group).forEach((ck) => {
+          if (typeof group[ck] === 'string') {
+            root.style.setProperty(`--mui-palette-${key}-${ck}`, group[ck]);
+          }
+        });
+      }
     });
   }, [theme]);
-
 
   return (
     <ColorModeContext.Provider value={colorMode}>
