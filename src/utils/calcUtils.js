@@ -120,63 +120,66 @@ const calcCpVuot = (row) => {
 };
 
 export const calcAllFields = (
-    row,
-    {
-        isUserEditingNoPhaiTraCK = false,
-        overallRevenue = "0",
-        projectTotalAmount = "0",
-        projectType = "", // Biến này đã có sẵn
-    } = {}
+    row,
+    {
+        isUserEditingNoPhaiTraCK = false,
+        overallRevenue = "0",
+        projectTotalAmount = "0",
+        projectType = "", // Biến này đã có sẵn
+    } = {}
 ) => {
-    if (!row.project) return;
-    if (row.project.includes("-VT") || row.project.includes("-NC")) {
-        row.revenue = "0";
-    } else if (row.project.includes("-CP")) {
-        if (!row.isRevenueManual) {
-            const hskh = Number(parseNumber(row.hskh));
-            const orv = Number(parseNumber(overallRevenue));
-            const pta = Number(parseNumber(projectTotalAmount));
-            row.revenue = pta === 0 ? "0" : String((hskh * orv) / pta);
-        }
-    }
+    if (!row.project) return;
+    if (row.project.includes("-VT") || row.project.includes("-NC")) {
+        row.revenue = "0";
+    } else if (row.project.includes("-CP")) {
+        if (!row.isRevenueManual) {
+            const hskh = Number(parseNumber(row.hskh));
+            const orv = Number(parseNumber(overallRevenue));
+            const pta = Number(parseNumber(projectTotalAmount));
+            row.revenue = pta === 0 ? "0" : String((hskh * orv) / pta);
+        }
+    }
 
-    if (projectType === "Nhà máy") {
-        row.payableDeductionThisQuarter = calcPayableDeductionThisQuarter(row);
-    }
+    if (projectType === "Nhà máy") {
+        row.payableDeductionThisQuarter = calcPayableDeductionThisQuarter(row);
+    }
 
-    row.carryoverMinus = calcCarryoverMinus(row);
-    row.totalCost = calcTotalCost(row);
-    const project = row.project || "";
-    if (project.includes("-VT") || project.includes("-NC")) {
-        row.cpVuot = "0"; // Nếu là dòng -VT hoặc -NC, gán CP Vượt = 0
-    } else {
-        row.cpVuot = calcCpVuot(row); // Ngược lại, tính toán bình thường
-    }
-    row.carryoverEnd = calcCarryoverEnd(row, projectType);
+    row.carryoverMinus = calcCarryoverMinus(row);
+    row.totalCost = calcTotalCost(row);
+    const project = row.project || "";
+    if (project.includes("-VT") || project.includes("-NC")) {
+        row.cpVuot = "0"; // Nếu là dòng -VT hoặc -NC, gán CP Vượt = 0
+    } else {
+        row.cpVuot = calcCpVuot(row); // Ngược lại, tính toán bình thường
+    }
+    row.carryoverEnd = calcCarryoverEnd(row, projectType);
 
-    if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP")) {
-        row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
-    }
+    if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP")) {
+        row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
+    }
 
-    // ---------- BẮT ĐẦU PHẦN THAY ĐỔI ----------
+    // ---------- BẮT ĐẦU PHẦN CẬP NHẬT ----------
+    
+    // Lấy tất cả các giá trị cần thiết cho công thức bạn vừa cung cấp
+    const directCost = parseNumber(row.directCost || "0");         // Chi Phí Trực Tiếp
+    const allocated = parseNumber(row.allocated || "0");            // Phân Bổ
+    const noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");        // Nợ Phải Trả CK
+    const carryoverEnd = parseNumber(row.carryoverEnd || "0");      // Cuối Kỳ
+    const debt = parseNumber(row.debt || "0");                      // Nợ Phải Trả ĐK
+    const inventory = parseNumber(row.inventory || "0");            // Tồn ĐK
 
-    // Lấy tất cả các giá trị cần thiết cho công thức mới
-    const directCost = parseNumber(row.directCost || "0");
-    const allocated = parseNumber(row.allocated || "0");
-    const noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
-    const inventory = parseNumber(row.inventory || "0");
-    const carryoverEnd = parseNumber(row.carryoverEnd || "0");
-
-    // Áp dụng công thức mới
-    row.cpSauQuyetToan = String(
+    // Áp dụng công thức mới:
+    // CP Trực Tiếp + Phân Bổ + Nợ Phải Trả CK - Cuối Kỳ - Nợ Phải Trả ĐK - Tồn ĐK
+    row.cpSauQuyetToan = String(
         directCost + 
         allocated + 
-        noPhaiTraCK + 
-        inventory + 
-        carryoverEnd
+        noPhaiTraCK - 
+        carryoverEnd - 
+        debt - 
+        inventory
     );
 
-    // ---------- KẾT THÚC PHẦN THAY ĐỔI ----------
+    // ---------- KẾT THÚC PHẦN CẬP NHẬT ----------
 };
 // ---------- Hidden Columns Helper (cho -VT, -NC) ----------
 export const getHiddenColumnsForProject = (project) =>

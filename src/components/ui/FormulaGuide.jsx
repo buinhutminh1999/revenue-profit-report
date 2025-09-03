@@ -92,8 +92,9 @@ const FormulaGuide = ({ open, onClose }) => {
                         <FormulaItem
                             title="CP Sau Quyết Toán"
                             projectType="Tất cả loại CT"
-                            // <<< DÒNG ĐÃ ĐƯỢC CẬP NHẬT
-                            formula="Chi Phí Trực Tiếp + Phân Bổ + Nợ Phải Trả CK + Tồn ĐK + Cuối Kỳ"
+                            // <<< ĐÃ CẬP NHẬT CÔNG THỨC MỚI TẠI ĐÂY
+                            formula={`Chi Phí Trực Tiếp + Phân Bổ + Nợ Phải Trả CK
+- Cuối Kỳ - Nợ Phải Trả ĐK - Tồn ĐK`}
                         />
                     </Grid>
                 </Grid>
