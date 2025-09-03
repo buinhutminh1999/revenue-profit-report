@@ -647,7 +647,7 @@ export default function CostAllocationQuarter() {
             draftRow.used = totalUsedInPeriod;
             draftRow.carryOver = carryOverValue;
             draftRow.cumQuarterOnly = Math.min(
-                totalUsedInPeriod - totalAllocatedForPeriod,
+                draftRow.usedRaw - totalAllocatedForPeriod,
                 0
             );
             const totalNeedAfterLimits = Object.values(finalAllocation).reduce(
