@@ -35,6 +35,8 @@ import { db } from "../services/firebase-config";
 import { toNum, formatNumber } from "../utils/numberUtils";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import ProfitSummaryTable from "../reports/ProfitSummaryTable";
+import FunctionsIcon from '@mui/icons-material/Functions'; // <-- THÊM DÒNG NÀY
+import ProfitReportFormulaGuide from '../components/reports_performance-profit-report/ProfitReportFormulaGuide'; // <-- THÊM DÒNG NÀY (sửa lại đường dẫn nếu cần)
 
 export default function ProfitReportQuarter() {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -57,6 +59,7 @@ export default function ProfitReportQuarter() {
         revenueTargetDauTu: 0,
         profitTargetDauTu: 0,
     });
+    const [formulaDialogOpen, setFormulaDialogOpen] = useState(false); // <-- THÊM DÒNG NÀY
 
     const handleSummaryTargetChange = (targetKey, value) => {
         setSummaryTargets((prevTargets) => ({
@@ -1897,6 +1900,15 @@ export default function ProfitReportQuarter() {
                         useFlexGap
                         flexWrap="wrap"
                     >
+                         <Button
+        variant="outlined"
+        color="secondary"
+        startIcon={<FunctionsIcon />}
+        onClick={() => setFormulaDialogOpen(true)} // Mở dialog khi click
+        sx={{ borderRadius: 2, minWidth: 100 }}
+    >
+        Công Thức
+    </Button>
                         <Button
                             variant="contained"
                             color="primary"
@@ -2332,6 +2344,10 @@ export default function ProfitReportQuarter() {
                     </DialogActions>
                 </Dialog>
             </Paper>
+            <ProfitReportFormulaGuide
+        open={formulaDialogOpen}
+        onClose={() => setFormulaDialogOpen(false)}
+    />
         </Box>
     );
 }

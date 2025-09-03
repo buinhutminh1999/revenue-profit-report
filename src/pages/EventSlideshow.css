@@ -15,7 +15,7 @@
     height: 100vh;
     font-family: 'Montserrat', sans-serif;
     color: var(--text-color);
-    background-color: #002622;
+    background: linear-gradient(135deg, #0d47a1, #002633);
     overflow: hidden;
     cursor: none; 
     position: fixed; /* Đảm bảo component chiếm toàn màn hình */
