@@ -224,27 +224,25 @@ const LimitDialog = ({ open, onClose, onSave, cellInfo, initialData }) => {
     const [mode, setMode] = useState("limitOnly");
 
     // ✅ FIX: Nâng cấp useEffect để xử lý cả hai định dạng dữ liệu
+    const [lastKey, setLastKey] = useState(null);
     useEffect(() => {
-        if (open) {
-            let initialLimitValue = 100;
-            let initialModeValue = "limitOnly";
-
-            // Kiểm tra xem initialData có phải là object không (định dạng mới)
-            if (typeof initialData === "object" && initialData !== null) {
-                initialLimitValue = initialData.limit ?? 100;
-                initialModeValue = initialData.mode ?? "limitOnly";
-            }
-            // Kiểm tra xem initialData có phải là số không (định dạng cũ)
-            else if (typeof initialData === "number") {
-                initialLimitValue = initialData;
-                // Dữ liệu cũ mặc định không có mode "dồn phần dư"
-                initialModeValue = "limitOnly";
-            }
-
-            setLimit(initialLimitValue);
-            setMode(initialModeValue);
+        if (!open) return;
+        const key = cellInfo ? `${cellInfo.rowId}:${cellInfo.projectId}` : null;
+        if (!key || key === lastKey) return;
+        // Khởi tạo chỉ khi mở 1 ô MỚI
+        let initialLimitValue = 100;
+        let initialModeValue = "limitOnly";
+        if (typeof initialData === "object" && initialData !== null) {
+            initialLimitValue = Number(initialData.limit ?? 100);
+            initialModeValue = initialData.mode ?? "limitOnly";
+        } else if (typeof initialData === "number") {
+            initialLimitValue = Number(initialData);
+            initialModeValue = "limitOnly";
         }
-    }, [initialData, open]);
+        setLimit(Number.isFinite(initialLimitValue) ? initialLimitValue : 100);
+        setMode(initialModeValue);
+        setLastKey(key);
+    }, [open, cellInfo?.rowId, cellInfo?.projectId]); // ❗️BỎ initialData khỏi deps
 
     const handleSave = () => {
         onSave(cellInfo.rowId, cellInfo.projectId, limit, mode);
@@ -280,7 +278,11 @@ const LimitDialog = ({ open, onClose, onSave, cellInfo, initialData }) => {
                     type="number"
                     fullWidth
                     value={limit}
-                    onChange={(e) => setLimit(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => {
+                        const n = Number.parseFloat(e.target.value);
+                        if (!Number.isFinite(n)) return setLimit(0);
+                        setLimit(Math.max(0, n)); // nếu muốn cho phép >100 thì bỏ clamp
+                    }}
                     InputProps={{
                         endAdornment: (
                             <InputAdornment position="end">%</InputAdornment>
@@ -345,14 +347,14 @@ export default function CostAllocationQuarter() {
     const [cellRoundingRules, setCellRoundingRules] = useState({});
     const [roundingDialogOpen, setRoundingDialogOpen] = useState(false);
     const [currentRoundingCell, setCurrentRoundingCell] = useState(null);
-      const location = useLocation();
+    const location = useLocation();
 
     useEffect(() => {
-    // mỗi khi route thay đổi -> blur mọi thứ trong DataGrid
-    return () => {
-      document.activeElement?.blur();
-    };
-  }, [location.pathname]);
+        // mỗi khi route thay đổi -> blur mọi thứ trong DataGrid
+        return () => {
+            document.activeElement?.blur();
+        };
+    }, [location.pathname]);
     // <<< THAY ĐỔI 2: Lấy ra trường sắp xếp tương ứng với bộ lọc đang chọn
     const activeSortKey = useMemo(() => {
         return SORT_CONFIG[typeFilter]?.key || "order"; // Mặc định là 'order' nếu không khớp
@@ -524,7 +526,7 @@ export default function CostAllocationQuarter() {
                     // Nếu là object thì lấy .limit, nếu là số thì lấy chính nó
                     const limitPercent =
                         typeof limitSetting === "object" &&
-                        limitSetting !== null
+                            limitSetting !== null
                             ? limitSetting.limit
                             : limitSetting;
 
@@ -596,7 +598,7 @@ export default function CostAllocationQuarter() {
                         scaledNeed[p.id] = Math.round(
                             (originalCalculatedNeeds[p.id] /
                                 totalOriginalNeed) *
-                                allocatedForCalc
+                            allocatedForCalc
                         );
                     });
                     // 🔁 Áp lại làm tròn theo rule nếu có
@@ -703,11 +705,11 @@ export default function CostAllocationQuarter() {
                 rows.map((r) =>
                     r.id === updatedRow.id
                         ? {
-                              ...r,
-                              ...updatedRow,
-                              prevOver,
-                              prevIncluded: updatedRow.prevIncluded,
-                          }
+                            ...r,
+                            ...updatedRow,
+                            prevOver,
+                            prevIncluded: updatedRow.prevIncluded,
+                        }
                         : r
                 )
             );
@@ -809,10 +811,10 @@ export default function CostAllocationQuarter() {
                                 r.id.split("__")[0] === salaryRowId
                                     ? fixedTotals[typeFilter]
                                     : toNum(
-                                          typeData.value ??
-                                              typeData.allocated ??
-                                              r.allocated
-                                      ),
+                                        typeData.value ??
+                                        typeData.allocated ??
+                                        r.allocated
+                                    ),
                             carryOver: toNum(typeData.carryOver ?? r.carryOver),
                             used: toNum(typeData.used ?? r.used),
                             cumQuarterOnly: toNum(
@@ -945,10 +947,10 @@ export default function CostAllocationQuarter() {
             const src = extraRows.find((e) => e.id === r.id);
             return src
                 ? {
-                      ...r,
-                      prevOver: src.prevOver,
-                      prevIncluded: src.prevIncluded,
-                  }
+                    ...r,
+                    prevOver: src.prevOver,
+                    prevIncluded: src.prevIncluded,
+                }
                 : r;
         });
     }, [filteredRows, extraRows]);
@@ -1446,9 +1448,11 @@ export default function CostAllocationQuarter() {
                         byType: {},
                     };
 
+                    const prevTypeDataNext = (existingNextRow.byType?.[typeFilter]) || {};
                     const nextRowByType = {
                         ...existingNextRow.byType,
                         [typeFilter]: {
+                            ...prevTypeDataNext,     // ⬅️ merge để KHÔNG mất %DT đã nhập ở Q2
                             overrun: fullNeed,
                             carryOver: carryNext,
                         },
@@ -1495,7 +1499,7 @@ export default function CostAllocationQuarter() {
                                         item.id === r.id ||
                                         (item.description &&
                                             normalize(item.description) ===
-                                                normalize(r.label))
+                                            normalize(r.label))
                                 );
                                 if (itemIdx >= 0) {
                                     // Cập nhật trường allocated như cũ
@@ -1834,9 +1838,9 @@ export default function CostAllocationQuarter() {
                             cursor: "cell",
                         },
                         "& .MuiDataGrid-cell.MuiDataGrid-cell--editing:focus-within":
-                            {
-                                outline: `2px solid ${theme.palette.warning.main} !important`,
-                            },
+                        {
+                            outline: `2px solid ${theme.palette.warning.main} !important`,
+                        },
                         "& .dirty-cell::before": {
                             content: '""',
                             position: "absolute",
@@ -1898,8 +1902,8 @@ export default function CostAllocationQuarter() {
                 initialData={
                     currentLimitCell
                         ? manualLimits[currentLimitCell.rowId]?.[
-                              currentLimitCell.projectId
-                          ]
+                        currentLimitCell.projectId
+                        ]
                         : undefined
                 }
             />
