@@ -1,171 +1,220 @@
-import React, { useContext, useState } from 'react';
+// src/components/layout/Header.jsx — ERP-modern header (a11y, reduced-motion, shortcuts, tidy menus)
+
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
-    Toolbar, Box, IconButton, Tooltip, alpha, Menu, MenuItem, Divider, 
-    useTheme, Avatar, Chip, Badge, Stack, Typography, Modal, Fade, Paper,
-    InputBase, ListItemButton, ListItemIcon, ListItemText, Breadcrumbs, Link as MuiLink,
-    Tabs, Tab, Button
-} from '@mui/material';
-import { styled } from '@mui/material/styles';
-import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+  Toolbar, Box, IconButton, Tooltip, Menu, MenuItem, Divider,
+  useTheme, Avatar, Chip, Badge, Stack, Typography, Paper,
+  InputBase, ListItemButton, ListItemIcon, ListItemText, Breadcrumbs, Link as MuiLink,
+  Tabs, Tab, Button
+} from "@mui/material";
+import { alpha, styled } from "@mui/material/styles";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { useHotkeys } from "react-hotkeys-hook";
 
-// Icons
-import { 
-    Search, Moon, Sun, Settings, LogOut, User as UserIcon, Bell, HelpCircle, Shield,
-    Menu as MenuIcon, ChevronRight, Home, LayoutDashboard, Building2, BarChart2,
-    FolderOpen, TrendingUp, ChevronsLeft, AlertTriangle, FileCheck2, MessageSquare
-} from 'lucide-react';
-import { useHotkeys } from 'react-hotkeys-hook';
-import { ThemeSettingsContext } from '../../styles/ThemeContext'; // <-- Đường dẫn đã cập nhật
-import { useAuth } from '../../App';
-import DensityToggleButton from '../../components/DensityToggleButton'; // <-- Import component
+import { ThemeSettingsContext } from "../../styles/ThemeContext";
+import { useAuth } from "../../App";
+import DensityToggleButton from "../../components/DensityToggleButton";
 
-// --- STYLED COMPONENTS ---
+// lucide-react icons
+import {
+  Search, Moon, Sun, Settings as SettingsIcon, LogOut, User as UserIcon, Bell,
+  HelpCircle, Shield, Menu as MenuIcon, ChevronRight, Home, LayoutDashboard,
+  Building2, BarChart2, FolderOpen, TrendingUp, ChevronsLeft, AlertTriangle,
+  FileCheck2, MessageSquare
+} from "lucide-react";
+
+// ---------- styled ----------
 const NotificationBadge = styled(Badge)(({ theme }) => ({
-  '& .MuiBadge-badge': {
+  "& .MuiBadge-badge": {
     backgroundColor: theme.palette.error.main,
     color: theme.palette.error.contrastText,
-  }
+  },
 }));
 
 const UserSection = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
+  display: "flex",
+  alignItems: "center",
   gap: theme.spacing(1),
   padding: theme.spacing(0.5, 1),
   borderRadius: theme.shape.borderRadius * 2,
-  cursor: 'pointer',
-  transition: 'background-color 0.2s ease',
-  '&:hover': {
+  cursor: "pointer",
+  transition: "background-color 0.2s ease",
+  "&:hover": {
     backgroundColor: alpha(theme.palette.action.active, 0.05),
-  }
+  },
 }));
 
 const CommandPalette = styled(Paper)(({ theme }) => ({
-    position: 'absolute',
-    top: '20%',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    width: '90%',
-    maxWidth: 680,
-    maxHeight: '60vh',
-    overflow: 'hidden',
-    borderRadius: theme.shape.borderRadius * 3,
-    boxShadow: theme.shadows[24],
-    border: `1px solid ${theme.palette.divider}`,
+  position: "absolute",
+  top: "20%",
+  left: "50%",
+  transform: "translateX(-50%)",
+  width: "90%",
+  maxWidth: 680,
+  maxHeight: "60vh",
+  overflow: "hidden",
+  borderRadius: theme.shape.borderRadius * 3,
+  boxShadow: theme.shadows[24],
+  border: `1px solid ${theme.palette.divider}`,
 }));
-  
+
 const QuickAction = styled(ListItemButton)(({ theme }) => ({
-    borderRadius: theme.spacing(1),
-    marginBottom: theme.spacing(0.5),
-    transition: 'all 0.2s ease',
-    '&:hover': {
-        backgroundColor: alpha(theme.palette.primary.main, 0.08),
-        transform: 'translateX(4px)',
-    },
-    '& .action-icon': {
-        color: theme.palette.primary.main,
-    }
+  borderRadius: theme.spacing(1),
+  marginBottom: theme.spacing(0.5),
+  transition: "all 0.2s ease",
+  "&:hover": {
+    backgroundColor: alpha(theme.palette.primary.main, 0.08),
+    transform: "translateX(4px)",
+  },
+  "& .action-icon": {
+    color: theme.palette.primary.main,
+  },
 }));
 
-
-// --- BREADCRUMBS HELPER ---
+// ---------- breadcrumbs map ----------
 const pathMap = {
-  'project-manager': 'Quản lý Dự án',
-  'construction-plan': 'Kế hoạch Thi công',
-  'accounts-receivable': 'Công nợ Phải thu',
-  'construction-payables': 'Công nợ Phải trả',
-  'profit-report-quarter': 'Báo cáo Lợi nhuận Quý',
-  'profit-report-year': 'Báo cáo Lợi nhuận Năm',
-  'balance-sheet': 'Bảng Cân đối Kế toán',
-  'allocations': 'Phân bổ Chi phí',
-  'user': 'Hồ sơ Người dùng',
-  'settings': 'Cài đặt',
-  'admin': 'Quản trị Hệ thống'
+  "project-manager": "Quản lý Dự án",
+  "construction-plan": "Kế hoạch Thi công",
+  "accounts-receivable": "Công nợ Phải thu",
+  "construction-payables": "Công nợ Phải trả",
+  "profit-report-quarter": "Báo cáo Lợi nhuận Quý",
+  "profit-report-year": "Báo cáo Lợi nhuận Năm",
+  "balance-sheet": "Bảng Cân đối Kế toán",
+  "allocations": "Phân bổ Chi phí",
+  "user": "Hồ sơ Người dùng",
+  "settings": "Cài đặt",
+  "admin": "Quản trị Hệ thống",
 };
 
-// --- MAIN HEADER COMPONENT ---
 export default function Header({ onSidebarToggle, isSidebarOpen }) {
   const theme = useTheme();
+  const reduce = useReducedMotion();
   const { toggleColorMode } = useContext(ThemeSettingsContext);
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [searchOpen, setSearchOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState('');
+  const [searchValue, setSearchValue] = useState("");
   const [userMenuAnchor, setUserMenuAnchor] = useState(null);
   const [notificationAnchor, setNotificationAnchor] = useState(null);
   const [notificationTab, setNotificationTab] = useState(0);
-  
-  useHotkeys('ctrl+k, cmd+k', (e) => { e.preventDefault(); setSearchOpen(true); });
-  useHotkeys('esc', () => { setSearchOpen(false); setSearchValue(''); }, { enableOnFormTags: true });
 
-  const quickActions = [
-    {
-      category: 'Điều hướng',
-      items: [
-        { icon: <LayoutDashboard size={20} />, text: 'Dashboard', action: () => navigate('/') },
-        { icon: <Building2 size={20} />, text: 'Danh sách dự án', action: () => navigate('/project-manager') },
-        { icon: <BarChart2 size={20} />, text: 'Báo cáo lợi nhuận', action: () => navigate('/profit-report-quarter') },
-      ]
-    },
-    {
-      category: 'Hành động',
-      items: [
-        { icon: <FolderOpen size={20} />, text: 'Tạo dự án mới', action: () => navigate('/construction-plan') },
-        { icon: <TrendingUp size={20} />, text: 'Xem báo cáo tháng', action: () => navigate('/profit-report-quarter') },
-      ]
-    }
-  ];
+  // Shortcuts
+  useHotkeys("ctrl+k, cmd+k", (e) => { e.preventDefault(); setSearchOpen(true); });
+  useHotkeys("ctrl+b, cmd+b", (e) => { e.preventDefault(); onSidebarToggle?.(); }); // toggle sidebar nhanh
+  useHotkeys("esc", () => { setSearchOpen(false); setSearchValue(""); }, { enableOnFormTags: true });
+
+  // Đóng menu khi đổi route (tránh menu "kẹt" khi điều hướng)
+  useEffect(() => {
+    setUserMenuAnchor(null);
+    setNotificationAnchor(null);
+  }, [location.pathname, location.search]);
+
+  // Quick actions (có thể feed từ permissions sau này)
+  const quickActions = useMemo(
+    () => [
+      {
+        category: "Điều hướng",
+        items: [
+          { icon: <LayoutDashboard size={20} />, text: "Dashboard", action: () => navigate("/") },
+          { icon: <Building2 size={20} />, text: "Danh sách dự án", action: () => navigate("/project-manager") },
+          { icon: <BarChart2 size={20} />, text: "Báo cáo lợi nhuận", action: () => navigate("/profit-report-quarter") },
+        ],
+      },
+      {
+        category: "Hành động",
+        items: [
+          { icon: <FolderOpen size={20} />, text: "Tạo dự án mới", action: () => navigate("/construction-plan") },
+          { icon: <TrendingUp size={20} />, text: "Xem báo cáo tháng", action: () => navigate("/profit-report-quarter") },
+        ],
+      },
+    ],
+    [navigate]
+  );
 
   const sampleNotifications = [
-      { id: 1, icon: <AlertTriangle color={theme.palette.error.main} />, title: "Công nợ quá hạn", description: "Hóa đơn #HD002 đã quá hạn 2 ngày.", timestamp: "15 phút trước", isRead: false },
-      { id: 2, icon: <FileCheck2 color={theme.palette.success.main} />, title: "Dự án hoàn thành", description: "Dự án Sun Grand City đã được cập nhật trạng thái Hoàn thành.", timestamp: "2 giờ trước", isRead: false },
-      { id: 3, icon: <MessageSquare color={theme.palette.primary.main} />, title: "Tin nhắn mới từ Kế toán", description: "Vui lòng xem lại bảng phân bổ chi phí quý 3.", timestamp: "Hôm qua", isRead: true },
+    { id: 1, icon: <AlertTriangle color={theme.palette.error.main} />, title: "Công nợ quá hạn", description: "Hóa đơn #HD002 đã quá hạn 2 ngày.", timestamp: "15 phút trước", isRead: false },
+    { id: 2, icon: <FileCheck2 color={theme.palette.success.main} />, title: "Dự án hoàn thành", description: "Dự án Sun Grand City đã cập nhật trạng thái Hoàn thành.", timestamp: "2 giờ trước", isRead: false },
+    { id: 3, icon: <MessageSquare color={theme.palette.primary.main} />, title: "Tin nhắn mới từ Kế toán", description: "Vui lòng xem lại bảng phân bổ chi phí quý 3.", timestamp: "Hôm qua", isRead: true },
   ];
+
+  const unreadCount = sampleNotifications.filter((n) => !n.isRead).length;
 
   const handleLogout = async () => {
     setUserMenuAnchor(null);
-    const { signOut, getAuth } = await import('firebase/auth');
+    const { signOut, getAuth } = await import("firebase/auth");
     await signOut(getAuth());
-    navigate('/login');
+    navigate("/login");
   };
 
-  const pathnames = location.pathname.split('/').filter((x) => x);
-  
+  const pathnames = location.pathname.split("/").filter((x) => x);
+
+  // Pre-calc filtered actions cho palette
+  const filteredActions = useMemo(() => {
+    const q = searchValue.trim().toLowerCase();
+    if (!q) return quickActions;
+    return quickActions.map((g) => ({
+      ...g,
+      items: g.items.filter((i) => i.text.toLowerCase().includes(q)),
+    }));
+  }, [searchValue, quickActions]);
+
+  const noActionFound = filteredActions.every((g) => g.items.length === 0);
+
   return (
     <>
-      <Toolbar sx={{ 
-          px: { xs: 2, sm: 3 }, 
-          height: 64, 
-          display: 'flex', 
-          justifyContent: 'space-between',
-          alignItems: 'center'
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Toolbar
+        sx={{
+          px: { xs: 2, sm: 3 },
+          height: 64,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        {/* Left: toggle + breadcrumbs */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Tooltip title={isSidebarOpen ? "Thu gọn" : "Mở rộng"}>
-            <IconButton color="inherit" onClick={onSidebarToggle} edge="start">
+            <IconButton
+              color="inherit"
+              onClick={onSidebarToggle}
+              edge="start"
+              aria-label={isSidebarOpen ? "Thu gọn thanh điều hướng" : "Mở thanh điều hướng"}
+            >
               {isSidebarOpen ? <ChevronsLeft /> : <MenuIcon />}
             </IconButton>
           </Tooltip>
 
-          <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+          <Box sx={{ display: { xs: "none", md: "block" } }}>
             <Breadcrumbs aria-label="breadcrumb" separator={<ChevronRight size={16} />}>
-              <MuiLink component={RouterLink} underline="hover" sx={{ display: 'flex', alignItems: 'center' }} color="inherit" to="/">
-                <Home size={18} style={{ marginRight: 8 }}/>
+              <MuiLink
+                component={RouterLink}
+                underline="hover"
+                sx={{ display: "flex", alignItems: "center" }}
+                color="inherit"
+                to="/"
+              >
+                <Home size={18} style={{ marginRight: 8 }} />
                 Tổng quan
               </MuiLink>
               {pathnames.map((value, index) => {
                 const last = index === pathnames.length - 1;
-                const to = `/${pathnames.slice(0, index + 1).join('/')}`;
+                const to = `/${pathnames.slice(0, index + 1).join("/")}`;
+                const label = pathMap[value] || value.charAt(0).toUpperCase() + value.slice(1);
                 return last ? (
-                  <Typography color="text.primary" key={to} sx={{ display: 'flex', alignItems: 'center', fontWeight: 600 }}>
-                    {pathMap[value] || value.charAt(0).toUpperCase() + value.slice(1)}
+                  <Typography
+                    color="text.primary"
+                    key={to}
+                    sx={{ display: "flex", alignItems: "center", fontWeight: 600 }}
+                    aria-current="page"
+                  >
+                    {label}
                   </Typography>
                 ) : (
                   <MuiLink component={RouterLink} underline="hover" color="inherit" to={to} key={to}>
-                    {pathMap[value] || value.charAt(0).toUpperCase() + value.slice(1)}
+                    {label}
                   </MuiLink>
                 );
               })}
@@ -173,58 +222,211 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
           </Box>
         </Box>
 
+        {/* Right: actions */}
         <Stack direction="row" alignItems="center" spacing={{ xs: 0.5, sm: 1.5 }}>
           <Tooltip title="Tìm kiếm nhanh (⌘K)">
-            <IconButton color="inherit" onClick={() => setSearchOpen(true)}>
+            <IconButton color="inherit" onClick={() => setSearchOpen(true)} aria-label="Mở bảng lệnh nhanh">
               <Search size={20} />
             </IconButton>
           </Tooltip>
 
           <Tooltip title="Chế độ Sáng/Tối">
-            <IconButton sx={{ display: { xs: 'none', sm: 'inline-flex' } }} color="inherit" onClick={toggleColorMode}>
+            <IconButton
+              sx={{ display: { xs: "none", sm: "inline-flex" } }}
+              color="inherit"
+              onClick={toggleColorMode}
+              aria-label="Đổi chế độ sáng/tối"
+            >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={theme.palette.mode}
-                  initial={{ rotate: -90, opacity: 0 }}
-                  animate={{ rotate: 0, opacity: 1 }}
-                  exit={{ rotate: 90, opacity: 0 }}
+                  initial={reduce ? {} : { rotate: -90, opacity: 0 }}
+                  animate={reduce ? {} : { rotate: 0, opacity: 1 }}
+                  exit={reduce ? {} : { rotate: 90, opacity: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  {theme.palette.mode === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                  {theme.palette.mode === "dark" ? <Sun size={20} /> : <Moon size={20} />}
                 </motion.div>
               </AnimatePresence>
             </IconButton>
           </Tooltip>
-          
+
           <Tooltip title="Thay đổi mật độ hiển thị">
-            <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
-                <DensityToggleButton />
+            <Box sx={{ display: { xs: "none", sm: "block" } }}>
+              <DensityToggleButton />
             </Box>
           </Tooltip>
-          
+
+          {/* Notification */}
           <Tooltip title="Thông báo">
-            <IconButton color="inherit" onClick={(e) => setNotificationAnchor(e.currentTarget)}>
-              <NotificationBadge badgeContent={sampleNotifications.filter(n => !n.isRead).length}>
+            <IconButton
+              color="inherit"
+              onClick={(e) => setNotificationAnchor(e.currentTarget)}
+              aria-label={`Mở thông báo, ${unreadCount} chưa đọc`}
+              aria-haspopup="menu"
+              aria-expanded={Boolean(notificationAnchor) ? "true" : "false"}
+            >
+              <NotificationBadge badgeContent={unreadCount}>
                 <Bell size={20} />
               </NotificationBadge>
             </IconButton>
           </Tooltip>
-          
-          <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: 'none', sm: 'block' } }}/>
+          {/* SR live region cho số thông báo chưa đọc */}
+          <Box sx={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }} aria-live="polite">
+            {unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : "Không có thông báo mới"}
+          </Box>
 
-          <UserSection onClick={(e) => setUserMenuAnchor(e.currentTarget)}>
-            <Avatar src={user?.photoURL} alt={user?.displayName} sx={{ width: 36, height: 36 }}>
-              {user?.displayName?.[0] || 'U'}
+          <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: "none", sm: "block" } }} />
+
+          {/* User */}
+          <UserSection
+            onClick={(e) => setUserMenuAnchor(e.currentTarget)}
+            aria-label="Mở menu người dùng"
+            role="button"
+          >
+            <Avatar src={user?.photoURL ?? ""} alt={user?.displayName ?? "User"} sx={{ width: 36, height: 36 }}>
+              {user?.displayName?.[0] || "U"}
             </Avatar>
-            <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-              <Typography variant="body2" fontWeight={600} lineHeight={1.2}>{user?.displayName || 'User'}</Typography>
-              <Typography variant="caption" color="text.secondary">{user?.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}</Typography>
+            <Box sx={{ display: { xs: "none", md: "block" } }}>
+              <Typography variant="body2" fontWeight={600} lineHeight={1.2}>
+                {user?.displayName || "User"}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {user?.role === "admin" ? "Quản trị viên" : "Nhân viên"}
+              </Typography>
             </Box>
           </UserSection>
         </Stack>
       </Toolbar>
 
-      {/* Các Menu và Modal không thay đổi */}
+      {/* USER MENU */}
+      <Menu
+        keepMounted
+        anchorEl={userMenuAnchor}
+        open={Boolean(userMenuAnchor)}
+        onClose={() => setUserMenuAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        PaperProps={{ sx: { mt: 1, minWidth: 220, borderRadius: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" } }}
+      >
+        <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/user"); }}>
+          <ListItemIcon><UserIcon size={18} /></ListItemIcon>
+          <ListItemText primary="Hồ sơ cá nhân" />
+        </MenuItem>
+        <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/settings"); }}>
+          <ListItemIcon><SettingsIcon size={18} /></ListItemIcon>
+          <ListItemText primary="Cài đặt" />
+        </MenuItem>
+        <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/admin"); }}>
+          <ListItemIcon><Shield size={18} /></ListItemIcon>
+          <ListItemText primary="Quản trị" />
+        </MenuItem>
+        <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/help"); }}>
+          <ListItemIcon><HelpCircle size={18} /></ListItemIcon>
+          <ListItemText primary="Trợ giúp" />
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => { toggleColorMode(); }}>
+          <ListItemIcon>{theme.palette.mode === "dark" ? <Sun size={18} /> : <Moon size={18} />}</ListItemIcon>
+          <ListItemText primary={theme.palette.mode === "dark" ? "Chế độ Sáng" : "Chế độ Tối"} />
+        </MenuItem>
+        <MenuItem onClick={async () => { setUserMenuAnchor(null); await handleLogout(); }}>
+          <ListItemIcon><LogOut size={18} /></ListItemIcon>
+          <ListItemText primary="Đăng xuất" />
+        </MenuItem>
+      </Menu>
+
+      {/* NOTIFICATION MENU */}
+      <Menu
+        keepMounted
+        anchorEl={notificationAnchor}
+        open={Boolean(notificationAnchor)}
+        onClose={() => setNotificationAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        PaperProps={{ sx: { mt: 1, width: 360, maxWidth: "90vw", borderRadius: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" } }}
+      >
+        <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
+          <Typography variant="subtitle1" fontWeight={700}>Thông báo</Typography>
+        </Box>
+        <Tabs
+          value={notificationTab}
+          onChange={(_, v) => setNotificationTab(v)}
+          variant="fullWidth"
+          sx={{ borderBottom: (t) => `1px solid ${t.palette.divider}` }}
+        >
+          <Tab label="Tất cả" />
+          <Tab label="Chưa đọc" />
+        </Tabs>
+        <Box sx={{ maxHeight: 360, overflowY: "auto", p: 1 }}>
+          {sampleNotifications
+            .filter((n) => (notificationTab === 0 ? true : !n.isRead))
+            .map((n) => (
+              <ListItemButton key={n.id} onClick={() => setNotificationAnchor(null)} sx={{ borderRadius: 1 }}>
+                <ListItemIcon>{n.icon}</ListItemIcon>
+                <ListItemText
+                  primary={<Typography fontWeight={600}>{n.title}</Typography>}
+                  secondary={
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">{n.description}</Typography>
+                      <Typography variant="caption" color="text.disabled">{n.timestamp}</Typography>
+                    </Box>
+                  }
+                />
+                {!n.isRead && <Chip size="small" label="Mới" color="error" variant="outlined" />}
+              </ListItemButton>
+            ))}
+          {sampleNotifications.filter((n) => (notificationTab === 0 ? true : !n.isRead)).length === 0 && (
+            <Box sx={{ p: 2, textAlign: "center", color: "text.secondary" }}>Không có thông báo</Box>
+          )}
+        </Box>
+        <Box sx={{ p: 1, display: "flex", justifyContent: "flex-end" }}>
+          <Button size="small" onClick={() => setNotificationAnchor(null)}>Đóng</Button>
+        </Box>
+      </Menu>
+
+      {/* COMMAND PALETTE (⌘/Ctrl + K) */}
+      <AnimatePresence>
+        {searchOpen && (
+          <motion.div
+            initial={reduce ? {} : { opacity: 0 }}
+            animate={reduce ? {} : { opacity: 1 }}
+            exit={reduce ? {} : { opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            style={{ position: "fixed", inset: 0, zIndex: 1400, background: alpha(theme.palette.background.default, 0.4), backdropFilter: "blur(2px)" }}
+            onClick={() => setSearchOpen(false)}
+          >
+            <CommandPalette onClick={(e) => e.stopPropagation()}>
+              <Box sx={{ p: 1.5, borderBottom: (t) => `1px solid ${t.palette.divider}`, display: "flex", alignItems: "center", gap: 1.5 }}>
+                <Search size={18} />
+                <InputBase
+                  fullWidth
+                  placeholder="Tìm nhanh… (gõ để lọc hành động)"
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  autoFocus
+                  inputProps={{ "aria-label": "Tìm kiếm nhanh" }}
+                />
+                <Chip size="small" label="Esc" />
+              </Box>
+              <Box sx={{ p: 2, maxHeight: 360, overflowY: "auto" }}>
+                {filteredActions.map((group) => (
+                  <Box key={group.category} sx={{ mb: 2 }}>
+                    <Typography variant="overline" color="text.secondary">{group.category}</Typography>
+                    {group.items.map((item) => (
+                      <QuickAction key={item.text} onClick={() => { item.action(); setSearchOpen(false); }}>
+                        <ListItemIcon className="action-icon">{item.icon}</ListItemIcon>
+                        <ListItemText primary={item.text} />
+                      </QuickAction>
+                    ))}
+                  </Box>
+                ))}
+                {noActionFound && <Typography color="text.secondary">Không tìm thấy hành động phù hợp.</Typography>}
+              </Box>
+            </CommandPalette>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

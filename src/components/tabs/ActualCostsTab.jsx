@@ -148,8 +148,8 @@ export const handleFileUpload = (
                     const key = `${(row["Công Trình"] || "")
                         .trim()
                         .toUpperCase()}|||${(
-                        row["Khoản Mục Chi Phí"] || ""
-                    ).trim()}`;
+                            row["Khoản Mục Chi Phí"] || ""
+                        ).trim()}`;
                     newDataMap[key] = row;
                 }
 
@@ -163,7 +163,7 @@ export const handleFileUpload = (
                         if (excelRow.hasOwnProperty(excelKey)) {
                             newRow[excelToField[excelKey]] = String(
                                 excelRow[excelKey] ??
-                                    oldRow[excelToField[excelKey]]
+                                oldRow[excelToField[excelKey]]
                             );
                         }
                     }
@@ -179,11 +179,11 @@ export const handleFileUpload = (
                         return !costItems.some(
                             (oldRow) =>
                                 oldRow.project ===
-                                    (row["Công Trình"] || "")
-                                        .trim()
-                                        .toUpperCase() &&
+                                (row["Công Trình"] || "")
+                                    .trim()
+                                    .toUpperCase() &&
                                 oldRow.description ===
-                                    (row["Khoản Mục Chi Phí"] || "").trim()
+                                (row["Khoản Mục Chi Phí"] || "").trim()
                         );
                     })
                     .map((row) => {
@@ -270,7 +270,7 @@ export default function ActualCostsTab({ projectId }) {
     const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
 
     const [initialDbLoadComplete, setInitialDbLoadComplete] = useState(false);
-    
+
     useEffect(() => {
         const fetchCostAllocations = async () => {
             if (!year || !quarter) return;
@@ -401,11 +401,11 @@ export default function ActualCostsTab({ projectId }) {
                     return project.includes("-VT") || project.includes("-NC");
                 },
             },
-             {
-            key: "noPhaiTraCKNM",
-            label: "Nợ Phải Trả CK NM",
-            editable: true, 
-        },
+            {
+                key: "noPhaiTraCKNM",
+                label: "Nợ Phải Trả CK NM",
+                editable: true,
+            },
             { key: "totalCost", label: "Tổng Chi Phí", editable: false },
             { key: "cpVuot", label: "CP Vượt", editable: false },
 
@@ -419,20 +419,20 @@ export default function ActualCostsTab({ projectId }) {
         ],
         []
     );
-    
+
     const [columnsVisibility, setColumnsVisibility] = useState(
         () =>
             JSON.parse(localStorage.getItem("columnsVisibility")) ||
             columnsAll.reduce((acc, col) => ({ ...acc, [col.key]: true }), {})
     );
-    
+
     const displayedColumns = useMemo(() => {
         const isNhaMayType = projectData?.type === "Nhà máy";
 
         return columnsAll.reduce((acc, col) => {
             // Lọc các cột chỉ dành cho type "Nhà máy" nếu type hiện tại không khớp
             const isNhaMayOnlyColumn =
-                col.key === "cpVuot" || col.key === "payableDeductionThisQuarter" ||  col.key === "noPhaiTraCKNM";
+                col.key === "cpVuot" || col.key === "payableDeductionThisQuarter" || col.key === "noPhaiTraCKNM";
 
             if (isNhaMayOnlyColumn && !isNhaMayType) {
                 return acc; // Bỏ qua cột này
@@ -525,7 +525,7 @@ export default function ActualCostsTab({ projectId }) {
         ],
         []
     );
-    
+
     const summarySumKeys = useMemo(
         () =>
             sumKeys.filter(
@@ -535,56 +535,56 @@ export default function ActualCostsTab({ projectId }) {
     );
 
     useEffect(() => {
-        if (!id || !year || !quarter) return;
+  if (!id || !year || !quarter) return;
 
-        const docRef = doc(
-            db,
-            "projects",
-            id,
-            "years",
-            year,
-            "quarters",
-            quarter
+  const docRef = doc(db, "projects", id, "years", year, "quarters", quarter);
+
+  const unsubscribe = onSnapshot(
+    docRef,
+    (docSnap) => {
+      try {
+        // Lấy overallRevenue từ server doc để dùng ngay (state setOverallRevenue sẽ tới chậm hơn 1 tick)
+        const orvFromDoc = parseNumber(
+          docSnap.exists() ? (docSnap.data().overallRevenue ?? 0) : 0
         );
+        setOverallRevenue(orvFromDoc);
 
-        const unsubscribe = onSnapshot(
-            docRef,
-            (docSnap) => {
-                try {
-                    const rev = docSnap.exists()
-                        ? parseNumber(docSnap.data().overallRevenue ?? 0)
-                        : 0;
-                    setOverallRevenue(rev);
+        const rawItems = (docSnap.exists() ? (docSnap.data().items || []) : []).map((item) => ({
+          ...item,
+          id: item.id || generateUniqueId(),
+          project: (item.project || "").trim().toUpperCase(),
+          description: (item.description || "").trim(),
+        }));
 
-                    const items = (
-                        docSnap.exists() ? docSnap.data().items || [] : []
-                    ).map((item) => ({
-                        ...item,
-                        id: item.id || generateUniqueId(),
-                        project: (item.project || "").trim().toUpperCase(),
-                        description: (item.description || "").trim(),
-                    }));
+        // 👉 Quan trọng: tính lại tất cả các cột công thức NGAY khi nhận realtime
+        const recalculated = rawItems.map((row) => {
+          const r = { ...row };
+          calcAllFields(r, {
+            overallRevenue: orvFromDoc,              // dùng giá trị mới ngay
+            projectTotalAmount,                      // có thể là state hiện tại
+            projectType: projectData?.type,          // nếu chưa có, effect khác của bạn sẽ tính lại sau
+            isUserEditingNoPhaiTraCK: false,
+          });
+          return r;
+        });
 
-                    setCostItems(items);
-                } catch (err) {
-                    setError(
-                        "Lỗi khi xử lý dữ liệu thời gian thực: " + err.message
-                    );
-                } finally {
-                    setInitialDbLoadComplete(true);
-                    setLoading(false);
-                }
-            },
-            (err) => {
-                setError("Lỗi lắng nghe dữ liệu: " + err.message);
-                setLoading(false);
-            }
-        );
+        setCostItems(recalculated);
+      } catch (err) {
+        setError("Lỗi khi xử lý dữ liệu thời gian thực: " + err.message);
+      } finally {
+        setInitialDbLoadComplete(true);
+        setLoading(false);
+      }
+    },
+    (err) => {
+      setError("Lỗi lắng nghe dữ liệu: " + err.message);
+      setLoading(false);
+    }
+  );
 
-        return () => {
-            unsubscribe();
-        };
-    }, [id, year, quarter]);
+  return () => unsubscribe();
+}, [id, year, quarter, projectData, projectTotalAmount]);
+
 
     useEffect(() => {
         if (!id) return;
@@ -726,12 +726,12 @@ export default function ActualCostsTab({ projectId }) {
         },
         [overallRevenue, projectTotalAmount, projectData]
     );
-    
+
     const handleRemoveRow = useCallback(
         (id) => setCostItems((prev) => prev.filter((row) => row.id !== id)),
         []
     );
- // =================================================================
+    // =================================================================
     // MỚI: HÀM ĐỂ CHUYỂN ĐỔI CHẾ ĐỘ TỰ ĐỘNG/CỐ ĐỊNH CHO TỪNG DÒNG
     // =================================================================
     const handleToggleRevenueMode = useCallback(
@@ -806,107 +806,107 @@ export default function ActualCostsTab({ projectId }) {
             setLoading(false);
         }
     };
-    
-const handleSaveNextQuarter = async () => {
-    if (!validateData(costItems)) {
-        setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
-        return;
-    }
-    setLoading(true);
-    try {
-        // --- Bước 1: Xác định quý tiếp theo ---
-        const quarters = ["Q1", "Q2", "Q3", "Q4"];
-        const currIndex = quarters.indexOf(quarter);
-        const isLastQuarter = currIndex === 3;
-        const nextQuarter = isLastQuarter ? "Q1" : quarters[currIndex + 1];
-        const nextYear = isLastQuarter ? String(Number(year) + 1) : year;
 
-        // --- Bước 2: Lưu dữ liệu của quý HIỆN TẠI (Q1) ---
-        await setDoc(
-            doc(db, "projects", id, "years", year, "quarters", quarter),
-            {
-                items: costItems,
-                overallRevenue: Number(overallRevenue),
-                updated_at: new Date().toISOString(),
-            }
-        );
+    const handleSaveNextQuarter = async () => {
+        if (!validateData(costItems)) {
+            setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
+            return;
+        }
+        setLoading(true);
+        try {
+            // --- Bước 1: Xác định quý tiếp theo ---
+            const quarters = ["Q1", "Q2", "Q3", "Q4"];
+            const currIndex = quarters.indexOf(quarter);
+            const isLastQuarter = currIndex === 3;
+            const nextQuarter = isLastQuarter ? "Q1" : quarters[currIndex + 1];
+            const nextYear = isLastQuarter ? String(Number(year) + 1) : year;
 
-        // --- Bước 3: Đọc dữ liệu đã có của quý TIẾP THEO (Q2) ---
-        const nextQuarterDocRef = doc(db, "projects", id, "years", nextYear, "quarters", nextQuarter);
-        const nextQuarterDocSnap = await getDoc(nextQuarterDocRef);
-        const existingNextQuarterItems = nextQuarterDocSnap.exists() ? nextQuarterDocSnap.data().items || [] : [];
-        
-        // Tạo một map để tra cứu hiệu quả các dòng đã có của Q2
-        const existingItemsMap = new Map(
-            existingNextQuarterItems.map(item => {
-                const key = `${item.project}|||${item.description}`; // Khóa định danh một dòng
-                return [key, item];
-            })
-        );
+            // --- Bước 2: Lưu dữ liệu của quý HIỆN TẠI (Q1) ---
+            await setDoc(
+                doc(db, "projects", id, "years", year, "quarters", quarter),
+                {
+                    items: costItems,
+                    overallRevenue: Number(overallRevenue),
+                    updated_at: new Date().toISOString(),
+                }
+            );
 
-        // --- Bước 4: Hợp nhất dữ liệu từ Q1 vào Q2 ---
-        // Lặp qua từng dòng của Q1 để tính toán và cập nhật vào Q2
-        const mergedItems = costItems.map(currentItemFromQ1 => {
-            const key = `${currentItemFromQ1.project}|||${currentItemFromQ1.description}`;
-            const existingItemInQ2 = existingItemsMap.get(key);
+            // --- Bước 3: Đọc dữ liệu đã có của quý TIẾP THEO (Q2) ---
+            const nextQuarterDocRef = doc(db, "projects", id, "years", nextYear, "quarters", nextQuarter);
+            const nextQuarterDocSnap = await getDoc(nextQuarterDocRef);
+            const existingNextQuarterItems = nextQuarterDocSnap.exists() ? nextQuarterDocSnap.data().items || [] : [];
 
-            // Lấy các giá trị cuối kỳ từ quý hiện tại (Q1)
-const noPhaiTraCK_Q1 = Number(parseNumber(currentItemFromQ1.noPhaiTraCK || "0"));
-const noPhaiTraCKNM_Q1 = Number(parseNumber(currentItemFromQ1.noPhaiTraCKNM || "0"));
+            // Tạo một map để tra cứu hiệu quả các dòng đã có của Q2
+            const existingItemsMap = new Map(
+                existingNextQuarterItems.map(item => {
+                    const key = `${item.project}|||${item.description}`; // Khóa định danh một dòng
+                    return [key, item];
+                })
+            );
 
-// Xác định Nợ Phải Trả Đầu Kỳ cho quý tiếp theo (Q2) dựa trên loại dự án
-const openingDebtForQ2 =
-    projectData?.type === "Nhà máy"
-        ? String(noPhaiTraCK_Q1 + noPhaiTraCKNM_Q1) // CÔNG THỨC MỚI
-        : String(noPhaiTraCK_Q1);                 // Công thức cũ
+            // --- Bước 4: Hợp nhất dữ liệu từ Q1 vào Q2 ---
+            // Lặp qua từng dòng của Q1 để tính toán và cập nhật vào Q2
+            const mergedItems = costItems.map(currentItemFromQ1 => {
+                const key = `${currentItemFromQ1.project}|||${currentItemFromQ1.description}`;
+                const existingItemInQ2 = existingItemsMap.get(key);
 
-// Đây là các giá trị "đầu kỳ" cho Q2
-const openingBalancesForQ2 = {
-    inventory: currentItemFromQ1.tonKhoUngKH || "0",
-    debt: openingDebtForQ2, // <-- SỬ DỤNG GIÁ TRỊ ĐÃ TÍNH TOÁN
-    carryover: currentItemFromQ1.carryoverEnd || "0",
-};
-            if (existingItemInQ2) {
-                // Nếu dòng này ĐÃ TỒN TẠI trong Q2
-                // -> Hợp nhất: Lấy toàn bộ dữ liệu của nó và chỉ ghi đè các số dư đầu kỳ
-                existingItemsMap.delete(key); // Xóa khỏi map để theo dõi các dòng chỉ có ở Q2
-                return { ...existingItemInQ2, ...openingBalancesForQ2 };
-            } else {
-                // Nếu dòng này là MỚI (có ở Q1 nhưng chưa có ở Q2)
-                // -> Tạo một dòng mới hoàn toàn cho Q2
-                return {
-                    ...defaultRow,
-                    id: generateUniqueId(),
-                    project: currentItemFromQ1.project,
-                    description: currentItemFromQ1.description,
-                    hskh: currentItemFromQ1.hskh,
-                    ...openingBalancesForQ2, // Áp dụng số dư đầu kỳ
-                    // Các trường khác như directCost, revenue sẽ lấy từ defaultRow (là "0")
+                // Lấy các giá trị cuối kỳ từ quý hiện tại (Q1)
+                const noPhaiTraCK_Q1 = Number(parseNumber(currentItemFromQ1.noPhaiTraCK || "0"));
+                const noPhaiTraCKNM_Q1 = Number(parseNumber(currentItemFromQ1.noPhaiTraCKNM || "0"));
+
+                // Xác định Nợ Phải Trả Đầu Kỳ cho quý tiếp theo (Q2) dựa trên loại dự án
+                const openingDebtForQ2 =
+                    projectData?.type === "Nhà máy"
+                        ? String(noPhaiTraCK_Q1 + noPhaiTraCKNM_Q1) // CÔNG THỨC MỚI
+                        : String(noPhaiTraCK_Q1);                 // Công thức cũ
+
+                // Đây là các giá trị "đầu kỳ" cho Q2
+                const openingBalancesForQ2 = {
+                    inventory: currentItemFromQ1.tonKhoUngKH || "0",
+                    debt: openingDebtForQ2, // <-- SỬ DỤNG GIÁ TRỊ ĐÃ TÍNH TOÁN
+                    carryover: currentItemFromQ1.carryoverEnd || "0",
                 };
-            }
-        });
-        
-        // Thêm lại các dòng chỉ tồn tại ở Q2 mà không có ở Q1
-        const itemsOnlyInQ2 = Array.from(existingItemsMap.values());
-        const finalNextItems = [...mergedItems, ...itemsOnlyInQ2];
+                if (existingItemInQ2) {
+                    // Nếu dòng này ĐÃ TỒN TẠI trong Q2
+                    // -> Hợp nhất: Lấy toàn bộ dữ liệu của nó và chỉ ghi đè các số dư đầu kỳ
+                    existingItemsMap.delete(key); // Xóa khỏi map để theo dõi các dòng chỉ có ở Q2
+                    return { ...existingItemInQ2, ...openingBalancesForQ2 };
+                } else {
+                    // Nếu dòng này là MỚI (có ở Q1 nhưng chưa có ở Q2)
+                    // -> Tạo một dòng mới hoàn toàn cho Q2
+                    return {
+                        ...defaultRow,
+                        id: generateUniqueId(),
+                        project: currentItemFromQ1.project,
+                        description: currentItemFromQ1.description,
+                        hskh: currentItemFromQ1.hskh,
+                        ...openingBalancesForQ2, // Áp dụng số dư đầu kỳ
+                        // Các trường khác như directCost, revenue sẽ lấy từ defaultRow (là "0")
+                    };
+                }
+            });
 
-        // --- Bước 5: Lưu dữ liệu đã hợp nhất vào quý tiếp theo (Q2) ---
-        await setDoc(nextQuarterDocRef, {
-            items: finalNextItems,
-            // Giữ lại overallRevenue của Q2 nếu đã có, nếu không thì mặc định là 0
-            overallRevenue: nextQuarterDocSnap.exists() ? (nextQuarterDocSnap.data().overallRevenue || 0) : 0,
-            updated_at: new Date().toISOString()
-        }, { merge: true }); // Sử dụng { merge: true } để đảm bảo không ghi đè các trường khác ở cấp cao nhất
+            // Thêm lại các dòng chỉ tồn tại ở Q2 mà không có ở Q1
+            const itemsOnlyInQ2 = Array.from(existingItemsMap.values());
+            const finalNextItems = [...mergedItems, ...itemsOnlyInQ2];
 
-        setSnackOpen(true);
-        alert(`Đã cập nhật và tạo dữ liệu cho ${nextQuarter} / ${nextYear}`);
-    } catch (err) {
-        setError("Lỗi khi lưu & chuyển quý: " + err.message);
-        console.error("Lỗi chi tiết:", err); // Thêm log để gỡ lỗi
-    } finally {
-        setLoading(false);
-    }
-};
+            // --- Bước 5: Lưu dữ liệu đã hợp nhất vào quý tiếp theo (Q2) ---
+            await setDoc(nextQuarterDocRef, {
+                items: finalNextItems,
+                // Giữ lại overallRevenue của Q2 nếu đã có, nếu không thì mặc định là 0
+                overallRevenue: nextQuarterDocSnap.exists() ? (nextQuarterDocSnap.data().overallRevenue || 0) : 0,
+                updated_at: new Date().toISOString()
+            }, { merge: true }); // Sử dụng { merge: true } để đảm bảo không ghi đè các trường khác ở cấp cao nhất
+
+            setSnackOpen(true);
+            alert(`Đã cập nhật và tạo dữ liệu cho ${nextQuarter} / ${nextYear}`);
+        } catch (err) {
+            setError("Lỗi khi lưu & chuyển quý: " + err.message);
+            console.error("Lỗi chi tiết:", err); // Thêm log để gỡ lỗi
+        } finally {
+            setLoading(false);
+        }
+    };
     const handleAddRow = useCallback(
         () =>
             setCostItems((prev) => [
@@ -931,15 +931,15 @@ const openingBalancesForQ2 = {
     );
 
     const groupedData = useMemo(() => groupByProject(filtered), [filtered]);
-// Dòng code để debug
-// --- BẮT ĐẦU ĐOẠN CODE GỠ LỖI ---
-const itemsWithoutId = sortedCostItems.filter(item => !item.id);
-if (itemsWithoutId.length > 0) {
-    console.error("!!! LỖI DỮ LIỆU: CÁC DÒNG SAU ĐANG BỊ THIẾU ID:", itemsWithoutId);
-} else {
-    console.log("OK: Tất cả các dòng trong 'sortedCostItems' đều có ID.");
-}
-// --- KẾT THÚC ĐOẠN CODE GỠ LỖI ---
+    // Dòng code để debug
+    // --- BẮT ĐẦU ĐOẠN CODE GỠ LỖI ---
+    const itemsWithoutId = sortedCostItems.filter(item => !item.id);
+    if (itemsWithoutId.length > 0) {
+        console.error("!!! LỖI DỮ LIỆU: CÁC DÒNG SAU ĐANG BỊ THIẾU ID:", itemsWithoutId);
+    } else {
+        console.log("OK: Tất cả các dòng trong 'sortedCostItems' đều có ID.");
+    }
+    // --- KẾT THÚC ĐOẠN CODE GỠ LỖI ---
     return (
         <Box>
             <ActionBar
@@ -959,7 +959,7 @@ if (itemsWithoutId.length > 0) {
                 onSave={handleSave}
                 onSaveNextQuarter={handleSaveNextQuarter}
                 onToggleColumns={handleOpenColumnsDialog}
-                                onResetAllRevenue={handleResetAllRevenue}
+                onResetAllRevenue={handleResetAllRevenue}
 
                 onBack={() => navigate("/construction-plan")}
                 costItems={costItems}
@@ -998,7 +998,7 @@ if (itemsWithoutId.length > 0) {
                     setEditingCell={setEditingCell}
                     handleChangeField={handleChangeField}
                     handleRemoveRow={handleRemoveRow}
-                                    onToggleRevenueMode={handleToggleRevenueMode}
+                    onToggleRevenueMode={handleToggleRevenueMode}
 
                     overallRevenue={overallRevenue}
                     projectTotalAmount={projectTotalAmount}
@@ -1033,10 +1033,10 @@ if (itemsWithoutId.length > 0) {
                     {error}
                 </Alert>
             </Snackbar>
-            <FormulaGuide 
-            open={formulaDialogOpen} 
-            onClose={() => setFormulaDialogOpen(false)} 
-        />
+            <FormulaGuide
+                open={formulaDialogOpen}
+                onClose={() => setFormulaDialogOpen(false)}
+            />
         </Box>
     );
 }

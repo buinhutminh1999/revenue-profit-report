@@ -1,128 +1,188 @@
-import React, { useState, useEffect } from 'react'; // Thêm useEffect
-import { Outlet, useLocation } from 'react-router-dom';
-import { Box, styled, useTheme, useMediaQuery, CssBaseline, AppBar as MuiAppBar } from '@mui/material';
-import { AnimatePresence, motion } from 'framer-motion';
+// src/components/layout/Layout.jsx — ERP modernized shell (stable widths, scroll elevation, shortcuts)
 
-import Header from './Header'; 
-import Sidebar from './Sidebar';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Outlet, useLocation } from "react-router-dom";
+import {
+  Box,
+  styled,
+  useTheme,
+  useMediaQuery,
+  CssBaseline,
+  AppBar as MuiAppBar,
+  useScrollTrigger,
+} from "@mui/material";
+import { alpha } from "@mui/material/styles";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
-// --- CẤU HÌNH KÍCH THƯỚC CHO SIDEBAR ---
+import Header from "./Header";
+import Sidebar from "./Sidebar";
+
 const SIDEBAR_WIDTH_EXPANDED = 260;
 const SIDEBAR_WIDTH_COLLAPSED = 88;
 
-// --- Styled Component cho Header (AppBar) ---
+// AppBar mờ + blur, đổi chiều rộng theo trạng thái
 const AppBar = styled(MuiAppBar, {
-  shouldForwardProp: (prop) => prop !== 'open',
+  shouldForwardProp: (prop) => prop !== "open",
 })(({ theme, open }) => ({
   zIndex: theme.zIndex.drawer + 1,
-  backgroundColor: 'rgba(255, 255, 255, 0.8)',
-  backdropFilter: 'blur(8px)',
-  boxShadow: 'none',
+  backgroundColor: alpha(theme.palette.background.paper, 0.8),
+  backdropFilter: "blur(8px)",
+  boxShadow: "none",
   borderBottom: `1px solid ${theme.palette.divider}`,
   color: theme.palette.text.primary,
-  transition: theme.transitions.create(['width', 'margin'], {
+  transition: theme.transitions.create(["width", "margin"], {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.leavingScreen,
   }),
   ...(open && {
-    marginLeft: SIDEBAR_WIDTH_EXPANDED,
-    width: `calc(100% - ${SIDEBAR_WIDTH_EXPANDED}px)`,
-    transition: theme.transitions.create(['width', 'margin'], {
+    marginLeft: `var(--sidebar-w, ${SIDEBAR_WIDTH_EXPANDED}px)`,
+    width: `calc(100% - var(--sidebar-w, ${SIDEBAR_WIDTH_EXPANDED}px))`,
+    transition: theme.transitions.create(["width", "margin"], {
       easing: theme.transitions.easing.sharp,
       duration: theme.transitions.duration.enteringScreen,
     }),
   }),
 }));
 
-const DrawerHeader = styled('div')(({ theme }) => ({
-    ...theme.mixins.toolbar,
+const DrawerHeader = styled("div")(({ theme }) => ({
+  ...theme.mixins.toolbar,
 }));
 
-/**
- * Layout ERP hiện đại, responsive với sidebar có thể thu gọn và ghi nhớ trạng thái.
- */
 export default function ModernLayout() {
   const location = useLocation();
   const theme = useTheme();
-  const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
+  const isLgUp = useMediaQuery(theme.breakpoints.up("lg"));
+  const reduce = useReducedMotion();
+  const scrollRef = useRef(null);
+  const [elevated, setElevated] = useState(false);
 
-  // ▼▼▼ NÂNG CẤP 1: Đọc trạng thái từ localStorage khi khởi tạo ▼▼▼
-  // Sử dụng hàm callback trong useState để logic này chỉ chạy 1 lần duy nhất.
-  const [isSidebarOpen, setSidebarOpen] = useState(() => {
-    // Chỉ áp dụng ghi nhớ trên màn hình desktop
-    if (isLgUp) {
-      const savedState = localStorage.getItem('sidebarOpen');
-      // Nếu có giá trị đã lưu, dùng nó. Nếu không, mặc định là mở.
-      return savedState !== null ? JSON.parse(savedState) : true;
-    }
-    // Trên mobile, mặc định luôn là đóng.
-    return false;
-  });
-
-  // ▼▼▼ NÂNG CẤP 2: Lưu trạng thái vào localStorage mỗi khi nó thay đổi ▼▼▼
+  // Khởi tạo: mặc định đóng; khi biết là desktop thì đọc localStorage
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
   useEffect(() => {
-    // Chỉ lưu trạng thái trên desktop
     if (isLgUp) {
-        localStorage.setItem('sidebarOpen', JSON.stringify(isSidebarOpen));
-    }
-  }, [isSidebarOpen, isLgUp]); // Chạy lại mỗi khi isSidebarOpen hoặc isLgUp thay đổi
-
-  // ▼▼▼ NÂNG CẤP 3: Tự động đóng sidebar mobile sau khi chuyển trang ▼▼▼
-  useEffect(() => {
-    if (!isLgUp && isSidebarOpen) {
+      const saved = localStorage.getItem("sidebarOpen");
+      setSidebarOpen(saved !== null ? JSON.parse(saved) : true);
+    } else {
       setSidebarOpen(false);
     }
+  }, [isLgUp]);
+
+  // Lưu trạng thái (desktop)
+  useEffect(() => {
+    if (isLgUp) localStorage.setItem("sidebarOpen", JSON.stringify(isSidebarOpen));
+  }, [isSidebarOpen, isLgUp]);
+
+  // Đóng sidebar mobile sau khi chuyển trang
+  useEffect(() => {
+    if (!isLgUp && isSidebarOpen) setSidebarOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
+  // Phím tắt: Ctrl/Cmd + B để toggle sidebar
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        setSidebarOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
-  const handleSidebarToggle = () => {
-    setSidebarOpen(!isSidebarOpen);
-  };
+  const handleSidebarToggle = useCallback(() => setSidebarOpen((v) => !v), []);
+
+  // Theo dõi cuộn để thêm bóng dưới AppBar
+  useEffect(() => {
+    const sc = scrollRef.current;
+    if (!sc) return;
+    const onScroll = () => setElevated(sc.scrollTop > 2);
+    sc.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => sc.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // CSS variables cho chiều rộng sidebar → hạn chế layout shift
+  const rootVars = useMemo(
+    () => ({
+      // --sidebar-w dùng khi mở trên desktop, ngược lại dùng collapsed
+      "--sidebar-w":
+        isLgUp && isSidebarOpen
+          ? `${SIDEBAR_WIDTH_EXPANDED}px`
+          : `${SIDEBAR_WIDTH_COLLAPSED}px`,
+    }),
+    [isLgUp, isSidebarOpen]
+  );
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
+    <Box sx={{ display: "flex", height: "100vh", ...rootVars }}>
       <CssBaseline />
-      
-      <AppBar position="fixed" open={isSidebarOpen && isLgUp}>
-        <Header 
-            onSidebarToggle={handleSidebarToggle} 
-            isSidebarOpen={isSidebarOpen}
-        />
+
+      <AppBar
+        position="fixed"
+        open={isSidebarOpen && isLgUp}
+        sx={{
+          // đổ bóng khi content cuộn
+          boxShadow: elevated ? `0 6px 16px ${alpha(theme.palette.common.black, 0.08)}` : "none",
+        }}
+      >
+        <Header onSidebarToggle={handleSidebarToggle} isSidebarOpen={isSidebarOpen} />
       </AppBar>
-      
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onClose={() => setSidebarOpen(false)} // Dùng cho mobile drawer
+
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setSidebarOpen(false)}
         widthExpanded={SIDEBAR_WIDTH_EXPANDED}
         widthCollapsed={SIDEBAR_WIDTH_COLLAPSED}
       />
-      
-      <Box component="main" sx={{ 
-          flexGrow: 1, 
-          display: 'flex',
-          flexDirection: 'column',
-          width: { lg: `calc(100% - ${SIDEBAR_WIDTH_COLLAPSED}px)` },
-          transition: 'width 0.2s ease-in-out', // Thêm transition cho mượt
-          ...(isSidebarOpen && isLgUp && {
-            width: `calc(100% - ${SIDEBAR_WIDTH_EXPANDED}px)`,
-          }),
-          overflow: 'hidden'
-      }}>
+
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          display: "flex",
+          flexDirection: "column",
+          // chiều rộng ổn định theo biến
+          width: { lg: `calc(100% - var(--sidebar-w))` },
+          transition: reduce ? "none" : "width 200ms ease-in-out",
+          overflow: "hidden",
+        }}
+      >
+        {/* Spacer cho AppBar */}
         <DrawerHeader />
-        
-        <Box sx={{ flexGrow: 1, p: { xs: 2, sm: 3 }, overflowY: 'auto' }}>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={location.pathname}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 15 }}
-                transition={{ duration: 0.25, ease: 'easeInOut' }}
-              >
-                <Outlet />
-              </motion.div>
-            </AnimatePresence>
+
+        {/* Content scroll container */}
+        <Box
+          ref={scrollRef}
+          role="main"
+          id="app-main"
+          tabIndex={-1}
+          sx={{
+            flexGrow: 1,
+            p: { xs: 2, sm: 3 },
+            overflowY: "auto",
+            overflowX: "hidden",
+            scrollBehavior: "smooth",
+            overscrollBehavior: "contain",
+            // Edge-fade gợi ý còn nội dung khi cuộn ngang (nếu có)
+            WebkitMaskImage:
+              "linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%)",
+            maskImage:
+              "linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%)",
+          }}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname + location.search}
+              initial={reduce ? {} : { opacity: 0, y: 15 }}
+              animate={reduce ? {} : { opacity: 1, y: 0 }}
+              exit={reduce ? {} : { opacity: 0, y: 15 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+              style={{ display: "flex", flexDirection: "column", minHeight: "100%" }}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </Box>
       </Box>
     </Box>
