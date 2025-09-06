@@ -6,7 +6,9 @@ import { styled } from '@mui/material/styles';
 import {
   Construction, Building, BookCheck, FileSpreadsheet, BarChart3,
   Landmark, ClipboardList, BookUser, PieChart, LineChart, TrendingUp,
-  FileCheck2, FileBarChart2
+  FileCheck2, FileBarChart2,
+  Archive,
+  ArrowRightLeft
 } from 'lucide-react';
 
 // Styled Card với hiệu ứng ERP hiện đại
@@ -37,23 +39,31 @@ const Home = () => {
   const userName = "Admin";
 
   const allModules = [
-    { icon: <Construction size={26} />, title: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ công việc", color: '#3b82f6', bgColor: '#eff6ff' },
-    { icon: <Building size={26} />, title: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết thông tin các công trình", color: '#8b5cf6', bgColor: '#f5f3ff' },
-    { icon: <BookCheck size={26} />, title: "Phân Bổ Chi Phí", to: "/allocations", desc: "Quản lý và phân bổ chi phí dự án", color: '#10b981', bgColor: '#ecfdf5' },
-    { icon: <FileSpreadsheet size={26} />, title: "Công Nợ Phải Trả", to: "/construction-payables", desc: "Theo dõi và quản lý các khoản công nợ", color: '#f59e0b', bgColor: '#fffbeb' },
-    { icon: <FileCheck2 size={26} />, title: "Công Nợ Phải Thu", to: "/accounts-receivable", desc: "Theo dõi các khoản phải thu từ khách hàng", color: '#ec4899', bgColor: '#fdf2f8' },
-    { icon: <BarChart3 size={26} />, title: "Bảng Cân Đối Kế Toán", to: "/balance-sheet", desc: "Tình hình tài sản và nguồn vốn", color: '#14b8a6', bgColor: '#f0fdfa' },
-    { icon: <Landmark size={26} />, title: "Báo Cáo Sử Dụng Vốn", to: "/capital-utilization", desc: "Đối chiếu kế hoạch và thực tế sử dụng", color: '#6366f1', bgColor: '#eef2ff' },
-    { icon: <ClipboardList size={26} />, title: "Hệ Thống Tài Khoản", to: "/chart-of-accounts", desc: "Danh mục các tài khoản kế toán", color: '#64748b', bgColor: '#f8fafc' },
-    { icon: <BookUser size={26} />, title: "Báo Cáo Nợ Có", to: "/broker-debt-report", desc: "Theo dõi và đối chiếu số dư nợ có", color: '#ef4444', bgColor: '#fef2f2' },
-    { icon: <BarChart3 size={26} />, title: 'Báo Cáo Lợi Nhuận', to: '/profit-report-quarter', desc: 'Phân tích theo từng quý', color: '#3b82f6', bgColor: '#eff6ff' },
-    { icon: <FileBarChart2 size={26} />, title: "Báo cáo Phân bổ Chi phí", to: "/quarterly-cost-allocation-report", desc: "Phân bổ chi phí theo doanh thu dự án", color: '#0d9488', bgColor: '#ccfbf1' },
-    { icon: <PieChart size={26} />, title: 'Chi Phí Theo Quý', to: '/cost-allocation-quarter', desc: 'Theo dõi phân bổ chi phí', color: '#8b5cf6', bgColor: '#f5f3ff' },
-    { icon: <LineChart size={26} />, title: 'Lợi Nhuận Theo Năm', to: '/profit-report-year', desc: 'Xem báo cáo tổng kết năm', color: '#10b981', bgColor: '#ecfdf5' },
-    { icon: <TrendingUp size={26} />, title: 'Tăng Giảm Lợi Nhuận', to: '/profit-change', desc: 'Phân tích các yếu tố ảnh hưởng', color: '#f59e0b', bgColor: '#fffbeb' },
-    { icon: <PieChart size={26} />, title: 'Báo Cáo Tổng Quát', to: '/overall-report', desc: 'Tổng hợp tình hình hoạt động', color: '#6366f1', bgColor: '#eef2ff' },
-    { icon: <FileSpreadsheet size={26} />, title: "Quản Lý Danh Mục", to: "/categories", desc: "Theo dõi công nợ", color: '#f59e0b', bgColor: '#fef3c7' },
-  ];
+        // --- CÁC MODULE CHÍNH ---
+        { icon: <Construction size={26} />, title: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ công việc", color: '#3b82f6', bgColor: '#eff6ff' },
+
+        { icon: <Building size={26} />, title: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết thông tin các công trình", color: '#8b5cf6', bgColor: '#f5f3ff' },
+                { icon: <ArrowRightLeft size={26} />, title: "QL Luân chuyển Tài sản", to: "/asset-transfer", desc: "Theo dõi và luân chuyển tài sản", color: '#0891b2', bgColor: '#cffafe', isNew: true },
+
+        { icon: <BookCheck size={26} />, title: "Phân Bổ Chi Phí", to: "/allocations", desc: "Quản lý và phân bổ chi phí dự án", color: '#10b981', bgColor: '#ecfdf5' },
+        { icon: <FileSpreadsheet size={26} />, title: "Công Nợ Phải Trả", to: "/construction-payables", desc: "Theo dõi và quản lý các khoản công nợ", color: '#f59e0b', bgColor: '#fffbeb' },
+        { icon: <FileCheck2 size={26} />, title: "Công Nợ Phải Thu", to: "/accounts-receivable", desc: "Theo dõi các khoản phải thu từ khách hàng", color: '#ec4899', bgColor: '#fdf2f8' },
+        { icon: <BarChart3 size={26} />, title: "Bảng Cân Đối Kế Toán", to: "/balance-sheet", desc: "Tình hình tài sản và nguồn vốn", color: '#14b8a6', bgColor: '#f0fdfa' },
+        { icon: <ClipboardList size={26} />, title: "Hệ Thống Tài Khoản", to: "/chart-of-accounts", desc: "Danh mục các tài khoản kế toán", color: '#64748b', bgColor: '#f8fafc' },
+        { icon: <FileSpreadsheet size={26} />, title: "Quản Lý Danh Mục", to: "/categories", desc: "Theo dõi công nợ", color: '#f59e0b', bgColor: '#fef3c7' },
+        { icon: <PieChart size={26} />, title: 'Chi Phí Theo Quý', to: '/cost-allocation-quarter', desc: 'Theo dõi phân bổ chi phí', color: '#8b5cf6', bgColor: '#f5f3ff' },
+        { icon: <TrendingUp size={26} />, title: 'Tăng Giảm Lợi Nhuận', to: '/profit-change', desc: 'Phân tích các yếu tố ảnh hưởng', color: '#f59e0b', bgColor: '#fffbeb' },
+
+
+        // --- CÁC MODULE BÁO CÁO (ĐÃ CẬP NHẬT ĐƯỜNG DẪN) ---
+        { icon: <Landmark size={26} />, title: "Báo Cáo Sử Dụng Vốn", to: "/reports/capital-utilization", desc: "Đối chiếu kế hoạch và thực tế sử dụng", color: '#6366f1', bgColor: '#eef2ff' },
+        { icon: <BookUser size={26} />, title: "Báo Cáo Nợ Có", to: "/reports/broker-debt", desc: "Theo dõi và đối chiếu số dư nợ có", color: '#ef4444', bgColor: '#fef2f2' },
+        { icon: <BarChart3 size={26} />, title: 'Báo Cáo Lợi Nhuận Quý', to: '/reports/profit-quarter', desc: 'Phân tích theo từng quý', color: '#3b82f6', bgColor: '#eff6ff' },
+        { icon: <FileBarChart2 size={26} />, title: "Báo cáo Phân bổ Chi phí", to: "/reports/quarterly-cost-allocation", desc: "Phân bổ chi phí theo doanh thu dự án", color: '#0d9488', bgColor: '#ccfbf1' },
+        { icon: <LineChart size={26} />, title: 'Báo Cáo Lợi Nhuận Năm', to: '/reports/profit-year', desc: 'Xem báo cáo tổng kết năm', color: '#10b981', bgColor: '#ecfdf5' },
+        { icon: <PieChart size={26} />, title: 'Báo Cáo Tổng Quát', to: '/reports/overall', desc: 'Tổng hợp tình hình hoạt động', color: '#6366f1', bgColor: '#eef2ff' },
+    ];
+
 
   return (
     <Box sx={{ bgcolor: '#f8fafc', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>

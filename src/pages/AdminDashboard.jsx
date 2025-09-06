@@ -1,30 +1,37 @@
-import React, { useEffect, useState, useRef } from 'react';
-// ✨ FIX 1: Thêm 'useTheme' vào import từ @mui/material
-import { Box, Typography, Grid, Paper, Stack, List, ListItem, ListItemButton, ListItemText, Chip, useTheme } from '@mui/material';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { Box, Typography, Grid, Paper, Stack, List, ListItemButton, ListItemText, Chip, useTheme } from '@mui/material';
 import { styled, alpha } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase-config';
 
-import { Users, Settings, BarChart, HardDrive, ClipboardList, ChevronRight, FileText } from 'lucide-react';
-
-// --- DỮ LIỆU CẤU HÌNH (Giữ nguyên) ---
+import { Users, Settings, BarChart, HardDrive, ClipboardList, ChevronRight, FileText, Landmark } from 'lucide-react';
+// --- DỮ LIỆU CẤU HÌNH (Đã kiểm tra và đảm bảo mọi item đều có 'group') ---
 const adminItems = [
     {
         title: "Quản lý người dùng",
         description: "Thêm, xóa, và phân quyền cho người dùng hệ thống.",
         icon: <Users />,
-        count: 0,
+        countKey: 'userCount', // Key để lấy số liệu từ state
         color: 'primary',
         path: "/admin/users",
+        group: "Người dùng & Phân quyền",
+    },
+    {
+        title: "Quản lý Phòng ban",
+        description: "Tạo, sửa đổi và chỉ định trưởng phòng cho các đơn vị.",
+        icon: <Landmark  />,
+        countKey: 'departmentCount', // Key để lấy số liệu từ state
+        color: 'secondary',
+        path: "/admin/departments",
         group: "Người dùng & Phân quyền",
     },
     {
         title: "Cấu hình Danh mục",
         description: "Quản lý các danh mục chi phí và các khoản mục khác.",
         icon: <Settings />,
-        color: 'secondary',
+        color: 'info',
         path: "/categories",
         group: "Hệ thống & Cấu hình",
     },
@@ -33,15 +40,15 @@ const adminItems = [
         description: "Xem và phân tích các báo cáo tài chính theo từng quý.",
         icon: <BarChart />,
         color: 'success',
-        path: "/profit-report-quarter",
+        path: "/reports/profit-quarter",
         group: "Thống kê & Báo cáo",
     },
     {
         title: "Báo cáo Tuần",
         description: "Tổng hợp các báo cáo công việc được gửi lên hàng tuần.",
         icon: <FileText />,
-        count: 0,
-        path: "/reports",
+        countKey: 'reportCount', // Key để lấy số liệu từ state
+        path: "/reports/weekly",
         color: 'info',
         group: "Thống kê & Báo cáo",
     },
@@ -57,7 +64,8 @@ const adminItems = [
         title: "Nhật ký Hệ thống",
         description: "Theo dõi các hoạt động và lỗi phát sinh trên toàn hệ thống.",
         icon: <ClipboardList />,
-        disabled: true,
+        path: "/admin/audit-log",
+        disabled: false,
         color: 'error',
         group: "Công cụ & Bảo trì",
     },
@@ -92,9 +100,6 @@ const NavLinkButton = styled(ListItemButton)(({ theme }) => ({
         '&:hover': {
             backgroundColor: alpha(theme.palette.primary.main, 0.15),
         },
-        '& .MuiListItemIcon-root': {
-            color: theme.palette.primary.main,
-        }
     }
 }));
 
@@ -102,32 +107,50 @@ const NavLinkButton = styled(ListItemButton)(({ theme }) => ({
 // --- COMPONENT CHÍNH ---
 export default function AdminDashboard() {
     const navigate = useNavigate();
-    const [stats, setStats] = useState({ userCount: 0, reportCount: 0 });
+    // Khởi tạo state với giá trị null để dễ kiểm tra
+    const [stats, setStats] = useState({ userCount: null, reportCount: null, departmentCount: null });
     const sectionRefs = useRef({});
-    
-    // ✨ FIX 2: Gọi hook useTheme() để có thể sử dụng biến 'theme'
     const theme = useTheme(); 
 
     useEffect(() => {
         const fetchStats = async () => {
-            const usersSnap = await getDocs(collection(db, "users"));
-            const reportsSnap = await getDocs(collection(db, "weeklyReports"));
-            setStats({ userCount: usersSnap.size, reportCount: reportsSnap.size });
+            // Helper function để lấy dữ liệu an toàn
+            const safeGetDocs = async (collectionName) => {
+                try {
+                    const snap = await getDocs(collection(db, collectionName));
+                    return snap.size;
+                } catch (error) {
+                    console.warn(`Cảnh báo: Không thể tải collection '${collectionName}'.`, error.message);
+                    return 0; // Trả về 0 nếu có lỗi
+                }
+            };
+
+            const [userCount, reportCount, departmentCount] = await Promise.all([
+                safeGetDocs("users"),
+                safeGetDocs("weeklyReports"), // Sẽ không gây lỗi nếu collection này không tồn tại
+                safeGetDocs("departments")
+            ]);
+            
+            setStats({ userCount, reportCount, departmentCount });
         };
         fetchStats();
     }, []);
 
-    const itemsWithStats = adminItems.map(item => {
-        if (item.title === "Quản lý người dùng") return { ...item, count: stats.userCount };
-        if (item.title === "Báo cáo Tuần") return { ...item, count: stats.reportCount };
-        return item;
-    });
+    // Gom nhóm các mục, đảm bảo logic này luôn chạy đúng
+    const groupedItems = useMemo(() => {
+        return adminItems.reduce((acc, item) => {
+            // Gán số liệu thống kê vào từng mục
+            const itemWithStat = { ...item, count: stats[item.countKey] };
 
-    const groupedItems = itemsWithStats.reduce((acc, item) => {
-        acc[item.group] = acc[item.group] || [];
-        acc[item.group].push(item);
-        return acc;
-    }, {});
+            // Đảm bảo thuộc tính 'group' luôn tồn tại
+            const group = item.group || 'Chưa phân loại';
+            
+            // Thêm item vào nhóm
+            acc[group] = acc[group] || [];
+            acc[group].push(itemWithStat);
+            return acc;
+        }, {});
+    }, [stats]); // Tính toán lại chỉ khi stats thay đổi
 
     const handleNavClick = (groupId) => {
         sectionRefs.current[groupId]?.scrollIntoView({
@@ -150,7 +173,7 @@ export default function AdminDashboard() {
         <Box p={{xs: 2, md: 3}}>
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
                  <Typography variant="h4" gutterBottom fontWeight={700}>
-                    Trang quản trị
+                   Trang quản trị
                 </Typography>
                 <Typography variant="body1" color="text.secondary" mb={4}>
                     Tổng quan các chức năng quản lý, cấu hình và báo cáo hệ thống.
@@ -179,7 +202,8 @@ export default function AdminDashboard() {
                                     <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>{group}</Typography>
                                 </motion.div>
                                 <Stack spacing={2}>
-                                    {items.map((item, idx) => (
+                                    {/* ✨ SỬA LỖI: Thêm `items &&` để kiểm tra trước khi map */}
+                                    {items && items.map((item, idx) => (
                                         <motion.div variants={itemVariants} key={idx}>
                                             <AdminItemCard
                                                 onClick={() => !item.disabled && navigate(item.path)}
@@ -190,9 +214,9 @@ export default function AdminDashboard() {
                                                     <Typography fontWeight="bold">{item.title}</Typography>
                                                     <Typography variant="body2" color="text.secondary">{item.description}</Typography>
                                                 </Box>
-                                                {item.count !== undefined && <Chip label={item.count} size="small" sx={{ mx: 2, fontWeight: 'bold' }} />}
+                                                {/* Chỉ hiển thị Chip nếu count là một con số */}
+                                                {typeof item.count === 'number' && <Chip label={item.count} size="small" sx={{ mx: 2, fontWeight: 'bold' }} />}
                                                 
-                                                {/* ✨ FIX 3: Dùng prop 'sx' để gán màu tùy chỉnh cho icon */}
                                                 {!item.disabled && <ChevronRight style={{ color: theme.palette.text.secondary }} />}
                                             </AdminItemCard>
                                         </motion.div>

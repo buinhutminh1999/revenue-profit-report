@@ -28,7 +28,6 @@ const NotFound = lazy(() => import('../components/NotFound'));
 const UserProfile = lazy(() => import('../pages/UserProfile'));
 const EventSlideshow = lazy(() => import('../pages/EventSlideshow'));
 const EventEditor = lazy(() => import('../pages/EventEditor'));
-
 // Main Modules
 const ConstructionPlan = lazy(() => import('../components/ConstructionPlan/ConstructionPlan'));
 const ProjectsList = lazy(() => import('../pages/ProjectsList'));
@@ -40,6 +39,8 @@ const ChartOfAccountsPage = lazy(() => import('../pages/ChartOfAccountsPage'));
 const CostAllocationQuarter = lazy(() => import('../pages/CostAllocationQuarter'));
 const CategoryConfig = lazy(() => import('../pages/CategoryConfig'));
 const ProjectDetailsLayout = lazy(() => import('../pages/ProjectDetailsLayout'));
+const ProfitChange = lazy(() => import('../pages/ProfitChange'));
+const AssetTransferPage = lazy(() => import('../pages/AssetTransferPage'));
 
 // Report Modules
 const ProfitReportQuarter = lazy(() => import('../pages/ProfitReportQuarter'));
@@ -47,12 +48,14 @@ const ProfitReportYear = lazy(() => import('../pages/ProfitReportYear'));
 const BrokerDebtReport = lazy(() => import('../pages/BrokerDebtReport'));
 const OverallReportPage = lazy(() => import('../pages/OverallReportPage'));
 const CapitalUtilizationReport = lazy(() => import('../pages/CapitalUtilizationReport'));
-const ProfitChange = lazy(() => import('../pages/ProfitChange'));
-const QuarterlyCostAllocationReport = lazy(() => import('../pages/QuarterlyCostAllocationReport')); // <<< ĐÃ THÊM
+const QuarterlyCostAllocationReport = lazy(() => import('../pages/QuarterlyCostAllocationReport'));
+
+
 
 // Admin Modules
 const AdminDashboard = lazy(() => import('../pages/AdminDashboard'));
 const AdminUserManager = lazy(() => import('../components/AdminUserManager'));
+const AdminDepartmentManager = lazy(() => import('../pages/AdminDepartmentManager')); // <-- THÊM DÒNG NÀY
 const AdminAuditLog = lazy(() => import('../pages/AdminAuditLog'));
 const CloseQuarterPage = lazy(() => import('../pages/CloseQuarterPage'));
 
@@ -94,21 +97,25 @@ function AppRoutes() {
                         {/* Các module chính */}
                         <Route path="construction-plan" element={lazyLoad(ConstructionPlan)} />
                         <Route path="project-manager" element={lazyLoad(ProjectsList)} />
-
                         <Route path="accounts-receivable" element={lazyLoad(AccountsReceivable)} />
                         <Route path="construction-payables" element={lazyLoad(ConstructionPayables)} />
                         <Route path="allocations" element={lazyLoad(CostAllocation)} />
                         <Route path="balance-sheet" element={lazyLoad(BalanceSheet)} />
                         <Route path="profit-change" element={lazyLoad(ProfitChange)} />
                         <Route path="project-details/:id" element={lazyLoad(ProjectDetailsLayout)} />
+                        <Route path="asset-transfer" element={lazyLoad(AssetTransferPage)} />
 
-                        {/* Các module báo cáo */}
-                        <Route path="profit-report-quarter" element={lazyLoad(ProfitReportQuarter)} />
-                        <Route path="profit-report-year" element={lazyLoad(ProfitReportYear)} />
-                        <Route path="broker-debt-report" element={lazyLoad(BrokerDebtReport)} />
-                        <Route path="overall-report" element={lazyLoad(OverallReportPage)} />
-                        <Route path="capital-utilization" element={lazyLoad(CapitalUtilizationReport)} />
-                        <Route path="quarterly-cost-allocation-report" element={lazyLoad(QuarterlyCostAllocationReport)} /> {/* <<< ĐÃ THÊM */}
+
+
+                        {/* Các module báo cáo (<<< ĐÃ TÁI CẤU TRÚC) */}
+                        <Route path="reports">
+                            <Route path="profit-quarter" element={lazyLoad(ProfitReportQuarter)} />
+                            <Route path="profit-year" element={lazyLoad(ProfitReportYear)} />
+                            <Route path="broker-debt" element={lazyLoad(BrokerDebtReport)} />
+                            <Route path="overall" element={lazyLoad(OverallReportPage)} />
+                            <Route path="capital-utilization" element={lazyLoad(CapitalUtilizationReport)} />
+                            <Route path="quarterly-cost-allocation" element={lazyLoad(QuarterlyCostAllocationReport)} />
+                        </Route>
 
                         {/* Các route yêu cầu quyền truy cập cụ thể */}
                         <Route
@@ -128,7 +135,8 @@ function AppRoutes() {
                         <Route path="admin">
                             <Route index element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminDashboard)}</RequireRole>} />
                             <Route path="users" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminUserManager)}</RequireRole>} />
-                            <Route path="audit-log" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminAuditLog)}</RequireRole>} />
+                            <Route path="departments" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminDepartmentManager)}</RequireRole>} /> {/* <-- THÊM DÒNG NÀY */}
+                             <Route path="audit-log" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminAuditLog)}</RequireRole>} />
                             <Route path="close-quarter" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(CloseQuarterPage)}</RequireRole>} />
                         </Route>
 

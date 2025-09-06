@@ -1,0 +1,30 @@
+// src/initial-departments.js
+// Dữ liệu phòng ban ban đầu để khởi tạo hệ thống.
+
+export const initialDepartments = [
+  "PHÒNG HÀNH CHÍNH -KH-ĐT (TRỆT)",
+  "NHÀ XE CÔNG TY",
+  "TỦ THIẾT BỊ ĐO ĐẠC",
+  "Phòng truyền thống",
+  "NHÀ CÔNG VỤ",
+  "PHÒNG CUNG ỨNG - LẦU 1",
+  "PHÒNG TỔ THẦU - LẦU 1",
+  "PHÒNG HỌP 2 (THƯ GIÃN) - LẦU 1",
+  "PHÒNG KẾ TOÁN - LẦU 2",
+  "PHÒNG TỔNG GIÁM ĐỐC - LẦU 2",
+  "PHÒNG PHÓ TGĐ KH-ĐT - LẦU 2",
+  "PHÒNG PHÓ TGĐ XÂY DỰNG",
+  "PHÒNG XNXD - LẦU 3",
+  "PHÒNG XNXD 2 - LẦU 3",
+  "PHÒNG KH-ĐT (CŨ) - LẦU 4",
+  "PHÒNG CHỦ TỊCH HĐQT - LẦU 4",
+  "PHÒNG CHỦ TỊCH CĐCS - LẦU 4",
+  "HỘI TRƯỜNG TẦNG 5",
+  "PHÒNG NGỦ LẦU 5",
+  "PHÒNG NGỦ LẦU 6",
+  "VĂN PHÒNG - NHÀ MÁY",
+  "XE CƠ GIỚI - Nhà máy",
+  "XE CƠ GIỚI - XNXD",
+  "PHÒNG LAS - NHÀ MÁY",
+  "NHÀ ĐIỀU HÀNH BẮC LONG XUYÊN",
+];
