@@ -1,3 +1,4 @@
+// src/pages/AdminDepartmentManager.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import {
   Box, Typography, Select, MenuItem, FormControl, InputLabel, OutlinedInput,
@@ -7,7 +8,7 @@ import {
   DialogContentText, Avatar, Chip, Toolbar, Grid, Card, CardContent, ListItemText, Checkbox
 } from "@mui/material";
 import {
-  Delete, Edit, GroupWork, AddBusiness, SupervisorAccount, PeopleAlt, Warning, Sync
+  Delete, Edit, GroupWork, AddBusiness, PeopleAlt, Warning, Sync
 } from "@mui/icons-material";
 import {
   collection, getDocs, updateDoc, doc, addDoc, query, orderBy as fsOrderBy, deleteDoc, writeBatch
@@ -18,6 +19,17 @@ import { db } from "../services/firebase-config";
 const MANAGER_ROLE_IDS = new Set([
   "admin", "truong-phong", "pho-phong", "tong-giam-doc", "pho-tong-giam-doc"
 ]);
+
+/* ---- Danh sách slug cố định để CHỌN ---- */
+const SLUG_OPTIONS = [
+  { label: "Hành chính", value: "hanh-chinh" },
+  { label: "XNXD", value: "xnxd" },
+  { label: "XNXD 2", value: "xnxd2" },
+  { label: "Kế toán", value: "ke-toan" },
+  { label: "Cung ứng", value: "cung-ung" },
+  { label: "Tổ thầu", value: "to-thau" },
+  { label: "Nhà máy", value: "nha-may" },
+];
 
 /* ---- Sorting helpers ---- */
 function descendingComparator(a, b, orderBy) {
@@ -63,48 +75,137 @@ const StatCard = ({ icon, title, count, color }) => (
 );
 
 /* ---- Form Dialog ---- */
-const DepartmentFormDialog = ({ open, onClose, onSave, form, setForm, isEdit, allManagers, departments }) => (
-  <Dialog open={open} onClose={onClose}>
-    <DialogTitle>{isEdit ? "Chỉnh Sửa Phòng Ban" : "Thêm Phòng Ban Mới"}</DialogTitle>
-    <DialogContent>
-      <Stack spacing={2} sx={{ mt: 1, minWidth: { sm: 520 } }}>
-        <TextField
-          autoFocus
-          label="Tên phòng ban"
-          fullWidth
-          value={form.name || ""}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
-        <FormControl fullWidth>
-          <InputLabel>Người Quản lý</InputLabel>
-          <Select
-            multiple
-            value={form.managerIds || []}
-            onChange={(e) => setForm({
-              ...form,
-              managerIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
-            })}
-            input={<OutlinedInput label="Người Quản lý" />}
-            renderValue={(selected) =>
-              selected.map(id => allManagers.find(m => m.uid === id)?.displayName).filter(Boolean).join(", ")
-            }
-          >
-            {allManagers.map((manager) => (
-              <MenuItem key={manager.uid} value={manager.uid}>
-                <Checkbox checked={(form.managerIds || []).indexOf(manager.uid) > -1} />
-                <ListItemText primary={manager.displayName} secondary={manager.email} />
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Stack>
-    </DialogContent>
-    <DialogActions sx={{ p: "0 24px 16px" }}>
-      <Button onClick={onClose}>Hủy</Button>
-      <Button onClick={onSave} variant="contained">{isEdit ? "Lưu thay đổi" : "Tạo mới"}</Button>
-    </DialogActions>
-  </Dialog>
-);
+const DepartmentFormDialog = ({
+  open, onClose, onSave, form, setForm, isEdit, allManagers, departments, users
+}) => {
+  // Nếu đang edit và slug hiện tại không có trong preset → thêm 1 dòng “giữ nguyên”
+  const hasCurrentSlugInOptions = SLUG_OPTIONS.some(o => o.value === (form.slug || ""));
+  const effectiveOptions = hasCurrentSlugInOptions || !isEdit
+    ? SLUG_OPTIONS
+    : [{ label: `(Giữ nguyên) ${form.slug}`, value: form.slug, _locked: true }, ...SLUG_OPTIONS];
+
+  return (
+    <Dialog open={open} onClose={onClose}>
+      <DialogTitle>{isEdit ? "Chỉnh Sửa Phòng Ban" : "Thêm Phòng Ban Mới"}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1, minWidth: { sm: 520 } }}>
+          {/* Tên phòng ban */}
+          <TextField
+            autoFocus
+            label="Tên phòng ban"
+            fullWidth
+            value={form.name || ""}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+
+          {/* Slug chọn từ danh sách có sẵn */}
+          <FormControl fullWidth required>
+            <InputLabel>Slug (chọn sẵn)</InputLabel>
+            <Select
+              label="Slug (chọn sẵn)"
+              value={form.slug || ""}
+              onChange={(e) => setForm({ ...form, slug: e.target.value })}
+            >
+              {effectiveOptions.map(opt => (
+                <MenuItem key={opt.value} value={opt.value} disabled={opt._locked}>
+                  <ListItemText
+                    primary={opt.label}
+                    secondary={opt.value}
+                    primaryTypographyProps={{ fontWeight: opt._locked ? 400 : 600 }}
+                    secondaryTypographyProps={{ fontFamily: "monospace" }}
+                  />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Người quản lý (nếu đang dùng managerIds cho quyền tổng quát) */}
+          <FormControl fullWidth>
+            <InputLabel>Người Quản lý</InputLabel>
+            <Select
+              multiple
+              value={form.managerIds || []}
+              onChange={(e) => setForm({
+                ...form,
+                managerIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
+              })}
+              input={<OutlinedInput label="Người Quản lý" />}
+              renderValue={(selected) =>
+                selected
+                  .map(id => allManagers.find(m => m.uid === id)?.displayName)
+                  .filter(Boolean)
+                  .join(", ")
+              }
+            >
+              {allManagers.map((manager) => (
+                <MenuItem key={manager.uid} value={manager.uid}>
+                  <Checkbox checked={(form.managerIds || []).indexOf(manager.uid) > -1} />
+                  <ListItemText primary={manager.displayName} secondary={manager.email} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Trưởng phòng (headIds) */}
+          <FormControl fullWidth>
+            <InputLabel>Trưởng phòng (headIds)</InputLabel>
+            <Select
+              multiple
+              value={form.headIds || []}
+              onChange={(e) => setForm({
+                ...form,
+                headIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
+              })}
+              input={<OutlinedInput label="Trưởng phòng (headIds)" />}
+              renderValue={(selected) =>
+                (selected || [])
+                  .map(uid => (users.find(u => u.uid === uid)?.displayName || users.find(u => u.uid === uid)?.email || uid))
+                  .join(", ")
+              }
+            >
+              {users.map((u) => (
+                <MenuItem key={u.uid} value={u.uid}>
+                  <Checkbox checked={(form.headIds || []).includes(u.uid)} />
+                  <ListItemText primary={u.displayName || u.email} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Phó phòng (deputyIds) */}
+          <FormControl fullWidth>
+            <InputLabel>Phó phòng (deputyIds)</InputLabel>
+            <Select
+              multiple
+              value={form.deputyIds || []}
+              onChange={(e) => setForm({
+                ...form,
+                deputyIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
+              })}
+              input={<OutlinedInput label="Phó phòng (deputyIds)" />}
+              renderValue={(selected) =>
+                (selected || [])
+                  .map(uid => (users.find(u => u.uid === uid)?.displayName || users.find(u => u.uid === uid)?.email || uid))
+                  .join(", ")
+              }
+            >
+              {users.map((u) => (
+                <MenuItem key={u.uid} value={u.uid}>
+                  <Checkbox checked={(form.deputyIds || []).includes(u.uid)} />
+                  <ListItemText primary={u.displayName || u.email} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ p: "0 24px 16px" }}>
+        <Button onClick={onClose}>Hủy</Button>
+        <Button onClick={onSave} variant="contained">{isEdit ? "Lưu thay đổi" : "Tạo mới"}</Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
 
 /* ---- Main Page ---- */
 export default function AdminDepartmentManager() {
@@ -123,7 +224,11 @@ export default function AdminDepartmentManager() {
   const [modalMode, setModalMode] = useState("add");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
-  const [currentDept, setCurrentDept] = useState({ name: "", managerIds: [] });
+
+  // currentDept thêm slug, headIds, deputyIds
+  const [currentDept, setCurrentDept] = useState({
+    name: "", slug: "", managerIds: [], headIds: [], deputyIds: []
+  });
 
   const fetchData = async () => {
     setLoading(true);
@@ -161,7 +266,7 @@ export default function AdminDepartmentManager() {
     () => departments.filter(dept => {
       const s = search.toLowerCase();
       const managerNames = dept.managers.map(m => (m.displayName || "").toLowerCase()).join(" ");
-      return dept.name.toLowerCase().includes(s) || managerNames.includes(s);
+      return dept.name.toLowerCase().includes(s) || managerNames.includes(s) || (dept.slug || "").toLowerCase().includes(s);
     }),
     [departments, search]
   );
@@ -180,24 +285,35 @@ export default function AdminDepartmentManager() {
   const handleOpenModal = (mode, dept = null) => {
     setModalMode(mode);
     if (mode === "add") {
-      setCurrentDept({ name: "", managerIds: [] });
+      setCurrentDept({ name: "", slug: SLUG_OPTIONS[0].value, managerIds: [], headIds: [], deputyIds: [] });
     } else {
       const managerIds = allManagers
         .filter(m => (m.managedDepartmentIds || []).includes(dept.id))
         .map(m => m.uid);
-      setCurrentDept({ id: dept.id, name: dept.name, managerIds });
+      setCurrentDept({
+        id: dept.id,
+        name: dept.name || "",
+        slug: dept.slug || SLUG_OPTIONS[0].value,
+        managerIds,
+        headIds: dept.headIds || [],
+        deputyIds: dept.deputyIds || [],
+      });
     }
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setCurrentDept({ name: "", managerIds: [] });
+    setCurrentDept({ name: "", slug: "", managerIds: [], headIds: [], deputyIds: [] });
   };
 
   const handleSaveDepartment = async () => {
     if (!currentDept.name) {
       setFeedback({ open: true, message: "Tên phòng ban không được để trống.", severity: "warning" });
+      return;
+    }
+    if (!currentDept.slug) {
+      setFeedback({ open: true, message: "Vui lòng chọn slug cho phòng ban.", severity: "warning" });
       return;
     }
 
@@ -207,13 +323,23 @@ export default function AdminDepartmentManager() {
 
     try {
       if (modalMode === "add") {
-        const newDeptRef = await addDoc(collection(db, "departments"), { name: currentDept.name });
+        const newDeptRef = await addDoc(collection(db, "departments"), {
+          name: currentDept.name,
+          slug: (currentDept.slug || "").trim(),
+          headIds: currentDept.headIds || [],
+          deputyIds: currentDept.deputyIds || [],
+        });
         departmentId = newDeptRef.id;
       } else {
-        await updateDoc(doc(db, "departments", departmentId), { name: currentDept.name });
+        await updateDoc(doc(db, "departments", departmentId), {
+          name: currentDept.name,
+          slug: (currentDept.slug || "").trim(),
+          headIds: currentDept.headIds || [],
+          deputyIds: currentDept.deputyIds || [],
+        });
       }
 
-      // Đồng bộ managedDepartmentIds cho các user manager
+      // Đồng bộ managedDepartmentIds cho các user manager (giữ nguyên logic cũ)
       const batch = writeBatch(db);
       allManagers.forEach(m => {
         const userRef = doc(db, "users", m.uid);
@@ -277,7 +403,7 @@ export default function AdminDepartmentManager() {
       <Card elevation={4} sx={{ borderRadius: 3, overflow: "visible" }}>
         <Toolbar sx={{ p: 2, display: "flex", flexWrap: "wrap", gap: 2 }}>
           <TextField
-            placeholder="🔍 Tìm theo tên phòng hoặc tên quản lý..."
+            placeholder="🔍 Tìm theo tên phòng, slug hoặc tên quản lý..."
             variant="outlined" size="small" fullWidth
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -319,7 +445,20 @@ export default function AdminDepartmentManager() {
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                   .map((dept) => (
                     <TableRow key={dept.id} hover>
-                      <TableCell sx={{ fontWeight: 500 }}>{dept.name}</TableCell>
+                      <TableCell sx={{ fontWeight: 500 }}>
+                        <Stack spacing={0.5}>
+                          <Typography variant="body1" fontWeight={600}>{dept.name}</Typography>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="caption" color="text.secondary">Slug:</Typography>
+                            <Chip
+                              size="small"
+                              label={dept.slug || "—"}
+                              variant="outlined"
+                              sx={{ fontFamily: "monospace" }}
+                            />
+                          </Stack>
+                        </Stack>
+                      </TableCell>
                       <TableCell>
                         {dept.managers.length > 0 ? (
                           <Stack spacing={0.5}>
@@ -370,6 +509,7 @@ export default function AdminDepartmentManager() {
         isEdit={modalMode === "edit"}
         allManagers={allManagers}
         departments={departments}
+        users={users}
       />
 
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>

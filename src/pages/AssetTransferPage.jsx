@@ -17,7 +17,7 @@ import { getAuth } from "firebase/auth";
 import { db } from "../services/firebase-config";
 import {
   collection, query, doc, updateDoc, deleteDoc, addDoc, writeBatch, serverTimestamp,
-  orderBy as fsOrderBy, onSnapshot, getDoc, getDocs
+  orderBy as fsOrderBy, onSnapshot, getDoc, getDocs,
 } from "firebase/firestore";
 
 /* ------------------- Configs ------------------- */
@@ -85,22 +85,28 @@ const SignatureTimeline = ({ signatures = {}, status }) => {
     <Stack spacing={1.5} sx={{ mt: 1 }}>
       {steps.map((step, index) => (
         <Stack key={step.role} direction="row" alignItems="center" spacing={1.5}>
-          <Box sx={{
+          <Box sx={(theme)=>({
             width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            bgcolor: index < activeIndex ? 'success.light' : (index === activeIndex ? 'primary.main' : 'grey.300'),
-            color: index < activeIndex ? 'success.dark' : (index === activeIndex ? 'white' : 'grey.700'),
-            border: index < activeIndex ? '2px solid #a7d8b5' : 'none'
-          }}>
-            {index < activeIndex ? <Check size={14} /> : <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{index + 1}</Typography>}
+            bgcolor: index < activeIndex
+              ? theme.palette.success.light
+              : (index === activeIndex ? theme.palette.primary.main : theme.palette.grey[200]),
+            color: index < activeIndex
+              ? theme.palette.success.dark
+              : (index === activeIndex ? theme.palette.common.white : theme.palette.grey[700]),
+            border: index < activeIndex ? `2px solid ${theme.palette.success.light}` : 'none'
+          })}>
+            {index < activeIndex
+              ? <Check size={14} />
+              : <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{index + 1}</Typography>}
           </Box>
           <Box>
             <Typography variant="body2" sx={{ fontWeight: 600, color: index <= activeIndex ? 'text.primary' : 'text.disabled' }}>
               {step.label}
             </Typography>
             {step.sig ? (
-              <Tooltip title={`${step.sig.name} • ${fullTime(step.sig.signedAt || step.sig.signedAtLocal)}`}>
+              <Tooltip title={`${step.sig.name || "Người ký"} • ${fullTime(step.sig.signedAt || step.sig.signedAtLocal)}`}>
                 <Typography variant="caption" color="text.secondary">
-                  ✓ {step.sig.name} • {formatTime(step.sig.signedAt || step.sig.signedAtLocal)}
+                  ✓ {(step.sig.name || "Người ký")} • {formatTime(step.sig.signedAt || step.sig.signedAtLocal)}
                 </Typography>
               </Tooltip>
             ) : (
@@ -139,6 +145,11 @@ export default function AssetTransferPage() {
   const [toDeptIds, setToDeptIds] = useState([]);
   const [createdBy, setCreatedBy] = useState("");
 
+  // debounce for free-text & createdBy
+  const searchDeb = useRef(null);
+  const [debSearch, setDebSearch] = useState("");
+  const [createdByDeb, setCreatedByDeb] = useState("");
+
   // assets tab UI
   const [tabIndex, setTabIndex] = useState(0);
   const [assetSearch, setAssetSearch] = useState("");
@@ -160,9 +171,6 @@ export default function AssetTransferPage() {
   // toast & undo
   const [toast, setToast] = useState({ open: false, msg: "", severity: "success" });
   const [undo, setUndo] = useState({ open: false, transfer: null });
-
-  const searchDeb = useRef(null);
-  const [debSearch, setDebSearch] = useState("");
 
   /* ---------- auth ---------- */
   useEffect(() => {
@@ -212,15 +220,21 @@ export default function AssetTransferPage() {
     return () => clearTimeout(searchDeb.current);
   }, [search]);
 
+  // debounce createdBy
+  useEffect(() => {
+    const id = setTimeout(() => setCreatedByDeb(createdBy), 300);
+    return () => clearTimeout(id);
+  }, [createdBy]);
+
   /* ---------- permission helpers ---------- */
   const canSignSender = useCallback((t) => {
     if (!currentUser) return false;
     if (currentUser.role === "admin") return true;
     const dept = departments.find(d => d.id === t.fromDeptId || d.name === t.from);
     if (!dept) return false;
-    if ((dept.managerIds || []).includes(currentUser.uid)) return true;
-    if (currentUser.departmentId && currentUser.departmentId === dept.id) return true;
-    return false;
+    const managed = new Set(currentUser.managedDepartmentIds || []);
+    const primaryDeptId = currentUser.primaryDepartmentId || currentUser.departmentId;
+    return managed.has(dept.id) || primaryDeptId === dept.id;
   }, [currentUser, departments]);
 
   const canSignReceiver = useCallback((t) => {
@@ -228,12 +242,40 @@ export default function AssetTransferPage() {
     if (currentUser.role === "admin") return true;
     const dept = departments.find(d => d.id === t.toDeptId || d.name === t.to);
     if (!dept) return false;
-    if ((dept.managerIds || []).includes(currentUser.uid)) return true;
-    if (currentUser.departmentId && currentUser.departmentId === dept.id) return true;
-    return false;
+    const managed = new Set(currentUser.managedDepartmentIds || []);
+    const primaryDeptId = currentUser.primaryDepartmentId || currentUser.departmentId;
+    return managed.has(dept.id) || primaryDeptId === dept.id;
   }, [currentUser, departments]);
 
-  const canSignAdmin = useCallback(() => currentUser?.role === "admin", [currentUser]);
+  // P.HC: admin hoặc thuộc phòng Hành chính (primary/managed) hoặc nằm trong headIds/deputyIds
+  const canSignAdmin = useCallback(() => {
+    if (!currentUser) return false;
+    if (currentUser.role === "admin") return true;
+
+    const isHC = (d) => {
+      const s = (d.slug || "").toLowerCase();
+      const n = (d.name || "").toLowerCase();
+      const aliases = [
+        "hanh-chinh","hanh-chanh","p.hc","phc","phòng hành chính","phong hanh chinh",
+      ];
+      return (
+        aliases.some(a => s.includes(a) || n.includes(a)) ||
+        (n.includes("hành") && n.includes("chính")) ||
+        (n.includes("hanh") && n.includes("chinh"))
+      );
+    };
+
+    const hc = departments.find(isHC);
+    if (!hc) return false;
+
+    const headIds = new Set(hc.headIds || []);
+    const deputyIds = new Set(hc.deputyIds || []);
+    const inPrimary = (currentUser.primaryDepartmentId || currentUser.departmentId) === hc.id;
+    const inManaged = (currentUser.managedDepartmentIds || []).includes(hc.id);
+    const isHeadLike = headIds.has(currentUser.uid) || deputyIds.has(currentUser.uid);
+
+    return inPrimary || inManaged || isHeadLike;
+  }, [currentUser, departments]);
 
   const canDeleteTransfer = useCallback((t) => {
     if (!currentUser) return false;
@@ -241,6 +283,19 @@ export default function AssetTransferPage() {
     if (t.createdBy?.uid === currentUser.uid && t.status === "PENDING_SENDER") return true;
     return false;
   }, [currentUser]);
+
+  /* ---------- "My turn" helper (để badge & filter) ---------- */
+  const isMyTurn = useCallback((t) => {
+    if (!currentUser) return false;
+    if (currentUser.role === "admin") {
+      return t.status !== "COMPLETED"; // admin có thể ký ở bước hiện tại, miễn là chưa hoàn thành
+    }
+    return (
+      (t.status === "PENDING_SENDER"   && canSignSender(t)) ||
+      (t.status === "PENDING_RECEIVER" && canSignReceiver(t)) ||
+      (t.status === "PENDING_ADMIN"    && canSignAdmin())
+    );
+  }, [currentUser, canSignSender, canSignReceiver, canSignAdmin]);
 
   /* ---------- Derived ---------- */
   const assetsWithDept = useMemo(() => {
@@ -251,31 +306,21 @@ export default function AssetTransferPage() {
   const filteredTransfers = useMemo(() => {
     let list = transfers;
 
-    // status filter
     if (statusMulti.length > 0 && statusMulti.length < ALL_STATUS.length) {
       list = list.filter(t => statusMulti.includes(t.status));
     }
-
-    // from/to multi (client side)
     if (fromDeptIds.length > 0) list = list.filter(t => fromDeptIds.includes(t.fromDeptId));
     if (toDeptIds.length > 0)   list = list.filter(t => toDeptIds.includes(t.toDeptId));
 
-    // my turn
     if (myTurnOnly) {
-      list = list.filter(t =>
-        (t.status === "PENDING_SENDER"   && canSignSender(t)) ||
-        (t.status === "PENDING_RECEIVER" && canSignReceiver(t)) ||
-        (t.status === "PENDING_ADMIN"    && canSignAdmin())
-      );
+      list = list.filter(isMyTurn);
     }
 
-    // createdBy text match
-    if (createdBy.trim()) {
-      const q = norm(createdBy);
+    if (createdByDeb.trim()) {
+      const q = norm(createdByDeb);
       list = list.filter(t => norm(t.createdBy?.name || "").includes(q) || norm(t.createdBy?.uid || "").includes(q));
     }
 
-    // free text search
     if (debSearch.trim()) {
       const q = norm(debSearch);
       list = list.filter(t =>
@@ -286,7 +331,7 @@ export default function AssetTransferPage() {
     }
 
     return list;
-  }, [transfers, statusMulti, fromDeptIds, toDeptIds, myTurnOnly, createdBy, debSearch, canSignSender, canSignReceiver, canSignAdmin]);
+  }, [transfers, statusMulti, fromDeptIds, toDeptIds, myTurnOnly, createdByDeb, debSearch, isMyTurn]);
 
   const filteredAssets = useMemo(() => {
     let list = assetsWithDept;
@@ -302,7 +347,9 @@ export default function AssetTransferPage() {
     if (!currentUser) return [];
     if (currentUser.role === "admin") return departments;
     const managed = new Set([ ...(currentUser.managedDepartmentIds || []) ]);
-    if (currentUser.departmentId) managed.add(currentUser.departmentId);
+    if (currentUser.primaryDepartmentId || currentUser.departmentId) {
+      managed.add(currentUser.primaryDepartmentId || currentUser.departmentId);
+    }
     return departments.filter(d => managed.has(d.id));
   }, [departments, currentUser]);
 
@@ -329,7 +376,6 @@ export default function AssetTransferPage() {
       setIsAssetModalOpen(false);
       setToast({ open:true, msg: modalMode === "add" ? "Đã thêm tài sản." : "Đã cập nhật tài sản.", severity:"success" });
 
-      // refresh assets once
       const assetQs = await getDocs(collection(db, "assets"));
       setAssets(assetQs.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) {
@@ -388,7 +434,6 @@ export default function AssetTransferPage() {
       await addDoc(collection(db, "transfers"), payload);
       setIsTransferModalOpen(false);
       setToast({ open:true, msg:"Đã tạo phiếu chuyển.", severity:"success" });
-      // Không cần fetch lại — onSnapshot đã cập nhật realtime
     } catch (e) {
       console.error(e); setToast({ open:true, msg:"Lỗi khi tạo phiếu.", severity:"error" });
     }
@@ -414,7 +459,7 @@ export default function AssetTransferPage() {
       signedAtLocal: new Date().toISOString(),
     };
 
-    // optimistic để UI có thời gian ngay lập tức
+    // optimistic update
     setTransfers(prev => prev.map(it => it.id === t.id ? {
       ...it,
       status: newStatus,
@@ -424,7 +469,6 @@ export default function AssetTransferPage() {
     try {
       await updateDoc(ref, { status:newStatus, [`signatures.${role}`]: signature });
 
-      // hoàn tất → cập tồn
       if (newStatus === "COMPLETED") {
         const batch = writeBatch(db);
         const toId = t.toDeptId || departments.find(d => d.name === t.to)?.id;
@@ -465,22 +509,19 @@ export default function AssetTransferPage() {
         }
         await batch.commit();
 
-        // reload assets 1 lần (realtime assets cũng có onSnapshot — đoạn dưới chỉ đảm bảo sync ngay)
         const assetQs = await getDocs(collection(db, "assets"));
         setAssets(assetQs.docs.map(d => ({ id: d.id, ...d.data() })));
       }
 
       setToast({ open:true, msg:`Đã ký ${role === "admin" ? "P.HC" : role === "sender" ? "phòng chuyển" : "phòng nhận"}.`, severity:"success" });
-      // Không cần fetch transfer — onSnapshot đã cover
     } catch (e) {
-      // rollback
       setTransfers(prev => prev.map(it => it.id === t.id ? t : it));
       console.error(e);
       setToast({ open:true, msg:"Ký thất bại.", severity:"error" });
     }
   };
 
-  /* ---------- Delete transfer + Undo (khôi phục tồn) ---------- */
+  /* ---------- Delete transfer + Undo ---------- */
   const deleteTransfer = async (t, showUndo = true) => {
     try {
       const batch = writeBatch(db);
@@ -492,8 +533,6 @@ export default function AssetTransferPage() {
       await deleteDoc(doc(db, "transfers", t.id));
       if (showUndo) setUndo({ open:true, transfer: t });
       setToast({ open:true, msg:"Đã xóa phiếu & khôi phục tồn ban đầu.", severity:"success" });
-
-      // onSnapshot sẽ tự cập nhật list
     } catch (e) {
       console.error(e); setToast({ open:true, msg:"Xóa phiếu thất bại.", severity:"error" });
     }
@@ -535,14 +574,101 @@ export default function AssetTransferPage() {
     XLSX.writeFile(wb, `assets_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
-  /* ---------- UI helpers ---------- */
+  /* ---------- Action buttons (đÃ SỬA CHO ADMIN THEO QUY TRÌNH) ---------- */
   const renderActionButtons = (t) => {
     if (!currentUser) return null;
-    const common = { size:"small", variant:"contained", fullWidth:true };
-    if (t.status === "PENDING_SENDER" && canSignSender(t))   return <Button {...common} onClick={() => handleSign(t,"sender")}   startIcon={<FilePen size={16}/>}>Ký phòng chuyển</Button>;
-    if (t.status === "PENDING_RECEIVER" && canSignReceiver(t)) return <Button {...common} color="info" onClick={() => handleSign(t,"receiver")} startIcon={<UserCheck size={16}/>}>Ký phòng nhận</Button>;
-    if (t.status === "PENDING_ADMIN" && canSignAdmin())       return <Button {...common} color="secondary" onClick={() => handleSign(t,"admin")} startIcon={<Handshake size={16}/>}>Xác nhận (P.HC)</Button>;
-    return null;
+    const common = { size: "small", variant: "contained", fullWidth: true };
+
+    // Admin: ký theo bước hiện tại (tuần tự)
+    if (currentUser.role === "admin") {
+      let roleToSign = null;
+      let label = "Đang chờ bước trước";
+      let color = "primary";
+      let icon = null;
+
+      if (t.status === "PENDING_SENDER") {
+        roleToSign = "sender";
+        label = "Ký phòng chuyển (admin)";
+        icon = <FilePen size={16} />;
+      } else if (t.status === "PENDING_RECEIVER") {
+        roleToSign = "receiver";
+        label = "Ký phòng nhận (admin)";
+        color = "info";
+        icon = <UserCheck size={16} />;
+      } else if (t.status === "PENDING_ADMIN") {
+        roleToSign = "admin";
+        label = "Xác nhận (P.HC)";
+        color = "secondary";
+        icon = <Handshake size={16} />;
+      }
+
+      const canClick = !!roleToSign;
+      return (
+        <Tooltip title={canClick ? "Ký theo bước hiện tại" : "Phiếu đã hoàn tất"}>
+          <span>
+            <Button
+              {...common}
+              color={color}
+              startIcon={icon}
+              disabled={!canClick}
+              onClick={() => roleToSign && handleSign(t, roleToSign)}
+            >
+              {label}
+            </Button>
+          </span>
+        </Tooltip>
+      );
+    }
+
+    // Người KHÔNG phải admin → giữ luồng cũ
+    if (t.status === "PENDING_SENDER" && canSignSender(t))
+      return (
+        <Button
+          aria-label="Ký phòng chuyển"
+          {...common}
+          onClick={() => handleSign(t, "sender")}
+          startIcon={<FilePen size={16} />}
+        >
+          Ký phòng chuyển
+        </Button>
+      );
+
+    if (t.status === "PENDING_RECEIVER" && canSignReceiver(t))
+      return (
+        <Button
+          aria-label="Ký phòng nhận"
+          {...common}
+          color="info"
+          onClick={() => handleSign(t, "receiver")}
+          startIcon={<UserCheck size={16} />}
+        >
+          Ký phòng nhận
+        </Button>
+      );
+
+    // Cho phép nhân sự P.HC ký ở bước 3 (nếu không phải admin)
+    if (t.status === "PENDING_ADMIN" && canSignAdmin())
+      return (
+        <Button
+          aria-label="Xác nhận P.HC"
+          {...common}
+          color="secondary"
+          onClick={() => handleSign(t, "admin")}
+          startIcon={<Handshake size={16} />}
+        >
+          Xác nhận (P.HC)
+        </Button>
+      );
+
+    return (
+      <Tooltip title="Chưa tới lượt hoặc bạn không có quyền ký">
+        <span>
+          <Button {...common} disabled>
+            Đang chờ bước trước
+          </Button>
+        </span>
+      </Tooltip>
+    );
   };
 
   const TransferSkeleton = () => (
@@ -575,7 +701,7 @@ export default function AssetTransferPage() {
           <Typography color="text.secondary">Tạo, tìm kiếm, ký duyệt và theo dõi các phiếu chuyển tài sản (realtime).</Typography>
         </Stack>
         <Stack direction="row" spacing={1}>
-          <ToggleButtonGroup value={viewMode} exclusive onChange={(e,v)=>v&&setViewMode(v)} size="small">
+          <ToggleButtonGroup aria-label="Chế độ hiển thị" value={viewMode} exclusive onChange={(e,v)=>v&&setViewMode(v)} size="small">
             <ToggleButton value="card"><Eye size={16} style={{marginRight:6}}/>Card</ToggleButton>
             <ToggleButton value="table"><TableProperties size={16} style={{marginRight:6}}/>Table</ToggleButton>
           </ToggleButtonGroup>
@@ -595,31 +721,46 @@ export default function AssetTransferPage() {
         {tabIndex === 0 && (
           <Box sx={{ p: 2 }}>
             {/* Top toolbar */}
-            <Toolbar sx={{ p:"12px !important", gap:1.5, flexWrap:"wrap", mb:2, borderRadius:2, border:"1px solid #e2e8f0", bgcolor:"white" }}>
+            <Toolbar
+              sx={{
+                p:"10px !important", gap:1, flexWrap:"wrap", mb:2, borderRadius:2,
+                border:"1px solid #e2e8f0", bgcolor:"white",
+                position:"sticky", top:8, zIndex:1, backdropFilter:"blur(6px)"
+              }}
+            >
               <TextField
                 placeholder="🔎 Tìm mã phiếu / tài sản / phòng / người tạo…"
                 size="small" sx={{ flex:"1 1 360px" }}
                 value={search} onChange={(e)=>setSearch(e.target.value)}
+                inputProps={{ "aria-label": "Tìm kiếm" }}
               />
               <Tooltip title="Bộ lọc">
                 <Button variant="outlined" startIcon={<Filter size={16}/>} onClick={()=>setDrawerOpen(true)}>
                   Bộ lọc
                 </Button>
               </Tooltip>
-              <Badge color="primary" badgeContent={
-                filteredTransfers.filter(t =>
-                  (t.status === "PENDING_SENDER" && canSignSender(t)) ||
-                  (t.status === "PENDING_RECEIVER" && canSignReceiver(t)) ||
-                  (t.status === "PENDING_ADMIN" && canSignAdmin())
-                ).length
-              }>
+              <Badge
+                color="primary"
+                badgeContent={
+                  filteredTransfers.filter(isMyTurn).length
+                }
+              >
                 <Button variant={myTurnOnly ? "contained" : "outlined"} onClick={() => setMyTurnOnly(v => !v)}>
                   Chờ tôi ký
                 </Button>
               </Badge>
               <Tooltip title="Tải lại dữ liệu (realtime đã tự cập nhật)">
                 <span>
-                  <IconButton onClick={()=>setRefreshing(true)} disabled={refreshing}><RefreshCw size={18}/></IconButton>
+                  <IconButton
+                    aria-label="Làm mới"
+                    onClick={() => {
+                      setRefreshing(true);
+                      setTimeout(() => setRefreshing(false), 500);
+                    }}
+                    disabled={refreshing}
+                  >
+                    <RefreshCw size={18}/>
+                  </IconButton>
                 </span>
               </Tooltip>
             </Toolbar>
@@ -635,13 +776,27 @@ export default function AssetTransferPage() {
                           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
                             <Box>
                               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Phiếu #{t.id.slice(0,6)}</Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                Tạo: {formatTime(t.date)} • {t.createdBy?.name || "—"}
-                              </Typography>
+                              <Stack direction="row" spacing={0.75} alignItems="center">
+                                <Avatar sx={{ width:18, height:18, fontSize:10 }}>
+                                  {initials(t.createdBy?.name, t.createdBy?.uid)}
+                                </Avatar>
+                                <Tooltip title={t.createdBy?.uid || ""}>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {t.createdBy?.name || "—"} • {formatTime(t.date)}
+                                  </Typography>
+                                </Tooltip>
+                              </Stack>
                             </Box>
                             <Chip size="small" icon={statusConfig[t.status]?.icon} label={statusConfig[t.status]?.label || t.status} color={statusConfig[t.status]?.color || "default"} />
                           </Stack>
-                          <Stack direction="row" alignItems="center" spacing={1} sx={{ my: 1.5, bgcolor:"#f1f5f9", p:1.25, borderRadius:2 }}>
+                          <Stack
+                            direction="row" alignItems="center" spacing={1}
+                            sx={(theme)=>({
+                              my:1.25, p:1, borderRadius:2,
+                              bgcolor: theme.palette.grey[50],
+                              border:`1px solid ${theme.palette.grey[200]}`
+                            })}
+                          >
                             <Building size={18}/><Typography sx={{ fontWeight: 600, flex:1, textAlign:"center" }}>{hi(t.from, debSearch)}</Typography>
                             <ArrowRightLeft size={18} color="#64748b"/>
                             <Typography sx={{ fontWeight: 600, flex:1, textAlign:"center" }}>{hi(t.to, debSearch)}</Typography>
@@ -667,7 +822,7 @@ export default function AssetTransferPage() {
                             <Box flexGrow={1}>{renderActionButtons(t)}</Box>
                             {canDeleteTransfer(t) && (
                               <Tooltip title="Xóa phiếu">
-                                <IconButton size="small" onClick={() => deleteTransfer(t)}><Trash2 size={18}/></IconButton>
+                                <IconButton aria-label="Xóa phiếu" size="small" onClick={() => deleteTransfer(t)}><Trash2 size={18}/></IconButton>
                               </Tooltip>
                             )}
                           </Box>
@@ -680,7 +835,10 @@ export default function AssetTransferPage() {
                   <Grid item xs={12}>
                     <Box sx={{ textAlign:'center', py: 8 }}>
                       <Typography variant="h6" color="text.secondary">Không có phiếu phù hợp</Typography>
-                      <Typography color="text.secondary">Hãy thay đổi bộ lọc hoặc tạo phiếu mới.</Typography>
+                      <Typography color="text.secondary" sx={{ mb: 2 }}>Hãy thay đổi bộ lọc hoặc tạo phiếu mới.</Typography>
+                      <Button variant="contained" startIcon={<ArrowRightLeft/>} onClick={handleOpenTransferModal}>
+                        Tạo Phiếu
+                      </Button>
                     </Box>
                   </Grid>
                 )}
@@ -688,8 +846,8 @@ export default function AssetTransferPage() {
             ) : (
               <>
                 <Paper variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
-                  <TableContainer>
-                    <Table size="small">
+                  <TableContainer sx={{ maxHeight: 560 }}>
+                    <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
                           <TableCell>Mã</TableCell>
@@ -708,7 +866,14 @@ export default function AssetTransferPage() {
                               <TableCell sx={{ fontWeight: 700 }}>#{t.id.slice(0,6)}</TableCell>
                               <TableCell>{hi(t.from, debSearch)}</TableCell>
                               <TableCell>{hi(t.to, debSearch)}</TableCell>
-                              <TableCell>{hi(t.createdBy?.name || "", debSearch)}</TableCell>
+                              <TableCell>
+                                <Stack direction="row" spacing={0.75} alignItems="center">
+                                  <Avatar sx={{ width:18, height:18, fontSize:10 }}>
+                                    {initials(t.createdBy?.name, t.createdBy?.uid)}
+                                  </Avatar>
+                                  <Typography variant="body2">{hi(t.createdBy?.name || "", debSearch)}</Typography>
+                                </Stack>
+                              </TableCell>
                               <TableCell>{formatTime(t.date)}</TableCell>
                               <TableCell>
                                 <Chip size="small" label={statusConfig[t.status]?.label || t.status} color={statusConfig[t.status]?.color || "default"} />
@@ -718,7 +883,7 @@ export default function AssetTransferPage() {
                                   {renderActionButtons(t)}
                                   {canDeleteTransfer(t) && (
                                     <Tooltip title="Xóa phiếu">
-                                      <IconButton size="small" onClick={() => deleteTransfer(t)}><Trash2 size={18}/></IconButton>
+                                      <IconButton aria-label="Xóa phiếu" size="small" onClick={() => deleteTransfer(t)}><Trash2 size={18}/></IconButton>
                                     </Tooltip>
                                   )}
                                 </Stack>
@@ -745,7 +910,16 @@ export default function AssetTransferPage() {
                           </React.Fragment>
                         ))}
                         {filteredTransfers.length === 0 && (
-                          <TableRow><TableCell colSpan={7}><Typography align="center" color="text.secondary" sx={{ py: 4 }}>Không có phiếu phù hợp.</Typography></TableCell></TableRow>
+                          <TableRow>
+                            <TableCell colSpan={7}>
+                              <Box sx={{ textAlign:"center", py: 4 }}>
+                                <Typography color="text.secondary">Không có phiếu phù hợp.</Typography>
+                                <Button sx={{ mt: 1.5 }} variant="contained" startIcon={<ArrowRightLeft/>} onClick={handleOpenTransferModal}>
+                                  Tạo Phiếu
+                                </Button>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
                         )}
                       </TableBody>
                     </Table>
@@ -759,7 +933,12 @@ export default function AssetTransferPage() {
         {/* ASSETS TAB */}
         {tabIndex === 1 && (
           <Box sx={{ p: 2 }}>
-            <Toolbar sx={{ p:"8px !important", gap:1.5, flexWrap:"wrap", mb:2, borderRadius:2, border:"1px solid #e2e8f0" }}>
+            <Toolbar
+              sx={{
+                p:"8px !important", gap:1.5, flexWrap:"wrap", mb:2, borderRadius:2,
+                border:"1px solid #e2e8f0", position:"sticky", top:8, zIndex:1, bgcolor:"white", backdropFilter:"blur(6px)"
+              }}
+            >
               <TextField placeholder="🔎 Tìm theo tên tài sản" size="small" sx={{ flex:"1 1 320px" }} value={assetSearch} onChange={(e)=>setAssetSearch(e.target.value)}/>
               <FormControl size="small" sx={{ minWidth: 220 }}>
                 <InputLabel>Lọc theo phòng ban</InputLabel>
@@ -773,8 +952,8 @@ export default function AssetTransferPage() {
             </Toolbar>
 
             <Paper variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
-              <TableContainer>
-                <Table>
+              <TableContainer sx={{ maxHeight: 560 }}>
+                <Table stickyHeader>
                   <TableHead>
                     <TableRow>
                       <TableCell>Tên tài sản</TableCell>
@@ -792,8 +971,8 @@ export default function AssetTransferPage() {
                         <TableCell align="center">{a.quantity} {a.unit}</TableCell>
                         <TableCell>{a.notes || ""}</TableCell>
                         <TableCell align="right">
-                          <IconButton size="small" onClick={()=>handleOpenEditModal(a)}><Edit size={18}/></IconButton>
-                          <IconButton size="small" color="error" onClick={()=>setDeleteConfirm(a)}><Trash2 size={18}/></IconButton>
+                          <IconButton aria-label="Chỉnh sửa tài sản" size="small" onClick={()=>handleOpenEditModal(a)}><Edit size={18}/></IconButton>
+                          <IconButton aria-label="Xóa tài sản" size="small" color="error" onClick={()=>setDeleteConfirm(a)}><Trash2 size={18}/></IconButton>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -808,7 +987,7 @@ export default function AssetTransferPage() {
         )}
       </Paper>
 
-      {/* Drawer: Filters (đơn giản, không có Saved Views) */}
+      {/* Drawer: Filters */}
       <Drawer anchor="right" open={drawerOpen} onClose={()=>setDrawerOpen(false)}>
         <Box sx={{ width: 320, p: 2 }}>
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Bộ lọc</Typography>
@@ -982,10 +1161,17 @@ export default function AssetTransferPage() {
                       const max = Number(a.quantity) || 0;
                       return (
                         <Grid container spacing={1} key={id} alignItems="center">
-                          <Grid item xs><Typography variant="body2">{a.name}</Typography><Typography variant="caption" color="text.secondary">Tồn: {a.quantity} {a.unit}</Typography></Grid>
+                          <Grid item xs>
+                            <Typography variant="body2">{a.name}</Typography>
+                            <Typography variant="caption" color="text.secondary">Tồn: {a.quantity} {a.unit}</Typography>
+                          </Grid>
                           <Grid item>
-                            <TextField size="small" type="number" label="Số lượng" inputProps={{ min:1, max }} sx={{ width: 120 }} value={selectedQuantities[id] ?? 1}
-                              onChange={(e)=>{ const n = Math.max(1, Math.min(max, Number(e.target.value || 1))); setSelectedQuantities(q => ({ ...q, [id]: n })); }}/>
+                            <TextField
+                              size="small" type="number" label="Số lượng" inputProps={{ min:1, max }}
+                              sx={{ width: 120 }}
+                              value={selectedQuantities[id] ?? 1}
+                              onChange={(e)=>{ const n = Math.max(1, Math.min(max, Number(e.target.value || 1))); setSelectedQuantities(q => ({ ...q, [id]: n })); }}
+                            />
                           </Grid>
                         </Grid>
                       );
