@@ -11,25 +11,9 @@ import {
   Delete, Edit, GroupWork, AddBusiness, PeopleAlt, Warning, Sync
 } from "@mui/icons-material";
 import {
-  collection, getDocs, updateDoc, doc, addDoc, query, orderBy as fsOrderBy, deleteDoc, writeBatch
+  collection, getDocs, updateDoc, doc, addDoc, query, orderBy as fsOrderBy, deleteDoc
 } from "firebase/firestore";
 import { db } from "../services/firebase-config";
-
-/* ---- Roles được coi là “có thể quản lý phòng” ---- */
-const MANAGER_ROLE_IDS = new Set([
-  "admin", "truong-phong", "pho-phong", "tong-giam-doc", "pho-tong-giam-doc"
-]);
-
-/* ---- Danh sách slug cố định để CHỌN ---- */
-const SLUG_OPTIONS = [
-  { label: "Hành chính", value: "hanh-chinh" },
-  { label: "XNXD", value: "xnxd" },
-  { label: "XNXD 2", value: "xnxd2" },
-  { label: "Kế toán", value: "ke-toan" },
-  { label: "Cung ứng", value: "cung-ung" },
-  { label: "Tổ thầu", value: "to-thau" },
-  { label: "Nhà máy", value: "nha-may" },
-];
 
 /* ---- Sorting helpers ---- */
 function descendingComparator(a, b, orderBy) {
@@ -54,8 +38,9 @@ function stableSort(array, comparator) {
 
 const headCells = [
   { id: "name", numeric: false, label: "Tên Phòng Ban" },
-  { id: "managers", numeric: false, label: "Người Quản Lý" },
-  { id: "memberCount", numeric: true, label: "Số Nhân Sự (thuộc)" },
+  { id: "leaders", numeric: false, label: "Lãnh đạo" },
+  { id: "hcStep3", numeric: false, label: "P.HC (Bước 3)" },      // NEW: cột hiển thị người duyệt P.HC B3
+  { id: "memberCount", numeric: true, label: "Số Nhân Sự" },
   { id: "actions", numeric: true, label: "Thao tác" },
 ];
 
@@ -76,14 +61,8 @@ const StatCard = ({ icon, title, count, color }) => (
 
 /* ---- Form Dialog ---- */
 const DepartmentFormDialog = ({
-  open, onClose, onSave, form, setForm, isEdit, allManagers, departments, users
+  open, onClose, onSave, form, setForm, isEdit, users
 }) => {
-  // Nếu đang edit và slug hiện tại không có trong preset → thêm 1 dòng “giữ nguyên”
-  const hasCurrentSlugInOptions = SLUG_OPTIONS.some(o => o.value === (form.slug || ""));
-  const effectiveOptions = hasCurrentSlugInOptions || !isEdit
-    ? SLUG_OPTIONS
-    : [{ label: `(Giữ nguyên) ${form.slug}`, value: form.slug, _locked: true }, ...SLUG_OPTIONS];
-
   return (
     <Dialog open={open} onClose={onClose}>
       <DialogTitle>{isEdit ? "Chỉnh Sửa Phòng Ban" : "Thêm Phòng Ban Mới"}</DialogTitle>
@@ -98,57 +77,9 @@ const DepartmentFormDialog = ({
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
 
-          {/* Slug chọn từ danh sách có sẵn */}
-          <FormControl fullWidth required>
-            <InputLabel>Slug (chọn sẵn)</InputLabel>
-            <Select
-              label="Slug (chọn sẵn)"
-              value={form.slug || ""}
-              onChange={(e) => setForm({ ...form, slug: e.target.value })}
-            >
-              {effectiveOptions.map(opt => (
-                <MenuItem key={opt.value} value={opt.value} disabled={opt._locked}>
-                  <ListItemText
-                    primary={opt.label}
-                    secondary={opt.value}
-                    primaryTypographyProps={{ fontWeight: opt._locked ? 400 : 600 }}
-                    secondaryTypographyProps={{ fontFamily: "monospace" }}
-                  />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {/* Người quản lý (nếu đang dùng managerIds cho quyền tổng quát) */}
+          {/* Trưởng phòng */}
           <FormControl fullWidth>
-            <InputLabel>Người Quản lý</InputLabel>
-            <Select
-              multiple
-              value={form.managerIds || []}
-              onChange={(e) => setForm({
-                ...form,
-                managerIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
-              })}
-              input={<OutlinedInput label="Người Quản lý" />}
-              renderValue={(selected) =>
-                selected
-                  .map(id => allManagers.find(m => m.uid === id)?.displayName)
-                  .filter(Boolean)
-                  .join(", ")
-              }
-            >
-              {allManagers.map((manager) => (
-                <MenuItem key={manager.uid} value={manager.uid}>
-                  <Checkbox checked={(form.managerIds || []).indexOf(manager.uid) > -1} />
-                  <ListItemText primary={manager.displayName} secondary={manager.email} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {/* Trưởng phòng (headIds) */}
-          <FormControl fullWidth>
-            <InputLabel>Trưởng phòng (headIds)</InputLabel>
+            <InputLabel>Trưởng phòng</InputLabel>
             <Select
               multiple
               value={form.headIds || []}
@@ -156,7 +87,7 @@ const DepartmentFormDialog = ({
                 ...form,
                 headIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
               })}
-              input={<OutlinedInput label="Trưởng phòng (headIds)" />}
+              input={<OutlinedInput label="Trưởng phòng" />}
               renderValue={(selected) =>
                 (selected || [])
                   .map(uid => (users.find(u => u.uid === uid)?.displayName || users.find(u => u.uid === uid)?.email || uid))
@@ -172,9 +103,9 @@ const DepartmentFormDialog = ({
             </Select>
           </FormControl>
 
-          {/* Phó phòng (deputyIds) */}
+          {/* Phó phòng */}
           <FormControl fullWidth>
-            <InputLabel>Phó phòng (deputyIds)</InputLabel>
+            <InputLabel>Phó phòng</InputLabel>
             <Select
               multiple
               value={form.deputyIds || []}
@@ -182,7 +113,7 @@ const DepartmentFormDialog = ({
                 ...form,
                 deputyIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
               })}
-              input={<OutlinedInput label="Phó phòng (deputyIds)" />}
+              input={<OutlinedInput label="Phó phòng" />}
               renderValue={(selected) =>
                 (selected || [])
                   .map(uid => (users.find(u => u.uid === uid)?.displayName || users.find(u => u.uid === uid)?.email || uid))
@@ -192,6 +123,32 @@ const DepartmentFormDialog = ({
               {users.map((u) => (
                 <MenuItem key={u.uid} value={u.uid}>
                   <Checkbox checked={(form.deputyIds || []).includes(u.uid)} />
+                  <ListItemText primary={u.displayName || u.email} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* NEW: Người duyệt P.HC bước 3 */}
+          <FormControl fullWidth>
+            <InputLabel>Người duyệt P.HC (bước 3)</InputLabel>
+            <Select
+              multiple
+              value={form.hcStep3ApproverIds || []}
+              onChange={(e) => setForm({
+                ...form,
+                hcStep3ApproverIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
+              })}
+              input={<OutlinedInput label="Người duyệt P.HC (bước 3)" />}
+              renderValue={(selected) =>
+                (selected || [])
+                  .map(uid => (users.find(u => u.uid === uid)?.displayName || users.find(u => u.uid === uid)?.email || uid))
+                  .join(", ")
+              }
+            >
+              {users.map((u) => (
+                <MenuItem key={u.uid} value={u.uid}>
+                  <Checkbox checked={(form.hcStep3ApproverIds || []).includes(u.uid)} />
                   <ListItemText primary={u.displayName || u.email} />
                 </MenuItem>
               ))}
@@ -225,9 +182,9 @@ export default function AdminDepartmentManager() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
 
-  // currentDept thêm slug, headIds, deputyIds
+  // NEW: thêm hcStep3ApproverIds vào state form
   const [currentDept, setCurrentDept] = useState({
-    name: "", slug: "", managerIds: [], headIds: [], deputyIds: []
+    name: "", headIds: [], deputyIds: [], hcStep3ApproverIds: []
   });
 
   const fetchData = async () => {
@@ -241,11 +198,12 @@ export default function AdminDepartmentManager() {
       const deptDocs = deptsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
       const depts = deptDocs.map(d => {
-        const managers = usersList.filter(
-          u => MANAGER_ROLE_IDS.has(u.role) && (u.managedDepartmentIds || []).includes(d.id)
-        );
+        const heads = (d.headIds || []).map(id => usersList.find(u => u.uid === id)).filter(Boolean);
+        const deputies = (d.deputyIds || []).map(id => usersList.find(u => u.uid === id)).filter(Boolean);
+        const hcStep3 = (d.hcStep3ApproverIds || []).map(id => usersList.find(u => u.uid === id)).filter(Boolean); // NEW
+        const leaders = [...heads, ...deputies];
         const memberCount = usersList.filter(u => u.primaryDepartmentId === d.id).length;
-        return { ...d, managers, memberCount };
+        return { ...d, heads, deputies, leaders, hcStep3, memberCount };
       });
       setDepartments(depts);
     } catch (error) {
@@ -257,23 +215,19 @@ export default function AdminDepartmentManager() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const allManagers = useMemo(
-    () => users.filter(u => MANAGER_ROLE_IDS.has(u.role)),
-    [users]
-  );
-
   const filteredDepartments = useMemo(
     () => departments.filter(dept => {
       const s = search.toLowerCase();
-      const managerNames = dept.managers.map(m => (m.displayName || "").toLowerCase()).join(" ");
-      return dept.name.toLowerCase().includes(s) || managerNames.includes(s) || (dept.slug || "").toLowerCase().includes(s);
+      const leaderNames = (dept.leaders || []).map(l => (l.displayName || l.email || "").toLowerCase()).join(" ");
+      const hcNames = (dept.hcStep3 || []).map(l => (l.displayName || l.email || "").toLowerCase()).join(" ");
+      return (dept.name || "").toLowerCase().includes(s) || leaderNames.includes(s) || hcNames.includes(s);
     }),
     [departments, search]
   );
 
   const stats = useMemo(() => ({
     total: departments.length,
-    unmanaged: departments.filter(d => d.managers.length === 0).length,
+    unmanaged: departments.filter(d => (d.headIds || []).length === 0 && (d.deputyIds || []).length === 0).length,
   }), [departments]);
 
   const handleRequestSort = (property) => {
@@ -285,18 +239,14 @@ export default function AdminDepartmentManager() {
   const handleOpenModal = (mode, dept = null) => {
     setModalMode(mode);
     if (mode === "add") {
-      setCurrentDept({ name: "", slug: SLUG_OPTIONS[0].value, managerIds: [], headIds: [], deputyIds: [] });
+      setCurrentDept({ name: "", headIds: [], deputyIds: [], hcStep3ApproverIds: [] });
     } else {
-      const managerIds = allManagers
-        .filter(m => (m.managedDepartmentIds || []).includes(dept.id))
-        .map(m => m.uid);
       setCurrentDept({
         id: dept.id,
         name: dept.name || "",
-        slug: dept.slug || SLUG_OPTIONS[0].value,
-        managerIds,
         headIds: dept.headIds || [],
         deputyIds: dept.deputyIds || [],
+        hcStep3ApproverIds: dept.hcStep3ApproverIds || [], // NEW
       });
     }
     setIsModalOpen(true);
@@ -304,7 +254,7 @@ export default function AdminDepartmentManager() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setCurrentDept({ name: "", slug: "", managerIds: [], headIds: [], deputyIds: [] });
+    setCurrentDept({ name: "", headIds: [], deputyIds: [], hcStep3ApproverIds: [] });
   };
 
   const handleSaveDepartment = async () => {
@@ -312,52 +262,23 @@ export default function AdminDepartmentManager() {
       setFeedback({ open: true, message: "Tên phòng ban không được để trống.", severity: "warning" });
       return;
     }
-    if (!currentDept.slug) {
-      setFeedback({ open: true, message: "Vui lòng chọn slug cho phòng ban.", severity: "warning" });
-      return;
-    }
 
     setLoading(true);
-    const selectedManagerIds = currentDept.managerIds || [];
-    let departmentId = currentDept.id;
+    const departmentId = currentDept.id;
+
+    const dataToSave = {
+      name: currentDept.name,
+      headIds: currentDept.headIds || [],
+      deputyIds: currentDept.deputyIds || [],
+      hcStep3ApproverIds: currentDept.hcStep3ApproverIds || [], // NEW
+    };
 
     try {
       if (modalMode === "add") {
-        const newDeptRef = await addDoc(collection(db, "departments"), {
-          name: currentDept.name,
-          slug: (currentDept.slug || "").trim(),
-          headIds: currentDept.headIds || [],
-          deputyIds: currentDept.deputyIds || [],
-        });
-        departmentId = newDeptRef.id;
+        await addDoc(collection(db, "departments"), dataToSave);
       } else {
-        await updateDoc(doc(db, "departments", departmentId), {
-          name: currentDept.name,
-          slug: (currentDept.slug || "").trim(),
-          headIds: currentDept.headIds || [],
-          deputyIds: currentDept.deputyIds || [],
-        });
+        await updateDoc(doc(db, "departments", departmentId), dataToSave);
       }
-
-      // Đồng bộ managedDepartmentIds cho các user manager (giữ nguyên logic cũ)
-      const batch = writeBatch(db);
-      allManagers.forEach(m => {
-        const userRef = doc(db, "users", m.uid);
-        const before = m.managedDepartmentIds || [];
-        let after = [...before];
-
-        const nowSelected = selectedManagerIds.includes(m.uid);
-        const wasSelected = before.includes(departmentId);
-
-        if (nowSelected && !wasSelected) {
-          after.push(departmentId);
-          batch.update(userRef, { managedDepartmentIds: after });
-        } else if (!nowSelected && wasSelected) {
-          after = after.filter(id => id !== departmentId);
-          batch.update(userRef, { managedDepartmentIds: after });
-        }
-      });
-      await batch.commit();
 
       setFeedback({ open: true, message: "Cập nhật phòng ban thành công!", severity: "success" });
       await fetchData();
@@ -397,13 +318,13 @@ export default function AdminDepartmentManager() {
 
       <Grid container spacing={3} mb={3}>
         <Grid item xs={6} md={3}><StatCard icon={<GroupWork />} title="Tổng số Phòng ban" count={stats.total} color="info.main" /></Grid>
-        <Grid item xs={6} md={3}><StatCard icon={<Warning />} title="Chưa có người quản lý" count={stats.unmanaged} color="warning.main" /></Grid>
+        <Grid item xs={6} md={3}><StatCard icon={<Warning />} title="Chưa có lãnh đạo" count={stats.unmanaged} color="warning.main" /></Grid>
       </Grid>
 
       <Card elevation={4} sx={{ borderRadius: 3, overflow: "visible" }}>
         <Toolbar sx={{ p: 2, display: "flex", flexWrap: "wrap", gap: 2 }}>
           <TextField
-            placeholder="🔍 Tìm theo tên phòng, slug hoặc tên quản lý..."
+            placeholder="🔍 Tìm phòng, lãnh đạo, hoặc người duyệt P.HC B3..."
             variant="outlined" size="small" fullWidth
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -445,32 +366,51 @@ export default function AdminDepartmentManager() {
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                   .map((dept) => (
                     <TableRow key={dept.id} hover>
-                      <TableCell sx={{ fontWeight: 500 }}>
-                        <Stack spacing={0.5}>
-                          <Typography variant="body1" fontWeight={600}>{dept.name}</Typography>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Typography variant="caption" color="text.secondary">Slug:</Typography>
-                            <Chip
-                              size="small"
-                              label={dept.slug || "—"}
-                              variant="outlined"
-                              sx={{ fontFamily: "monospace" }}
-                            />
-                          </Stack>
-                        </Stack>
-                      </TableCell>
                       <TableCell>
-                        {dept.managers.length > 0 ? (
+                        <Typography variant="body1" fontWeight={600}>{dept.name}</Typography>
+                      </TableCell>
+
+                      {/* Lãnh đạo */}
+                      <TableCell>
+                        {(dept.leaders || []).length > 0 ? (
                           <Stack spacing={0.5}>
-                            {dept.managers.map(m => <Typography key={m.uid} variant="body2">{m.displayName}</Typography>)}
+                            {(dept.heads || []).map(h =>
+                              <Typography key={h.uid} variant="body2" fontWeight={500}>
+                                {h.displayName || h.email}{" "}
+                                <Typography component="span" variant="caption" color="text.secondary">(Trưởng phòng)</Typography>
+                              </Typography>
+                            )}
+                            {(dept.deputies || []).map(d =>
+                              <Typography key={d.uid} variant="body2">
+                                {d.displayName || d.email}{" "}
+                                <Typography component="span" variant="caption" color="text.secondary">(Phó phòng)</Typography>
+                              </Typography>
+                            )}
                           </Stack>
                         ) : (
                           <Typography variant="body2" color="text.secondary">Chưa chỉ định</Typography>
                         )}
                       </TableCell>
+
+                      {/* NEW: Người duyệt P.HC B3 */}
+                      <TableCell>
+                        {(dept.hcStep3 || []).length > 0 ? (
+                          <Stack spacing={0.5}>
+                            {dept.hcStep3.map(u => (
+                              <Typography key={u.uid} variant="body2">
+                                {u.displayName || u.email}
+                              </Typography>
+                            ))}
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">Chưa chỉ định</Typography>
+                        )}
+                      </TableCell>
+
                       <TableCell align="center">
                         <Chip icon={<PeopleAlt />} label={dept.memberCount} size="small" variant="outlined" />
                       </TableCell>
+
                       <TableCell align="right">
                         <Tooltip title="Chỉnh sửa">
                           <IconButton size="small" onClick={() => handleOpenModal("edit", dept)}><Edit /></IconButton>
@@ -507,8 +447,6 @@ export default function AdminDepartmentManager() {
         form={currentDept}
         setForm={setCurrentDept}
         isEdit={modalMode === "edit"}
-        allManagers={allManagers}
-        departments={departments}
         users={users}
       />
 
