@@ -2,26 +2,41 @@
 
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
-  Toolbar, Box, IconButton, Tooltip, Menu, MenuItem, Divider,
-  useTheme, Avatar, Chip, Badge, Stack, Typography, Paper,
-  InputBase, ListItemButton, ListItemIcon, ListItemText, Breadcrumbs, Link as MuiLink,
-  Tabs, Tab, Button
+    Toolbar, Box, IconButton, Tooltip, Menu, MenuItem, Divider,
+    useTheme, Avatar, Badge, Stack, Typography, Paper,
+    InputBase, ListItemButton, ListItemIcon, ListItemText, Breadcrumbs, Link as MuiLink,
+    Tabs, Tab, Button,
+    Chip
 } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useHotkeys } from "react-hotkeys-hook";
 
+// Context & Hooks
 import { ThemeSettingsContext } from "../../styles/ThemeContext";
 import { useAuth } from "../../App";
 import DensityToggleButton from "../../components/DensityToggleButton";
+
+// Firestore
+import { db } from "../../services/firebase-config";
+import {
+  collection,
+  query,
+  orderBy,
+  limit,
+  onSnapshot,
+  doc,
+  updateDoc,
+  arrayUnion,
+  writeBatch, // << Bổ sung writeBatch
+} from "firebase/firestore";
 
 // lucide-react icons
 import {
   Search, Moon, Sun, Settings as SettingsIcon, LogOut, User as UserIcon, Bell,
   HelpCircle, Shield, Menu as MenuIcon, ChevronRight, Home, LayoutDashboard,
-  Building2, BarChart2, FolderOpen, TrendingUp, ChevronsLeft, AlertTriangle,
-  FileCheck2, MessageSquare
+  Building2, BarChart2, FolderOpen, TrendingUp, ChevronsLeft, PlusCircle, Trash2,
 } from "lucide-react";
 
 // ---------- styled ----------
@@ -29,6 +44,9 @@ const NotificationBadge = styled(Badge)(({ theme }) => ({
   "& .MuiBadge-badge": {
     backgroundColor: theme.palette.error.main,
     color: theme.palette.error.contrastText,
+    right: 4,
+    top: 4,
+    border: `2px solid ${theme.palette.background.paper}`,
   },
 }));
 
@@ -74,17 +92,34 @@ const QuickAction = styled(ListItemButton)(({ theme }) => ({
 
 // ---------- breadcrumbs map ----------
 const pathMap = {
-  "project-manager": "Quản lý Dự án",
-  "construction-plan": "Kế hoạch Thi công",
-  "accounts-receivable": "Công nợ Phải thu",
-  "construction-payables": "Công nợ Phải trả",
-  "profit-report-quarter": "Báo cáo Lợi nhuận Quý",
-  "profit-report-year": "Báo cáo Lợi nhuận Năm",
-  "balance-sheet": "Bảng Cân đối Kế toán",
-  "allocations": "Phân bổ Chi phí",
-  "user": "Hồ sơ Người dùng",
-  "settings": "Cài đặt",
-  "admin": "Quản trị Hệ thống",
+    "project-manager": "Quản lý Dự án",
+    "construction-plan": "Kế hoạch Thi công",
+    "accounts-receivable": "Công nợ Phải thu",
+    "construction-payables": "Công nợ Phải trả",
+    "profit-report-quarter": "Báo cáo Lợi nhuận Quý",
+    "profit-report-year": "Báo cáo Lợi nhuận Năm",
+    "balance-sheet": "Bảng Cân đối Kế toán",
+    "allocations": "Phân bổ Chi phí",
+    "user": "Hồ sơ Người dùng",
+    "settings": "Cài đặt",
+    "admin": "Quản trị Hệ thống",
+};
+
+// ---------- Notification Config (Tùy chỉnh icon & text) ----------
+const notificationConfig = {
+    ASSET_CREATED: {
+        icon: <PlusCircle size={20} color="#2e7d32" />,
+        verb: "đã thêm tài sản",
+    },
+    ASSET_DELETED: {
+        icon: <Trash2 size={20} color="#d32f2f" />,
+        verb: "đã xóa tài sản",
+    },
+    // Thêm các action khác ở đây
+    DEFAULT: {
+        icon: <Bell size={20} />,
+        verb: "đã thực hiện hành động",
+    }
 };
 
 export default function Header({ onSidebarToggle, isSidebarOpen }) {
@@ -101,18 +136,83 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
   const [notificationAnchor, setNotificationAnchor] = useState(null);
   const [notificationTab, setNotificationTab] = useState(0);
 
+  // State và useEffect cho thông báo
+  const [notifications, setNotifications] = useState([]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const q = query(
+      collection(db, "audit_logs"),
+      orderBy("timestamp", "desc"),
+      limit(20)
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const logsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        isRead: doc.data().readBy?.includes(user.uid),
+      }));
+      setNotifications(logsData);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
   // Shortcuts
   useHotkeys("ctrl+k, cmd+k", (e) => { e.preventDefault(); setSearchOpen(true); });
-  useHotkeys("ctrl+b, cmd+b", (e) => { e.preventDefault(); onSidebarToggle?.(); }); // toggle sidebar nhanh
+  useHotkeys("ctrl+b, cmd+b", (e) => { e.preventDefault(); onSidebarToggle?.(); });
   useHotkeys("esc", () => { setSearchOpen(false); setSearchValue(""); }, { enableOnFormTags: true });
 
-  // Đóng menu khi đổi route (tránh menu "kẹt" khi điều hướng)
   useEffect(() => {
     setUserMenuAnchor(null);
     setNotificationAnchor(null);
   }, [location.pathname, location.search]);
+  
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.isRead).length, [notifications]);
 
-  // Quick actions (có thể feed từ permissions sau này)
+  const handleMarkAsRead = async (notificationId) => {
+    if (!user?.uid || !notificationId) return;
+    const notifRef = doc(db, "audit_logs", notificationId);
+    try {
+      await updateDoc(notifRef, {
+        readBy: arrayUnion(user.uid),
+      });
+    } catch (error) {
+      console.error("Lỗi khi đánh dấu đã đọc:", error);
+    }
+  };
+
+  // ✅ HÀM MỚI: ĐÁNH DẤU TẤT CẢ LÀ ĐÃ ĐỌC
+  const handleMarkAllAsRead = async () => {
+    if (!user?.uid) return;
+
+    const unreadNotifications = notifications.filter(n => !n.isRead);
+    if (unreadNotifications.length === 0) return;
+
+    const batch = writeBatch(db);
+    unreadNotifications.forEach(notif => {
+        const notifRef = doc(db, "audit_logs", notif.id);
+        batch.update(notifRef, {
+            readBy: arrayUnion(user.uid)
+        });
+    });
+
+    try {
+        await batch.commit();
+    } catch (error) {
+        console.error("Lỗi khi đánh dấu tất cả đã đọc:", error);
+    }
+  };
+
+  const handleLogout = async () => {
+    setUserMenuAnchor(null);
+    const { signOut, getAuth } = await import("firebase/auth");
+    await signOut(getAuth());
+    navigate("/login");
+  };
+
   const quickActions = useMemo(
     () => [
       {
@@ -133,25 +233,8 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
     ],
     [navigate]
   );
-
-  const sampleNotifications = [
-    { id: 1, icon: <AlertTriangle color={theme.palette.error.main} />, title: "Công nợ quá hạn", description: "Hóa đơn #HD002 đã quá hạn 2 ngày.", timestamp: "15 phút trước", isRead: false },
-    { id: 2, icon: <FileCheck2 color={theme.palette.success.main} />, title: "Dự án hoàn thành", description: "Dự án Sun Grand City đã cập nhật trạng thái Hoàn thành.", timestamp: "2 giờ trước", isRead: false },
-    { id: 3, icon: <MessageSquare color={theme.palette.primary.main} />, title: "Tin nhắn mới từ Kế toán", description: "Vui lòng xem lại bảng phân bổ chi phí quý 3.", timestamp: "Hôm qua", isRead: true },
-  ];
-
-  const unreadCount = sampleNotifications.filter((n) => !n.isRead).length;
-
-  const handleLogout = async () => {
-    setUserMenuAnchor(null);
-    const { signOut, getAuth } = await import("firebase/auth");
-    await signOut(getAuth());
-    navigate("/login");
-  };
-
+  
   const pathnames = location.pathname.split("/").filter((x) => x);
-
-  // Pre-calc filtered actions cho palette
   const filteredActions = useMemo(() => {
     const q = searchValue.trim().toLowerCase();
     if (!q) return quickActions;
@@ -160,7 +243,6 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
       items: g.items.filter((i) => i.text.toLowerCase().includes(q)),
     }));
   }, [searchValue, quickActions]);
-
   const noActionFound = filteredActions.every((g) => g.items.length === 0);
 
   return (
@@ -256,46 +338,40 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
               <DensityToggleButton />
             </Box>
           </Tooltip>
+            
+            {/* Notification */}
+            <Tooltip title="Thông báo">
+                <IconButton
+                  color="inherit"
+                  onClick={(e) => setNotificationAnchor(e.currentTarget)}
+                  aria-label={`Mở thông báo, ${unreadCount} chưa đọc`}
+                >
+                  <NotificationBadge badgeContent={unreadCount} max={9}>
+                    <Bell size={20} />
+                  </NotificationBadge>
+                </IconButton>
+            </Tooltip>
+            
+            <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: "none", sm: "block" } }} />
 
-          {/* Notification */}
-          <Tooltip title="Thông báo">
-            <IconButton
-              color="inherit"
-              onClick={(e) => setNotificationAnchor(e.currentTarget)}
-              aria-label={`Mở thông báo, ${unreadCount} chưa đọc`}
-              aria-haspopup="menu"
-              aria-expanded={Boolean(notificationAnchor) ? "true" : "false"}
+            {/* User */}
+            <UserSection
+                onClick={(e) => setUserMenuAnchor(e.currentTarget)}
+                aria-label="Mở menu người dùng"
+                role="button"
             >
-              <NotificationBadge badgeContent={unreadCount}>
-                <Bell size={20} />
-              </NotificationBadge>
-            </IconButton>
-          </Tooltip>
-          {/* SR live region cho số thông báo chưa đọc */}
-          <Box sx={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }} aria-live="polite">
-            {unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : "Không có thông báo mới"}
-          </Box>
-
-          <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: "none", sm: "block" } }} />
-
-          {/* User */}
-          <UserSection
-            onClick={(e) => setUserMenuAnchor(e.currentTarget)}
-            aria-label="Mở menu người dùng"
-            role="button"
-          >
-            <Avatar src={user?.photoURL ?? ""} alt={user?.displayName ?? "User"} sx={{ width: 36, height: 36 }}>
-              {user?.displayName?.[0] || "U"}
-            </Avatar>
-            <Box sx={{ display: { xs: "none", md: "block" } }}>
-              <Typography variant="body2" fontWeight={600} lineHeight={1.2}>
-                {user?.displayName || "User"}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {user?.role === "admin" ? "Quản trị viên" : "Nhân viên"}
-              </Typography>
-            </Box>
-          </UserSection>
+                <Avatar src={user?.photoURL ?? ""} alt={user?.displayName ?? "User"} sx={{ width: 36, height: 36 }}>
+                  {user?.displayName?.[0] || "U"}
+                </Avatar>
+                <Box sx={{ display: { xs: "none", md: "block" } }}>
+                  <Typography variant="body2" fontWeight={600} lineHeight={1.2}>
+                    {user?.displayName || "User"}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {user?.role === "admin" ? "Quản trị viên" : "Nhân viên"}
+                  </Typography>
+                </Box>
+            </UserSection>
         </Stack>
       </Toolbar>
 
@@ -344,10 +420,15 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         onClose={() => setNotificationAnchor(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
-        PaperProps={{ sx: { mt: 1, width: 360, maxWidth: "90vw", borderRadius: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" } }}
+        PaperProps={{ sx: { mt: 1, width: 380, maxWidth: "90vw", borderRadius: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" } }}
       >
-        <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
+        <Box sx={{ px: 2, pt: 1.5, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="subtitle1" fontWeight={700}>Thông báo</Typography>
+          {unreadCount > 0 && (
+            <Button size="small" onClick={handleMarkAllAsRead} sx={{ mr: -1 }}>
+                Đánh dấu đã đọc
+            </Button>
+          )}
         </Box>
         <Tabs
           value={notificationTab}
@@ -356,32 +437,58 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
           sx={{ borderBottom: (t) => `1px solid ${t.palette.divider}` }}
         >
           <Tab label="Tất cả" />
-          <Tab label="Chưa đọc" />
+          <Tab label={`Chưa đọc (${unreadCount})`} />
         </Tabs>
         <Box sx={{ maxHeight: 360, overflowY: "auto", p: 1 }}>
-          {sampleNotifications
+          {notifications
             .filter((n) => (notificationTab === 0 ? true : !n.isRead))
-            .map((n) => (
-              <ListItemButton key={n.id} onClick={() => setNotificationAnchor(null)} sx={{ borderRadius: 1 }}>
-                <ListItemIcon>{n.icon}</ListItemIcon>
-                <ListItemText
-                  primary={<Typography fontWeight={600}>{n.title}</Typography>}
-                  secondary={
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">{n.description}</Typography>
-                      <Typography variant="caption" color="text.disabled">{n.timestamp}</Typography>
-                    </Box>
-                  }
-                />
-                {!n.isRead && <Chip size="small" label="Mới" color="error" variant="outlined" />}
-              </ListItemButton>
-            ))}
-          {sampleNotifications.filter((n) => (notificationTab === 0 ? true : !n.isRead)).length === 0 && (
-            <Box sx={{ p: 2, textAlign: "center", color: "text.secondary" }}>Không có thông báo</Box>
+            .map((n) => {
+              const config = notificationConfig[n.action] || notificationConfig.DEFAULT;
+              return (
+                <ListItemButton
+                  key={n.id}
+                  onClick={() => {
+                    if (!n.isRead) handleMarkAsRead(n.id);
+                    setNotificationAnchor(null);
+                  }}
+                  sx={{ borderRadius: 1.5, mb: 0.5, alignItems: 'flex-start' }}
+                >
+                  <ListItemIcon sx={{ mt: 0.5, minWidth: 36 }}>{config.icon}</ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Typography variant="body2" fontWeight={n.isRead ? 400 : 600} sx={{ mb: 0.25 }}>
+                        <Box component="span" fontWeight={600}>{n.actor?.name || "Một người dùng"}</Box> {config.verb} <Box component="span" fontWeight={600}>{n.target?.name}</Box>.
+                      </Typography>
+                    }
+                    secondary={
+                        <Typography variant="caption" color="text.secondary">
+                            {n.timestamp?.toDate().toLocaleString("vi-VN", {
+                                day: '2-digit', month: '2-digit', year: 'numeric',
+                                hour: '2-digit', minute: '2-digit'
+                            })}
+                        </Typography>
+                    }
+                  />
+                  {!n.isRead && (
+                    <Box sx={{ mt: 0.75, width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
+                  )}
+                </ListItemButton>
+              );
+            })}
+          {notifications.filter((n) => (notificationTab === 0 ? true : !n.isRead)).length === 0 && (
+            <Box sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>
+                <Bell size={40} strokeWidth={1} />
+                <Typography>Không có thông báo nào.</Typography>
+            </Box>
           )}
         </Box>
-        <Box sx={{ p: 1, display: "flex", justifyContent: "flex-end" }}>
-          <Button size="small" onClick={() => setNotificationAnchor(null)}>Đóng</Button>
+        <Box sx={{ p: 1, borderTop: t => `1px solid ${t.palette.divider}` }}>
+          <Button fullWidth size="small" onClick={() => {
+            // Tùy chọn: navigate đến một trang xem tất cả thông báo
+            setNotificationAnchor(null)
+          }}>
+            Xem tất cả
+          </Button>
         </Box>
       </Menu>
 
