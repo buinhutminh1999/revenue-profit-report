@@ -37,6 +37,12 @@ import {
   Search, Moon, Sun, Settings as SettingsIcon, LogOut, User as UserIcon, Bell,
   HelpCircle, Shield, Menu as MenuIcon, ChevronRight, Home, LayoutDashboard,
   Building2, BarChart2, FolderOpen, TrendingUp, ChevronsLeft, PlusCircle, Trash2,
+  FilePlus,
+  Check,
+  X,
+  UserCheck,
+  Send,
+  FilePen,
 } from "lucide-react";
 
 // ---------- styled ----------
@@ -107,21 +113,36 @@ const pathMap = {
 
 // ---------- Notification Config (Tùy chỉnh icon & text) ----------
 const notificationConfig = {
-    ASSET_CREATED: {
-        icon: <PlusCircle size={20} color="#2e7d32" />,
-        verb: "đã thêm tài sản",
-    },
-    ASSET_DELETED: {
-        icon: <Trash2 size={20} color="#d32f2f" />,
-        verb: "đã xóa tài sản",
-    },
-    // Thêm các action khác ở đây
-    DEFAULT: {
-        icon: <Bell size={20} />,
-        verb: "đã thực hiện hành động",
-    }
-};
+    // Luồng Tài sản (Asset)
+    ASSET_CREATED: { icon: <PlusCircle size={20} color="#2e7d32" />, template: (actor, target) => `**${actor}** đã tạo tài sản mới **${target}**.` },
+    ASSET_DELETED: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã xóa tài sản **${target}**.` },
 
+    // Luồng Yêu cầu Thay đổi (Asset Request)
+    ASSET_REQUEST_CREATED: { icon: <FilePlus size={20} color="#0288d1" />, template: (actor, target) => `**${actor}** đã gửi yêu cầu thêm tài sản **${target}**.` },
+    ASSET_REQUEST_DELETED: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor) => `**${actor}** đã xóa một yêu cầu thay đổi.` },
+    ASSET_REQUEST_REJECTED: { icon: <X size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã từ chối yêu cầu cho tài sản **${target}**.` },
+    ASSET_REQUEST_APPROVED: { icon: <Check size={20} color="#2e7d32" />, template: (actor, target) => `**${actor}** đã duyệt yêu cầu cho tài sản **${target}**.` },
+    ASSET_REQUEST_HC_APPROVED: { icon: <UserCheck size={20} color="#1976d2" />, template: (actor, target) => `**${actor}** (P.HC) đã duyệt yêu cầu cho **${target}**.` },
+    ASSET_REQUEST_KT_APPROVED: { icon: <Check size={20} color="#2e7d32" />, template: (actor, target) => `**${actor}** (P.KT) đã duyệt xong yêu cầu cho **${target}**.` },
+    
+    // NEW: Bổ sung các hành động cho Phiếu Luân Chuyển
+    TRANSFER_CREATED: { 
+        icon: <Send size={20} color="#0288d1" />, 
+        template: (actor, target) => `**${actor}** đã tạo phiếu luân chuyển **${target}**.` 
+    },
+    TRANSFER_DELETED: { 
+        icon: <Trash2 size={20} color="#d32f2f" />, 
+        template: (actor, target) => `**${actor}** đã xóa phiếu luân chuyển **${target}**.` 
+    },
+    TRANSFER_SIGNED: { 
+        icon: <FilePen size={20} color="#1976d2" />, 
+        template: (actor, target, details) => `**${actor}** đã ký **${details}** cho phiếu **${target}**.` 
+    },
+
+    // Mặc định
+    DEFAULT: { icon: <Bell size={20} />, template: (actor) => `**${actor}** đã thực hiện một hành động.` }
+};
+//xóa phiếu luân chuyển, yêu cầu thêm xóa tài sản cũng hiện thông báo cho hợp lý nhất nhé
 export default function Header({ onSidebarToggle, isSidebarOpen }) {
   const theme = useTheme();
   const reduce = useReducedMotion();
@@ -454,21 +475,29 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                   sx={{ borderRadius: 1.5, mb: 0.5, alignItems: 'flex-start' }}
                 >
                   <ListItemIcon sx={{ mt: 0.5, minWidth: 36 }}>{config.icon}</ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Typography variant="body2" fontWeight={n.isRead ? 400 : 600} sx={{ mb: 0.25 }}>
-                        <Box component="span" fontWeight={600}>{n.actor?.name || "Một người dùng"}</Box> {config.verb} <Box component="span" fontWeight={600}>{n.target?.name}</Box>.
-                      </Typography>
-                    }
-                    secondary={
-                        <Typography variant="caption" color="text.secondary">
-                            {n.timestamp?.toDate().toLocaleString("vi-VN", {
-                                day: '2-digit', month: '2-digit', year: 'numeric',
-                                hour: '2-digit', minute: '2-digit'
-                            })}
-                        </Typography>
-                    }
-                  />
+
+<ListItemText
+    primary={
+        <Typography variant="body2" fontWeight={n.isRead ? 400 : 600} sx={{ mb: 0.25 }}>
+            {/* Logic mới để tạo câu văn */}
+            {config.template(
+                n.actor?.name || "Một người dùng",
+                n.target?.name || "",
+                n.details?.step || "" // Truyền chi tiết nếu có
+            ).split('**').map((text, index) => (
+                index % 2 === 1 ? <b key={index}>{text}</b> : text
+            ))}
+        </Typography>
+    }
+    secondary={
+        <Typography variant="caption" color="text.secondary">
+            {n.timestamp?.toDate().toLocaleString("vi-VN", {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            })}
+        </Typography>
+    }
+/>
                   {!n.isRead && (
                     <Box sx={{ mt: 0.75, width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
                   )}

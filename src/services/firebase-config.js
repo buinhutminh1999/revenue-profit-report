@@ -4,6 +4,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth"; // BƯỚC 1: Thêm dòng này
+import { getFunctions } from "firebase/functions"; // 1. Thêm import này
 
 const firebaseConfig = {
     apiKey: "AIzaSyABAtDgu1RWl8yhHECA2WDqOYTO_6NNQ6I",
@@ -28,6 +29,7 @@ storage && console.log("✅ Kết nối Storage thành công!");
 
 const auth = getAuth(app); // BƯỚC 2: Thêm dòng này
 auth && console.log("✅ Dịch vụ Auth sẵn sàng!");
+const functions = getFunctions(app, 'asia-southeast1'); // 2. Khởi tạo Functions (chỉ định đúng khu vực)
 
 // Xuất các dịch vụ
-export { db, storage, auth }; // BƯỚC 3: Thêm 'auth' vào đây
+export { db, auth, storage, functions }; // BƯỚC 3: Thêm 'auth' vào đây

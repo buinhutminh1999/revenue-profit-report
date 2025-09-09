@@ -41,6 +41,7 @@ const CategoryConfig = lazy(() => import('../pages/CategoryConfig'));
 const ProjectDetailsLayout = lazy(() => import('../pages/ProjectDetailsLayout'));
 const ProfitChange = lazy(() => import('../pages/ProfitChange'));
 const AssetTransferPage = lazy(() => import('../pages/AssetTransferPage'));
+const TransferDetailPage = lazy(() => import('../pages/TransferDetailPage'));
 
 // Report Modules
 const ProfitReportQuarter = lazy(() => import('../pages/ProfitReportQuarter'));
@@ -81,6 +82,7 @@ function AppRoutes() {
                     {/* Route công khai */}
                     <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : lazyLoad(LoginPage)} />
                     <Route path="/event" element={lazyLoad(EventSlideshow)} />
+                    <Route path="/transfers/:transferId" element={lazyLoad(TransferDetailPage)} />
 
                     {/* Route được bảo vệ, yêu cầu đăng nhập */}
                     <Route
@@ -136,7 +138,7 @@ function AppRoutes() {
                             <Route index element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminDashboard)}</RequireRole>} />
                             <Route path="users" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminUserManager)}</RequireRole>} />
                             <Route path="departments" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminDepartmentManager)}</RequireRole>} /> {/* <-- THÊM DÒNG NÀY */}
-                             <Route path="audit-log" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminAuditLog)}</RequireRole>} />
+                            <Route path="audit-log" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminAuditLog)}</RequireRole>} />
                             <Route path="close-quarter" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(CloseQuarterPage)}</RequireRole>} />
                         </Route>
 

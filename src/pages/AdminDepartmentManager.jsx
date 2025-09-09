@@ -1,4 +1,3 @@
-// src/pages/AdminDepartmentManager.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import {
   Box, Typography, Select, MenuItem, FormControl, InputLabel, OutlinedInput,
@@ -8,14 +7,14 @@ import {
   DialogContentText, Avatar, Chip, Toolbar, Grid, Card, CardContent, ListItemText, Checkbox
 } from "@mui/material";
 import {
-  Delete, Edit, GroupWork, AddBusiness, PeopleAlt, Warning, Sync
+  Delete, Edit, GroupWork, AddBusiness, PeopleAlt, Warning, Sync, VerifiedUser // NEW: Import icon mới
 } from "@mui/icons-material";
 import {
   collection, getDocs, updateDoc, doc, addDoc, query, orderBy as fsOrderBy, deleteDoc
 } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 
-/* ---- Sorting helpers ---- */
+/* ---- Sorting helpers (Không thay đổi) ---- */
 function descendingComparator(a, b, orderBy) {
   if (b[orderBy] < a[orderBy]) return -1;
   if (b[orderBy] > a[orderBy]) return 1;
@@ -36,15 +35,17 @@ function stableSort(array, comparator) {
   return stabilizedThis.map((el) => el[0]);
 }
 
+// UPDATED: Thêm cột cho người duyệt P. Kế toán
 const headCells = [
   { id: "name", numeric: false, label: "Tên Phòng Ban" },
   { id: "leaders", numeric: false, label: "Lãnh đạo" },
-  { id: "hcStep3", numeric: false, label: "P.HC (Bước 3)" },      // NEW: cột hiển thị người duyệt P.HC B3
+  { id: "hcStep3", numeric: false, label: "P.HC (Duyệt tài sản)" },
+  { id: "ktApprovers", numeric: false, label: "P.KT (Duyệt tài sản)" }, // NEW: Cột mới
   { id: "memberCount", numeric: true, label: "Số Nhân Sự" },
   { id: "actions", numeric: true, label: "Thao tác" },
 ];
 
-/* ---- StatCard ---- */
+/* ---- StatCard (Không thay đổi) ---- */
 const StatCard = ({ icon, title, count, color }) => (
   <Card elevation={0} sx={{ bgcolor: "grey.100", borderRadius: 2 }}>
     <CardContent>
@@ -59,7 +60,7 @@ const StatCard = ({ icon, title, count, color }) => (
   </Card>
 );
 
-/* ---- Form Dialog ---- */
+/* ---- Form Dialog (UPDATED) ---- */
 const DepartmentFormDialog = ({
   open, onClose, onSave, form, setForm, isEdit, users
 }) => {
@@ -83,16 +84,9 @@ const DepartmentFormDialog = ({
             <Select
               multiple
               value={form.headIds || []}
-              onChange={(e) => setForm({
-                ...form,
-                headIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
-              })}
+              onChange={(e) => setForm({ ...form, headIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value })}
               input={<OutlinedInput label="Trưởng phòng" />}
-              renderValue={(selected) =>
-                (selected || [])
-                  .map(uid => (users.find(u => u.uid === uid)?.displayName || users.find(u => u.uid === uid)?.email || uid))
-                  .join(", ")
-              }
+              renderValue={(selected) =>(selected || []).map(uid => (users.find(u => u.uid === uid)?.displayName || uid)).join(", ")}
             >
               {users.map((u) => (
                 <MenuItem key={u.uid} value={u.uid}>
@@ -109,16 +103,9 @@ const DepartmentFormDialog = ({
             <Select
               multiple
               value={form.deputyIds || []}
-              onChange={(e) => setForm({
-                ...form,
-                deputyIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
-              })}
+              onChange={(e) => setForm({ ...form, deputyIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value })}
               input={<OutlinedInput label="Phó phòng" />}
-              renderValue={(selected) =>
-                (selected || [])
-                  .map(uid => (users.find(u => u.uid === uid)?.displayName || users.find(u => u.uid === uid)?.email || uid))
-                  .join(", ")
-              }
+              renderValue={(selected) => (selected || []).map(uid => (users.find(u => u.uid === uid)?.displayName || uid)).join(", ")}
             >
               {users.map((u) => (
                 <MenuItem key={u.uid} value={u.uid}>
@@ -129,26 +116,38 @@ const DepartmentFormDialog = ({
             </Select>
           </FormControl>
 
-          {/* NEW: Người duyệt P.HC bước 3 */}
+          {/* Người duyệt P.HC */}
           <FormControl fullWidth>
-            <InputLabel>Người duyệt P.HC (bước 3)</InputLabel>
+            <InputLabel>Người duyệt P.HC (Bước 1)</InputLabel>
             <Select
               multiple
               value={form.hcStep3ApproverIds || []}
-              onChange={(e) => setForm({
-                ...form,
-                hcStep3ApproverIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
-              })}
-              input={<OutlinedInput label="Người duyệt P.HC (bước 3)" />}
-              renderValue={(selected) =>
-                (selected || [])
-                  .map(uid => (users.find(u => u.uid === uid)?.displayName || users.find(u => u.uid === uid)?.email || uid))
-                  .join(", ")
-              }
+              onChange={(e) => setForm({ ...form, hcStep3ApproverIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value })}
+              input={<OutlinedInput label="Người duyệt P.HC (Bước 1)" />}
+              renderValue={(selected) => (selected || []).map(uid => (users.find(u => u.uid === uid)?.displayName || uid)).join(", ")}
             >
               {users.map((u) => (
                 <MenuItem key={u.uid} value={u.uid}>
                   <Checkbox checked={(form.hcStep3ApproverIds || []).includes(u.uid)} />
+                  <ListItemText primary={u.displayName || u.email} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* NEW: Người duyệt P. Kế toán */}
+          <FormControl fullWidth>
+            <InputLabel>Người duyệt P. Kế toán (Bước 2)</InputLabel>
+            <Select
+              multiple
+              value={form.ktApproverIds || []}
+              onChange={(e) => setForm({ ...form, ktApproverIds: typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value })}
+              input={<OutlinedInput label="Người duyệt P. Kế toán (Bước 2)" />}
+              renderValue={(selected) => (selected || []).map(uid => (users.find(u => u.uid === uid)?.displayName || uid)).join(", ")}
+            >
+              {users.map((u) => (
+                <MenuItem key={u.uid} value={u.uid}>
+                  <Checkbox checked={(form.ktApproverIds || []).includes(u.uid)} />
                   <ListItemText primary={u.displayName || u.email} />
                 </MenuItem>
               ))}
@@ -182,9 +181,13 @@ export default function AdminDepartmentManager() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
 
-  // NEW: thêm hcStep3ApproverIds vào state form
+  // UPDATED: Thêm ktApproverIds vào state form
   const [currentDept, setCurrentDept] = useState({
-    name: "", headIds: [], deputyIds: [], hcStep3ApproverIds: []
+    name: "", headIds: [], deputyIds: [], hcStep3ApproverIds: [], ktApproverIds: []
+  });
+  
+  const resetCurrentDept = () => ({
+    name: "", headIds: [], deputyIds: [], hcStep3ApproverIds: [], ktApproverIds: []
   });
 
   const fetchData = async () => {
@@ -197,13 +200,15 @@ export default function AdminDepartmentManager() {
       const deptsSnapshot = await getDocs(query(collection(db, "departments"), fsOrderBy("name")));
       const deptDocs = deptsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
+      // UPDATED: Lấy thông tin người duyệt P.KT
       const depts = deptDocs.map(d => {
         const heads = (d.headIds || []).map(id => usersList.find(u => u.uid === id)).filter(Boolean);
         const deputies = (d.deputyIds || []).map(id => usersList.find(u => u.uid === id)).filter(Boolean);
-        const hcStep3 = (d.hcStep3ApproverIds || []).map(id => usersList.find(u => u.uid === id)).filter(Boolean); // NEW
+        const hcStep3 = (d.hcStep3ApproverIds || []).map(id => usersList.find(u => u.uid === id)).filter(Boolean);
+        const ktApprovers = (d.ktApproverIds || []).map(id => usersList.find(u => u.uid === id)).filter(Boolean); // NEW
         const leaders = [...heads, ...deputies];
         const memberCount = usersList.filter(u => u.primaryDepartmentId === d.id).length;
-        return { ...d, heads, deputies, leaders, hcStep3, memberCount };
+        return { ...d, heads, deputies, leaders, hcStep3, ktApprovers, memberCount }; // UPDATED
       });
       setDepartments(depts);
     } catch (error) {
@@ -215,19 +220,23 @@ export default function AdminDepartmentManager() {
 
   useEffect(() => { fetchData(); }, []);
 
+  // UPDATED: Bổ sung tìm kiếm theo người duyệt P.KT
   const filteredDepartments = useMemo(
     () => departments.filter(dept => {
       const s = search.toLowerCase();
-      const leaderNames = (dept.leaders || []).map(l => (l.displayName || l.email || "").toLowerCase()).join(" ");
-      const hcNames = (dept.hcStep3 || []).map(l => (l.displayName || l.email || "").toLowerCase()).join(" ");
-      return (dept.name || "").toLowerCase().includes(s) || leaderNames.includes(s) || hcNames.includes(s);
+      const leaderNames = (dept.leaders || []).map(l => (l.displayName || "").toLowerCase()).join(" ");
+      const hcNames = (dept.hcStep3 || []).map(l => (l.displayName || "").toLowerCase()).join(" ");
+      const ktNames = (dept.ktApprovers || []).map(l => (l.displayName || "").toLowerCase()).join(" "); // NEW
+      return (dept.name || "").toLowerCase().includes(s) || leaderNames.includes(s) || hcNames.includes(s) || ktNames.includes(s);
     }),
     [departments, search]
   );
-
+  
+  // UPDATED: Thêm stat card mới
   const stats = useMemo(() => ({
     total: departments.length,
     unmanaged: departments.filter(d => (d.headIds || []).length === 0 && (d.deputyIds || []).length === 0).length,
+    noKtApprover: departments.filter(d => (d.ktApproverIds || []).length === 0).length,
   }), [departments]);
 
   const handleRequestSort = (property) => {
@@ -239,14 +248,16 @@ export default function AdminDepartmentManager() {
   const handleOpenModal = (mode, dept = null) => {
     setModalMode(mode);
     if (mode === "add") {
-      setCurrentDept({ name: "", headIds: [], deputyIds: [], hcStep3ApproverIds: [] });
+      setCurrentDept(resetCurrentDept());
     } else {
+      // UPDATED: Tải dữ liệu P.KT vào form
       setCurrentDept({
         id: dept.id,
         name: dept.name || "",
         headIds: dept.headIds || [],
         deputyIds: dept.deputyIds || [],
-        hcStep3ApproverIds: dept.hcStep3ApproverIds || [], // NEW
+        hcStep3ApproverIds: dept.hcStep3ApproverIds || [],
+        ktApproverIds: dept.ktApproverIds || [], // NEW
       });
     }
     setIsModalOpen(true);
@@ -254,7 +265,7 @@ export default function AdminDepartmentManager() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setCurrentDept({ name: "", headIds: [], deputyIds: [], hcStep3ApproverIds: [] });
+    setCurrentDept(resetCurrentDept());
   };
 
   const handleSaveDepartment = async () => {
@@ -266,11 +277,13 @@ export default function AdminDepartmentManager() {
     setLoading(true);
     const departmentId = currentDept.id;
 
+    // UPDATED: Thêm trường ktApproverIds khi lưu
     const dataToSave = {
       name: currentDept.name,
       headIds: currentDept.headIds || [],
       deputyIds: currentDept.deputyIds || [],
-      hcStep3ApproverIds: currentDept.hcStep3ApproverIds || [], // NEW
+      hcStep3ApproverIds: currentDept.hcStep3ApproverIds || [],
+      ktApproverIds: currentDept.ktApproverIds || [], // NEW
     };
 
     try {
@@ -312,31 +325,29 @@ export default function AdminDepartmentManager() {
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5" fontWeight={600}>
           <GroupWork sx={{ mb: -0.5, mr: 1 }} />
-          Quản lý Phòng ban
+          Quản lý Phòng ban & Phân quyền
         </Typography>
       </Stack>
 
       <Grid container spacing={3} mb={3}>
-        <Grid item xs={6} md={3}><StatCard icon={<GroupWork />} title="Tổng số Phòng ban" count={stats.total} color="info.main" /></Grid>
-        <Grid item xs={6} md={3}><StatCard icon={<Warning />} title="Chưa có lãnh đạo" count={stats.unmanaged} color="warning.main" /></Grid>
+        <Grid item xs={12} sm={6} md={4}><StatCard icon={<GroupWork />} title="Tổng số Phòng ban" count={stats.total} color="info.main" /></Grid>
+        <Grid item xs={12} sm={6} md={4}><StatCard icon={<Warning />} title="Chưa có lãnh đạo" count={stats.unmanaged} color="warning.main" /></Grid>
+        {/* NEW Stat Card */}
+        <Grid item xs={12} sm={6} md={4}><StatCard icon={<VerifiedUser />} title="Chưa gán người duyệt P.KT" count={stats.noKtApprover} color="error.main" /></Grid>
       </Grid>
 
       <Card elevation={4} sx={{ borderRadius: 3, overflow: "visible" }}>
         <Toolbar sx={{ p: 2, display: "flex", flexWrap: "wrap", gap: 2 }}>
           <TextField
-            placeholder="🔍 Tìm phòng, lãnh đạo, hoặc người duyệt P.HC B3..."
+            placeholder="🔍 Tìm phòng, lãnh đạo, người duyệt..."
             variant="outlined" size="small" fullWidth
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             sx={{ flex: "1 1 420px" }}
           />
           <Stack direction="row" spacing={1}>
-            <Button onClick={() => fetchData()} variant="outlined" color="secondary" startIcon={<Sync />}>
-              Làm mới
-            </Button>
-            <Button onClick={() => handleOpenModal("add")} variant="contained" startIcon={<AddBusiness />}>
-              Thêm Mới
-            </Button>
+            <Button onClick={() => fetchData()} variant="outlined" color="secondary" startIcon={<Sync />}>Làm mới</Button>
+            <Button onClick={() => handleOpenModal("add")} variant="contained" startIcon={<AddBusiness />}>Thêm Mới</Button>
           </Stack>
         </Toolbar>
 
@@ -366,11 +377,7 @@ export default function AdminDepartmentManager() {
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                   .map((dept) => (
                     <TableRow key={dept.id} hover>
-                      <TableCell>
-                        <Typography variant="body1" fontWeight={600}>{dept.name}</Typography>
-                      </TableCell>
-
-                      {/* Lãnh đạo */}
+                      <TableCell><Typography variant="body1" fontWeight={600}>{dept.name}</Typography></TableCell>
                       <TableCell>
                         {(dept.leaders || []).length > 0 ? (
                           <Stack spacing={0.5}>
@@ -387,37 +394,28 @@ export default function AdminDepartmentManager() {
                               </Typography>
                             )}
                           </Stack>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">Chưa chỉ định</Typography>
-                        )}
+                        ) : (<Typography variant="body2" color="text.secondary">Chưa chỉ định</Typography>)}
                       </TableCell>
 
-                      {/* NEW: Người duyệt P.HC B3 */}
                       <TableCell>
                         {(dept.hcStep3 || []).length > 0 ? (
-                          <Stack spacing={0.5}>
-                            {dept.hcStep3.map(u => (
-                              <Typography key={u.uid} variant="body2">
-                                {u.displayName || u.email}
-                              </Typography>
-                            ))}
-                          </Stack>
+                          <Stack spacing={0.5}>{dept.hcStep3.map(u => (<Typography key={u.uid} variant="body2">{u.displayName || u.email}</Typography>))}</Stack>
+                        ) : (<Typography variant="body2" color="text.secondary">Chưa chỉ định</Typography>)}
+                      </TableCell>
+
+                      {/* NEW: Hiển thị người duyệt P.KT */}
+                      <TableCell>
+                        {(dept.ktApprovers || []).length > 0 ? (
+                          <Stack spacing={0.5}>{dept.ktApprovers.map(u => (<Typography key={u.uid} variant="body2">{u.displayName || u.email}</Typography>))}</Stack>
                         ) : (
-                          <Typography variant="body2" color="text.secondary">Chưa chỉ định</Typography>
+                          <Chip label="Chưa gán" size="small" color="error" variant="outlined" />
                         )}
                       </TableCell>
 
-                      <TableCell align="center">
-                        <Chip icon={<PeopleAlt />} label={dept.memberCount} size="small" variant="outlined" />
-                      </TableCell>
-
+                      <TableCell align="center"><Chip icon={<PeopleAlt />} label={dept.memberCount} size="small" variant="outlined" /></TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Chỉnh sửa">
-                          <IconButton size="small" onClick={() => handleOpenModal("edit", dept)}><Edit /></IconButton>
-                        </Tooltip>
-                        <Tooltip title="Xóa">
-                          <IconButton size="small" color="error" onClick={() => openDeleteConfirm(dept)}><Delete /></IconButton>
-                        </Tooltip>
+                        <Tooltip title="Chỉnh sửa"><IconButton size="small" onClick={() => handleOpenModal("edit", dept)}><Edit /></IconButton></Tooltip>
+                        <Tooltip title="Xóa"><IconButton size="small" color="error" onClick={() => openDeleteConfirm(dept)}><Delete /></IconButton></Tooltip>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -433,10 +431,7 @@ export default function AdminDepartmentManager() {
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={(e, newPage) => setPage(newPage)}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(parseInt(e.target.value, 10));
-            setPage(0);
-          }}
+          onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
         />
       </Card>
 
@@ -452,11 +447,7 @@ export default function AdminDepartmentManager() {
 
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
         <DialogTitle>Xác nhận Xóa</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Bạn có chắc chắn muốn xóa phòng ban "{itemToDelete?.name}" không?
-          </DialogContentText>
-        </DialogContent>
+        <DialogContent><DialogContentText>Bạn có chắc chắn muốn xóa phòng ban "{itemToDelete?.name}" không?</DialogContentText></DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmOpen(false)}>Hủy</Button>
           <Button onClick={handleDelete} color="error" variant="contained" autoFocus>Xác nhận Xóa</Button>
@@ -469,9 +460,7 @@ export default function AdminDepartmentManager() {
         onClose={() => setFeedback({ ...feedback, open: false })}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert severity={feedback.severity} sx={{ width: "100%" }} elevation={6} variant="filled">
-          {feedback.message}
-        </Alert>
+        <Alert severity={feedback.severity} sx={{ width: "100%" }} elevation={6} variant="filled">{feedback.message}</Alert>
       </Snackbar>
     </Box>
   );

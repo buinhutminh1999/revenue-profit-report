@@ -6,6 +6,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const {
     onDocumentCreated,
     onDocumentDeleted,
+    onDocumentUpdated
 } = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const logger = require("firebase-functions/logger");
@@ -69,14 +70,14 @@ async function writeAuditLog(
             typeof actor === "string" ?
                 { uid: actor } :
                 actor && typeof actor === "object" ?
-                { ...actor } :
-                {};
+                    { ...actor } :
+                    {};
 
         // Lấy thông tin từ auth token (callable)
         const token = request?.auth?.token;
         if (!actorInfo.uid && request?.auth?.uid) {
-actorInfo.uid = request.auth.uid;
-}
+            actorInfo.uid = request.auth.uid;
+        }
         if (!actorInfo.email && token?.email) actorInfo.email = token.email;
         if (!actorInfo.name && token?.name) actorInfo.name = token.name;
 
@@ -115,6 +116,7 @@ actorInfo.uid = request.auth.uid;
         logger.warn("writeAuditLog warning:", e?.message || e);
     }
 }
+
 
 /** ----------------- Cloud Functions (Callable - v2) ----------------- **/
 
@@ -245,6 +247,138 @@ exports.manualCloseQuarter = onCall(async (request) => {
         );
     }
 });
+// ====================================================================
+// NEW: FUNCTION XỬ LÝ YÊU CẦU THAY ĐỔI TÀI SẢN
+// ====================================================================
+exports.processAssetRequest = onCall(async (request) => {
+    ensureSignedIn(request.auth);
+
+    const { requestId, action, reason } = request.data;
+    if (!requestId || !action) {
+        throw new HttpsError("invalid-argument", "Thiếu ID yêu cầu hoặc hành động.");
+    }
+
+    const uid = request.auth.uid;
+    const userSnap = await db.collection("users").doc(uid).get();
+    const userData = userSnap.data() || {};
+    const isAdmin = request.auth.token.admin === true;
+
+    const requestRef = db.collection("asset_requests").doc(requestId);
+
+    return db.runTransaction(async (transaction) => {
+        const requestDoc = await transaction.get(requestRef);
+        if (!requestDoc.exists) {
+            throw new HttpsError("not-found", "Yêu cầu không tồn tại.");
+        }
+        const reqData = requestDoc.data();
+        const { status, type } = reqData;
+
+        // --- Logic từ chối ---
+        if (action === "reject") {
+            if (status !== "PENDING_HC" && status !== "PENDING_KT") {
+                throw new HttpsError("failed-precondition", "Yêu cầu đã được xử lý.");
+            }
+            transaction.update(requestRef, {
+                status: "REJECTED",
+                rejectionReason: reason || "Không có lý do",
+                processedBy: { uid, name: userData.displayName || request.auth.token.email },
+            });
+            await writeAuditLog("ASSET_REQUEST_REJECTED", uid, { type: "asset_request", id: requestId }, { reason }, { request });
+            return { ok: true, message: "Đã từ chối yêu cầu." };
+        }
+
+        // --- Logic duyệt ---
+        const signature = {
+            uid: uid,
+            name: userData.displayName || request.auth.token.email || "Người duyệt",
+            approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        if (status === "PENDING_HC") {
+            const deptSnap = await db.collection("departments").doc(reqData.assetData.departmentId).get();
+            const hcApprovers = deptSnap.data()?.hcStep3ApproverIds || [];
+            if (!isAdmin && !hcApprovers.includes(uid)) {
+                throw new HttpsError("permission-denied", "Bạn không có quyền duyệt P.HC cho phòng ban này.");
+            }
+
+            transaction.update(requestRef, {
+                "status": "PENDING_KT", // SỬA LỖI: Thêm lại dấu ngoặc kép để nhất quán
+                "signatures.hc": signature,
+            });
+            await writeAuditLog("ASSET_REQUEST_HC_APPROVED", uid, { type: "asset_request", id: requestId }, {}, { request });
+            return { ok: true, message: "P.HC đã duyệt, chờ P.KT." };
+        } else if (status === "PENDING_KT") {
+            const deptId = reqData.assetData?.departmentId || reqData.departmentId;
+            const deptSnap = await db.collection("departments").doc(deptId).get();
+            const ktApprovers = deptSnap.data()?.ktApproverIds || [];
+            if (!isAdmin && !ktApprovers.includes(uid)) {
+                throw new HttpsError("permission-denied", "Bạn không có quyền duyệt P.KT cho phòng ban này.");
+            }
+
+            if (type === "ADD") {
+                const newAssetRef = db.collection("assets").doc();
+                transaction.set(newAssetRef, {
+                    ...reqData.assetData,
+                    createdByUid: reqData.requester.uid,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    reserved: 0,
+                });
+            } else if (type === "DECREASE") {
+                const assetRef = db.collection("assets").doc(reqData.targetAssetId);
+                transaction.update(assetRef, {
+                    quantity: admin.firestore.FieldValue.increment(-reqData.quantityToDecrease),
+                });
+            } else if (type === "DELETE") {
+                const assetRef = db.collection("assets").doc(reqData.targetAssetId);
+                transaction.update(assetRef, { deletedByUid: uid });
+                transaction.delete(assetRef);
+            }
+
+            transaction.update(requestRef, {
+                "status": "COMPLETED", // SỬA LỖI: Thêm lại dấu ngoặc kép để nhất quán
+                "signatures.kt": signature,
+            });
+            await writeAuditLog("ASSET_REQUEST_KT_APPROVED", uid, { type: "asset_request", id: requestId }, { executedType: type }, { request });
+            return { ok: true, message: "Hoàn tất! Thay đổi đã được áp dụng." };
+        } else {
+            throw new HttpsError("failed-precondition", "Yêu cầu không ở trạng thái chờ duyệt.");
+        }
+    });
+});
+
+// ====================================================================
+// NEW: FUNCTION ĐỂ XÓA YÊU CẦU THAY ĐỔI TÀI SẢN (CHỈ ADMIN)
+// ====================================================================
+exports.deleteAssetRequest = onCall(async (request) => {
+    // Chỉ Admin mới có quyền chạy hàm này
+    await ensureAdmin(request.auth);
+
+    const { requestId } = request.data;
+    if (!requestId) {
+        throw new HttpsError("invalid-argument", "Thiếu ID của yêu cầu.");
+    }
+
+    try {
+        const requestRef = db.collection("asset_requests").doc(requestId);
+
+        // Ghi log hành động xóa trước khi thực hiện
+        await writeAuditLog(
+            "ASSET_REQUEST_DELETED",
+            request.auth.uid,
+            { type: "asset_request", id: requestId },
+            {},
+            { request, severity: "WARNING" }
+        );
+
+        // Thực hiện xóa
+        await requestRef.delete();
+
+        return { ok: true, message: "Đã xóa yêu cầu thành công." };
+    } catch (error) {
+        logger.error("deleteAssetRequest error:", error);
+        throw new HttpsError("internal", "Xóa yêu cầu thất bại.", error.message);
+    }
+});
 
 /** ----------------- Firestore Triggers (v2) ----------------- **/
 
@@ -314,3 +448,80 @@ exports.logAssetDeletion = onDocumentDeleted(
         );
     }
 );
+
+
+// ====================================================================
+// NEW: CÁC TRIGGER GHI LOG CHO PHIẾU LUÂN CHUYỂN
+// ====================================================================
+
+// 1. Ghi log khi một phiếu luân chuyển MỚI được tạo
+exports.logTransferCreation = onDocumentCreated("transfers/{transferId}", async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+
+    const transferData = snap.data();
+    const { transferId } = event.params;
+    const actor = transferData.createdBy || "unknown_actor";
+    const target = {
+        type: "transfer",
+        id: transferId,
+        name: `#${transferId.slice(0, 6)} từ ${transferData.from} đến ${transferData.to}`,
+    };
+
+    return writeAuditLog("TRANSFER_CREATED", actor, target, transferData, {
+        origin: "trigger:logTransferCreation",
+    });
+});
+
+// 2. Ghi log khi một phiếu luân chuyển BỊ XÓA
+exports.logTransferDeletion = onDocumentDeleted("transfers/{transferId}", async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+
+    const deletedData = snap.data();
+    const { transferId } = event.params;
+
+    // Giả sử client đã thêm deletedByUid vào document trước khi xóa
+    // Nếu không, bạn cần một cách khác để xác định người xóa
+    const actor = deletedData.deletedByUid || "unknown_actor";
+    const target = {
+        type: "transfer",
+        id: transferId,
+        name: `#${transferId.slice(0, 6)}`,
+    };
+
+    return writeAuditLog("TRANSFER_DELETED", actor, target, deletedData, {
+        origin: "trigger:logTransferDeletion",
+        severity: "WARNING",
+    });
+});
+
+exports.logTransferSignature = onDocumentUpdated("transfers/{transferId}", async (event) => {
+    const beforeData = event.data.before.data();
+    const afterData = event.data.after.data();
+
+    // So sánh chữ ký để tìm ra ai vừa ký
+    const signaturesBefore = beforeData.signatures || {};
+    const signaturesAfter = afterData.signatures || {};
+
+    let signedRole = null;
+    if (!signaturesBefore.sender && signaturesAfter.sender) signedRole = "sender";
+    else if (!signaturesBefore.receiver && signaturesAfter.receiver) signedRole = "receiver";
+    else if (!signaturesBefore.admin && signaturesAfter.admin) signedRole = "admin";
+
+    // Nếu không có chữ ký mới thì không làm gì cả
+    if (!signedRole) return null;
+
+    const actor = signaturesAfter[signedRole];
+    const { transferId } = event.params;
+    const target = {
+        type: "transfer",
+        id: transferId,
+        name: `#${transferId.slice(0, 6)}`,
+    };
+    const stepName = signedRole === "sender" ? "Phòng chuyển" : signedRole === "receiver" ? "Phòng nhận" : "P.Hành chính";
+
+    return writeAuditLog("TRANSFER_SIGNED", actor, target, { step: stepName }, {
+        origin: "trigger:logTransferSignature"
+    });
+});
