@@ -9,15 +9,16 @@ const {
     onDocumentUpdated
 } = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2");
+setGlobalOptions({ region: "asia-southeast1", cpu: "gcf_gen1" });
+
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { closeQuarterAndCarryOver } = require("./dataProcessing");
 
 admin.initializeApp();
+
 const db = admin.firestore();
 
-// --- Cấu hình chung cho tất cả functions (v2) ---
-setGlobalOptions({ region: "asia-southeast1" });
 
 /** ----------------- Helpers chung (v2) ----------------- **/
 
@@ -42,6 +43,7 @@ async function ensureAdmin(auth) {
         throw new HttpsError("permission-denied", "Bạn không có quyền admin.");
     }
 }
+
 
 /**
  * Ghi audit log tối ưu:
@@ -245,6 +247,340 @@ exports.manualCloseQuarter = onCall(async (request) => {
             "Đã xảy ra lỗi ở máy chủ khi xử lý.",
             error?.message
         );
+    }
+});
+
+// ====================================================================
+// HÀM 1: TẠO PHIẾU LUÂN CHUYỂN
+// ====================================================================
+exports.createTransfer = onCall(async (request) => {
+    ensureSignedIn(request.auth);
+    const { uid } = request.auth;
+    const { fromDeptId, toDeptId, assets, nonce } = request.data;
+
+    if (!fromDeptId || !toDeptId || !Array.isArray(assets) || assets.length === 0 || !nonce) {
+        throw new HttpsError("invalid-argument", "Thiếu thông tin cần thiết để tạo phiếu.");
+    }
+
+    const nonceRef = db.collection("processed_nonces").doc(nonce);
+    const counterRef = db.collection("counters").doc("transferCounter");
+
+    try {
+        const result = await db.runTransaction(async (tx) => {
+            const nonceDoc = await tx.get(nonceRef);
+            if (nonceDoc.exists) {
+                logger.log(`Nonce ${nonce} đã được xử lý. Trả về kết quả cũ.`);
+                return { transferId: nonceDoc.data().transferId, displayId: nonceDoc.data().displayId };
+            }
+
+            const counterDoc = await tx.get(counterRef);
+            const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
+            const year = new Date().getFullYear();
+            const displayId = `PLC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+
+            const fromDeptSnap = await tx.get(db.collection("departments").doc(fromDeptId));
+            const toDeptSnap = await tx.get(db.collection("departments").doc(toDeptId));
+            const userSnap = await tx.get(db.collection("users").doc(uid));
+
+            if (!fromDeptSnap.exists || !toDeptSnap.exists) {
+                throw new Error("Phòng ban không tồn tại.");
+            }
+
+            for (const item of assets) {
+                const assetRef = db.collection("assets").doc(item.id);
+                const assetSnap = await tx.get(assetRef);
+                if (!assetSnap.exists) throw new Error(`Tài sản không tồn tại: ${item.name}`);
+
+                const aData = assetSnap.data();
+                const availableQty = Number(aData.quantity || 0) - Number(aData.reserved || 0);
+                if (item.quantity > availableQty) {
+                    throw new Error(`"${item.name}" vượt tồn khả dụng trên server (${item.quantity} > ${availableQty}).`);
+                }
+            }
+
+            for (const item of assets) {
+                tx.update(db.collection("assets").doc(item.id), {
+                    reserved: admin.firestore.FieldValue.increment(item.quantity)
+                });
+            }
+
+            const transferRef = db.collection("transfers").doc();
+            tx.set(transferRef, {
+                maPhieuHienThi: displayId,
+                from: fromDeptSnap.data().name,
+                to: toDeptSnap.data().name,
+                fromDeptId,
+                toDeptId,
+                assets,
+                status: "PENDING_SENDER",
+                date: admin.firestore.FieldValue.serverTimestamp(),
+                signatures: { sender: null, receiver: null, admin: null },
+                createdBy: {
+                    uid: uid,
+                    name: userSnap.data()?.displayName || request.auth.token.email || "Người tạo",
+                },
+                nonce: nonce,
+            });
+
+            tx.update(counterRef, { currentValue: newCounterValue });
+
+            tx.set(nonceRef, {
+                uid,
+                transferId: transferRef.id,
+                displayId: displayId,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            return { transferId: transferRef.id, displayId: displayId };
+        });
+
+        await writeAuditLog("TRANSFER_CREATED_VIA_FUNC", uid, { type: "transfer", id: result.transferId }, { displayId: result.displayId }, { request });
+        return { ok: true, transferId: result.transferId, displayId: result.displayId };
+    } catch (error) {
+        logger.error("Transaction createTransfer thất bại:", error);
+        throw new HttpsError("internal", error.message || "Không thể tạo phiếu chuyển trên server.");
+    }
+});
+// ====================================================================
+// HÀM 2: TẠO YÊU CẦU THAY ĐỔI TÀI SẢN (PHIÊN BẢN HOÀN CHỈNH)
+// ====================================================================
+exports.createAssetRequest = onCall(async (request) => {
+    ensureSignedIn(request.auth);
+    const { uid } = request.auth;
+    const { type, assetData, targetAssetId, assetsData } = request.data;
+
+    try {
+        const userSnap = await db.collection("users").doc(uid).get();
+        const requester = { uid, name: userSnap.data()?.displayName || request.auth.token.email };
+        const counterRef = db.collection("counters").doc("assetRequestCounter");
+
+        switch (type) {
+            case "ADD": {
+                if (!assetData || !assetData.departmentId || !assetData.name) {
+                    throw new HttpsError("invalid-argument", "Thiếu dữ liệu tài sản để tạo yêu cầu.");
+                }
+
+                // Chạy transaction chỉ để tạo request và cập nhật counter
+                const { newRequestRef, displayId } = await db.runTransaction(async (tx) => {
+                    const counterDoc = await tx.get(counterRef);
+                    const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
+                    const year = new Date().getFullYear();
+                    const displayId = `PYC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+
+                    const requestPayload = {
+                        type: "ADD",
+                        status: "PENDING_HC",
+                        requester,
+                        assetData,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        signatures: { hc: null, kt: null },
+                        maPhieuHienThi: displayId,
+                    };
+
+                    const newRequestRef = db.collection("asset_requests").doc();
+                    tx.set(newRequestRef, requestPayload);
+                    tx.update(counterRef, { currentValue: newCounterValue });
+
+                    // Trả về các giá trị cần thiết để ghi log bên ngoài
+                    return { newRequestRef, displayId };
+                });
+
+                // ✅ GHI LOG SAU KHI TRANSACTION THÀNH CÔNG
+                await writeAuditLog("ASSET_REQUEST_ADD_CREATED", uid, { type: "asset_request", id: newRequestRef.id }, { name: assetData.name, displayId }, { request });
+
+                return { ok: true, message: "Yêu cầu đã được tạo.", displayId };
+            }
+
+            case "DELETE": {
+                if (!targetAssetId) {
+                    throw new HttpsError("invalid-argument", "Thiếu ID tài sản cần xóa.");
+                }
+                // Logic cho DELETE cũng phải nằm trong transaction riêng
+                return db.runTransaction(async (tx) => {
+                    const counterDoc = await tx.get(counterRef);
+                    const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
+                    const year = new Date().getFullYear();
+                    const displayId = `PYC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+
+                    const assetToDeleteSnap = await tx.get(db.collection("assets").doc(targetAssetId));
+                    if (!assetToDeleteSnap.exists) {
+                        throw new HttpsError("not-found", "Không tìm thấy tài sản để tạo yêu cầu xóa.");
+                    }
+                    const assetToDelete = assetToDeleteSnap.data();
+
+                    const requestPayload = {
+                        type: "DELETE",
+                        status: "PENDING_HC",
+                        requester,
+                        targetAssetId,
+                        departmentId: assetToDelete.departmentId,
+                        assetData: {
+                            name: assetToDelete.name,
+                            quantity: assetToDelete.quantity,
+                            unit: assetToDelete.unit,
+                            departmentId: assetToDelete.departmentId
+                        },
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        signatures: { hc: null, kt: null },
+                        maPhieuHienThi: displayId,
+                    };
+
+                    const newRequestRef = db.collection("asset_requests").doc();
+                    tx.set(newRequestRef, requestPayload);
+                    tx.update(counterRef, { currentValue: newCounterValue });
+
+                    await writeAuditLog("ASSET_REQUEST_DELETE_CREATED", uid, { type: "asset_request", id: newRequestRef.id }, { name: assetToDelete.name, displayId }, { request });
+                    return { ok: true, message: "Yêu cầu xóa đã được tạo.", displayId };
+                });
+            }
+
+            case "BATCH_ADD": {
+                if (!Array.isArray(assetsData) || assetsData.length === 0) {
+                    throw new HttpsError("invalid-argument", "Thiếu dữ liệu.");
+                }
+                const batch = db.batch();
+                const year = new Date().getFullYear();
+
+                const counterSnap = await counterRef.get();
+                let counter = counterSnap.data()?.currentValue || 0;
+
+                assetsData.forEach((singleAssetData) => {
+                    counter++;
+                    const displayId = `PYC-${year}-${String(counter).padStart(5, "0")}`;
+                    const docRef = db.collection("asset_requests").doc();
+                    batch.set(docRef, {
+                        maPhieuHienThi: displayId,
+                        type: "ADD",
+                        status: "PENDING_HC",
+                        requester,
+                        assetData: singleAssetData,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        signatures: { hc: null, kt: null },
+                    });
+                });
+
+                batch.update(counterRef, { currentValue: counter });
+                await batch.commit();
+
+                await writeAuditLog("ASSET_REQUEST_BATCH_ADD_CREATED", uid, null, { count: assetsData.length }, { request });
+                return { ok: true, message: `Đã tạo ${assetsData.length} yêu cầu.` };
+            }
+            default:
+                throw new HttpsError("invalid-argument", "Loại yêu cầu không hợp lệ.");
+        }
+    } catch (error) {
+        logger.error("Lỗi khi tạo yêu cầu tài sản:", error);
+        throw new HttpsError("internal", error.message || "Không thể tạo yêu cầu tài sản.");
+    }
+});
+// ====================================================================
+// HÀM 3: TẠO BÁO CÁO KIỂM KÊ (PHIÊN BẢN HOÀN CHỈNH)
+// ====================================================================
+exports.createInventoryReport = onCall(async (request) => {
+    // Xác thực người dùng và lấy thông tin cơ bản
+    ensureSignedIn(request.auth);
+    const { uid } = request.auth;
+    const { type, departmentId } = request.data;
+
+    // Tham chiếu đến máy đếm
+    const counterRef = db.collection("counters").doc("inventoryReportCounter");
+
+    // Kiểm tra đầu vào
+    if (!type || (type === "department" && !departmentId)) {
+        throw new HttpsError("invalid-argument", "Thiếu loại báo cáo hoặc ID phòng ban.");
+    }
+
+    try {
+        // Chạy toàn bộ logic trong một transaction
+        const result = await db.runTransaction(async (tx) => {
+            // Lấy và tăng giá trị của máy đếm
+            const counterDoc = await tx.get(counterRef);
+            const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
+            const year = new Date().getFullYear();
+            const displayId = `PBC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+
+            // Lấy thông tin người yêu cầu
+            const userSnap = await tx.get(db.collection("users").doc(uid));
+            const requester = {
+                uid,
+                name: userSnap.data()?.displayName || request.auth.token.email,
+            };
+
+            let reportData;
+
+            // Trường hợp tạo báo cáo cho một phòng ban cụ thể
+            if (type === "department") {
+                const deptSnap = await tx.get(db.collection("departments").doc(departmentId));
+                if (!deptSnap.exists) throw new Error("Phòng ban không tồn tại.");
+
+                const department = { id: deptSnap.id, ...deptSnap.data() };
+
+                // Server tự truy vấn danh sách tài sản của phòng đó
+                const assetsSnap = await db.collection("assets").where("departmentId", "==", departmentId).get();
+                const assetsInDept = assetsSnap.docs.map((doc) => ({
+                    id: doc.id,
+                    name: doc.data().name || "",
+                    quantity: doc.data().quantity || 0,
+                    unit: doc.data().unit || "",
+                    size: doc.data().size || "",
+                    notes: doc.data().notes || "",
+                }));
+
+                // Định hình dữ liệu cho báo cáo
+                reportData = {
+                    type: "DEPARTMENT_INVENTORY",
+                    title: `Biên bản Bàn giao - Kiểm kê Tài sản Phòng ${department.name}`,
+                    departmentId: department.id,
+                    departmentName: department.name,
+                    assets: assetsInDept,
+                    status: "PENDING_HC",
+                    signatures: { hc: null, deptLeader: null, director: null },
+                };
+            } else { // Trường hợp tạo báo cáo tổng hợp toàn công ty
+                // Server tự truy vấn toàn bộ tài sản
+                const allAssetsSnap = await db.collection("assets").get();
+                const allAssets = allAssetsSnap.docs.map((doc) => ({
+                    id: doc.id,
+                    name: doc.data().name || "",
+                    quantity: doc.data().quantity || 0,
+                    unit: doc.data().unit || "",
+                    departmentId: doc.data().departmentId || null,
+                }));
+
+                // Định hình dữ liệu cho báo cáo
+                reportData = {
+                    type: "SUMMARY_REPORT",
+                    title: `Báo cáo Tổng hợp Tài sản Toàn Công ty`,
+                    assets: allAssets,
+                    status: "PENDING_HC",
+                    signatures: { hc: null, kt: null, director: null },
+                };
+            }
+
+            // Gộp các thông tin lại để tạo payload cuối cùng
+            const payload = {
+                ...reportData,
+                maPhieuHienThi: displayId,
+                requester,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+
+            // Tạo document mới và cập nhật máy đếm
+            const newReportRef = db.collection("inventory_reports").doc();
+            tx.set(newReportRef, payload);
+            tx.update(counterRef, { currentValue: newCounterValue });
+
+            return { reportId: newReportRef.id, displayId: displayId };
+        });
+
+        // Ghi log sau khi transaction thành công
+        await writeAuditLog("REPORT_CREATED_VIA_FUNC", uid, { type: "inventory_report", id: result.reportId }, { type, displayId: result.displayId }, { request });
+
+        // Trả kết quả về cho client
+        return { ok: true, reportId: result.reportId, displayId: result.displayId };
+    } catch (error) {
+        logger.error("Lỗi khi tạo báo cáo kiểm kê:", error);
+        throw new HttpsError("internal", error.message || "Không thể tạo báo cáo trên server.");
     }
 });
 // ====================================================================
@@ -524,4 +860,137 @@ exports.logTransferSignature = onDocumentUpdated("transfers/{transferId}", async
     return writeAuditLog("TRANSFER_SIGNED", actor, target, { step: stepName }, {
         origin: "trigger:logTransferSignature"
     });
+});
+
+// ====================================================================
+// NEW: CÁC TRIGGER LOG CHO BÁO CÁO KIỂM KÊ (inventory_reports)
+// ====================================================================
+
+exports.logReportCreation = onDocumentCreated("inventory_reports/{reportId}", async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+
+    const report = snap.data();
+    const { reportId } = event.params;
+
+    const actor = report?.requester?.uid || "unknown_actor";
+    const target = {
+        type: "inventory_report",
+        id: reportId,
+        name: report?.title || `Report ${reportId.slice(0, 6)}`
+    };
+
+    return writeAuditLog(
+        "REPORT_CREATED",
+        actor,
+        target,
+        {
+            type: report?.type,
+            departmentId: report?.departmentId || null,
+            status: report?.status
+        },
+        { origin: "trigger:logReportCreation" }
+    );
+});
+
+exports.logReportDeletion = onDocumentDeleted("inventory_reports/{reportId}", async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+
+    const report = snap.data();
+    const { reportId } = event.params;
+
+    // Nếu muốn bắt người xóa: client nên set report.deletedByUid trước khi xóa
+    const actor = report?.deletedByUid || "unknown_actor";
+    const target = {
+        type: "inventory_report",
+        id: reportId,
+        name: report?.title || `Report ${reportId.slice(0, 6)}`
+    };
+
+    return writeAuditLog(
+        "REPORT_DELETED",
+        actor,
+        target,
+        { ...report },
+        { origin: "trigger:logReportDeletion", severity: "WARNING" }
+    );
+});
+
+exports.logReportSignature = onDocumentUpdated("inventory_reports/{reportId}", async (event) => {
+    const before = event.data.before.data() || {};
+    const after = event.data.after.data() || {};
+
+    // So sánh chữ ký để xác định bước nào vừa ký
+    const b = before.signatures || {};
+    const a = after.signatures || {};
+
+    let step = null;
+    // Với báo cáo phòng: hc, deptLeader, director
+    // Với báo cáo tổng hợp: hc, kt, director
+    if (!b.hc && a.hc) step = "P.HC";
+    else if (!b.deptLeader && a.deptLeader) step = "Lãnh đạo Phòng";
+    else if (!b.kt && a.kt) step = "P.KT";
+    else if (!b.director && a.director) step = "BTGĐ";
+
+    if (!step) return null; // không phải cập nhật chữ ký
+
+    // Lấy actor từ chữ ký mới
+    const actor =
+        (a.hc && !b.hc && a.hc) ||
+        (a.deptLeader && !b.deptLeader && a.deptLeader) ||
+        (a.kt && !b.kt && a.kt) ||
+        (a.director && !b.director && a.director) ||
+        { uid: "unknown_actor" };
+
+    const { reportId } = event.params;
+    const target = {
+        type: "inventory_report",
+        id: reportId,
+        name: after?.title || `Report ${reportId.slice(0, 6)}`
+    };
+
+    return writeAuditLog(
+        "REPORT_SIGNED",
+        actor,
+        target,
+        { step, status: after?.status },
+        { origin: "trigger:logReportSignature" }
+    );
+});
+// ====================================================================
+// NEW (optional): Callable xoá báo cáo kiểm kê (chỉ Admin)
+// ====================================================================
+exports.deleteInventoryReport = onCall(async (request) => {
+    await ensureAdmin(request.auth);
+
+    const { reportId } = request.data || {};
+    if (!reportId || typeof reportId !== "string") {
+        throw new HttpsError("invalid-argument", "Thiếu reportId hợp lệ.");
+    }
+
+    const ref = db.collection("inventory_reports").doc(reportId);
+
+    const snap = await ref.get();
+    if (!snap.exists) {
+        throw new HttpsError("not-found", "Báo cáo không tồn tại.");
+    }
+
+    // Ghi dấu người xoá để trigger có thể log đúng actor
+    await ref.set(
+        { deletedByUid: request.auth.uid },
+        { merge: true }
+    );
+
+    await ref.delete();
+
+    await writeAuditLog(
+        "REPORT_DELETED_BY_CALLABLE",
+        request.auth.uid,
+        { type: "inventory_report", id: reportId },
+        {},
+        { request, origin: "callable:deleteInventoryReport", severity: "WARNING" }
+    );
+
+    return { ok: true, message: "Đã xoá báo cáo kiểm kê." };
 });
