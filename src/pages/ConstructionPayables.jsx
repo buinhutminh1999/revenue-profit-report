@@ -615,122 +615,122 @@ const ConstructionPayables = () => {
             return orderA - orderB;
         });
     }, [detailItems, categories]);
-const detailDataWithGroups = useMemo(() => {
-    // Nếu không có dữ liệu đầu vào, trả về mảng rỗng
-    if (sortedDetailItems.length === 0) return [];
+    const detailDataWithGroups = useMemo(() => {
+        // Nếu không có dữ liệu đầu vào, trả về mảng rỗng
+        if (sortedDetailItems.length === 0) return [];
 
-    // --- BƯỚC 1: LẤY CÁC THÔNG TIN CHUNG ---
-    const projectDetails = projects.find(
-        (p) => p.id === selectedProject.projectId
-    );
-    const projectType = projectDetails?.type; // Lấy type: 'Nhà máy', 'Thi công', v.v...
-    const grandTotalRevenue = sortedDetailItems.reduce(
-        (sum, item) => sum + toNum(item.revenue || 0),
-        0
-    );
+        // --- BƯỚC 1: LẤY CÁC THÔNG TIN CHUNG ---
+        const projectDetails = projects.find(
+            (p) => p.id === selectedProject.projectId
+        );
+        const projectType = projectDetails?.type; // Lấy type: 'Nhà máy', 'Thi công', v.v...
+        const grandTotalRevenue = sortedDetailItems.reduce(
+            (sum, item) => sum + toNum(item.revenue || 0),
+            0
+        );
 
-    // --- BƯỚC 2: XỬ LÝ VÀ NHÓM DỮ LIỆU ---
-    const result = [];
-    const groupedByProject = sortedDetailItems.reduce((acc, item) => {
-        const key = item.project;
-        (acc[key] = acc[key] || []).push(item);
-        return acc;
-    }, {});
+        // --- BƯỚC 2: XỬ LÝ VÀ NHÓM DỮ LIỆU ---
+        const result = [];
+        const groupedByProject = sortedDetailItems.reduce((acc, item) => {
+            const key = item.project;
+            (acc[key] = acc[key] || []).push(item);
+            return acc;
+        }, {});
 
-    for (const projectKey in groupedByProject) {
-        const itemsInGroup = groupedByProject[projectKey];
-        const summaryId = `summary-${projectKey}`;
+        for (const projectKey in groupedByProject) {
+            const itemsInGroup = groupedByProject[projectKey];
+            const summaryId = `summary-${projectKey}`;
 
-        // --- BƯỚC 3A: XỬ LÝ NHÓM CÓ NHIỀU GIAO DỊCH ---
-if (itemsInGroup.length > 1) {
-    // ✅ THAY ĐỔI 1: Xử lý từng dòng chi tiết TRƯỚC để tính Cuối Kỳ Nợ/Có cho mỗi dòng
-    const processedItems = itemsInGroup.map((item) => {
-        const psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
-        const psGiamValue = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
+            // --- BƯỚC 3A: XỬ LÝ NHÓM CÓ NHIỀU GIAO DỊCH ---
+            if (itemsInGroup.length > 1) {
+                // ✅ THAY ĐỔI 1: Xử lý từng dòng chi tiết TRƯỚC để tính Cuối Kỳ Nợ/Có cho mỗi dòng
+                const processedItems = itemsInGroup.map((item) => {
+                    const psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
+                    const psGiamValue = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
 
-        let finalBalance;
-        if (projectType === 'Nhà máy') {
-            finalBalance = toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM);
-        } else {
-             // Sửa lại công thức cho các loại khác theo yêu cầu trước đó
-            finalBalance = toNum(item.noPhaiTraCK);
-        }
+                    let finalBalance;
+                    if (projectType === 'Nhà máy') {
+                        finalBalance = toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM);
+                    } else {
+                        // Sửa lại công thức cho các loại khác theo yêu cầu trước đó
+                        finalBalance = toNum(item.noPhaiTraCK);
+                    }
 
-        const closingDebt = finalBalance > 0 ? finalBalance : 0;
-        const closingCredit = finalBalance < 0 ? -finalBalance : 0;
+                    const closingDebt = finalBalance > 0 ? finalBalance : 0;
+                    const closingCredit = finalBalance < 0 ? -finalBalance : 0;
 
-        return {
-            ...item,
-            parentId: summaryId,
-            credit: psNoValue,
-            noPhaiTraCK: psGiamValue,
-            closingDebt: closingDebt,
-            closingCredit: closingCredit,
-        };
-    });
+                    return {
+                        ...item,
+                        parentId: summaryId,
+                        credit: psNoValue,
+                        noPhaiTraCK: psGiamValue,
+                        closingDebt: closingDebt,
+                        closingCredit: closingCredit,
+                    };
+                });
 
-    // ✅ THAY ĐỔI 2: Dòng tổng hợp (summaryRow) BÂY GIỜ sẽ cộng dồn kết quả từ các dòng đã xử lý
-    const summaryRow = processedItems.reduce(
-        (sum, item) => {
-            sum.debt += toNum(item.debt);
-            sum.openingCredit += toNum(item.openingCredit);
-            sum.credit += toNum(item.credit); // PS Nợ
-            sum.noPhaiTraCK += toNum(item.noPhaiTraCK); // PS Giảm
-            sum.closingDebt += toNum(item.closingDebt); // <-- Quan trọng: Cộng dồn Cuối Kỳ Nợ
-            sum.closingCredit += toNum(item.closingCredit); // <-- Quan trọng: Cộng dồn Cuối Kỳ Có
-            return sum;
-        },
-        {
-            _id: summaryId,
-            project: projectKey,
-            description: "Tổng hợp",
-            debt: 0,
-            openingCredit: 0,
-            credit: 0,
-            noPhaiTraCK: 0,
-            closingDebt: 0, // Khởi tạo
-            closingCredit: 0, // Khởi tạo
-            isSummary: true,
-        }
-    );
+                // ✅ THAY ĐỔI 2: Dòng tổng hợp (summaryRow) BÂY GIỜ sẽ cộng dồn kết quả từ các dòng đã xử lý
+                const summaryRow = processedItems.reduce(
+                    (sum, item) => {
+                        sum.debt += toNum(item.debt);
+                        sum.openingCredit += toNum(item.openingCredit);
+                        sum.credit += toNum(item.credit); // PS Nợ
+                        sum.noPhaiTraCK += toNum(item.noPhaiTraCK); // PS Giảm
+                        sum.closingDebt += toNum(item.closingDebt); // <-- Quan trọng: Cộng dồn Cuối Kỳ Nợ
+                        sum.closingCredit += toNum(item.closingCredit); // <-- Quan trọng: Cộng dồn Cuối Kỳ Có
+                        return sum;
+                    },
+                    {
+                        _id: summaryId,
+                        project: projectKey,
+                        description: "Tổng hợp",
+                        debt: 0,
+                        openingCredit: 0,
+                        credit: 0,
+                        noPhaiTraCK: 0,
+                        closingDebt: 0, // Khởi tạo
+                        closingCredit: 0, // Khởi tạo
+                        isSummary: true,
+                    }
+                );
 
-    result.push(summaryRow); // Thêm dòng tổng hợp vào kết quả
-    result.push(...processedItems); // Thêm tất cả các dòng chi tiết vào kết quả
-}
-        // --- BƯỚC 3B: XỬ LÝ NHÓM CHỈ CÓ 1 GIAO DỊCH ---
-        else {
-            const singleItem = itemsInGroup[0];
-            const psNoValue = grandTotalRevenue > 0 ? toNum(singleItem.noPhaiTraCK) : 0;
-            const psGiamValue = grandTotalRevenue === 0 ? toNum(singleItem.directCost) : toNum(singleItem.debt);
-            
-            // ✅ THAY ĐỔI 3: TÍNH SỐ DƯ DỰA TRÊN PROJECT TYPE
-            let finalBalance;
-            if (projectType === 'Nhà máy') {
-                // Công thức mới cho Nhà máy
-                finalBalance = toNum(singleItem.noPhaiTraCK) + toNum(singleItem.noPhaiTraCKNM);
-            } else {
-                // Công thức cũ cho các loại khác
-                finalBalance = toNum(singleItem.debt) + psNoValue - psGiamValue - toNum(singleItem.openingCredit);
+                result.push(summaryRow); // Thêm dòng tổng hợp vào kết quả
+                result.push(...processedItems); // Thêm tất cả các dòng chi tiết vào kết quả
             }
+            // --- BƯỚC 3B: XỬ LÝ NHÓM CHỈ CÓ 1 GIAO DỊCH ---
+            else {
+                const singleItem = itemsInGroup[0];
+                const psNoValue = grandTotalRevenue > 0 ? toNum(singleItem.noPhaiTraCK) : 0;
+                const psGiamValue = grandTotalRevenue === 0 ? toNum(singleItem.directCost) : toNum(singleItem.debt);
 
-            // Phân bổ số dư vào cột Nợ hoặc Có
-            const closingDebt = finalBalance > 0 ? finalBalance : 0;
-            const closingCredit = finalBalance < 0 ? -finalBalance : 0;
+                // ✅ THAY ĐỔI 3: TÍNH SỐ DƯ DỰA TRÊN PROJECT TYPE
+                let finalBalance;
+                if (projectType === 'Nhà máy') {
+                    // Công thức mới cho Nhà máy
+                    finalBalance = toNum(singleItem.noPhaiTraCK) + toNum(singleItem.noPhaiTraCKNM);
+                } else {
+                    // Công thức cũ cho các loại khác
+                    finalBalance = toNum(singleItem.debt) + psNoValue - psGiamValue - toNum(singleItem.openingCredit);
+                }
 
-            result.push({
-                ...singleItem,
-                isSingle: true,
-                credit: psNoValue,
-                noPhaiTraCK: psGiamValue,
-                closingDebt: closingDebt,
-                closingCredit: closingCredit,
-            });
+                // Phân bổ số dư vào cột Nợ hoặc Có
+                const closingDebt = finalBalance > 0 ? finalBalance : 0;
+                const closingCredit = finalBalance < 0 ? -finalBalance : 0;
+
+                result.push({
+                    ...singleItem,
+                    isSingle: true,
+                    credit: psNoValue,
+                    noPhaiTraCK: psGiamValue,
+                    closingDebt: closingDebt,
+                    closingCredit: closingCredit,
+                });
+            }
         }
-    }
-    
-    // --- BƯỚC 4: TRẢ VỀ KẾT QUẢ CUỐI CÙNG ---
-    return result;
-}, [sortedDetailItems, projects, selectedProject]);
+
+        // --- BƯỚC 4: TRẢ VỀ KẾT QUẢ CUỐI CÙNG ---
+        return result;
+    }, [sortedDetailItems, projects, selectedProject]);
     const detailSummary = useMemo(() => {
         // Nếu không có dữ liệu chi tiết, trả về các giá trị 0
         if (!detailDataWithGroups || detailDataWithGroups.length === 0) {
