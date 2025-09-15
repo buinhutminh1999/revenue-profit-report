@@ -710,7 +710,7 @@ const ConstructionPayables = () => {
                     finalBalance = toNum(singleItem.noPhaiTraCK) + toNum(singleItem.noPhaiTraCKNM);
                 } else {
                     // Công thức cũ cho các loại khác
-                    finalBalance = toNum(singleItem.debt) + psNoValue - psGiamValue - toNum(singleItem.openingCredit);
+                    finalBalance = toNum(singleItem.noPhaiTraCK);
                 }
 
                 // Phân bổ số dư vào cột Nợ hoặc Có
