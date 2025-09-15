@@ -642,80 +642,61 @@ const detailDataWithGroups = useMemo(() => {
         const summaryId = `summary-${projectKey}`;
 
         // --- BƯỚC 3A: XỬ LÝ NHÓM CÓ NHIỀU GIAO DỊCH ---
-        if (itemsInGroup.length > 1) {
-            const summaryRow = itemsInGroup.reduce(
-                (sum, item) => {
-                    // Luôn tính tổng các giá trị cơ bản cho dòng tổng hợp
-                    const psNoValue = grandTotalRevenue > 0
-                        ? (projectType === 'Nhà máy'
-                            ? toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM)
-                            : toNum(item.noPhaiTraCK))
-                        : 0;
-                    const psGiamValue = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
+if (itemsInGroup.length > 1) {
+    // ✅ THAY ĐỔI 1: Xử lý từng dòng chi tiết TRƯỚC để tính Cuối Kỳ Nợ/Có cho mỗi dòng
+    const processedItems = itemsInGroup.map((item) => {
+        const psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
+        const psGiamValue = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
 
-                    sum.debt += toNum(item.debt);
-                    sum.openingCredit += toNum(item.openingCredit);
-                    sum.credit += psNoValue;
-                    sum.noPhaiTraCK += psGiamValue;
-                    
-                    // Thêm trường tính tổng riêng cho Nhà máy
-                    sum.nm_totalNoPhaiTraCK += toNum(item.noPhaiTraCK);
-                    sum.nm_totalNoPhaiTraCKNM += toNum(item.noPhaiTraCKNM);
-                    
-                    return sum;
-                },
-                {
-                    _id: summaryId, project: projectKey, description: "Tổng hợp",
-                    debt: 0, openingCredit: 0, credit: 0, noPhaiTraCK: 0, isSummary: true,
-                    nm_totalNoPhaiTraCK: 0, nm_totalNoPhaiTraCKNM: 0 // Khởi tạo
-                }
-            );
+        let finalBalance;
+        if (projectType === 'Nhà máy') {
+            finalBalance = toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM);
+        } else {
+             // Sửa lại công thức cho các loại khác theo yêu cầu trước đó
+            finalBalance = toNum(item.noPhaiTraCK);
+        }
 
-            // ✅ THAY ĐỔI 1: TÍNH SỐ DƯ TỔNG HỢP DỰA TRÊN PROJECT TYPE
-            let finalSummaryBalance;
-            if (projectType === 'Nhà máy') {
-                // Công thức mới cho Nhà máy
-                finalSummaryBalance = summaryRow.nm_totalNoPhaiTraCK + summaryRow.nm_totalNoPhaiTraCKNM;
-            } else {
-                // Công thức cũ cho các loại khác
-                finalSummaryBalance = summaryRow.debt + summaryRow.credit - summaryRow.noPhaiTraCK - summaryRow.openingCredit;
-            }
+        const closingDebt = finalBalance > 0 ? finalBalance : 0;
+        const closingCredit = finalBalance < 0 ? -finalBalance : 0;
 
-            // Phân bổ số dư tổng hợp vào cột Nợ hoặc Có
-            summaryRow.closingDebt = finalSummaryBalance > 0 ? finalSummaryBalance : 0;
-            summaryRow.closingCredit = finalSummaryBalance < 0 ? -finalSummaryBalance : 0;
-            
-            result.push(summaryRow);
+        return {
+            ...item,
+            parentId: summaryId,
+            credit: psNoValue,
+            noPhaiTraCK: psGiamValue,
+            closingDebt: closingDebt,
+            closingCredit: closingCredit,
+        };
+    });
 
-            // Thêm các dòng chi tiết
-            itemsInGroup.forEach((item) => {
-                const psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
-                const psGiamValue = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
-                
-                // ✅ THAY ĐỔI 2: TÍNH SỐ DƯ CHI TIẾT DỰA TRÊN PROJECT TYPE
-                let finalBalance;
-                if (projectType === 'Nhà máy') {
-                    // Công thức mới cho Nhà máy
-                    finalBalance = toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM);
-                } else {
-                    // Công thức cũ cho các loại khác
-                    finalBalance = toNum(item.debt) + psNoValue - psGiamValue - toNum(item.openingCredit);
-                }
+    // ✅ THAY ĐỔI 2: Dòng tổng hợp (summaryRow) BÂY GIỜ sẽ cộng dồn kết quả từ các dòng đã xử lý
+    const summaryRow = processedItems.reduce(
+        (sum, item) => {
+            sum.debt += toNum(item.debt);
+            sum.openingCredit += toNum(item.openingCredit);
+            sum.credit += toNum(item.credit); // PS Nợ
+            sum.noPhaiTraCK += toNum(item.noPhaiTraCK); // PS Giảm
+            sum.closingDebt += toNum(item.closingDebt); // <-- Quan trọng: Cộng dồn Cuối Kỳ Nợ
+            sum.closingCredit += toNum(item.closingCredit); // <-- Quan trọng: Cộng dồn Cuối Kỳ Có
+            return sum;
+        },
+        {
+            _id: summaryId,
+            project: projectKey,
+            description: "Tổng hợp",
+            debt: 0,
+            openingCredit: 0,
+            credit: 0,
+            noPhaiTraCK: 0,
+            closingDebt: 0, // Khởi tạo
+            closingCredit: 0, // Khởi tạo
+            isSummary: true,
+        }
+    );
 
-                // Phân bổ số dư chi tiết vào cột Nợ hoặc Có
-                const closingDebt = finalBalance > 0 ? finalBalance : 0;
-                const closingCredit = finalBalance < 0 ? -finalBalance : 0;
-
-                result.push({
-                    ...item,
-                    parentId: summaryId,
-                    credit: psNoValue,
-                    noPhaiTraCK: psGiamValue,
-                    closingDebt: closingDebt,
-                    closingCredit: closingCredit,
-                });
-            });
-        } 
+    result.push(summaryRow); // Thêm dòng tổng hợp vào kết quả
+    result.push(...processedItems); // Thêm tất cả các dòng chi tiết vào kết quả
+}
         // --- BƯỚC 3B: XỬ LÝ NHÓM CHỈ CÓ 1 GIAO DỊCH ---
         else {
             const singleItem = itemsInGroup[0];
