@@ -151,27 +151,33 @@ const useOverallReport = (year, quarter) => {
 };
 
 const useMutateOverallReport = () => {
-    const queryClient = useQueryClient();
-    return useMutation(
-        async ({ year, quarter, dataToSave }) => {
-            const docId = `${year}_Q${quarter}`;
-            const docRef = doc(db, OVERALL_REPORTS_COLLECTION, docId);
-            await setDoc(docRef, dataToSave, { merge: true });
-        },
-        {
-            onSuccess: (_, variables) => {
-                toast.success("Lưu thành công!");
-                queryClient.invalidateQueries([
-                    "overallReport",
-                    `${variables.year}_Q${variables.quarter}`,
-                ]);
-            },
-            onError: (error) => {
-                toast.error(`Lỗi khi lưu: ${error.message}`);
-            },
-        }
-    );
+  const queryClient = useQueryClient();
+  return useMutation(
+    async ({ year, quarter, dataToSave }) => {
+      const docId = `${year}_Q${quarter}`;
+      const docRef = doc(db, OVERALL_REPORTS_COLLECTION, docId);
+      await setDoc(docRef, dataToSave, { merge: true });
+    },
+    {
+      onMutate: () => {
+        const toastId = toast.loading("Đang lưu...");
+        return { toastId };
+      },
+      onSuccess: (_, variables, context) => {
+        // cập nhật toast loading -> success
+        toast.success("Lưu thành công!", { id: context?.toastId });
+        queryClient.invalidateQueries([
+          "overallReport",
+          `${variables.year}_Q${variables.quarter}`,
+        ]);
+      },
+      onError: (error, _vars, context) => {
+        toast.error(`Lỗi khi lưu: ${error.message}`, { id: context?.toastId });
+      },
+    }
+  );
 };
+
 // ✅ BẠN HÃY DÁN HOOK MỚI NÀY VÀO ĐÂY
 const useProfitReport = (year, quarter) => {
     const docId = `${year}_Q${quarter}`;
@@ -210,6 +216,12 @@ const getAccountAndAllChildren = (parentId, allAccounts) => {
         }
     }
     return Array.from(children);
+};
+
+// --- Helpers quý ---
+const getNextQuarter = (y, q) => {
+    if (q === 4) return { year: y + 1, quarter: 1 };
+    return { year: y, quarter: q + 1 };
 };
 
 // --- CÁC COMPONENT CON ---
@@ -527,6 +539,7 @@ const OverallReportPageContent = () => {
         },
         vonNhaMay_dauKy: 0,
         vonThiCong_dauKy: 0,
+        _userEdited: {},
         textData: {
             taiSanCongTy_khoKhan: "",
             taiSanCongTy_deXuat: "",
@@ -608,46 +621,41 @@ const OverallReportPageContent = () => {
             return; // Nếu đang tải thì không làm gì cả
         }
 
-        // Lấy tất cả dữ liệu đã lưu cho quý hiện tại (nếu có)
+        // --- LẤY SỐ ĐÃ LƯU ---
         const savedData1 = fetchedReportData?.data1 || {};
         const savedData2 = fetchedReportData?.data2 || {};
-
-        // --- Logic ưu tiên cho cột ĐẦU KỲ ---
-
-        // Ưu tiên 1: Lấy giá trị ĐÃ LƯU cho quý hiện tại.
-        // Kiểm tra `!== undefined` để đảm bảo nếu người dùng lưu số 0 thì vẫn được công nhận.
         const savedDauKyNhaMay = savedData1.vonNhaMay_dauKy;
         const savedDauKyThiCong = savedData1.vonThiCong_dauKy;
+        const userEdited = savedData1?._userEdited || {};
 
-        // Ưu tiên 2: Lấy giá trị cuối kỳ của quý trước (logic cũ)
-        const prevCuoiKyNhaMay =
-            previousCapitalReportData?.productionTotalActual;
-        const prevCuoiKyThiCong =
-            previousCapitalReportData?.constructionGrandTotalActual;
+        // --- LẤY CUỐI KỲ QUÝ TRƯỚC ---
+        const prevCuoiKyNhaMay = previousCapitalReportData?.productionTotalActual;
+        const prevCuoiKyThiCong = previousCapitalReportData?.constructionGrandTotalActual;
 
-        // Quyết định giá trị cuối cùng sẽ hiển thị
-        const finalDauKyNhaMay =
-            savedDauKyNhaMay !== undefined
-                ? savedDauKyNhaMay // Nếu có số đã lưu, dùng nó
-                : prevCuoiKyNhaMay || 0; // Nếu không, dùng số của quý trước, hoặc 0
+        // --- QUY TẮC ƯU TIÊN ---
+        // Nếu user đã sửa tay -> dùng số đã lưu
+        // Nếu chưa sửa tay -> lấy cuối kỳ quý trước (nếu có), fallback 0
+        const finalDauKyNhaMay = userEdited.vonNhaMay_dauKy
+            ? (savedDauKyNhaMay ?? 0)
+            : (prevCuoiKyNhaMay ?? 0);
 
-        const finalDauKyThiCong =
-            savedDauKyThiCong !== undefined
-                ? savedDauKyThiCong
-                : prevCuoiKyThiCong || 0;
+        const finalDauKyThiCong = userEdited.vonThiCong_dauKy
+            ? (savedDauKyThiCong ?? 0)
+            : (prevCuoiKyThiCong ?? 0);
 
-        // Cập nhật state một lần duy nhất với dữ liệu đã được xử lý
+        // --- CẬP NHẬT STATE ---
         setData1({
             ...getInitialData1(),
             ...savedData1,
-            vonNhaMay_dauKy: finalDauKyNhaMay, // Ghi đè bằng giá trị đã qua logic ưu tiên
+            _userEdited: userEdited, // nhớ giữ lại cờ
+            vonNhaMay_dauKy: finalDauKyNhaMay,
             vonThiCong_dauKy: finalDauKyThiCong,
         });
-
         setData2({
             ...getInitialData2(),
             ...savedData2,
         });
+
     }, [
         fetchedReportData,
         previousCapitalReportData,
@@ -655,16 +663,52 @@ const OverallReportPageContent = () => {
         isPrevCapitalReportLoading,
     ]);
 
+    useEffect(() => {
+        if (!balances || !chartOfAccounts) return;
+        // ... logic tính toán dauKy/hienTai
+    }, [balances, chartOfAccounts, data1.accountCodes]);
+
+    // 👉 Đặt đoạn useEffect auto carry-over ngay sau các useEffect trên
+    useEffect(() => {
+        if (!capitalReportData) return;
+
+        const { year: ny, quarter: nq } = getNextQuarter(year, quarter);
+        (async () => {
+            const nextRef = doc(db, OVERALL_REPORTS_COLLECTION, `${ny}_Q${nq}`);
+            const nextSnap = await getDoc(nextRef);
+            const nextData = nextSnap.exists() ? nextSnap.data() : null;
+            const hasDauKy =
+                nextData?.data1?.vonNhaMay_dauKy !== undefined ||
+                nextData?.data1?.vonThiCong_dauKy !== undefined;
+
+            if (!hasDauKy) {
+                await setDoc(
+                    nextRef,
+                    {
+                        data1: {
+                            vonNhaMay_dauKy: Number(capitalReportData?.productionTotalActual) || 0,
+                            vonThiCong_dauKy: Number(capitalReportData?.constructionGrandTotalActual) || 0,
+                        },
+                        _carryoverMeta: {
+                            from: `${year}_Q${quarter}`,
+                            at: new Date().toISOString(),
+                            mode: "auto-on-next-open",
+                        },
+                    },
+                    { merge: true }
+                );
+            }
+        })();
+    }, [capitalReportData, year, quarter]);
+
+
     const debouncedSave = useCallback(
-        debounce((dataToSave) => {
-            toast.loading("Đang lưu...");
-            saveReport(
-                { year, quarter, dataToSave },
-                { onSettled: () => toast.dismiss() }
-            );
-        }, 2000),
-        [year, quarter, saveReport]
-    );
+  debounce((dataToSave) => {
+    saveReport({ year, quarter, dataToSave });
+  }, 2000),
+  [year, quarter, saveReport]
+);
+
 
     const isInitialLoad = useRef(true);
     useEffect(() => {
@@ -929,28 +973,28 @@ const OverallReportPageContent = () => {
         }
     }, [capitalReportData, data2.tienXayDungSD, data2.tienSanXuatSD]);
     // TỰ ĐỘNG LẤY CHI PHÍ RỦI RO & ĐẦU TƯ NHÀ MÁY
-useEffect(() => {
-    let riskValue = 0;
-    const dauTuNhaMayValue = 41237253935; // Giá trị cố định
+    useEffect(() => {
+        let riskValue = 0;
+        const dauTuNhaMayValue = 41237253935; // Giá trị cố định
 
-    if (balances && balances['338']) {
-        const riskAccountBalance = balances['338'];
-        if (riskAccountBalance.cuoiKyNo > 0) {
-            riskValue = riskAccountBalance.cuoiKyNo;
-        } else {
-            riskValue = riskAccountBalance.cuoiKyCo || 0;
+        if (balances && balances['338']) {
+            const riskAccountBalance = balances['338'];
+            if (riskAccountBalance.cuoiKyNo > 0) {
+                riskValue = riskAccountBalance.cuoiKyNo;
+            } else {
+                riskValue = riskAccountBalance.cuoiKyCo || 0;
+            }
         }
-    }
 
-    // Cập nhật state nếu có bất kỳ thay đổi nào
-    if (riskValue !== data2.cpRuiRo || dauTuNhaMayValue !== data2.dauTuNMMuon) {
-        setData2(prev => ({ 
-            ...prev, 
-            cpRuiRo: riskValue,
-            dauTuNMMuon: dauTuNhaMayValue // Gán giá trị cố định
-        }));
-    }
-}, [balances, data2.cpRuiRo, data2.dauTuNMMuon]);
+        // Cập nhật state nếu có bất kỳ thay đổi nào
+        if (riskValue !== data2.cpRuiRo || dauTuNhaMayValue !== data2.dauTuNMMuon) {
+            setData2(prev => ({
+                ...prev,
+                cpRuiRo: riskValue,
+                dauTuNMMuon: dauTuNhaMayValue // Gán giá trị cố định
+            }));
+        }
+    }, [balances, data2.cpRuiRo, data2.dauTuNMMuon]);
     useEffect(() => {
         // Lấy giá trị từ cột "Hiện tại" của mục "Các khoản cho vay"
         const choMuonDoiTacValue = data1.hienTaiCalculated.vonChoVay || 0;
@@ -993,8 +1037,13 @@ useEffect(() => {
         }));
     };
     const handleUpdate1_Numeric = (field, value) => {
-        setData1((prev) => ({ ...prev, [field]: value }));
+        setData1(prev => ({
+            ...prev,
+            [field]: value,
+            _userEdited: { ...(prev._userEdited || {}), [field]: true } // <-- đánh dấu đã sửa tay
+        }));
     };
+
 
     const handleUpdate2_Numeric = (field, value) => {
         setData2((prev) => ({ ...prev, [field]: value }));
@@ -1744,7 +1793,7 @@ useEffect(() => {
                                                 }
                                             />
                                         </TableCell>
-                                                <TableCell><EditableCell value={item.duKienVay} onSave={(v) => handleUpdate2_Array('tienVay', index, 'duKienVay', v)} /></TableCell>
+                                        <TableCell><EditableCell value={item.duKienVay} onSave={(v) => handleUpdate2_Array('tienVay', index, 'duKienVay', v)} /></TableCell>
 
                                     </TableRow>
                                 ))}

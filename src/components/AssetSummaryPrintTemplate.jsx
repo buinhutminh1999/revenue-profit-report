@@ -1,4 +1,3 @@
-// src/components/AssetSummaryPrintTemplate.jsx
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -68,7 +67,7 @@ export const AssetSummaryPrintTemplate = React.forwardRef(({ report, company }, 
     return (
         <div ref={ref} style={styles.page}>
             <div style={styles.header}>
-                 <div>
+                <div>
                     <h3 style={styles.companyName}>{company?.name || 'CÔNG TY'}</h3>
                     <p style={styles.companyInfo}>Địa chỉ: {company?.address || '................................'}<br />Điện thoại: {company?.phone || '..................'}</p>
                 </div>
@@ -81,7 +80,8 @@ export const AssetSummaryPrintTemplate = React.forwardRef(({ report, company }, 
             <div style={styles.titleSection}>
                 <h1 style={styles.title}>{report.title || 'BÁO CÁO TỔNG HỢP TÀI SẢN'}</h1>
                 <p style={styles.subTitle}>Ngày {createdDate.day} tháng {createdDate.month} năm {createdDate.year}</p>
-                <p style={styles.documentId}>Mã báo cáo: #{report.id?.slice(0, 8).toUpperCase()}</p>
+                {/* MODIFIED: Sử dụng mã phiếu hiển thị */}
+                <p style={styles.documentId}>Mã phiếu: {report.maPhieuHienThi || report.id?.slice(0, 8).toUpperCase()}</p>
             </div>
             
             {/* Lặp qua từng phòng ban và render bảng tài sản */}
@@ -90,12 +90,15 @@ export const AssetSummaryPrintTemplate = React.forwardRef(({ report, company }, 
                     <h4 style={styles.departmentHeader}>PHÒNG BAN: {deptName}</h4>
                     <table style={styles.table}>
                         <thead>
+                             {/* MODIFIED: Cập nhật các cột trong bảng */}
                             <tr>
-                                <th style={{ ...styles.th, width: '35px' }}>STT</th>
-                                <th style={{ ...styles.th, width: '100px' }}>Mã TS</th>
-                                <th style={{ ...styles.th, width: '40%', textAlign: 'left' }}>Tên tài sản</th>
-                                <th style={{ ...styles.th, width: '60px' }}>SL</th>
-                                <th style={{ ...styles.th, width: '110px' }}>Thành tiền</th>
+                                <th style={{ ...styles.th, width: '5%' }}>STT</th>
+                                <th style={{ ...styles.th, width: '15%' }}>Mã tài sản</th>
+                                <th style={{ ...styles.th, width: '30%', textAlign: 'left' }}>Tên tài sản</th>
+                                <th style={{ ...styles.th, width: '5%' }}>SL</th>
+                                <th style={{ ...styles.th, width: '15%' }}>Đơn giá</th>
+                                <th style={{ ...styles.th, width: '15%' }}>Thành tiền</th>
+                                <th style={{ ...styles.th, width: '15%' }}>Kết luận</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -105,27 +108,47 @@ export const AssetSummaryPrintTemplate = React.forwardRef(({ report, company }, 
                                     <td style={styles.td}>{asset.code || '–'}</td>
                                     <td style={{ ...styles.td, textAlign: 'left', padding: '8px 10px' }}>{asset.name}</td>
                                     <td style={{ ...styles.td, textAlign: 'right' }}>{Number(asset.quantity || 0).toLocaleString('vi-VN')}</td>
+                                    {/* ADDED: Cột Đơn giá */}
+                                    <td style={{ ...styles.td, textAlign: 'right', paddingRight: '10px' }}>{formatCurrency(Number(asset.price || 0))}</td>
                                     <td style={{ ...styles.td, textAlign: 'right', paddingRight: '10px' }}>{formatCurrency(Number(asset.quantity || 0) * Number(asset.price || 0))}</td>
+                                    {/* ADDED: Cột Kết luận (trống) */}
+                                    <td style={styles.td}></td>
                                 </tr>
                             ))}
-                             <tr>
-                                <td colSpan="4" style={{...styles.td, textAlign: 'right', fontWeight: 'bold', paddingRight: '10px'}}>TỔNG CỘNG ({deptName})</td>
+                             {/* MODIFIED: Cập nhật hàng tổng cộng */}
+                            <tr>
+                                <td colSpan="5" style={{...styles.td, textAlign: 'right', fontWeight: 'bold', paddingRight: '10px'}}>TỔNG CỘNG ({deptName})</td>
                                 <td style={{...styles.td, textAlign: 'right', fontWeight: 'bold', paddingRight: '10px', backgroundColor: '#f8f9fa'}}>{formatCurrency(totalValue)}</td>
+                                <td style={styles.td}></td>
                             </tr>
                         </tbody>
                     </table>
+                     {/* ADDED: Phần kết luận và các lưu ý */}
+                    <div className="no-break" style={styles.conclusionSection}>
+                        <h4 style={{ margin: '16px 0 8px 0', fontSize: '13px', textTransform: 'uppercase' }}>Kết luận:</h4>
+                        <ol style={styles.conclusionList}>
+                            <li><b>Sở hữu và quản lý tài sản:</b> Hai bên thống nhất rằng số tài sản trên đang thuộc quản lý và sở hữu của Phòng Cung ứng.</li>
+                            <li><b>Trách nhiệm bảo quản tài sản:</b> Phòng Cung ứng có trách nhiệm bảo quản tài sản này và đảm bảo tài sản luôn trong tình trạng tốt, không bị hư hỏng hoặc mất mát.</li>
+                            <li><b>Quy trình luân chuyển tài sản:</b> Trong trường hợp có luân chuyển tài sản, phải có biên bản luân chuyển được Ban Tổng Giám đốc duyệt và chuyển kịp thời cho Phòng Hành chính để cập nhật lại thông tin tài sản của phòng mình.</li>
+                            <li><b>Hư hỏng tài sản:</b> Các tài sản trên nếu có hư hỏng, phải đề xuất Phòng Hành chính kiểm tra và khắc phục sửa chữa nếu cần thiết.</li>
+                        </ol>
+                    </div>
                 </div>
             ))}
 
-            <div style={styles.grandTotal}>
-                <p><strong>TỔNG GIÁ TRỊ TÀI SẢN TOÀN CÔNG TY: {formatCurrency(grandTotalValue)}</strong></p>
-            </div>
+            {/* Chỉ hiển thị tổng giá trị toàn công ty nếu có nhiều hơn 1 phòng ban */}
+            {Object.keys(assetsByDept).length > 1 && (
+                <div style={styles.grandTotal}>
+                    <p><strong>TỔNG GIÁ TRỊ TÀI SẢN TOÀN CÔNG TY: {formatCurrency(grandTotalValue)}</strong></p>
+                </div>
+            )}
 
             <div className="no-break" style={{ marginTop: '40px' }}>
+                 {/* MODIFIED: Cập nhật tên các bên ký */}
                 <div style={styles.signatureRow}>
-                    <div style={styles.signatureCol}><SignatureDisplay signature={signatures.hc} role="Phòng Hành chính" /></div>
-                    <div style={styles.signatureCol}><SignatureDisplay signature={signatures.kt} role="Phòng Kế toán" /></div>
-                    <div style={styles.signatureCol}><SignatureDisplay signature={signatures.director} role="Ban Tổng Giám đốc" /></div>
+                    <div style={styles.signatureCol}><SignatureDisplay signature={signatures.hc} role="Bên giao" /></div>
+                    <div style={styles.signatureCol}><SignatureDisplay signature={signatures.kt} role="Bên nhận" /></div>
+                    <div style={styles.signatureCol}><SignatureDisplay signature={signatures.director} role="Ban Tổng giám đốc" /></div>
                 </div>
             </div>
 
@@ -138,9 +161,7 @@ export const AssetSummaryPrintTemplate = React.forwardRef(({ report, company }, 
     );
 });
 
-// Copy styles từ file trên và bổ sung
 const styles = {
-    // ... copy toàn bộ object `styles` từ file AssetListPrintTemplate.jsx ...
     page: { width: '210mm', minHeight: '297mm', padding: '15mm', margin: '0 auto', backgroundColor: 'white', fontFamily: "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", fontSize: '12px', color: '#212529', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' },
     header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '10px' },
     companyName: { margin: 0, textTransform: 'uppercase', fontWeight: 600, fontSize: '14px', letterSpacing: '0.5px' },
@@ -150,7 +171,7 @@ const styles = {
     titleSection: { textAlign: 'center', margin: '25px 0' },
     title: { fontSize: '22px', fontWeight: '700', margin: 0, textTransform: 'uppercase' },
     subTitle: { margin: '5px 0', fontSize: '11px', color: '#444' },
-    documentId: { fontWeight: '600', fontSize: '11px', color: '#444' },
+    documentId: { fontWeight: '600', fontSize: '12px', color: '#444' },
     infoTable: { width: '100%', borderCollapse: 'collapse', marginBottom: '10px', fontSize: '12px' },
     infoLabel: { textAlign: 'left', fontWeight: '600', padding: '4px 0', width: '150px' },
     infoValue: { textAlign: 'left', padding: '4px 0', borderBottom: '1px dotted #ccc' },
@@ -181,8 +202,17 @@ const styles = {
         borderTop: '2px solid #000',
         textAlign: 'right',
         fontSize: '14px'
+    },
+    // ADDED: Styles for conclusion section
+    conclusionSection: {
+        marginTop: '20px',
+        fontSize: '11px',
+        textAlign: 'justify',
+    },
+    conclusionList: {
+        margin: 0,
+        paddingLeft: '20px',
+        lineHeight: 1.6,
+        listStylePosition: 'outside'
     }
 };
-
-// Dán toàn bộ object styles từ file AssetListPrintTemplate.jsx vào đây
-// và thêm 2 style mới ở trên vào

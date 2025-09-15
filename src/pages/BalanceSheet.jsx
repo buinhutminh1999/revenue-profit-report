@@ -6,7 +6,7 @@ import {
     Dialog, DialogTitle, DialogContent, DialogActions, Menu, ListItemIcon, Skeleton
 } from '@mui/material';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { getFirestore, collection, getDocs, query, orderBy, where, writeBatch, doc, setDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, orderBy, where, writeBatch, doc, setDoc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx'; // Import thư viện để xuất Excel
 import {
@@ -204,78 +204,80 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
 const useAccountsStructure = () => { return useQuery('accountsStructure', async () => { const q = query(collection(db, ACCOUNTS_COLLECTION), orderBy('accountId')); const snapshot = await getDocs(q); return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); }, { staleTime: Infinity }); };
 const useAccountBalances = (year, quarter) => { return useQuery(['accountBalances', year, quarter], async () => { const balancesObject = {}; const q = query(collection(db, BALANCES_COLLECTION), where("year", "==", year), where("quarter", "==", quarter)); const querySnapshot = await getDocs(q); querySnapshot.forEach((doc) => { balancesObject[doc.data().accountId] = doc.data(); }); return balancesObject; }, { keepPreviousData: true }); };
 // Dán và thay thế toàn bộ hook này
+
 const useMutateBalances = () => {
-    const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-    const updateBalanceMutation = useMutation(
-        async ({ accountId, year, quarter, field, value }) => {
-            const batch = writeBatch(db); // Sử dụng batch để đảm bảo 2 thao tác cùng thành công hoặc thất bại
+  const updateBalanceMutation = useMutation(
+    async ({ accountId, year, quarter, field, value }) => {
+      const docId   = `${accountId}_${year}_${quarter}`;
+      const docRef  = doc(db, BALANCES_COLLECTION, docId);
 
-            // --- Thao tác 1: Cập nhật số dư cho kỳ HIỆN TẠI (như cũ) ---
-            const docId = `${accountId}_${year}_${quarter}`;
-            const docRef = doc(db, BALANCES_COLLECTION, docId);
-            const dataToSet = { accountId, year, quarter, [field]: value };
+      const isEndField = field === 'cuoiKyNo' || field === 'cuoiKyCo';
+      let nextYear = year, nextQuarter = quarter + 1;
+      if (isEndField && nextQuarter > 4) { nextQuarter = 1; nextYear = year + 1; }
 
-            // Nếu người dùng sửa trực tiếp số dư đầu kỳ, gỡ cờ "isCarriedOver" để mở khóa
-            if (field === 'dauKyNo' || field === 'dauKyCo') {
-                dataToSet.isCarriedOver = false;
-            }
-            batch.set(docRef, dataToSet, { merge: true });
+      // Map chuẩn, không thể lẫn
+      const mapNext = { cuoiKyNo: 'dauKyNo', cuoiKyCo: 'dauKyCo' };
+      const nextField = mapNext[field];
 
-            // --- Thao tác 2: LOGIC MỚI - Tự động cập nhật cho kỳ SAU ---
-            // Chỉ thực hiện khi trường được cập nhật là số dư CUỐI KỲ
-            if (field === 'cuoiKyNo' || field === 'cuoiKyCo') {
-                // 1. Tính toán kỳ kế tiếp
-                let nextYear = year;
-                let nextQuarter = quarter + 1;
-                if (nextQuarter > 4) {
-                    nextQuarter = 1;
-                    nextYear = year + 1;
-                }
+      await runTransaction(db, async (tx) => {
+  // ==== 1) READS (tất cả các tx.get phải ở trên) ====
+  let nextRef = null;
+  let nextData = null;
 
-                // 2. Xác định trường tương ứng ở kỳ sau ('cuoiKyNo' -> 'dauKyNo')
-                const nextField = (field === 'cuoiKyNo') ? 'dauKyNo' : 'dauKyCo';
+  const isEndField = field === 'cuoiKyNo' || field === 'cuoiKyCo';
+  let nextYear = year, nextQuarter = quarter + 1;
+  if (isEndField && nextQuarter > 4) { nextQuarter = 1; nextYear = year + 1; }
 
-                // 3. Chuẩn bị dữ liệu để cập nhật cho kỳ sau
-                const nextDocId = `${accountId}_${nextYear}_${nextQuarter}`;
-                const nextDocRef = doc(db, BALANCES_COLLECTION, nextDocId);
-                const nextDataToSet = {
-                    accountId,
-                    year: nextYear,
-                    quarter: nextQuarter,
-                    [nextField]: value, // Giá trị cuối kỳ này là giá trị đầu kỳ sau
-                    isCarriedOver: true  // Đặt cờ để khóa ô này ở giao diện kỳ sau
-                };
-                batch.set(nextDocRef, nextDataToSet, { merge: true });
-            }
+  if (isEndField) {
+    nextRef = doc(db, BALANCES_COLLECTION, `${accountId}_${nextYear}_${nextQuarter}`);
+    const nextSnap = await tx.get(nextRef);                   // ✅ READ trước
+    nextData = nextSnap.exists() ? nextSnap.data() : {};
+  }
 
-            // Thực hiện cả 2 thao tác ghi cùng lúc
-            await batch.commit();
-        },
-        {
-            onSuccess: (_, variables) => {
-                // Làm mới dữ liệu cho cả kỳ hiện tại và kỳ sau để giao diện cập nhật
-                queryClient.invalidateQueries(['accountBalances', variables.year, variables.quarter]);
+  // ==== 2) WRITES (bắt đầu từ đây) ====
+  const currentRef = doc(db, BALANCES_COLLECTION, `${accountId}_${year}_${quarter}`);
+  tx.set(currentRef, {
+    accountId, year, quarter, [field]: value,
+    ...(field === 'dauKyNo' || field === 'dauKyCo' ? { isCarriedOver: false } : {})
+  }, { merge: true });
 
-                if (variables.field === 'cuoiKyNo' || variables.field === 'cuoiKyCo') {
-                    let nextYear = variables.year;
-                    let nextQuarter = variables.quarter + 1;
-                    if (nextQuarter > 4) {
-                        nextQuarter = 1;
-                        nextYear = variables.year + 1;
-                    }
-                    // Quan trọng: Phải làm mới cả quý sau thì mới thấy thay đổi nếu đang mở
-                    queryClient.invalidateQueries(['accountBalances', nextYear, nextQuarter]);
-                }
+  if (isEndField && !(nextData?.isCarriedOver === false)) {
+    const nextField = field === 'cuoiKyNo' ? 'dauKyNo' : 'dauKyCo';
+    tx.set(nextRef, {
+      accountId,
+      year: nextYear,
+      quarter: nextQuarter,
+      [nextField]: value,
+      isCarriedOver: true,
+      lockReason: 'carried_over',
+      carriedFromYear: year,
+      carriedFromQuarter: quarter,
+      carriedFromField: field,
+      carriedFromDocId: `${accountId}_${year}_${quarter}`,
+      carriedUpdatedAt: serverTimestamp()
+    }, { merge: true });
+  }
+});
 
-                toast.success(`Đã cập nhật [${variables.field}] cho TK ${variables.accountId}`);
-            },
-            onError: (error) => toast.error(`Lỗi cập nhật: ${error.message}`)
+    },
+    {
+      onSuccess: (_, v) => {
+        queryClient.invalidateQueries(['accountBalances', v.year, v.quarter]);
+        if (v.field === 'cuoiKyNo' || v.field === 'cuoiKyCo') {
+          let ny=v.year, nq=v.quarter+1; if (nq>4){nq=1; ny=v.year+1;}
+          queryClient.invalidateQueries(['accountBalances', ny, nq]);
         }
-    );
+        toast.success(`Đã cập nhật [${v.field}] cho TK ${v.accountId}`);
+      },
+      onError: (e) => toast.error(`Lỗi cập nhật: ${e.message}`)
+    }
+  );
 
-    return { updateBalanceMutation };
+  return { updateBalanceMutation };
 };
+
 
 const ProcessReportToast = ({ t, successes, errors, warnings }) => (<Card sx={{ maxWidth: 400, pointerEvents: 'all' }} elevation={4}><CardContent><Typography variant="h6" gutterBottom>Kết quả xử lý</Typography>{successes.length > 0 && (<Alert severity="success" sx={{ mb: 1 }}> Cập nhật thành công: <strong>{successes.length} tài khoản</strong> </Alert>)}{errors.length > 0 && (<Alert severity="error" sx={{ mb: 1 }}> Thất bại: <strong>{errors.length} dòng</strong> <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}> {errors.slice(0, 5).map(e => <li key={e.row}>Dòng {e.row} (TK {e.accountId}): {e.message}</li>)} {errors.length > 5 && <li>... và {errors.length - 5} lỗi khác.</li>} </Box> </Alert>)}{warnings.length > 0 && (<Alert severity="warning"> Bỏ qua: <strong>{warnings.length} dòng</strong> <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}> {warnings.slice(0, 5).map(w => <li key={w.row}>Dòng {w.row}: {w.message}</li>)} {warnings.length > 5 && <li>... và {warnings.length - 5} cảnh báo khác.</li>} </Box> </Alert>)}</CardContent></Card>);
 
