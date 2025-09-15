@@ -151,31 +151,31 @@ const useOverallReport = (year, quarter) => {
 };
 
 const useMutateOverallReport = () => {
-  const queryClient = useQueryClient();
-  return useMutation(
-    async ({ year, quarter, dataToSave }) => {
-      const docId = `${year}_Q${quarter}`;
-      const docRef = doc(db, OVERALL_REPORTS_COLLECTION, docId);
-      await setDoc(docRef, dataToSave, { merge: true });
-    },
-    {
-      onMutate: () => {
-        const toastId = toast.loading("Đang lưu...");
-        return { toastId };
-      },
-      onSuccess: (_, variables, context) => {
-        // cập nhật toast loading -> success
-        toast.success("Lưu thành công!", { id: context?.toastId });
-        queryClient.invalidateQueries([
-          "overallReport",
-          `${variables.year}_Q${variables.quarter}`,
-        ]);
-      },
-      onError: (error, _vars, context) => {
-        toast.error(`Lỗi khi lưu: ${error.message}`, { id: context?.toastId });
-      },
-    }
-  );
+    const queryClient = useQueryClient();
+    return useMutation(
+        async ({ year, quarter, dataToSave }) => {
+            const docId = `${year}_Q${quarter}`;
+            const docRef = doc(db, OVERALL_REPORTS_COLLECTION, docId);
+            await setDoc(docRef, dataToSave, { merge: true });
+        },
+        {
+            onMutate: () => {
+                const toastId = toast.loading("Đang lưu...");
+                return { toastId };
+            },
+            onSuccess: (_, variables, context) => {
+                // cập nhật toast loading -> success
+                toast.success("Lưu thành công!", { id: context?.toastId });
+                queryClient.invalidateQueries([
+                    "overallReport",
+                    `${variables.year}_Q${variables.quarter}`,
+                ]);
+            },
+            onError: (error, _vars, context) => {
+                toast.error(`Lỗi khi lưu: ${error.message}`, { id: context?.toastId });
+            },
+        }
+    );
 };
 
 // ✅ BẠN HÃY DÁN HOOK MỚI NÀY VÀO ĐÂY
@@ -564,6 +564,7 @@ const OverallReportPageContent = () => {
             vonGop_khoKhan: "",
             vonGop_deXuat: "",
         },
+
     });
 
     const getInitialData2 = () => ({
@@ -616,53 +617,43 @@ const OverallReportPageContent = () => {
 
     // -------- BƯỚC 2: DÁN KHỐI MÃ MỚI NÀY VÀO --------
     useEffect(() => {
-        // Chỉ thực thi khi cả hai nguồn dữ liệu đã tải xong (không còn loading)
-        if (isReportLoading || isPrevCapitalReportLoading) {
-            return; // Nếu đang tải thì không làm gì cả
+        // Nếu dữ liệu chính của báo cáo chưa tải xong, không làm gì cả.
+        if (isReportLoading) {
+            return;
         }
 
-        // --- LẤY SỐ ĐÃ LƯU ---
+        // Lấy dữ liệu đã lưu từ Firestore, nếu không có thì dùng object rỗng.
         const savedData1 = fetchedReportData?.data1 || {};
         const savedData2 = fetchedReportData?.data2 || {};
-        const savedDauKyNhaMay = savedData1.vonNhaMay_dauKy;
-        const savedDauKyThiCong = savedData1.vonThiCong_dauKy;
         const userEdited = savedData1?._userEdited || {};
 
-        // --- LẤY CUỐI KỲ QUÝ TRƯỚC ---
-        const prevCuoiKyNhaMay = previousCapitalReportData?.productionTotalActual;
-        const prevCuoiKyThiCong = previousCapitalReportData?.constructionGrandTotalActual;
+        // --- QUY TẮC ƯU TIÊN MỚI ---
+        // 1. Ưu tiên số đã lưu trong savedData1.
+        // 2. Nếu số đã lưu không tồn tại (undefined), MỚI lấy số cuối kỳ của quý trước.
+        // 3. Nếu cả hai đều không có, giá trị là 0.
+        const finalDauKyNhaMay = savedData1.vonNhaMay_dauKy !== undefined
+            ? savedData1.vonNhaMay_dauKy
+            : previousCapitalReportData?.productionTotalActual ?? 0;
 
-        // --- QUY TẮC ƯU TIÊN ---
-        // Nếu user đã sửa tay -> dùng số đã lưu
-        // Nếu chưa sửa tay -> lấy cuối kỳ quý trước (nếu có), fallback 0
-        const finalDauKyNhaMay = userEdited.vonNhaMay_dauKy
-            ? (savedDauKyNhaMay ?? 0)
-            : (prevCuoiKyNhaMay ?? 0);
+        const finalDauKyThiCong = savedData1.vonThiCong_dauKy !== undefined
+            ? savedData1.vonThiCong_dauKy
+            : previousCapitalReportData?.constructionGrandTotalActual ?? 0;
 
-        const finalDauKyThiCong = userEdited.vonThiCong_dauKy
-            ? (savedDauKyThiCong ?? 0)
-            : (prevCuoiKyThiCong ?? 0);
+        // Cập nhật state một cách an toàn
+        setData1(prev => ({
+            ...getInitialData1(), // Bắt đầu với cấu trúc mặc định
+            ...savedData1,         // Ghi đè bằng tất cả dữ liệu đã lưu
+            _userEdited: userEdited, // Đảm bảo cờ chỉnh sửa được giữ lại
+            vonNhaMay_dauKy: finalDauKyNhaMay,   // Gán giá trị cuối cùng đã được xác định
+            vonThiCong_dauKy: finalDauKyThiCong, // Gán giá trị cuối cùng đã được xác định
+        }));
 
-        // --- CẬP NHẬT STATE ---
-        setData1({
-            ...getInitialData1(),
-            ...savedData1,
-            _userEdited: userEdited, // nhớ giữ lại cờ
-            vonNhaMay_dauKy: finalDauKyNhaMay,
-            vonThiCong_dauKy: finalDauKyThiCong,
-        });
         setData2({
             ...getInitialData2(),
             ...savedData2,
         });
 
-    }, [
-        fetchedReportData,
-        previousCapitalReportData,
-        isReportLoading,
-        isPrevCapitalReportLoading,
-    ]);
-
+    }, [fetchedReportData, previousCapitalReportData, isReportLoading]); // Sửa lại dependency array cho gọn hơn
     useEffect(() => {
         if (!balances || !chartOfAccounts) return;
         // ... logic tính toán dauKy/hienTai
@@ -703,11 +694,11 @@ const OverallReportPageContent = () => {
 
 
     const debouncedSave = useCallback(
-  debounce((dataToSave) => {
-    saveReport({ year, quarter, dataToSave });
-  }, 2000),
-  [year, quarter, saveReport]
-);
+        debounce((dataToSave) => {
+            saveReport({ year, quarter, dataToSave });
+        }, 2000),
+        [year, quarter, saveReport]
+    );
 
 
     const isInitialLoad = useRef(true);

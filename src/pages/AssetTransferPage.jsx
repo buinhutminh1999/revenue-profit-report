@@ -391,9 +391,9 @@ export default function AssetTransferPage() {
         const fetchCompanyInfo = async () => {
             // Tạm thời hardcode, bạn nên lấy từ Firestore
             setCompanyInfo({
-                name: 'CÔNG TY TNHH MTV ABC',
-                address: '123 Đường Nguyễn Huệ, P. Mỹ Long, TP. Long Xuyên, An Giang',
-                phone: '0296 3 123 456'
+                name: 'CÔNG TY CP XÂY DỰNG BÁCH KHOA',
+                address: 'Số 39, Đường Trần Hưng Đạo, Phường Long Xuyên, Tỉnh An Giang',
+                phone: '02963 835 787'
             });
         };
         fetchCompanyInfo();
@@ -1170,9 +1170,31 @@ export default function AssetTransferPage() {
         }
     };
 
-    // >>> THÊM CÁC HÀM NÀY VÀO ĐÂY <<<
     const handleOpenReportDetail = (report) => {
-        setSelectedReport(report);
+        // map id → tên phòng từ state hiện có
+        const deptById = new Map(departments.map(d => [d.id, d.name]));
+        const departmentMap = Object.fromEntries(deptById);
+
+        // chuẩn hóa tên phòng cho từng asset
+        const enrichedAssets = (report.assets || []).map(a => {
+            const idFromObj = (a?.department && typeof a.department === 'object') ? a.department.id : null;
+            const id = a?.departmentId || a?.deptId || idFromObj;
+            const nameFromId = id ? deptById.get(id) : undefined;
+            const name =
+                a?.departmentName ||
+                a?.deptName ||
+                (typeof a?.department === 'string' ? a.department : undefined) ||
+                nameFromId ||
+                'Chưa phân loại';
+            return { ...a, departmentName: name, departmentId: id ?? a?.departmentId ?? a?.deptId ?? null };
+        });
+
+        setSelectedReport({
+            ...report,
+            assets: enrichedAssets,
+            departmentMap,            // để template có thể tra cứu nếu cần
+            departments: departments  // optional: template cũng hỗ trợ dạng mảng
+        });
         setIsReportDetailOpen(true);
     };
 
