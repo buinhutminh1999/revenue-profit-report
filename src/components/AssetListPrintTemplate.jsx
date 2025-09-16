@@ -1,45 +1,245 @@
-// src/components/AssetListPrintTemplate.jsx
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+
+// --- Theme & Styles ---
+const theme = {
+    colors: {
+        primary: "#0d6efd",
+        text: "#212529",
+        textSecondary: "#6c757d",
+        border: "#dee2e6",
+        background: "#f8f9fa",
+        success: "#198754",
+        successLight: "#e8f3ec",
+    },
+    font: {
+        family: "'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+        size: "13px",
+    },
+    spacing: {
+        small: "4px",
+        medium: "8px",
+        large: "16px",
+        xlarge: "24px",
+    },
+};
+
+const styles = {
+    page: {
+        width: "210mm",
+        minHeight: "297mm",
+        padding: "15mm",
+        backgroundColor: "white",
+        fontFamily: theme.font.family,
+        fontSize: theme.font.size,
+        color: theme.colors.text,
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+    },
+    header: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        borderBottom: `2px solid ${theme.colors.text}`,
+        paddingBottom: theme.spacing.large,
+    },
+    companyName: {
+        margin: 0,
+        textTransform: "uppercase",
+        fontWeight: 700,
+        fontSize: "16px",
+    },
+    companyInfo: {
+        margin: `${theme.spacing.small} 0 0`,
+        fontSize: "11px",
+        color: theme.colors.textSecondary,
+        lineHeight: 1.5,
+    },
+    headerRight: {
+        textAlign: "center",
+    },
+    qrLabel: {
+        fontSize: "10px",
+        margin: `${theme.spacing.medium} 0 0`,
+        color: theme.colors.textSecondary,
+    },
+    titleSection: {
+        textAlign: "center",
+        margin: `${theme.spacing.xlarge} 0`,
+    },
+    title: {
+        fontSize: "26px",
+        fontWeight: "bold",
+        margin: 0,
+        textTransform: "uppercase",
+        color: theme.colors.primary,
+    },
+    subTitle: {
+        margin: `${theme.spacing.medium} 0`,
+        fontSize: "13px",
+        color: theme.colors.textSecondary,
+        fontStyle: "italic",
+    },
+    documentId: {
+        fontWeight: 600,
+        fontSize: "13px",
+    },
+    infoTable: {
+        width: '60%',
+        borderCollapse: 'collapse',
+        marginBottom: theme.spacing.large,
+        fontSize: '13px',
+    },
+    infoLabel: {
+        textAlign: 'left',
+        fontWeight: 600,
+        padding: `${theme.spacing.small} 0`,
+        width: '150px'
+    },
+    infoValue: {
+        textAlign: 'left',
+        padding: `${theme.spacing.small} ${theme.spacing.medium}`,
+    },
+    table: {
+        width: "100%",
+        borderCollapse: "collapse",
+        fontSize: "13px",
+        border: `1px solid ${theme.colors.border}`,
+    },
+    th: {
+        padding: `10px ${theme.spacing.medium}`,
+        border: `1px solid ${theme.colors.border}`,
+        fontWeight: 600,
+        textAlign: "center",
+        textTransform: "uppercase",
+        fontSize: "12px",
+        color: theme.colors.textSecondary,
+        backgroundColor: theme.colors.background,
+    },
+    td: {
+        padding: `12px ${theme.spacing.medium}`,
+        border: `1px solid ${theme.colors.border}`,
+        verticalAlign: "middle",
+        textAlign: 'center'
+    },
+    conclusionSection: {
+        marginTop: '25px',
+        lineHeight: 1.6
+    },
+    conclusionTitle: {
+        fontWeight: 'bold',
+        fontSize: '14px',
+        marginBottom: '10px'
+    },
+    conclusionPoint: {
+        marginBottom: '8px',
+        paddingLeft: '20px',
+        textIndent: '-20px'
+    },
+    signatureRow: {
+        display: "flex",
+        justifyContent: "space-around",
+        gap: theme.spacing.large,
+        marginTop: "40px",
+        textAlign: "center",
+    },
+    signatureCol: {
+        flex: 1,
+        padding: `0 ${theme.spacing.medium}`,
+    },
+    signatureRole: {
+        fontWeight: "bold",
+        textTransform: "uppercase",
+        marginBottom: theme.spacing.medium,
+        fontSize: "13px",
+        color: theme.colors.textSecondary,
+    },
+    signatureBox: {
+        height: "60px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    signaturePlaceholder: {
+        border: `2px dashed ${theme.colors.border}`,
+        borderRadius: "4px",
+        color: theme.colors.textSecondary,
+        fontStyle: "italic",
+        fontSize: "12px",
+    },
+    signatureContent: {
+        backgroundColor: theme.colors.successLight,
+        border: `1px solid ${theme.colors.success}`,
+        borderRadius: "4px",
+    },
+    signatureStatus: {
+        color: theme.colors.success,
+        fontWeight: "bold",
+        fontSize: "12px",
+        margin: 0,
+    },
+    signatureTime: {
+        fontSize: "10px",
+        color: theme.colors.textSecondary,
+        margin: `${theme.spacing.small} 0 0`,
+    },
+    signatureName: {
+        fontWeight: 600,
+        marginTop: theme.spacing.large,
+        fontSize: "15px",
+        minHeight: "20px",
+    },
+    footer: {
+        marginTop: "auto",
+        paddingTop: theme.spacing.large,
+        borderTop: `1px solid ${theme.colors.border}`,
+        textAlign: "center",
+        fontSize: "10px",
+        color: "#aaa",
+    },
+};
 
 // --- Helper Functions ---
 const fullTime = (ts) => {
     const d = ts?.toDate ? ts.toDate() : new Date(ts);
     if (!d || Number.isNaN(+d)) return "";
-    return d.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
+    return d.toLocaleString("vi-VN", { timeStyle: "medium", dateStyle: "short" });
 };
+
 const formatDate = (ts) => {
-    if (!ts) return { day: '..', month: '..', year: '....' };
+    if (!ts) return { day: "..", month: "..", year: "...." };
     const d = ts?.toDate ? ts.toDate() : new Date(ts);
-    return { day: String(d.getDate()).padStart(2, '0'), month: String(d.getMonth() + 1).padStart(2, '0'), year: d.getFullYear() };
+    return {
+        day: String(d.getDate()).padStart(2, "0"),
+        month: String(d.getMonth() + 1).padStart(2, "0"),
+        year: d.getFullYear(),
+    };
 };
-const formatCurrency = (num) => {
+
+const formatNumber = (num) => {
     if (typeof num !== 'number' || isNaN(num)) return '–';
-    return num.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
+    return num.toLocaleString('vi-VN');
 };
 
 // --- Child Component for Signatures ---
-const SignatureDisplay = ({ signature, role }) => {
-    if (!signature) {
-        return (
-            <>
-                <b>{role}</b>
-                <div style={styles.signaturePlaceholder}><i>(Chưa ký)</i></div>
-                <p style={styles.signatureName}>......................................</p>
-            </>
-        );
-    }
-    return (
-        <>
-            <b>{role}</b>
-            <div style={styles.signatureContent}>
-                <p style={styles.signatureStatus}><span style={styles.checkIcon}>✔</span> Đã ký điện tử</p>
-                <p style={styles.signatureTime}>Lúc: {fullTime(signature.signedAt)}</p>
+const SignatureDisplay = ({ signature, role }) => (
+    <>
+        <b style={styles.signatureRole}>{role}</b>
+        {signature ? (
+            <div style={{ ...styles.signatureBox, ...styles.signatureContent }}>
+                <p style={styles.signatureStatus}>✔ Đã ký điện tử</p>
+                <p style={styles.signatureTime}>{fullTime(signature.signedAt)}</p>
             </div>
-            <p style={styles.signatureName}>{signature.name}</p>
-        </>
-    );
-};
+        ) : (
+            <div style={{...styles.signatureBox, ...styles.signaturePlaceholder}}>
+                <span>(Chưa ký)</span>
+            </div>
+        )}
+        <p style={styles.signatureName}>{signature?.name || "..."}</p>
+    </>
+);
 
 // --- Main Print Component ---
 export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref) => {
@@ -47,136 +247,130 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref
 
     const createdDate = formatDate(report.createdAt);
     const { signatures = {} } = report;
-    const totalValue = (report.assets || []).reduce((sum, asset) => sum + (Number(asset.quantity || 0) * Number(asset.price || 0)), 0);
-    const totalQty = (report.assets || []).reduce((s, a) => s + Number(a.quantity || 0), 0);
-    const nf = new Intl.NumberFormat('vi-VN');
-
+    
     const qrValue = typeof window !== 'undefined'
-        ? `${window.location.origin}/inventory-reports/${report.id}` // Link to the specific report
+        ? `${window.location.origin}/inventory-reports/${report.id}`
         : `/inventory-reports/${report.id}`;
 
     return (
         <div ref={ref} style={styles.page}>
-            <div style={styles.header}>
+            <header style={styles.header}>
                 <div>
-                    <h3 style={styles.companyName}>{company?.name || 'CÔNG TY'}</h3>
-                    <p style={styles.companyInfo}>Địa chỉ: {company?.address || '................................'}<br />Điện thoại: {company?.phone || '..................'}</p>
+                    <h3 style={styles.companyName}>{company?.name || 'TÊN CÔNG TY'}</h3>
+                    <p style={styles.companyInfo}>
+                        Địa chỉ: {company?.address || '................................'}<br />
+                        Điện thoại: {company?.phone || '..................'}
+                    </p>
                 </div>
                 <div style={styles.headerRight}>
-                    <QRCodeSVG value={qrValue} size={80} level="H" includeMargin={false} />
+                    <QRCodeSVG value={qrValue} size={80} level="H" />
                     <p style={styles.qrLabel}>Quét để xem & duyệt</p>
                 </div>
-            </div>
+            </header>
 
-            <div style={styles.titleSection}>
+            <section style={styles.titleSection}>
                 <h1 style={styles.title}>{report.title || 'BIÊN BẢN KIỂM KÊ TÀI SẢN'}</h1>
-                <p style={styles.subTitle}>Ngày {createdDate.day} tháng {createdDate.month} năm {createdDate.year}</p>
-                <p style={styles.documentId}>Mã biên bản: #{report.id?.slice(0, 8).toUpperCase()}</p>
-            </div>
+                <p style={styles.subTitle}>
+                    Ngày {createdDate.day} tháng {createdDate.month} năm {createdDate.year}
+                </p>
+                <p style={styles.documentId}>
+                    Mã biên bản: {report.id?.slice(0, 8).toUpperCase()}
+                </p>
+            </section>
 
-            <table style={styles.infoTable}>
-                <tbody>
-                    <tr>
-                        <td style={styles.infoLabel}>Phòng ban kiểm kê:</td>
-                        <td style={styles.infoValue}>{report.departmentName}</td>
-                    </tr>
-                    <tr>
-                        <td style={styles.infoLabel}>Người lập biên bản:</td>
-                        <td style={styles.infoValue}>{report.requester?.name}</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <p style={{ margin: '20px 0 10px 0' }}>Danh sách tài sản và công cụ được bàn giao - kiểm kê tại phòng <b>{report.departmentName}</b> như sau:</p>
-
-            <table style={styles.table}>
-                <thead>
-                    <tr>
-                        <th style={{ ...styles.th, width: '35px' }}>STT</th>
-                        <th style={{ ...styles.th, width: '100px' }}>Mã TS</th>
-                        <th style={{ ...styles.th, width: '30%', textAlign: 'left' }}>Tên tài sản & Kích thước</th>
-                        <th style={{ ...styles.th, width: '60px' }}>SL</th>
-                        <th style={{ ...styles.th, width: '100px' }}>Đơn giá</th>
-                        <th style={{ ...styles.th, width: '110px' }}>Thành tiền</th>
-                        <th style={{ ...styles.th, width: '100px' }}>Tình trạng</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {(report.assets || []).map((asset, index) => (
-                        <tr key={asset.id || index}>
-                            <td style={styles.td}>{index + 1}</td>
-                            <td style={styles.td}>{asset.code || '–'}</td>
-                            <td style={{ ...styles.td, textAlign: 'left', padding: '8px 10px', verticalAlign: 'top' }}>
-                                <b>{asset.name}</b>
-                                {asset.size && <div style={{ fontSize: '10px', color: '#555', marginTop: '4px' }}>KT: {asset.size}</div>}
-                            </td>
-                            <td style={{ ...styles.td, textAlign: 'right' }}>{nf.format(Number(asset.quantity || 0))}</td>
-                            <td style={{ ...styles.td, textAlign: 'right', paddingRight: '10px' }}>{formatCurrency(Number(asset.price || 0))}</td>
-                            <td style={{ ...styles.td, textAlign: 'right', paddingRight: '10px', fontWeight: 'bold' }}>{formatCurrency(Number(asset.quantity || 0) * Number(asset.price || 0))}</td>
-                            <td style={styles.td}>{asset.condition || 'Tốt'}</td>
+            <main>
+                <table style={styles.infoTable}>
+                    <tbody>
+                        <tr>
+                            <td style={styles.infoLabel}>Phòng ban kiểm kê:</td>
+                            <td style={styles.infoValue}><b>{report.departmentName}</b></td>
                         </tr>
-                    ))}
-                    <tr>
-                        <td colSpan="5" style={{...styles.td, textAlign: 'right', fontWeight: 'bold', paddingRight: '10px'}}>TỔNG CỘNG</td>
-                        <td style={{...styles.td, textAlign: 'right', fontWeight: 'bold', paddingRight: '10px', backgroundColor: '#f8f9fa'}}>{formatCurrency(totalValue)}</td>
-                        <td style={styles.td}></td>
-                    </tr>
-                </tbody>
-            </table>
+                        <tr>
+                            <td style={styles.infoLabel}>Người lập biên bản:</td>
+                            <td style={styles.infoValue}>{report.requester?.name}</td>
+                        </tr>
+                    </tbody>
+                </table>
 
-            <p style={{ marginTop: 10, fontStyle: 'italic' }}>Tổng cộng {report.assets?.length || 0} khoản (Tổng số lượng: {nf.format(totalQty)}).</p>
+                <p style={{ margin: '20px 0 15px 0' }}>
+                    Danh sách tài sản và công cụ được kiểm kê tại phòng <b>{report.departmentName}</b> như sau:
+                </p>
 
-             <div className="no-break" style={{ marginTop: '40px' }}>
-                <div style={styles.signatureRow}>
-                    {/* === THAY ĐỔI KHU VỰC CHỮ KÝ Ở ĐÂY === */}
-                    <div style={styles.signatureCol}>
-                        <SignatureDisplay signature={signatures.hc} role="Phòng Hành chính" />
+                <table style={styles.table}>
+                    <thead>
+                        <tr>
+                            <th style={{ ...styles.th, width: '5%' }}>STT</th>
+                            <th style={{ ...styles.th, width: '35%', textAlign: 'left' }}>Tên tài sản</th>
+                            <th style={{ ...styles.th, width: '15%' }}>Kích thước</th>
+                            <th style={{ ...styles.th, width: '8%' }}>ĐVT</th>
+                            <th style={{ ...styles.th, width: '7%' }}>SL</th>
+                            <th style={{ ...styles.th, width: '30%', textAlign: 'left' }}>Ghi chú</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {(report.assets || []).map((asset, index) => (
+                            <tr key={asset.id || index}>
+                                <td style={styles.td}>{index + 1}</td>
+                                <td style={{ ...styles.td, textAlign: 'left' }}>
+                                    <b>{asset.name}</b>
+                                </td>
+                                <td style={styles.td}>{asset.size || '–'}</td>
+                                <td style={styles.td}>{asset.unit || ''}</td>
+                                <td style={{ ...styles.td, fontWeight: '500' }}>{formatNumber(Number(asset.quantity || 0))}</td>
+                                <td style={{ ...styles.td, textAlign: 'left' }}>{asset.notes || ''}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+
+                <p style={{ marginTop: '15px', fontStyle: 'italic', color: theme.colors.textSecondary }}>
+                    Tổng cộng: {report.assets?.length || 0} loại tài sản.
+                </p>
+                
+                {/* --- PHẦN KẾT LUẬN MỚI --- */}
+                <div style={styles.conclusionSection} className="no-break">
+                    <div style={styles.conclusionTitle}>KẾT LUẬN:</div>
+                    <div style={styles.conclusionPoint}>
+                        <b>1. Sở hữu và quản lý tài sản:</b> Hai bên thống nhất rằng số tài sản trên đang thuộc quản lý và sở hữu của <b>{report.departmentName}</b>.
                     </div>
-                    <div style={styles.signatureCol}>
-                        <SignatureDisplay signature={signatures.deptLeader} role="Lãnh đạo Phòng ban" />
+                    <div style={styles.conclusionPoint}>
+                        <b>2. Trách nhiệm bảo quản tài sản:</b> <b>{report.departmentName}</b> có trách nhiệm bảo quản tài sản này và đảm bảo tài sản luôn trong tình trạng tốt, không bị hư hỏng hoặc mất mát.
                     </div>
-                    <div style={styles.signatureCol}>
-                        <SignatureDisplay signature={signatures.director} role="Ban Tổng Giám đốc" />
+                    <div style={styles.conclusionPoint}>
+                        <b>3. Quy trình luân chuyển tài sản:</b> Trong trường hợp có luân chuyển tài sản, phải có biên bản luân chuyển được Ban Tổng Giám đốc duyệt và chuyển kịp thời cho Phòng Hành chính để cập nhật lại thông tin tài sản của phòng mình.
                     </div>
-                    {/* === KẾT THÚC THAY ĐỔI === */}
+                    <div style={styles.conclusionPoint}>
+                        <b>4. Hư hỏng tài sản:</b> Các tài sản trên nếu có hư hỏng, phải đề xuất Phòng Hành chính kiểm tra và khắc phục sửa chữa nếu cần thiết.
+                    </div>
                 </div>
-            </div>
 
+            </main>
 
-            <div style={styles.footer}>
+            <section className="no-break" style={styles.signatureRow}>
+                <div style={styles.signatureCol}>
+                    <SignatureDisplay signature={signatures.hc} role="Phòng Hành chính" />
+                </div>
+                <div style={styles.signatureCol}>
+                    <SignatureDisplay signature={signatures.deptLeader} role="Lãnh đạo Phòng" />
+                </div>
+                <div style={styles.signatureCol}>
+                    <SignatureDisplay signature={signatures.director} role="Ban Giám đốc" />
+                </div>
+            </section>
+
+            <footer style={styles.footer} className="no-break">
                 <p>In từ hệ thống Quản lý Tài sản • {new Date().toLocaleString('vi-VN')}</p>
-            </div>
-            
-            <style>{`@media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .no-break { page-break-inside: avoid; } }`}</style>
+            </footer>
+
+            <style>{`
+                @media print {
+                    html, body { margin:0 !important; padding:0 !important; }
+                    .no-break {
+                        break-inside: avoid;
+                        page-break-inside: avoid;
+                    }
+                }
+            `}</style>
         </div>
     );
 });
-
-
-const styles = {
-    page: { width: '210mm', minHeight: '297mm', padding: '15mm', margin: '0 auto', backgroundColor: 'white', fontFamily: "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", fontSize: '12px', color: '#212529', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' },
-    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '10px' },
-    companyName: { margin: 0, textTransform: 'uppercase', fontWeight: 600, fontSize: '14px', letterSpacing: '0.5px' },
-    companyInfo: { margin: '4px 0 0', fontSize: '10px', color: '#555', lineHeight: 1.4 },
-    headerRight: { textAlign: 'center' },
-    qrLabel: { fontSize: '9px', margin: '4px 0 0', color: '#666' },
-    titleSection: { textAlign: 'center', margin: '25px 0' },
-    title: { fontSize: '22px', fontWeight: '700', margin: 0, textTransform: 'uppercase' },
-    subTitle: { margin: '5px 0', fontSize: '11px', color: '#444' },
-    documentId: { fontWeight: '600', fontSize: '11px', color: '#444' },
-    infoTable: { width: '100%', borderCollapse: 'collapse', marginBottom: '10px', fontSize: '12px' },
-    infoLabel: { textAlign: 'left', fontWeight: '600', padding: '4px 0', width: '150px' },
-    infoValue: { textAlign: 'left', padding: '4px 0', borderBottom: '1px dotted #ccc' },
-    table: { width: '100%', borderCollapse: 'collapse', marginTop: '10px' },
-    th: { border: '1px solid #999', padding: '8px 6px', fontWeight: '600', backgroundColor: '#f8f9fa', textAlign: 'center', verticalAlign: 'middle' },
-    td: { border: '1px solid #999', padding: '6px', textAlign: 'center', height: 'auto', verticalAlign: 'middle' },
-    signatureRow: { display: 'flex', gap: 16, marginTop: 16, textAlign: 'center' },
-    signatureCol: { flex: 1, padding: '0 8px' },
-    signaturePlaceholder: { height: '50px', margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#999', borderBottom: '1px dotted #ccc' },
-    signatureContent: { border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f0fff4', padding: '8px', margin: '8px 0', height: '50px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'center' },
-    signatureStatus: { color: '#28a745', fontWeight: 'bold', fontSize: '11px', margin: '0 0 5px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-    checkIcon: { marginRight: '5px', fontSize: '14px', lineHeight: 1 },
-    signatureTime: { fontSize: '10px', color: '#555', margin: 0 },
-    signatureName: { fontWeight: '600', marginTop: '8px', fontSize: '13px', minHeight: '18px' },
-    footer: { marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid #eee', textAlign: 'center', fontSize: '9px', color: '#aaa', pageBreakInside: 'avoid' }
-};

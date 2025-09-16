@@ -539,6 +539,25 @@ export default function AssetTransferPage() {
     const assetsWithAvailability = useMemo(() => { return assetsWithDept.map((a) => ({ ...a, reserved: Number(a.reserved || 0), availableQuantity: Math.max(0, Number(a.quantity || 0) - Number(a.reserved || 0)) })) }, [assetsWithDept]);
     const filteredTransfers = useMemo(() => { let list = transfers; if (statusMulti.length > 0) list = list.filter((t) => statusMulti.includes(t.status)); if (fromDeptIds.length > 0) list = list.filter((t) => fromDeptIds.includes(t.fromDeptId)); if (toDeptIds.length > 0) list = list.filter((t) => toDeptIds.includes(t.toDeptId)); if (createdByDeb.trim()) { const q = norm(createdByDeb); list = list.filter((t) => norm(t.createdBy?.name || "").includes(q)) } if (debSearch.trim()) { const q = norm(debSearch); list = list.filter((t) => norm(t.id).includes(q) || norm(t.from).includes(q) || norm(t.to).includes(q) || (t.assets || []).some((a) => norm(a.name).includes(q))) } return list }, [transfers, statusMulti, fromDeptIds, toDeptIds, createdByDeb, debSearch,]);
     const filteredAssets = useMemo(() => { let list = assetsWithDept; if (filterDeptForAsset) { list = list.filter((a) => a.departmentId === filterDeptForAsset) } if (assetSearch.trim()) { const q = norm(assetSearch); list = list.filter((a) => norm(a.name).includes(q)) } return list }, [assetsWithDept, assetSearch, filterDeptForAsset]);
+    // Nhóm theo phòng ban để render header mỗi nhóm
+    const groupedAssets = useMemo(() => {
+        const map = new Map();
+        for (const a of filteredAssets) {
+            const key = a.departmentId || 'unknown';
+            const name = a.departmentName || 'Chưa gán';
+            if (!map.has(key)) map.set(key, { name, items: [] });
+            map.get(key).items.push(a);
+        }
+        // sort nhóm & từng item cho đẹp
+        const groups = [...map.values()]
+            .sort((g1, g2) => g1.name.localeCompare(g2.name, 'vi'))
+            .map(g => ({
+                ...g,
+                items: g.items.sort((x, y) => (x.name || '').localeCompare(y.name || '', 'vi'))
+            }));
+        return groups;
+    }, [filteredAssets]);
+
     // NEW: Dùng useMemo để kết hợp assetRequests với tên phòng ban một cách hiệu quả
     const requestsWithDeptName = useMemo(() => {
         // Tạo một map để tra cứu tên phòng ban từ ID (rất nhanh)
@@ -1731,70 +1750,56 @@ export default function AssetTransferPage() {
                             <Table stickyHeader>
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell sx={{ fontWeight: "bold" }}>
-                                            Tên tài sản
-                                        </TableCell>
-                                        <TableCell sx={{ fontWeight: "bold" }}>
-                                            Phòng ban
-                                        </TableCell>
-                                        <TableCell
-                                            sx={{ fontWeight: "bold" }}
-                                            align="center"
-                                        >
-                                            Số lượng
-                                        </TableCell>
-                                        <TableCell sx={{ fontWeight: "bold" }}>
-                                            Ghi chú
-                                        </TableCell>
-                                        <TableCell
-                                            sx={{ fontWeight: "bold" }}
-                                            align="right"
-                                        >
-                                            Thao tác
-                                        </TableCell>
+                                        <TableCell sx={{ fontWeight: "bold" }}>Tên tài sản</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold" }}>Kích thước</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold" }} align="center">Số lượng</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold" }}>ĐVT</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold" }}>Ghi chú</TableCell>
+                                        <TableCell sx={{ fontWeight: "bold" }} align="right">Thao tác</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {filteredAssets.map((a) => (
-                                        <TableRow key={a.id} hover>
-                                            <TableCell sx={{ fontWeight: 600 }}>
-                                                {hi(a.name, assetSearch)}
-                                            </TableCell>
-                                            <TableCell>
-                                                {a.departmentName}
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                {a.quantity} {a.unit}
-                                            </TableCell>
-                                            <TableCell>
-                                                {a.notes || "—"}
-                                            </TableCell>
-                                            <TableCell align="right">
-                                                <Tooltip title="Chỉnh sửa">
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={() =>
-                                                            handleOpenEditModal(
-                                                                a
-                                                            )
-                                                        }
-                                                    >
-                                                        <Edit size={18} />
-                                                    </IconButton>
-                                                </Tooltip>
-                                                <Tooltip title="Xóa">
-                                                    <IconButton
-                                                        size="small"
-                                                        color="error"
-                                                        onClick={() =>
-                                                            setDeleteConfirm(a)
-                                                        }
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </TableCell>
-                                        </TableRow>
+                                    {groupedAssets.map((group) => (
+                                        <React.Fragment key={group.name}>
+                                            {/* Hàng tiêu đề nhóm phòng */}
+                                            <TableRow>
+                                                <TableCell colSpan={6}
+                                                    sx={{
+                                                        position: 'sticky',
+                                                        zIndex: 1,
+                                                        backgroundColor: 'grey.100',
+                                                        fontWeight: 800,
+                                                        textTransform: 'uppercase',
+                                                        letterSpacing: '0.5px',
+                                                        color: 'primary.main',
+                                                        borderBottom: '2px solid',
+                                                        borderColor: 'grey.300'
+                                                    }}
+                                                >
+                                                    PHÒNG BAN: {group.name}
+                                                </TableCell>
+                                            </TableRow>
+
+                                            {/* Các tài sản trong phòng */}
+                                            {group.items.map((a) => (
+                                                <TableRow key={a.id} hover>
+                                                    <TableCell sx={{ fontWeight: 600 }}>{hi(a.name, assetSearch)}</TableCell>
+                                                    <TableCell>{a.size || "—"}</TableCell>
+                                                    <TableCell align="center">{a.quantity}</TableCell>
+                                                    <TableCell>{a.unit}</TableCell>
+                                                    <TableCell>{a.notes || "—"}</TableCell>
+                                                    <TableCell align="right">
+                                                        {/* nút Sửa/Xóa giữ nguyên */}
+                                                        <Tooltip title="Chỉnh sửa">
+                                                            <IconButton size="small" onClick={() => handleOpenEditModal(a)}><Edit size={18} /></IconButton>
+                                                        </Tooltip>
+                                                        <Tooltip title="Xóa">
+                                                            <IconButton size="small" color="error" onClick={() => setDeleteConfirm(a)}><Trash2 size={18} /></IconButton>
+                                                        </Tooltip>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </React.Fragment>
                                     ))}
                                     {filteredAssets.length === 0 && (
                                         <TableRow>
@@ -2603,6 +2608,10 @@ export default function AssetTransferPage() {
                                                     <TableCell>{selectedRequest.assetData?.name}</TableCell>
                                                 </TableRow>
                                                 <TableRow>
+                                                    <TableCell variant="head" sx={{ fontWeight: 'bold' }}>Kích thước</TableCell>
+                                                    <TableCell>{selectedRequest.assetData?.size || '—'}</TableCell>
+                                                </TableRow>
+                                                <TableRow>
                                                     <TableCell variant="head" sx={{ fontWeight: 'bold' }}>Phòng ban</TableCell>
                                                     <TableCell>{departments.find(d => d.id === selectedRequest.assetData?.departmentId)?.name}</TableCell>
                                                 </TableRow>
@@ -2715,18 +2724,21 @@ export default function AssetTransferPage() {
                                         </Button>
                                     )}
 
-                                    {/* Nút In (chỉ hiện khi đã duyệt xong) */}
-                                    {selectedReport.status === 'COMPLETED' && (
-                                        <Button
-                                            fullWidth
-                                            variant="outlined"
-                                            startIcon={<Printer size={16} />}
-                                            onClick={handlePrintReport}
-                                            sx={{ mt: 1 }}
-                                        >
-                                            In Biên bản
-                                        </Button>
-                                    )}
+                                    {/* === THAY ĐỔI BẮT ĐẦU TỪ ĐÂY === */}
+                                    {/* Nút In (luôn hiển thị, thay đổi theo trạng thái) */}
+                                    <Button
+                                        fullWidth
+                                        // Nếu đã hoàn thành, nút In là nút chính. Nếu chưa, là nút phụ.
+                                        variant={selectedReport.status === 'COMPLETED' ? "contained" : "outlined"}
+                                        color="secondary" // Dùng màu khác để phân biệt với nút Duyệt
+                                        startIcon={<Printer size={16} />}
+                                        onClick={handlePrintReport}
+                                        sx={{ mt: 1 }}
+                                    >
+                                        {selectedReport.status === 'COMPLETED' ? "In Biên bản Chính thức" : "In Bản nháp"}
+                                    </Button>
+                                    {/* === THAY ĐỔI KẾT THÚC TẠI ĐÂY === */}
+
                                 </Grid>
                                 <Grid item xs={12} md={7}>
                                     <Typography variant="overline" color="text.secondary">Danh sách tài sản kiểm kê</Typography>

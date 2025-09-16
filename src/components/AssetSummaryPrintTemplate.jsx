@@ -1,22 +1,21 @@
 import React from "react";
 import { QRCodeSVG } from "qrcode.react";
 
-// --- Theme & Styles ---
-// Quản lý tập trung các giá trị thiết kế (màu sắc, font, khoảng cách)
-// Giúp dễ dàng thay đổi toàn bộ giao diện sau này.
+// --- Theme & Styles (Đã được cập nhật) ---
 const theme = {
     colors: {
-        primary: "#0d6efd", // Màu xanh dương chủ đạo
-        text: "#212529", // Màu chữ chính
-        textSecondary: "#6c757d", // Màu chữ phụ
-        border: "#dee2e6", // Màu viền
-        background: "#f8f9fa", // Màu nền nhẹ
-        success: "#198754", // Màu xanh lá cho trạng thái thành công
-        successLight: "#e8f3ec", // Màu nền xanh lá nhạt
+        primary: "#0d6efd",
+        accent: "#e9ecef",
+        text: "#212529",
+        textSecondary: "#6c757d",
+        border: "#dee2e6",
+        background: "#f8f9fa",
+        success: "#198754",
+        successLight: "#e8f3ec",
     },
     font: {
         family: "'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-        size: "13px",
+        size: "14px",
     },
     spacing: {
         small: "4px",
@@ -71,10 +70,11 @@ const styles = {
         margin: `${theme.spacing.xlarge} 0`,
     },
     title: {
-        fontSize: "24px",
+        fontSize: "26px",
         fontWeight: "bold",
         margin: 0,
         textTransform: "uppercase",
+        color: theme.colors.primary,
     },
     subTitle: {
         margin: `${theme.spacing.medium} 0`,
@@ -89,35 +89,38 @@ const styles = {
     departmentSection: {
         marginTop: theme.spacing.xlarge,
     },
+    // Cập nhật trong đối tượng `styles`
     departmentHeader: {
-        backgroundColor: theme.colors.background,
-        padding: `${theme.spacing.medium} ${theme.spacing.large}`,
-        border: `1px solid ${theme.colors.border}`,
-        borderBottom: "none",
-        borderRadius: "6px 6px 0 0",
-        margin: "0",
-        fontSize: "15px",
-        fontWeight: 600,
+        padding: `${theme.spacing.medium} 0`,
+        borderBottom: `2px solid ${theme.colors.text}`,
+        margin: `0 0 ${theme.spacing.large} 0`,
+        fontSize: "16px",
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: "0.5px",
+        breakAfter: 'avoid', // <<< THÊM DÒNG NÀY
+        pageBreakAfter: 'avoid', // <<< Thêm cả dòng này để hỗ trợ trình duyệt cũ
     },
     table: {
         width: "100%",
         borderCollapse: "collapse",
-        border: `1px solid ${theme.colors.border}`,
-        fontSize: "12px",
+        fontSize: "13px",
+        border: `1px solid ${theme.colors.border}`, // <<< THÊM VIỀN BAO QUANH BẢNG
     },
     th: {
-        border: `1px solid ${theme.colors.border}`, // <<< THAY ĐỔI: Kẻ khung đầy đủ cho header
         padding: theme.spacing.medium,
+        border: `1px solid ${theme.colors.border}`, // <<< THAY borderBottom BẰNG border
         fontWeight: 600,
-        backgroundColor: theme.colors.background,
         textAlign: "left",
-        verticalAlign: "middle",
+        textTransform: "uppercase",
+        fontSize: "12px",
+        color: theme.colors.textSecondary,
+        backgroundColor: theme.colors.background, // <<< THÊM LẠI NỀN CHO HEADER
     },
     td: {
-        border: `1px solid ${theme.colors.border}`, // <<< THAY ĐỔI: Kẻ khung đầy đủ cho các ô
-        padding: theme.spacing.medium,
+        padding: `12px ${theme.spacing.medium}`,
+        border: `1px solid ${theme.colors.border}`, // <<< THAY borderBottom BẰNG border
         textAlign: "left",
-        height: "auto",
         verticalAlign: "middle",
     },
     totalRow: {
@@ -147,7 +150,9 @@ const styles = {
     signatureRole: {
         fontWeight: "bold",
         textTransform: "uppercase",
-        marginBottom: theme.spacing.large,
+        marginBottom: theme.spacing.medium,
+        fontSize: "13px",
+        color: theme.colors.textSecondary,
     },
     signatureBox: {
         height: "60px",
@@ -182,11 +187,11 @@ const styles = {
     signatureName: {
         fontWeight: 600,
         marginTop: theme.spacing.large,
-        fontSize: "14px",
+        fontSize: "15px",
         minHeight: "20px",
     },
     footer: {
-        marginTop: "40px", // Thay 'auto' bằng một khoảng cách cụ thể, ví dụ 40px
+        marginTop: "40px",
         paddingTop: theme.spacing.large,
         borderTop: `1px solid ${theme.colors.border}`,
         textAlign: "center",
@@ -243,7 +248,6 @@ const SignatureDisplay = ({ signature, role }) => (
 // --- Main Print Component ---
 export const AssetSummaryPrintTemplate = React.forwardRef(
     ({ report, company }, ref) => {
-        // Dùng useMemo để chỉ tính toán lại khi report thay đổi, tối ưu hiệu năng
         const processedData = React.useMemo(() => {
             if (!report) return null;
 
@@ -281,12 +285,9 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
                 a.localeCompare(b, "vi")
             );
 
-            const grandTotal = (report.assets || []).reduce(
-                (sum, asset) => sum + Number(asset?.quantity || 0),
-                0
-            );
+            const totalAssetTypes = (report.assets || []).length; // <<< Đếm số dòng
 
-            return { sortedDeptNames, assetsByDept, grandTotal };
+            return { sortedDeptNames, assetsByDept, grandTotal: totalAssetTypes }; // <<< Trả về giá trị đếm
         }, [report]);
 
         if (!report || !processedData) return null;
@@ -323,7 +324,7 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
 
                 <section style={styles.titleSection}>
                     <h1 style={styles.title}>
-                        {report.title || "BIÊN BẢN KIỂM KÊ TÀI SẢN"}
+                        {"BẢNG KÊ KHAI TÀI SẢN"}
                     </h1>
                     <p style={styles.subTitle}>
                         Ngày {createdDate.day} tháng {createdDate.month} năm{" "}
@@ -343,10 +344,7 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
                             .sort((a, b) =>
                                 (a.name || "").localeCompare(b.name || "", "vi")
                             );
-                        const deptTotal = assets.reduce(
-                            (s, a) => s + Number(a?.quantity || 0),
-                            0
-                        );
+
 
                         return (
                             <div
@@ -360,49 +358,12 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
                                 <table style={styles.table}>
                                     <thead>
                                         <tr>
-                                            <th
-                                                style={{
-                                                    ...styles.th,
-                                                    width: "7%",
-                                                    textAlign: "center",
-                                                }}
-                                            >
-                                                STT
-                                            </th>
-                                            <th
-                                                style={{
-                                                    ...styles.th,
-                                                    width: "45%",
-                                                }}
-                                            >
-                                                Tên tài sản
-                                            </th>
-                                            <th
-                                                style={{
-                                                    ...styles.th,
-                                                    width: "10%",
-                                                    textAlign: "center",
-                                                }}
-                                            >
-                                                ĐVT
-                                            </th>
-                                            <th
-                                                style={{
-                                                    ...styles.th,
-                                                    width: "13%",
-                                                    textAlign: "right",
-                                                }}
-                                            >
-                                                Số lượng
-                                            </th>
-                                            <th
-                                                style={{
-                                                    ...styles.th,
-                                                    width: "25%",
-                                                }}
-                                            >
-                                                Ghi chú
-                                            </th>
+                                            <th style={{ ...styles.th, width: "7%", textAlign: "center" }}>STT</th>
+                                            <th style={{ ...styles.th, width: "45%" }}>Tên tài sản</th>
+                                            <th style={{ ...styles.th, width: "12%" }}>Kích thước</th>
+                                            <th style={{ ...styles.th, width: "10%", textAlign: "center" }}>ĐVT</th>
+                                            <th style={{ ...styles.th, width: "13%", textAlign: "right" }}>Số lượng</th>
+                                            <th style={{ ...styles.th, width: "25%", textAlign: "center" }}>Ghi chú</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -413,31 +374,17 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
                                                     `${deptName}-${index}`
                                                 }
                                             >
-                                                <td
-                                                    style={{
-                                                        ...styles.td,
-                                                        textAlign: "center",
-                                                    }}
-                                                >
+                                                <td style={{ ...styles.td, textAlign: "center" }}>
                                                     {index + 1}
                                                 </td>
                                                 <td style={styles.td}>
                                                     {asset.name}
                                                 </td>
-                                                <td
-                                                    style={{
-                                                        ...styles.td,
-                                                        textAlign: "center",
-                                                    }}
-                                                >
+                                                <td style={styles.td}>{asset.size || ""}</td>
+                                                <td style={{ ...styles.td, textAlign: "center" }}>
                                                     {asset.unit || ""}
                                                 </td>
-                                                <td
-                                                    style={{
-                                                        ...styles.td,
-                                                        textAlign: "right",
-                                                    }}
-                                                >
+                                                <td style={{ ...styles.td, textAlign: "right" }}>
                                                     {Number(
                                                         asset.quantity || 0
                                                     ).toLocaleString("vi-VN")}
@@ -447,28 +394,7 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
                                                 </td>
                                             </tr>
                                         ))}
-                                        <tr style={styles.totalRow}>
-                                            <td
-                                                colSpan={3}
-                                                style={{
-                                                    ...styles.td,
-                                                    textAlign: "right",
-                                                }}
-                                            >
-                                                Cộng phòng ban:
-                                            </td>
-                                            <td
-                                                style={{
-                                                    ...styles.td,
-                                                    textAlign: "right",
-                                                }}
-                                            >
-                                                {deptTotal.toLocaleString(
-                                                    "vi-VN"
-                                                )}
-                                            </td>
-                                            <td style={styles.td}></td>
-                                        </tr>
+
                                     </tbody>
                                 </table>
                             </div>
@@ -479,22 +405,10 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
                         <table style={styles.grandTotalTable}>
                             <tbody>
                                 <tr style={styles.totalRow}>
-                                    <td
-                                        style={{
-                                            ...styles.td,
-                                            textAlign: "right",
-                                        }}
-                                    >
-                                        TỔNG CỘNG:
+                                    <td style={{ ...styles.td, textAlign: "right" }}>
+                                        Tổng số loại tài sản:
                                     </td>
-                                    <td
-                                        style={{
-                                            ...styles.td,
-                                            width: "30%",
-                                            textAlign: "right",
-                                            fontSize: "14px",
-                                        }}
-                                    >
+                                    <td style={{ ...styles.td, width: "30%", textAlign: "right", fontSize: "14px" }}>
                                         {grandTotal.toLocaleString("vi-VN")}
                                     </td>
                                 </tr>
@@ -531,54 +445,39 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
                     </p>
                 </footer>
 
-                {/* CSS Fix for printing */}
                 <style>{`
-        @page {
-          size: A4;
-          margin: 10mm 10mm 12mm 10mm; /* có lề đáy để đặt footer cố định */
-        }
+@page {
+    size: A4;
+    margin: 10mm 10mm 12mm 10mm;
+}
 
-        @media print {
-          html, body { margin:0 !important; padding:0 !important; }
+@media print {
+    html, body { margin:0 !important; padding:0 !important; }
 
-          .print-page {
-            box-shadow:none;
-            width:210mm !important;
-            min-height:auto !important;
-            padding:0 !important; /* bỏ padding vì đã có @page margin */
-            margin:0 !important;
-          }
+    /* Trong thẻ <style> và khối @media print */
+.print-page {
+    box-shadow: none;
+    width: 188mm !important; /* <<< GIẢM TỪ 190mm XUỐNG CÒN 188mm */
+    min-height: auto !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+}
 
-          /* Phòng ban có thể tách trang */
-          .dept-section {
-            break-inside:auto;
-            page-break-inside:auto;
-            margin: 0 0 12px 0;
-          }
+    .dept-section table tbody tr:nth-child(even) {
+        background-color: #f8f9fa;
+    }
 
-          /* Bảng tách trang đẹp: lặp lại header, tránh vỡ dòng */
-          table { page-break-inside:auto; }
-          tr, td, th { page-break-inside:avoid; break-inside:avoid; }
-          thead { display: table-header-group; }
-          tfoot { display: table-footer-group; }
+    table { page-break-inside:auto; }
+    tr, td, th { page-break-inside:avoid; break-inside:avoid; }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
 
-          /* Chữ ký giữ nguyên khối (nếu muốn) */
-          .no-break {
-            break-inside: avoid;
-            page-break-inside: avoid;
-          }
-
-          /* Footer cố định đáy mỗi trang, không cho ngắt trước */
-          #asset-footer {
-            position: fixed;
-            bottom: 6mm;
-            left: 0;
-            right: 0;
-            text-align: center;
-            page-break-before: avoid;
-          }
-        }
-            `}</style>
+    .no-break {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+}
+`}</style>
             </div>
         );
     }

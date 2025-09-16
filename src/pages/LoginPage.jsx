@@ -11,7 +11,7 @@ import {
   Google as GoogleIcon,
 } from "@mui/icons-material";
 import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import {
   getAuth,
@@ -71,8 +71,12 @@ export default function LoginPage() {
 
   // ====== Router & Firebase ======
   const navigate = useNavigate();
+  const location = useLocation();
   const auth = getAuth();
-
+// Lấy & chuẩn hoá redirect param (tránh open-redirect)
+const rawRedirect = new URLSearchParams(location.search).get("redirect");
+const decodedRedirect = rawRedirect ? decodeURIComponent(rawRedirect) : null;
+const safeRedirect = decodedRedirect && decodedRedirect.startsWith("/") ? decodedRedirect : "/";
   // ====== Parallax refs/values ======
   const containerRef = useRef(null);
   const mouseX = useMotionValue(0);
@@ -108,10 +112,10 @@ export default function LoginPage() {
   // ====== Redirect if already signed in ======
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
-      if (u) navigate("/", { replace: true });
+      if (u) navigate(safeRedirect, { replace: true });
     });
     return () => unsub();
-  }, [auth, navigate]);
+  }, [auth, navigate, safeRedirect]);
 
   // ====== Submit handler ======
   const handleSubmit = useCallback(async (e) => {
@@ -131,7 +135,7 @@ export default function LoginPage() {
         localStorage.removeItem("remember");
       }
 
-      navigate("/", { replace: true });
+      navigate(safeRedirect, { replace: true });
     } catch (err) {
       setError(mapAuthError(err?.code));
     } finally {
@@ -351,7 +355,7 @@ export default function LoginPage() {
                         fullWidth
                         variant="outlined"
                         startIcon={<GoogleIcon />}
-                        onClick={() => { /* TODO: gắn Google SSO nếu cần: signInWithPopup(new GoogleAuthProvider()) */ }}
+                        onClick={() => { /* sau khi SSO thành công: navigate(safeRedirect, { replace: true }) */ }}
                         disabled={false /* đổi thành !isGoogleConfigured nếu bạn kiểm tra cấu hình */}
                         sx={{
                           mt: 1, color: "#fff", borderColor: alpha("#fff", .35),
