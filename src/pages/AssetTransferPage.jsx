@@ -1,6 +1,6 @@
 // src/pages/AssetTransferPage.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback, } from "react";
-import { Box, Typography, Button, Card, CardContent, Grid, Select, MenuItem, FormControl, InputLabel, Paper, Tabs, Tab, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Checkbox, ListItemText, OutlinedInput, IconButton, TextField, DialogContentText, Toolbar, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Stack, Divider, Tooltip, Snackbar, Alert, Avatar, Skeleton, Drawer, Badge, ToggleButton, ToggleButtonGroup, Stepper, Step, StepLabel, Autocomplete, CardActions, Collapse, } from "@mui/material";
+import { Box, Typography, Button, Card, CardContent, Grid, Select, MenuItem, FormControl, InputLabel, Paper, Tabs, Tab, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Checkbox, ListItemText, OutlinedInput, IconButton, TextField, DialogContentText, Toolbar, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Stack, Divider, Tooltip, Snackbar, Alert, Avatar, Skeleton, Drawer, Badge, ToggleButton, ToggleButtonGroup, Stepper, Step, StepLabel, Autocomplete, CardActions, Collapse, CardActionArea, } from "@mui/material";
 import { ArrowRightLeft, Check, FilePen, Handshake, Send, UserCheck, Warehouse, PlusCircle, Edit, Trash2, X, Filter, Eye, TableProperties, Clock, Inbox, History, FilePlus, FileX, Users, Sheet, Printer, BookCheck } from "lucide-react"; // NEW: Thêm icon
 import { motion } from "framer-motion";
 import { getAuth } from "firebase/auth";
@@ -8,18 +8,24 @@ import { db, functions } from "../services/firebase-config"; // UPDATED: import 
 import { httpsCallable } from "firebase/functions"; // NEW: import httpsCallable
 import { collection, query, doc, updateDoc, deleteDoc, addDoc, writeBatch, serverTimestamp, orderBy as fsOrderBy, onSnapshot, getDoc, runTransaction, increment, } from "firebase/firestore";
 import { useReactToPrint } from "react-to-print";
+import { QRCodeSVG } from "qrcode.react";
+
 import { TransferPrintTemplate } from '../components/TransferPrintTemplate'
 import { AssetListPrintTemplate } from "../components/AssetListPrintTemplate";
 import { AssetSummaryPrintTemplate } from "../components/AssetSummaryPrintTemplate";
+import { RequestPrintTemplate } from "../components/RequestPrintTemplate";
+import { CheckCircleOutline } from "@mui/icons-material";
 const statusConfig = { PENDING_SENDER: { label: "Chờ chuyển", color: "warning", icon: <FilePen size={14} /> }, PENDING_RECEIVER: { label: "Chờ nhận", color: "info", icon: <UserCheck size={14} /> }, PENDING_ADMIN: { label: "Chờ P.HC xác nhận", color: "primary", icon: <Handshake size={14} /> }, COMPLETED: { label: "Hoàn thành", color: "success", icon: <Check size={14} /> }, };
 const ALL_STATUS = ["PENDING_SENDER", "PENDING_RECEIVER", "PENDING_ADMIN", "COMPLETED",];
 
-// NEW: Config cho trạng thái của yêu cầu thay đổi tài sản
+// Thêm trạng thái PENDING_BLOCK_LEADER vào object này
 const requestStatusConfig = {
     PENDING_HC: { label: "Chờ P.HC", color: "warning", icon: <UserCheck size={14} /> },
+    // ✅ THÊM DÒNG NÀY
+    PENDING_BLOCK_LEADER: { label: "Chờ Lãnh đạo Khối", color: "primary", icon: <Users size={14} /> },
     PENDING_KT: { label: "Chờ P.KT", color: "info", icon: <UserCheck size={14} /> },
     COMPLETED: { label: "Hoàn thành", color: "success", icon: <Check size={14} /> },
-    REJECTED: { label: "Bị từ chối", color: "error", icon: <X size={14} /> }, // UPDATED: Thêm icon cho REJECTED
+    REJECTED: { label: "Bị từ chối", color: "error", icon: <X size={14} /> },
 };
 const reportStatusConfig = {
     PENDING_HC: { label: "Chờ P.HC duyệt", color: "warning", icon: <UserCheck size={14} /> },
@@ -46,11 +52,19 @@ const reportWorkflows = {
 const shortId = (id) => (id ? id.slice(0, 6) : "");
 
 
-const norm = (s) => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+// THAY cho norm hoặc giữ norm cũ, thêm normVn và dùng khi so sánh search
+const normVn = (s = "") =>
+    s
+        .toString()
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // bỏ dấu
+        .replace(/\s+/g, " ");
 const toDateObj = (tsOrIso) => { if (!tsOrIso) return null; if (typeof tsOrIso === "string") return new Date(tsOrIso); if (tsOrIso?.toDate) return tsOrIso.toDate(); if (tsOrIso instanceof Date) return tsOrIso; return new Date(tsOrIso) };
 const formatTime = (ts) => { const d = toDateObj(ts); if (!d || Number.isNaN(+d)) return ""; return d.toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", }) };
 const fullTime = (ts) => { const d = toDateObj(ts); if (!d || Number.isNaN(+d)) return ""; return d.toLocaleString("vi-VN") };
-const hi = (text, q) => { if (!q || !text) return text; const qp = norm(q); const t = String(text); const i = norm(t).indexOf(qp); if (i === -1) return t; return (<>{t.slice(0, i)}<mark style={{ background: "#fff1a8", padding: "0 2px" }}>{t.slice(i, i + q.length)}</mark>{t.slice(i + q.length)}</>) };
+const hi = (text, q) => { if (!q || !text) return text; const qp = normVn(q); const t = String(text); const i = normVn(t).indexOf(qp); if (i === -1) return t; return (<>{t.slice(0, i)}<mark style={{ background: "#fff1a8", padding: "0 2px" }}>{t.slice(i, i + q.length)}</mark>{t.slice(i + q.length)}</>) };
 
 // src/pages/AssetTransferPage.jsx (đặt ở đầu file)
 
@@ -61,31 +75,20 @@ const SignatureTimeline = ({ signatures = {}, status }) => {
         { label: "P. Hành chính duyệt", sig: signatures.admin, statusKey: "PENDING_ADMIN" },
     ];
 
-    // Xác định bước hiện tại
     const activeIndex = steps.findIndex(step => step.statusKey === status);
 
     return (
         <Stack spacing={0} sx={{ position: 'relative', pl: 1.5 }}>
-            {/* Đường nối giữa các bước */}
             <Box sx={{
-                position: 'absolute',
-                left: '22px',
-                top: '12px',
-                bottom: '12px',
-                width: '2px',
-                bgcolor: 'divider',
-                zIndex: 1,
+                position: 'absolute', left: '22px', top: '12px',
+                bottom: '12px', width: '2px', bgcolor: 'divider', zIndex: 1,
             }} />
 
             {steps.map((step, index) => (
                 <Stack key={index} direction="row" spacing={1.5} alignItems="center" sx={{ position: 'relative', zIndex: 2, py: 1 }}>
                     <Box sx={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        width: 24, height: 24, borderRadius: '50%', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
                         bgcolor: step.sig ? 'success.light' : (index === activeIndex ? 'primary.light' : 'grey.200'),
                         color: step.sig ? 'success.dark' : (index === activeIndex ? 'primary.dark' : 'grey.600'),
                         border: theme => `2px solid ${step.sig ? theme.palette.success.main : (index === activeIndex ? theme.palette.primary.main : 'transparent')}`
@@ -98,8 +101,10 @@ const SignatureTimeline = ({ signatures = {}, status }) => {
                         </Typography>
                         {step.sig ? (
                             <Tooltip title={`Ký bởi ${step.sig.name} • ${fullTime(step.sig.signedAt)}`}>
-                                <Typography variant="caption" color="text.secondary">
-                                    ✓ Ký lúc {fullTime(step.sig.signedAt)} {/* HIỂN THỊ ĐẦY ĐỦ NGÀY GIỜ */}
+                                <Typography variant="caption" color="text.secondary" component="div">
+                                    ✓ <Box component="span" sx={{ fontWeight: 'bold' }}>{step.sig.name}</Box>
+                                    <br />
+                                    <Box component="span" sx={{ pl: '18px' }}>lúc {fullTime(step.sig.signedAt)}</Box>
                                 </Typography>
                             </Tooltip>
                         ) : (
@@ -136,64 +141,68 @@ const RequestCardSkeleton = () => (
     </Card>
 );
 
-const RequestSignatureTimeline = ({ signatures = {} }) => {
+// Thay thế TOÀN BỘ component RequestSignatureTimeline cũ bằng component này
+const RequestSignatureTimeline = ({ signatures = {}, status, blockName }) => {
+    // ✅ Tự động tạo nhãn động, nếu không có tên khối thì dùng nhãn mặc định
+    const blockLeaderLabel = blockName ? `${blockName} duyệt` : "Lãnh đạo Khối duyệt";
+
     const steps = [
-        { label: "P. Hành chính duyệt", sig: signatures.hc },
-        { label: "P. Kế toán duyệt", sig: signatures.kt },
+        { label: "P. Hành chính duyệt", sig: signatures.hc, statusKey: "PENDING_HC" },
+        // ✅ Sử dụng nhãn động vừa tạo
+        { label: blockLeaderLabel, sig: signatures.blockLeader, statusKey: "PENDING_BLOCK_LEADER" },
+        { label: "P. Kế toán duyệt", sig: signatures.kt, statusKey: "PENDING_KT" },
     ];
 
-    return (
-        <Stack spacing={0} sx={{ position: 'relative', pl: 1.5 }}>
-            {/* Đường nối giữa các bước */}
-            <Box sx={{
-                position: 'absolute',
-                left: '22px', // Căn vào giữa icon
-                top: '12px', // Bắt đầu từ giữa icon đầu tiên
-                bottom: '12px', // Kết thúc ở giữa icon cuối cùng
-                width: '2px',
-                bgcolor: 'divider',
-                zIndex: 1,
-            }} />
+    const activeIndex = steps.findIndex(step => step.statusKey === status);
 
-            {steps.map((step, index) => (
-                <Stack key={index} direction="row" spacing={1.5} alignItems="center" sx={{ position: 'relative', zIndex: 2, py: 1 }}>
-                    <Box sx={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        bgcolor: step.sig ? 'success.light' : 'grey.200',
-                        color: step.sig ? 'success.dark' : 'grey.600',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: theme => `2px solid ${step.sig ? theme.palette.success.main : 'transparent'}`
-                    }}>
-                        {step.sig ? <Check size={16} /> : <Clock size={14} />}
-                    </Box>
-                    <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                            {step.label}
-                        </Typography>
-                        {step.sig ? (
-                            <Tooltip title={`Ký bởi ${step.sig.name} • ${fullTime(step.sig.approvedAt)}`}>
-                                <Typography variant="caption" color="text.secondary">
-                                    ✓ Ký lúc {fullTime(step.sig.approvedAt)} {/* SỬA Ở ĐÂY */}
-                                </Typography>
-                            </Tooltip>
-                        ) : (
-                            <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
-                                Đang chờ...
+    return (
+        // ... JSX còn lại của component này giữ nguyên, không cần thay đổi ...
+        <Stack spacing={0} sx={{ position: 'relative', pl: 1.5 }}>
+            <Box sx={{
+                position: 'absolute', left: '22px', top: '12px',
+                bottom: '12px', width: '2px', bgcolor: 'divider', zIndex: 1,
+            }} />
+            {steps.map((step, index) => {
+                const isCompleted = !!step.sig;
+                const isActive = index === activeIndex;
+                return (
+                    <Stack key={index} direction="row" spacing={1.5} alignItems="center" sx={{ position: 'relative', zIndex: 2, py: 1 }}>
+                        <Box sx={{
+                            width: 24, height: 24, borderRadius: '50%', display: 'flex',
+                            alignItems: 'center', justifyContent: 'center',
+                            bgcolor: isCompleted ? 'success.light' : (isActive ? 'primary.light' : 'grey.200'),
+                            color: isCompleted ? 'success.dark' : (isActive ? 'primary.dark' : 'grey.600'),
+                            border: theme => `2px solid ${isCompleted ? theme.palette.success.main : (isActive ? theme.palette.primary.main : 'transparent')}`
+                        }}>
+                            {isCompleted ? <Check size={16} /> : <Clock size={14} />}
+                        </Box>
+                        <Box>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                                {step.label}
                             </Typography>
-                        )}
-                    </Box>
-                </Stack>
-            ))}
+                            {step.sig ? (
+                                <Tooltip title={`Ký bởi ${step.sig.name} • ${fullTime(step.sig.approvedAt)}`}>
+                                    <Typography variant="caption" color="text.secondary" component="div">
+                                        ✓ <Box component="span" sx={{ fontWeight: 'bold' }}>{step.sig.name}</Box>
+                                        <br />
+                                        <Box component="span" sx={{ pl: '18px' }}>lúc {fullTime(step.sig.approvedAt)}</Box>
+                                    </Typography>
+                                </Tooltip>
+                            ) : (
+                                <Typography variant="caption" color={isActive ? "primary.main" : "text.disabled"} sx={{ fontStyle: 'italic' }}>
+                                    {isActive ? "Đang chờ ký..." : "Chưa đến lượt"}
+                                </Typography>
+                            )}
+                        </Box>
+                    </Stack>
+                )
+            })}
         </Stack>
     );
 };
-
 // NEW: Component Card chung cho mọi quy trình (luân chuyển, yêu cầu,...)
 const WorkflowCard = ({
+    isHighlighted,
     isExpanded,
     onExpandClick,
     onCardClick,
@@ -217,48 +226,55 @@ const WorkflowCard = ({
                     '&:hover': {
                         boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
                         borderColor: 'primary.main',
+                    },
+                    borderLeft: isHighlighted ? '4px solid' : '1px solid',
+                    borderColor: isHighlighted ? 'primary.main' : 'divider',
+                    '&:hover': {
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                        borderColor: 'primary.main',
                     }
                 }}
             >
                 {/* Phần nội dung chính của thẻ */}
-                <CardContent sx={{ flexGrow: 1, pb: 1.5 }} onClick={onCardClick}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
-                        {headerLeft}
-                        {headerRight}
-                    </Stack>
-                    <Box sx={{ my: 2 }}>
+                <CardActionArea onClick={onCardClick} sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+                    <CardContent sx={{ flexGrow: 1, pb: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                            {headerLeft}
+                            {headerRight}
+                        </Stack>
+
                         {title}
-                        {body}
-                    </Box>
-                </CardContent>
+
+                        <Box sx={{ mt: 2, flexGrow: 1 }}>
+                            {body}
+                        </Box>
+                    </CardContent>
+                </CardActionArea>
 
                 {/* Phần timeline có thể thu gọn */}
                 {timeline && (
                     <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                         <Divider />
-                        <Box p={1.5}> {/* Thêm padding cho timeline */}
+                        <Box p={2}>
                             {timeline}
                         </Box>
-                        <Divider />
                     </Collapse>
                 )}
 
                 {/* Phần chân thẻ chứa các nút hành động */}
-                <CardActions sx={{ p: 2, bgcolor: 'grey.50', mt: 'auto' }}>
-                    {/* Nút Lịch sử để mở/đóng timeline */}
-                    <Tooltip title="Xem lịch sử ký duyệt">
+                <Divider />
+                <CardActions sx={{ p: 1.5, bgcolor: 'grey.50' }}>
+                    <Tooltip title={isExpanded ? "Ẩn lịch sử" : "Xem lịch sử ký duyệt"}>
                         <Button
                             size="small"
                             onClick={onExpandClick}
                             startIcon={<History size={16} />}
-                            sx={{ color: isExpanded ? 'primary.main' : 'text.secondary' }}
+                            sx={{ color: 'text.secondary' }}
                         >
                             Lịch sử
                         </Button>
                     </Tooltip>
                     <Box sx={{ flexGrow: 1 }} />
-
-                    {/* Các nút hành động chính (Duyệt, Từ chối, Xóa) */}
                     {footer}
                 </CardActions>
             </Card>
@@ -298,7 +314,11 @@ const ReportSignatureTimeline = ({ signatures = {}, status, type }) => {
                             <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>{step.label}</Typography>
                             {sig ? (
                                 <Tooltip title={`Ký bởi ${sig.name} • ${fullTime(sig.signedAt)}`}>
-                                    <Typography variant="caption" color="text.secondary">✓ Ký lúc {fullTime(sig.signedAt)}</Typography>
+                                    <Typography variant="caption" color="text.secondary" component="div">
+                                        ✓ <Box component="span" sx={{ fontWeight: 'bold' }}>{sig.name}</Box>
+                                        <br />
+                                        <Box component="span" sx={{ pl: '18px' }}>lúc {fullTime(sig.signedAt)}</Box>
+                                    </Typography>
                                 </Tooltip>
                             ) : (
                                 <Typography variant="caption" color={isActive ? "primary.main" : "text.disabled"} sx={{ fontStyle: 'italic' }}>
@@ -331,6 +351,8 @@ export default function AssetTransferPage() {
     const [deleteRequestConfirm, setDeleteRequestConfirm] = useState(null);
     const [expandedRequestId, setExpandedRequestId] = useState(null);
     const [creating, setCreating] = useState(false);
+    const [isCreatingReport, setIsCreatingReport] = useState(false);
+
     const [createNonce, setCreateNonce] = useState("");
     // States for UI controls
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -352,6 +374,8 @@ export default function AssetTransferPage() {
     const [modalMode, setModalMode] = useState("add");
     const [currentAsset, setCurrentAsset] = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
+    const [reduceQuantityTarget, setReduceQuantityTarget] = useState(null); // Lưu tài sản đang được thao tác
+    const [quantityToDelete, setQuantityToDelete] = useState(1); // Lưu số lượng muốn xóa trong dialog
     const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
     const [pastedText, setPastedText] = useState("");
 
@@ -383,9 +407,19 @@ export default function AssetTransferPage() {
     const [selectedReport, setSelectedReport] = useState(null);
     const [rejectReportConfirm, setRejectReportConfirm] = useState(null); // <-- THÊM STATE NÀY
 
+    const [blockLeaders, setBlockLeaders] = useState(null);
+    const [approvalPermissions, setApprovalPermissions] = useState(null);
+
     // 1. Khai báo state để lưu thông tin công ty
     const [companyInfo, setCompanyInfo] = useState(null);
+    const [selectedBlockForPrint, setSelectedBlockForPrint] = useState('');
 
+    // ✅ VỊ TRÍ TỐT NHẤT ĐỂ ĐẶT ĐOẠN CODE NÀY LÀ Ở ĐÂY
+    const managementBlocks = useMemo(() => {
+        if (!departments) return [];
+        const blocks = new Set(departments.map(d => d.managementBlock).filter(Boolean));
+        return Array.from(blocks).sort((a, b) => a.localeCompare(b, 'vi')); // Sắp xếp theo tiếng Việt
+    }, [departments]);
     // 2. useEffect để lấy thông tin công ty (bạn có thể thay bằng logic gọi Firestore thật)
     useEffect(() => {
         const fetchCompanyInfo = async () => {
@@ -410,6 +444,14 @@ export default function AssetTransferPage() {
         contentRef: printRef,        // ✅ v3
         documentTitle: `phieu-luan-chuyen-${selectedTransfer?.id?.slice(0, 6) || ''}`,
         onAfterPrint: () => console.log('Printed successfully!'),
+    });
+    // ✅ THÊM KHAI BÁO NÀY VÀO
+    const requestPrintRef = useRef(null);
+    const handlePrintRequest = useReactToPrint({
+        contentRef: requestPrintRef,
+        documentTitle: `phieu-yeu-cau-${selectedRequest?.maPhieuHienThi || ''}`,
+        onAfterPrint: () => console.log('Printed successfully!'),
+
     });
 
     // --- Tìm kiếm & chế độ xem cho tab Báo cáo ---
@@ -436,17 +478,35 @@ export default function AssetTransferPage() {
         const unsubDepts = onSnapshot(query(collection(db, "departments"), fsOrderBy("name")), (qs) => setDepartments(qs.docs.map((d) => ({ id: d.id, ...d.data() }))));
         const unsubAssets = onSnapshot(query(collection(db, "assets")), (qs) => setAssets(qs.docs.map((d) => ({ id: d.id, ...d.data() }))));
         const unsubTransfers = onSnapshot(query(collection(db, "transfers"), fsOrderBy("date", "desc")), (qs) => { setTransfers(qs.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoading(false) });
-
-        // NEW: Lắng nghe collection asset_requests
         const unsubRequests = onSnapshot(query(collection(db, "asset_requests"), fsOrderBy("createdAt", "desc")), (qs) => {
-
             setAssetRequests(qs.docs.map((d) => ({ id: d.id, ...d.data() })));
         });
         const unsubReports = onSnapshot(query(collection(db, "inventory_reports"), fsOrderBy("createdAt", "desc")), (qs) => {
             setInventoryReports(qs.docs.map((d) => ({ id: d.id, ...d.data() })));
         });
 
-        return () => { unsubDepts(); unsubAssets(); unsubTransfers(); unsubRequests(); unsubReports(); }
+        // NEW: Lắng nghe document cấu hình quyền
+        const unsubConfig = onSnapshot(doc(db, "app_config", "leadership"), (docSnap) => {
+            if (docSnap.exists()) {
+                const configData = docSnap.data();
+                setBlockLeaders(configData.blockLeaders || {});
+                setApprovalPermissions(configData.approvalPermissions || {});
+            } else {
+                console.warn("Không tìm thấy document cấu hình 'app_config/leadership'. Các quyền sẽ không hoạt động đúng.");
+                // Set giá trị rỗng để tránh lỗi
+                setBlockLeaders({});
+                setApprovalPermissions({});
+            }
+        });
+
+        return () => {
+            unsubDepts();
+            unsubAssets();
+            unsubTransfers();
+            unsubRequests();
+            unsubReports();
+            unsubConfig(); // NEW: Hủy lắng nghe khi component unmount
+        }
     }, []);
 
     // Debounce search inputs
@@ -454,80 +514,173 @@ export default function AssetTransferPage() {
     useEffect(() => { const id = setTimeout(() => setCreatedByDeb(createdBy), 300); return () => clearTimeout(id) }, [createdBy]);
 
     // Permission helpers for Transfers
-    // THAY THẾ HÀM CŨ BẰNG HÀM NÀY
+    // Hàm này kiểm tra người dùng có phải lãnh đạo của phòng ban không
+    // MÃ MỚI CHO canSignSender
+
+    // MÃ MỚI ĐÃ SẮP XẾP LẠI ĐÚNG
+    // Permission helpers for Transfers
     const canSignSender = useCallback((t) => {
-        if (!currentUser || !t) return false;
+        if (!currentUser || !t || !blockLeaders || !departments) return false;
         if (currentUser?.role === "admin") return true;
 
         const dept = departments.find((d) => d.id === t.fromDeptId);
         if (!dept) return false;
 
-        // Các vai trò có quyền ký chuyển
-        const isPrimaryMember = currentUser.primaryDepartmentId === dept.id;
-        const isManager = (currentUser.managedDepartmentIds || []).includes(dept.id);
-        const isHead = (dept.headIds || []).includes(currentUser.uid);
-        const isDeputy = (dept.deputyIds || []).includes(currentUser.uid);
-
-        return isPrimaryMember || isManager || isHead || isDeputy;
-    }, [currentUser, departments]); const canSignReceiver = useCallback((t) => { if (!currentUser || !t) return false; if (currentUser?.role === "admin") return true; const dept = departments.find((d) => d.id === t.toDeptId); if (!dept) return false; const managed = new Set(currentUser.managedDepartmentIds || []); return managed.has(dept.id) || currentUser.primaryDepartmentId === dept.id }, [currentUser, departments]);
-    const canSignAdmin = useCallback(() => { if (!currentUser) return false; if (currentUser?.role === "admin") return true; const allowSet = new Set(departments.flatMap((d) => d.hcStep3ApproverIds || [])); return allowSet.has(currentUser.uid) }, [currentUser, departments]);
-    const canDeleteTransfer = useCallback((t) => { if (!currentUser || !t) return false; if (currentUser?.role === "admin") return true; if (t.createdBy?.uid === currentUser.uid && t.status === "PENDING_SENDER") return true; return false }, [currentUser]);
-    const isMyTurn = useCallback((t) => { if (!currentUser) return false; if (currentUser?.role === "admin") { return t.status !== "COMPLETED" } return ((t.status === "PENDING_SENDER" && canSignSender(t)) || (t.status === "PENDING_RECEIVER" && canSignReceiver(t)) || (t.status === "PENDING_ADMIN" && canSignAdmin())) }, [currentUser, canSignSender, canSignReceiver, canSignAdmin]);
-
-    // NEW: Permission helper for Asset Requests
-    const canProcessRequest = useCallback((req) => {
-        if (!currentUser || !req || (req.status !== 'PENDING_HC' && req.status !== 'PENDING_KT')) {
-            return false;
+        // Trường hợp 1: Là lãnh đạo của khối chứa phòng ban đó
+        const leadersOfBlock = dept.managementBlock ? blockLeaders[dept.managementBlock] : null;
+        if (leadersOfBlock) {
+            const leaderIds = [
+                ...(leadersOfBlock.headIds || []),
+                ...(leadersOfBlock.deputyIds || [])
+            ];
+            if (leaderIds.includes(currentUser.uid)) return true;
         }
-        if (currentUser?.role === 'admin') return true;
 
-        const deptId = req.assetData?.departmentId || req.departmentId;
-        if (!deptId) return false;
+        // Trường hợp 2: Được gán quyền quản lý trực tiếp phòng ban đó
+        const isManager = (currentUser.managedDepartmentIds || []).includes(dept.id);
+        const isPrimary = currentUser.primaryDepartmentId === dept.id;
 
-        const dept = departments.find(d => d.id === deptId);
+        return isManager || isPrimary;
+    }, [currentUser, departments, blockLeaders]);
+
+    const canSignReceiver = useCallback((t) => {
+        if (!currentUser || !t || !blockLeaders || !departments) return false;
+        if (currentUser?.role === "admin") return true;
+
+        const dept = departments.find((d) => d.id === t.toDeptId);
         if (!dept) return false;
 
-        if (req.status === 'PENDING_HC') {
-            return (dept.hcStep3ApproverIds || []).includes(currentUser.uid);
+        // Trường hợp 1: Là lãnh đạo của khối chứa phòng ban đó
+        const leadersOfBlock = dept.managementBlock ? blockLeaders[dept.managementBlock] : null;
+        if (leadersOfBlock) {
+            const leaderIds = [
+                ...(leadersOfBlock.headIds || []),
+                ...(leadersOfBlock.deputyIds || [])
+            ];
+            if (leaderIds.includes(currentUser.uid)) return true;
         }
-        if (req.status === 'PENDING_KT') {
-            return (dept.ktApproverIds || []).includes(currentUser.uid);
-        }
-        return false;
-    }, [currentUser, departments]);
 
-    const canProcessReport = useCallback((report) => {
-        if (!currentUser || !report || report.status === 'COMPLETED' || report.status === 'REJECTED') return false;
+        // Trường hợp 2: Được gán quyền quản lý trực tiếp phòng ban đó
+        const isManager = (currentUser.managedDepartmentIds || []).includes(dept.id);
+        const isPrimary = currentUser.primaryDepartmentId === dept.id;
+
+        return isManager || isPrimary;
+    }, [currentUser, departments, blockLeaders]);
+
+    const canSignAdmin = useCallback((t) => {
+        if (!currentUser || !t || !approvalPermissions || !departments) return false;
+        if (currentUser?.role === "admin") return true;
+
+        const fromDept = departments.find(d => d.id === t.fromDeptId);
+        const toDept = departments.find(d => d.id === t.toDeptId);
+
+        // Ưu tiên fromDept → toDept → t.blockName (nếu có)
+        const blockName = fromDept?.managementBlock || toDept?.managementBlock || t.blockName || null;
+
+        // Map về nhóm phân quyền
+        const permissionGroupKey = blockName === 'Nhà máy' ? 'Nhà máy' : 'default';
+        const permissions = approvalPermissions?.[permissionGroupKey];
+        if (!permissions) return false;
+
+        const hcIds = Array.isArray(permissions.hcApproverIds) ? permissions.hcApproverIds : [];
+        return hcIds.includes(currentUser.uid);
+    }, [currentUser, departments, approvalPermissions]);
+
+    const canDeleteTransfer = useCallback((t) => {
+        if (!currentUser || !t) return false;
+        if (currentUser?.role === "admin") return true;
+        if (t.createdBy?.uid === currentUser.uid && t.status === "PENDING_SENDER") return true;
+        return false
+    }, [currentUser]);
+
+    const isMyTurn = useCallback((t) => {
+        if (!currentUser) return false;
+        if (currentUser?.role === "admin") { return t.status !== "COMPLETED" }
+        return (
+            (t.status === "PENDING_SENDER" && canSignSender(t)) ||
+            (t.status === "PENDING_RECEIVER" && canSignReceiver(t)) ||
+            (t.status === "PENDING_ADMIN" && canSignAdmin(t)) // Sửa nhỏ: truyền `t` vào `canSignAdmin`
+        )
+    }, [currentUser, canSignSender, canSignReceiver, canSignAdmin]);
+
+    // MÃ MỚI (Đã sửa đúng logic)
+    const canProcessRequest = useCallback((req) => {
+        // Các điều kiện ban đầu để thoát sớm
+        if (!currentUser || !req || !approvalPermissions || !departments) return false;
+        if (req.status !== 'PENDING_HC' && req.status !== 'PENDING_KT') return false;
         if (currentUser?.role === 'admin') return true;
 
+        // 1. Tìm phòng ban của tài sản trong yêu cầu
+        const deptId = req.assetData?.departmentId || req.departmentId;
+        const dept = departments.find(d => d.id === deptId);
+        if (!dept?.managementBlock) return false; // Yêu cầu phòng ban phải thuộc một khối
+
+        // 2. Xác định nhóm quyền (default hay Nhà máy) dựa vào khối quản lý
+        const permissionGroupKey = dept.managementBlock === 'Nhà máy' ? 'Nhà máy' : 'default';
+        const permissions = approvalPermissions[permissionGroupKey];
+        if (!permissions) return false; // Không có cấu hình quyền cho nhóm này
+
+        // 3. Kiểm tra quyền dựa trên trạng thái của yêu cầu và cấu hình mới
+        if (req.status === 'PENDING_HC') {
+            return (permissions.hcApproverIds || []).includes(currentUser.uid);
+        }
+        if (req.status === 'PENDING_KT') {
+            return (permissions.ktApproverIds || []).includes(currentUser.uid);
+        }
+
+        return false;
+    }, [currentUser, departments, approvalPermissions]); // Quan trọng: Thêm approvalPermissions vào dependency array
+    // Thay thế hàm canProcessReport cũ bằng hàm này
+    const canProcessReport = useCallback((report) => {
+        if (!currentUser || !report || !blockLeaders || !departments) return false;
+        if (report.status === 'COMPLETED' || report.status === 'REJECTED') return false;
+        if (currentUser?.role === 'admin') return true;
+
+        // Tìm phòng ban hoặc khối của báo cáo để xác định quyền
         const reportDept = departments.find(d => d.id === report.departmentId);
+        const managementBlock = report.blockName || reportDept?.managementBlock; // Ưu tiên blockName từ báo cáo theo khối
+
+        // Lấy cấu hình quyền P.HC và P.KT (vẫn như cũ)
+        const permissionGroupKey = managementBlock === 'Nhà máy' ? 'Nhà máy' : 'default';
+        const permissions = approvalPermissions[permissionGroupKey];
 
         switch (report.status) {
-            case 'PENDING_HC':
-                // ✅ P.HC: dùng cột hcStep3ApproverIds
-                if (reportDept) return (reportDept.hcStep3ApproverIds || []).includes(currentUser.uid);
-                return departments.some(d => (d.hcStep3ApproverIds || []).includes(currentUser.uid));
-
             case 'PENDING_DEPT_LEADER':
-                // ✅ Lãnh đạo: headIds + deputyIds
-                if (!reportDept) return false;
-                const leaderIds = [...(reportDept.headIds || []), ...(reportDept.deputyIds || [])];
+                if (!managementBlock || !blockLeaders[managementBlock]) return false;
+                const leadersOfBlock = blockLeaders[managementBlock];
+                const leaderIds = [
+                    ...(leadersOfBlock.headIds || []),
+                    ...(leadersOfBlock.deputyIds || [])
+                ];
                 return leaderIds.includes(currentUser.uid);
 
-            case 'PENDING_KT':
-                // ✅ P.KT: ktApproverIds
-                if (reportDept) return (reportDept.ktApproverIds || []).includes(currentUser.uid);
-                return departments.some(d => (d.ktApproverIds || []).includes(currentUser.uid));
+            case 'PENDING_HC':
+                return (permissions?.hcApproverIds || []).includes(currentUser.uid);
 
-            case 'PENDING_DIRECTOR':
-                // ✅ BTGĐ: directorApproverIds
-                if (reportDept) return (reportDept.directorApproverIds || []).includes(currentUser.uid);
-                return departments.some(d => (d.directorApproverIds || []).includes(currentUser.uid));
+            case 'PENDING_KT':
+                return (permissions?.ktApproverIds || []).includes(currentUser.uid);
+
+            case 'PENDING_DIRECTOR': {
+                // === LOGIC CŨ (BỊ LỖI) ===
+                // return (permissions?.directorApproverIds || []).includes(currentUser.uid);
+
+                // === LOGIC MỚI (ĐÃ SỬA) ===
+                if (managementBlock && blockLeaders[managementBlock]) {
+                    // Trường hợp báo cáo theo Phòng hoặc Khối: lấy người duyệt từ chính khối đó
+                    const leadersOfBlock = blockLeaders[managementBlock];
+                    return (leadersOfBlock.directorApproverIds || []).includes(currentUser.uid);
+                } else if (!managementBlock && report.type === 'SUMMARY_REPORT') {
+                    // Trường hợp báo cáo tổng hợp: Lấy người duyệt của khối "Hành chính" làm mặc định
+                    const adminBlockLeaders = blockLeaders["Hành chính"];
+                    return (adminBlockLeaders?.directorApproverIds || []).includes(currentUser.uid);
+                }
+                return false;
+            }
 
             default:
                 return false;
         }
-    }, [currentUser, departments]);
+    }, [currentUser, departments, blockLeaders, approvalPermissions]);
     // Thêm hàm này vào gần các hàm canProcess...
     const canDeleteReport = useCallback((report) => {
         if (!currentUser || !report) return false;
@@ -537,8 +690,53 @@ export default function AssetTransferPage() {
     // Derived data
     const assetsWithDept = useMemo(() => { const byId = new Map(departments.map((d) => [d.id, d.name])); return assets.map((a) => ({ ...a, departmentName: byId.get(a.departmentId) || "Chưa gán" })) }, [assets, departments]);
     const assetsWithAvailability = useMemo(() => { return assetsWithDept.map((a) => ({ ...a, reserved: Number(a.reserved || 0), availableQuantity: Math.max(0, Number(a.quantity || 0) - Number(a.reserved || 0)) })) }, [assetsWithDept]);
-    const filteredTransfers = useMemo(() => { let list = transfers; if (statusMulti.length > 0) list = list.filter((t) => statusMulti.includes(t.status)); if (fromDeptIds.length > 0) list = list.filter((t) => fromDeptIds.includes(t.fromDeptId)); if (toDeptIds.length > 0) list = list.filter((t) => toDeptIds.includes(t.toDeptId)); if (createdByDeb.trim()) { const q = norm(createdByDeb); list = list.filter((t) => norm(t.createdBy?.name || "").includes(q)) } if (debSearch.trim()) { const q = norm(debSearch); list = list.filter((t) => norm(t.id).includes(q) || norm(t.from).includes(q) || norm(t.to).includes(q) || (t.assets || []).some((a) => norm(a.name).includes(q))) } return list }, [transfers, statusMulti, fromDeptIds, toDeptIds, createdByDeb, debSearch,]);
-    const filteredAssets = useMemo(() => { let list = assetsWithDept; if (filterDeptForAsset) { list = list.filter((a) => a.departmentId === filterDeptForAsset) } if (assetSearch.trim()) { const q = norm(assetSearch); list = list.filter((a) => norm(a.name).includes(q)) } return list }, [assetsWithDept, assetSearch, filterDeptForAsset]);
+    const filteredTransfers = useMemo(() => {
+        let list = transfers;
+        if (statusMulti.length > 0)
+            list = list.filter((t) => statusMulti.includes(t.status));
+        if (fromDeptIds.length > 0)
+            list = list.filter((t) => fromDeptIds.includes(t.fromDeptId));
+        if (toDeptIds.length > 0)
+            list = list.filter((t) => toDeptIds.includes(t.toDeptId));
+        if (createdByDeb.trim()) {
+            const q = normVn(createdByDeb);
+            list = list.filter((t) => normVn(t.createdBy?.name || "").includes(q));
+        }
+        if (debSearch.trim()) {
+            const q = normVn(debSearch);
+
+            list = list.filter((t) => {
+                const from = normVn(t.from || "");
+                const to = normVn(t.to || "");
+                const id = normVn(t.id || "");
+                const disp = normVn(t.maPhieuHienThi || "");
+
+                const hitAsset = (t.assets || []).some((a) => normVn(a.name).includes(q));
+
+                return (
+                    id.includes(q) ||
+                    disp.includes(q) ||
+                    from.includes(q) ||
+                    to.includes(q) ||
+                    hitAsset
+                );
+            });
+        }
+        return list;
+    }, [transfers, statusMulti, fromDeptIds, toDeptIds, createdByDeb, debSearch]);
+    const filteredAssets = useMemo(() => {
+        // Ẩn record quantity = 0 để không thấy dòng “0 Cái”
+        let list = assetsWithDept.filter(a => Number(a.quantity || 0) > 0);
+
+        if (filterDeptForAsset) {
+            list = list.filter((a) => a.departmentId === filterDeptForAsset);
+        }
+        if (assetSearch.trim()) {
+            const q = normVn(assetSearch);
+            list = list.filter((a) => normVn(a.name).includes(q));
+        }
+        return list;
+    }, [assetsWithDept, assetSearch, filterDeptForAsset]);
     // Nhóm theo phòng ban để render header mỗi nhóm
     const groupedAssets = useMemo(() => {
         const map = new Map();
@@ -558,71 +756,131 @@ export default function AssetTransferPage() {
         return groups;
     }, [filteredAssets]);
 
-    // NEW: Dùng useMemo để kết hợp assetRequests với tên phòng ban một cách hiệu quả
-    const requestsWithDeptName = useMemo(() => {
-        // Tạo một map để tra cứu tên phòng ban từ ID (rất nhanh)
-        const departmentMap = new Map(departments.map(d => [d.id, d.name]));
 
-        // Thêm trường 'departmentName' vào mỗi yêu cầu
-        return assetRequests.map(req => ({
-            ...req,
-            departmentName: departmentMap.get(req.assetData?.departmentId || req.departmentId) || 'Không rõ'
-        }));
-    }, [assetRequests, departments]); // Chỉ tính toán lại khi assetRequests hoặc departments thay đổi
+    // THAY THẾ useMemo CŨ BẰNG KHỐI NÀY
+    const requestsWithDeptName = useMemo(() => {
+        // Tạo một map đầy đủ thông tin hơn
+        const departmentMap = new Map(departments.map(d => [d.id, { name: d.name, managementBlock: d.managementBlock }]));
+
+        return assetRequests.map(req => {
+            const deptId = req.assetData?.departmentId || req.departmentId;
+            const deptInfo = departmentMap.get(deptId);
+            return {
+                ...req,
+                departmentName: deptInfo?.name || 'Không rõ',
+                // ✅ Bổ sung trường managementBlock vào từng request
+                managementBlock: deptInfo?.managementBlock || null
+            };
+        });
+    }, [assetRequests, departments]);
+    const filteredRequests = useMemo(() => {
+        const q = normVn(search);
+        if (!q) return requestsWithDeptName;
+
+        return requestsWithDeptName.filter((r) => {
+            const id = normVn(r.id || "");
+            const disp = normVn(r.maPhieuHienThi || "");
+            const name = normVn(r.assetData?.name || "");
+            const dept = normVn(r.departmentName || "");
+            const rqer = normVn(r.requester?.name || "");
+
+            return (
+                id.includes(q) ||
+                disp.includes(q) ||
+                name.includes(q) ||
+                dept.includes(q) ||
+                rqer.includes(q)
+            );
+        });
+    }, [requestsWithDeptName, search]);
+
     // Map kèm tên phòng ban cho báo cáo + filter theo search
     const reportsWithDeptName = useMemo(() => {
         const deptMap = new Map(departments.map(d => [d.id, d.name]));
-        return (inventoryReports || []).map(r => ({
-            ...r,
-            departmentName: r.departmentId ? (deptMap.get(r.departmentId) || "—") : "Toàn công ty",
-        }));
+        return (inventoryReports || []).map(r => {
+            let name = "—"; // Giá trị mặc định
+
+            // ✅ BỔ SUNG LOGIC MỚI
+            if (r.type === 'SUMMARY_REPORT') {
+                name = "Toàn bộ công ty";
+            } else if (r.blockName) { // Ưu tiên hiển thị tên khối nếu có
+                name = r.blockName
+            } else if (r.departmentId) { // Sau đó mới tới tên phòng
+                name = deptMap.get(r.departmentId) || "Không rõ";
+            }
+
+            return {
+                ...r,
+                departmentName: name,
+            };
+        });
     }, [inventoryReports, departments]);
 
     const filteredReports = useMemo(() => {
-        const q = (reportSearch || "").trim().toLowerCase();
+        const q = normVn(reportSearch || "");
         if (!q) return reportsWithDeptName;
-        const norm = (s) => (s || "").toLowerCase();
-        return reportsWithDeptName.filter(r =>
-            norm(r.id).includes(q) ||
-            norm(r.title).includes(q) ||
-            norm(r.departmentName).includes(q) ||
-            (r.requester?.name && norm(r.requester.name).includes(q))
-        );
+
+        return reportsWithDeptName.filter((r) => {
+            const id = normVn(r.id || "");
+            const disp = normVn(r.maPhieuHienThi || "");
+            const title = normVn(r.title || "");
+            const dept = normVn(r.departmentName || "");
+            const rqer = normVn(r.requester?.name || "");
+
+            return (
+                id.includes(q) ||
+                disp.includes(q) ||
+                title.includes(q) ||
+                dept.includes(q) ||
+                rqer.includes(q)
+            );
+        });
     }, [reportsWithDeptName, reportSearch]);
+    const groupedReportAssets = useMemo(() => {
+        if (!selectedReport?.assets || !departments.length) return [];
 
+        const departmentMap = new Map(departments.map(d => [d.id, { name: d.name, managementBlock: d.managementBlock }]));
+
+        const groups = {};
+
+        for (const asset of selectedReport.assets) {
+            const deptInfo = departmentMap.get(asset.departmentId);
+            const blockName = deptInfo?.managementBlock || "Chưa phân loại Khối";
+            const deptName = deptInfo?.name || "Chưa phân loại Phòng";
+
+            if (!groups[blockName]) {
+                groups[blockName] = { blockName, departments: {} };
+            }
+            if (!groups[blockName].departments[deptName]) {
+                groups[blockName].departments[deptName] = { deptName, assets: [] };
+            }
+            groups[blockName].departments[deptName].assets.push(asset);
+        }
+
+        // Chuyển đổi object thành mảng và sắp xếp
+        return Object.values(groups).sort((a, b) => a.blockName.localeCompare(b.blockName, 'vi')).map(block => ({
+            ...block,
+            departments: Object.values(block.departments).sort((a, b) => a.deptName.localeCompare(b.deptName, 'vi'))
+        }));
+
+    }, [selectedReport, departments]);
+    // ✅ BẠN HÃY ĐẶT KHỐI CODE MỚI VÀO NGAY BÊN DƯỚI ĐÂY
+    const departmentAssetCounts = useMemo(() => {
+        const counts = {};
+        // Khởi tạo tất cả phòng ban với 0 tài sản
+        for (const dept of departments) {
+            counts[dept.id] = 0;
+        }
+        // Đếm số tài sản trong mỗi phòng
+        for (const asset of assets) {
+            if (asset.departmentId && counts[asset.departmentId] !== undefined) {
+                counts[asset.departmentId]++;
+            }
+        }
+        return counts;
+    }, [assets, departments]);
     // Stats
-    const stats = useMemo(() => {
-        const totalTransfers = transfers.length;
-        const pendingTransfers = transfers.filter(t => t.status !== 'COMPLETED').length;
-        const myTurnTransfers = transfers.filter(isMyTurn).length;
 
-        const totalAssets = assets.length;
-        const assetsInDepartments = assets.filter(a => a.departmentId).length;
-
-        const totalRequests = assetRequests.length;
-        const pendingRequests = assetRequests.filter(r => r.status === 'PENDING_HC' || r.status === 'PENDING_KT').length;
-        const myTurnRequests = assetRequests.filter(canProcessRequest).length;
-
-        if (tabIndex === 1) { // Tab Danh sách tài sản
-            return [
-                { label: 'Tổng số loại tài sản', value: totalAssets, icon: <Warehouse />, color: 'info' },
-                { label: 'Đã phân bổ', value: `${assetsInDepartments}/${totalAssets}`, icon: <Users />, color: 'success' },
-            ];
-        }
-        if (tabIndex === 2) { // Tab Yêu cầu thay đổi
-            return [
-                { label: 'Chờ tôi duyệt', value: myTurnRequests, icon: <Inbox />, color: 'primary' },
-                { label: 'Yêu cầu đang xử lý', value: pendingRequests, icon: <Clock />, color: 'warning' },
-                { label: 'Tổng số yêu cầu', value: totalRequests, icon: <History />, color: 'secondary' },
-            ];
-        }
-        // Tab Luân chuyển (mặc định)
-        return [
-            { label: 'Chờ tôi ký', value: myTurnTransfers, icon: <Inbox />, color: 'primary' },
-            { label: 'Phiếu đang xử lý', value: pendingTransfers, icon: <Clock />, color: 'warning' },
-            { label: 'Tổng số phiếu', value: totalTransfers, icon: <Send />, color: 'secondary' },
-        ];
-    }, [tabIndex, transfers, assets, assetRequests, isMyTurn, canProcessRequest]);
     const fromDeptOptionsForCreate = useMemo(() => { if (!currentUser) return []; if (currentUser?.role === "admin") return departments; const managed = new Set([...(currentUser.managedDepartmentIds || [])]); if (currentUser.primaryDepartmentId) { managed.add(currentUser.primaryDepartmentId) } return departments.filter((d) => managed.has(d.id)) }, [departments, currentUser]);
 
     // UI Handlers
@@ -641,97 +899,108 @@ export default function AssetTransferPage() {
     const handleOpenDetailView = (t) => { setSelectedTransfer(t); setDetailViewOpen(true) };
     const handleCloseDetailView = () => { setDetailViewOpen(false); setSelectedTransfer(null) };
     // NEW: Hàm xử lý cho dialog chi tiết YÊU CẦU
+    const requestDetailUnsubRef = useRef(null);
+
+    // File: src/pages/AssetTransferPage.jsx
+
     const handleOpenRequestDetail = (req) => {
-        setSelectedRequest(req);
+        // req ở đây là object đã có sẵn departmentName và managementBlock
+        if (requestDetailUnsubRef.current) requestDetailUnsubRef.current();
+
+        // sub realtime vào doc đang xem
+        requestDetailUnsubRef.current = onSnapshot(
+            doc(db, "asset_requests", req.id),
+            (snap) => {
+                if (snap.exists()) {
+                    // ✅ KẾT HỢP DỮ LIỆU CÓ SẴN VÀ DỮ LIỆU MỚI NHẤT
+                    setSelectedRequest({
+                        ...req, // Bắt đầu với dữ liệu đã có (gồm departmentName, managementBlock)
+                        ...snap.data(), // Ghi đè bằng dữ liệu mới nhất từ server (status, signatures,...)
+                        id: snap.id, // Đảm bảo dùng ID từ snapshot
+                    });
+                } else {
+                    setSelectedRequest(null);
+                }
+            }
+        );
+
         setIsRequestDetailOpen(true);
     };
+
     const handleCloseRequestDetail = () => {
+        if (requestDetailUnsubRef.current) {
+            requestDetailUnsubRef.current();
+            requestDetailUnsubRef.current = null;
+        }
         setSelectedRequest(null);
         setIsRequestDetailOpen(false);
     };
 
     const handleOpenAddModal = () => { setModalMode("add"); setCurrentAsset({ name: "", size: "", description: "", quantity: 1, unit: "", notes: "", departmentId: "", }); setIsAssetModalOpen(true) };
     const handleOpenEditModal = (asset) => { setModalMode("edit"); setCurrentAsset({ ...asset }); setIsAssetModalOpen(true) };
-
-
-
     const handleSign = async (t, role) => {
         if (!currentUser || signing[t.id]) return;
-        setSigning((s) => ({ ...s, [t.id]: true }));
+
+        const canSender = canSignSender(t);
+        const canReceiver = canSignReceiver(t);
+        const canAdmin = canSignAdmin(t);
+
+        const fromBlock = departments.find(d => d.id === t.fromDeptId)?.managementBlock;
+        const toBlock = departments.find(d => d.id === t.toDeptId)?.managementBlock;
+        const permKey = (fromBlock || toBlock) === 'Nhà máy' ? 'Nhà máy' : 'default';
+
+        console.log('[handleSign] before check', {
+            role, status: t.status, fromBlock, toBlock, permKey,
+            _canSender: canSender, _canReceiver: canReceiver, _canAdmin: canAdmin
+        });
+
+        const nextMap = { sender: 'PENDING_RECEIVER', receiver: 'PENDING_ADMIN', admin: 'COMPLETED' };
+        const canMap = { sender: canSender, receiver: canReceiver, admin: canAdmin };
+
+        const nextStatus = nextMap[role] ?? t.status;
+        const can = !!canMap[role];
+
+        console.log('[handleSign] computed', { role, nextStatus, can });
+
+        if (!can) {
+            setToast({ open: true, msg: 'Bạn không có quyền hoặc chưa tới lượt ký.', severity: 'warning' });
+            return;
+        }
+
+        setSigning(s => ({ ...s, [t.id]: true }));
 
         try {
-            const ref = doc(db, "transfers", t.id);
-
-            const { nextStatus, can } = (() => {
-                const canSender = canSignSender(t);
-                const canReceiver = canSignReceiver(t);
-                const canAdmin = canSignAdmin();
-                if (role === "sender")
-                    return { nextStatus: "PENDING_RECEIVER", can: canSender };
-                if (role === "receiver")
-                    return { nextStatus: "PENDING_ADMIN", can: canReceiver };
-                if (role === "admin")
-                    return { nextStatus: "COMPLETED", can: canAdmin };
-                return { nextStatus: t.status, can: false };
-            })();
-
-            if (!can) {
-                setToast({
-                    open: true,
-                    msg: "Bạn không có quyền hoặc chưa tới lượt ký.",
-                    severity: "warning",
-                });
-                setSigning((s) => ({ ...s, [t.id]: false }));
-                return;
-            }
-
-            // 1) Transaction: xác thực trạng thái “mới nhất” + ghi chữ ký + đổi trạng thái
-            const signature = {
-                uid: currentUser.uid,
-                name:
-                    currentUser.displayName || currentUser.email || "Người ký",
-                signedAt: serverTimestamp(),
-                signedAtLocal: new Date().toISOString(),
-            };
-
-            let iWonToMoveStock = false; // chỉ true ở client “thắng” để chuyển kho
+            const ref = doc(db, 'transfers', t.id);
+            let iWonToMoveStock = false;
 
             await runTransaction(db, async (tx) => {
                 const snap = await tx.get(ref);
-                if (!snap.exists()) throw new Error("Phiếu không tồn tại");
+                if (!snap.exists()) throw new Error('Phiếu không tồn tại');
                 const cur = snap.data();
 
-                // Kiểm tra trạng thái mới nhất từ server
                 const ok =
-                    (role === "sender" &&
-                        cur.status === "PENDING_SENDER" &&
-                        canSignSender(cur)) ||
-                    (role === "receiver" &&
-                        cur.status === "PENDING_RECEIVER" &&
-                        canSignReceiver(cur)) ||
-                    (role === "admin" &&
-                        cur.status === "PENDING_ADMIN" &&
-                        canSignAdmin());
+                    (role === 'sender' && cur.status === 'PENDING_SENDER') ||
+                    (role === 'receiver' && cur.status === 'PENDING_RECEIVER') ||
+                    (role === 'admin' && cur.status === 'PENDING_ADMIN');
 
-                if (!ok)
-                    throw new Error(
-                        "Trạng thái đã thay đổi hoặc bạn không đủ quyền"
-                    );
+                if (!ok) throw new Error('Trạng thái đã thay đổi hoặc bạn không đủ quyền');
+
+                const signature = {
+                    uid: currentUser.uid,
+                    name: currentUser.displayName || currentUser.email || 'Người ký',
+                    signedAt: serverTimestamp(),
+                    signedAtLocal: new Date().toISOString(),
+                };
 
                 const updates = {
                     [`signatures.${role}`]: signature,
                     status: nextStatus,
-                    // thêm version để client biết doc đã “tiến 1 bước” (tuỳ chọn)
                     version: increment(1),
                 };
 
-                // Khi lên COMPLETED: đánh dấu stockMoved nếu chưa có để giành quyền
-                if (nextStatus === "COMPLETED") {
-                    if (cur.stockMoved) {
-                        // đã có client khác thắng cuộc chuyển kho
-                        iWonToMoveStock = false;
-                    } else {
-                        updates.stockMoved = true; // tôi là client thắng
+                if (nextStatus === 'COMPLETED') {
+                    if (!cur.stockMoved) {
+                        updates.stockMoved = true;
                         iWonToMoveStock = true;
                     }
                 }
@@ -739,234 +1008,274 @@ export default function AssetTransferPage() {
                 tx.update(ref, updates);
             });
 
-            // 2) UI lạc quan (để mượt), onSnapshot sẽ đồng bộ lại sau
+            // Sau khi chuyển trạng thái thành COMPLETED lần đầu: di chuyển kho
+            if (iWonToMoveStock) {
+                try {
+                    const batch = writeBatch(db);
+                    const toId =
+                        t.toDeptId || departments.find((d) => d.name === t.to)?.id || null;
+
+                    // map hiện trạng assets để tra nhanh
+                    const assetMap = new Map(assets.map((a) => [a.id, a]));
+                    const key = (x) =>
+                        [(x?.name || '').trim().toLowerCase(),
+                        (x?.unit || '').trim().toLowerCase(),
+                        (x?.size || '').trim().toLowerCase()].join('||');
+
+                    for (const item of (t.assets || [])) {
+                        const src = assetMap.get(item.id);
+                        if (!src) continue;
+
+                        const move = Number(item.quantity || 0);
+                        const srcQty = Number(src.quantity || 0);
+
+                        // Nếu chuyển hết => đổi departmentId luôn
+                        if (move >= srcQty) {
+                            batch.update(doc(db, 'assets', src.id), { departmentId: toId });
+                        } else {
+                            // Chuyển một phần => giảm tại nguồn
+                            batch.update(doc(db, 'assets', src.id), { quantity: srcQty - move });
+
+                            // Tăng / tạo tại đích (khớp theo name+unit+size)
+                            const existingDest = assets.find(
+                                (a) => a.departmentId === toId && key(a) === key(src)
+                            );
+
+                            if (existingDest) {
+                                batch.update(doc(db, 'assets', existingDest.id), {
+                                    quantity: Number(existingDest.quantity || 0) + move,
+                                });
+                            } else {
+                                batch.set(doc(collection(db, 'assets')), {
+                                    name: src.name,
+                                    size: src.size || '',
+                                    description: src.description || '',
+                                    unit: src.unit,
+                                    quantity: move,
+                                    notes: src.notes || '',
+                                    departmentId: toId,
+                                });
+                            }
+                        }
+
+                        // Giảm reserved tại nguồn
+                        const curReserved = Number(src.reserved || 0);
+                        const newReserved = Math.max(0, curReserved - move);
+                        batch.update(doc(db, 'assets', src.id), { reserved: newReserved });
+                    }
+
+                    await batch.commit();
+                } catch (e) {
+                    console.error('Lỗi chuyển kho/khấu trừ reserved sau COMPLETED:', e);
+                }
+            }
+
+            // Optimistic UI
+            const signatureLocal = {
+                uid: currentUser.uid,
+                name: currentUser.displayName || currentUser.email || 'Người ký',
+                signedAt: new Date().toISOString(),
+            };
+
             setTransfers((prev) =>
                 prev.map((it) =>
                     it.id === t.id
                         ? {
                             ...it,
                             status: nextStatus,
-                            signatures: {
-                                ...(it.signatures || {}),
-                                [role]: signature,
-                            },
+                            signatures: { ...(it.signatures || {}), [role]: signatureLocal },
                         }
                         : it
                 )
             );
+
             setSelectedTransfer((prev) =>
                 prev && prev.id === t.id
                     ? {
                         ...prev,
                         status: nextStatus,
-                        signatures: {
-                            ...(prev.signatures || {}),
-                            [role]: signature,
-                        },
+                        signatures: { ...(prev.signatures || {}), [role]: signatureLocal },
                     }
                     : prev
             );
 
-            // 3) Nếu tôi “thắng quyền” → chuyển kho (đảm bảo chạy đúng 1 lần)
-            if (iWonToMoveStock) {
-                try {
-                    const batch = writeBatch(db);
-                    const toId = t.toDeptId || departments.find(d => d.name === t.to)?.id;
-                    const assetMap = new Map(assets.map(a => [a.id, a]));
-
-                    for (const item of t.assets) {
-                        const src = assetMap.get(item.id); if (!src) continue;
-                        const move = Number(item.quantity || 0);
-                        const srcQty = Number(src.quantity || 0);
-
-                        // 1) Chuyển kho
-                        if (move >= srcQty) {
-                            batch.update(doc(db, "assets", src.id), { departmentId: toId });
-                        } else {
-                            batch.update(doc(db, "assets", src.id), { quantity: srcQty - move });
-                            const existingDest = assets.find(a =>
-                                a.departmentId === toId &&
-                                norm(a.name) === norm(src.name) &&
-                                norm(a.unit) === norm(src.unit)
-                            );
-                            if (existingDest) {
-                                batch.update(doc(db, "assets", existingDest.id), {
-                                    quantity: Number(existingDest.quantity || 0) + move
-                                });
-                            } else {
-                                batch.set(doc(collection(db, "assets")), {
-                                    name: src.name,
-                                    description: src.description || "",
-                                    unit: src.unit,
-                                    quantity: move,
-                                    notes: src.notes || "",
-                                    departmentId: toId
-                                });
-                            }
-                        }
-
-                        // 2) Khấu trừ reserved (không để âm)
-                        const curReserved = Number(src.reserved || 0);
-                        const newReserved = Math.max(0, curReserved - move);
-                        batch.update(doc(db, "assets", src.id), { reserved: newReserved });
-                    }
-
-                    await batch.commit();
-                } catch (e) {
-                    console.error("Lỗi chuyển kho/khấu trừ reserved sau COMPLETED:", e);
-                }
-            }
-
-
-            setToast({
-                open: true,
-                msg: "Đã ký duyệt thành công.",
-                severity: "success",
-            });
+            setToast({ open: true, msg: 'Đã ký duyệt thành công.', severity: 'success' });
         } catch (e) {
             console.error(e);
-            setToast({
-                open: true,
-                msg: e?.message || "Ký thất bại.",
-                severity: "error",
-            });
+            setToast({ open: true, msg: e?.message || 'Ký thất bại.', severity: 'error' });
         } finally {
             setSigning((s) => ({ ...s, [t.id]: false }));
         }
     };
+    // ==========================================================
+    // 4. KHU VỰC TÍNH TOÁN DỮ LIỆU PHÁI SINH (DERIVED DATA)
+    // (useMemo) - ✅ ĐÂY LÀ VỊ TRÍ LÝ TƯỞNG NHẤT
+    // ==========================================================
+
+
+    // File: src/pages/AssetTransferPage.jsx
+
+    // THAY THẾ TOÀN BỘ KHỐI useMemo CŨ BẰNG KHỐI NÀY
+    const actionableItems = useMemo(() => {
+        if (!currentUser) return { transfers: [], requests: [], reports: [], total: 0 };
+
+        const myTurnTransfers = transfers.filter(isMyTurn);
+        const myTurnRequests = requestsWithDeptName.filter(canProcessRequest);
+        // ✅ THAY ĐỔI: Dùng `reportsWithDeptName` thay vì `inventoryReports`
+        const myTurnReports = reportsWithDeptName.filter(canProcessReport);
+
+        return {
+            transfers: myTurnTransfers,
+            requests: myTurnRequests,
+            reports: myTurnReports,
+            total: myTurnTransfers.length + myTurnRequests.length + myTurnReports.length,
+        };
+    }, [transfers, requestsWithDeptName, reportsWithDeptName, isMyTurn, canProcessRequest, canProcessReport, currentUser]);
+    // ✅ BƯỚC 2: Khai báo stats SAU, vì nó dùng actionableItems
+    const stats = useMemo(() => {
+        // Bây giờ actionableItems đã tồn tại và có thể truy cập an toàn
+        const totalMyTurn = actionableItems.total;
+
+        const pendingTransfers = transfers.filter(t => t.status !== 'COMPLETED').length;
+        const pendingRequests = assetRequests.filter(r => r.status !== 'COMPLETED' && r.status !== 'REJECTED').length;
+        const pendingReports = inventoryReports.filter(r => r.status !== 'COMPLETED' && r.status !== 'REJECTED').length;
+        const totalPending = pendingTransfers + pendingRequests + pendingReports;
+
+        const totalAssets = assets.length;
+
+        return [
+            {
+                label: 'Chờ tôi xử lý',
+                value: totalMyTurn,
+                icon: <Inbox />,
+                color: 'primary',
+                onClick: () => setTabIndex(0)
+            },
+            {
+                label: 'Công việc đang xử lý',
+                value: totalPending,
+                icon: <Clock />,
+                color: 'warning'
+            },
+            {
+                label: 'Tổng số loại tài sản',
+                value: totalAssets,
+                icon: <Warehouse />,
+                color: 'info'
+            },
+        ];
+    }, [actionableItems, transfers, assetRequests, inventoryReports, assets, setTabIndex]); // Bổ sung setTabIndex vào dependency array
+    const revertStockMove = async (t) => {
+        const batch = writeBatch(db);
+
+        const fromId = t.fromDeptId || departments.find(d => d.name === t.from)?.id || null;
+        const toId = t.toDeptId || departments.find(d => d.name === t.to)?.id || null;
+
+        const assetMap = new Map(assets.map(a => [a.id, a]));
+        const key = (x) =>
+            [(x?.name || '').trim().toLowerCase(),
+            (x?.unit || '').trim().toLowerCase(),
+            (x?.size || '').trim().toLowerCase()].join('||');
+
+        for (const item of (t.assets || [])) {
+            const src = assetMap.get(item.id);
+            if (!src) continue;
+
+            const qty = Number(item.quantity || 0);
+            const srcQty = Number(src.quantity || 0);
+
+            // doc tương ứng ở phòng đích (nếu có, và có thể là doc khác với src)
+            const destAtTo = assets.find(a => a.departmentId === toId && key(a) === key(src));
+            const sameDoc = destAtTo && destAtTo.id === src.id;
+
+            const movedAllByChangingDept =
+                qty >= srcQty && src.departmentId === toId; // trước đó chuyển hết -> chỉ đổi departmentId
+
+            if (movedAllByChangingDept) {
+                // Chỉ trả departmentId về phòng nguồn. KHÔNG trừ/đổi gì khác trên cùng doc.
+                batch.update(doc(db, 'assets', src.id), { departmentId: fromId });
+                continue;
+            }
+
+            // Trường hợp chuyển một phần:
+            // 1) Trừ ở phòng đích (chỉ khi là doc KHÁC doc src)
+            if (destAtTo && !sameDoc) {
+                const newQty = Math.max(0, Number(destAtTo.quantity || 0) - qty);
+                if (newQty === 0) {
+                    batch.delete(doc(db, 'assets', destAtTo.id));
+                } else {
+                    batch.update(doc(db, 'assets', destAtTo.id), { quantity: newQty });
+                }
+            }
+
+            // 2) Cộng trả về phòng nguồn (gộp theo name+unit+size)
+            const existingBackToFrom = assets.find(
+                (a) => a.departmentId === fromId && key(a) === key(src)
+            );
+
+            if (existingBackToFrom) {
+                batch.update(doc(db, 'assets', existingBackToFrom.id), {
+                    quantity: Number(existingBackToFrom.quantity || 0) + qty,
+                });
+            } else {
+                batch.set(doc(collection(db, 'assets')), {
+                    name: src?.name,
+                    size: src?.size || '',
+                    description: src?.description || '',
+                    unit: src?.unit,
+                    quantity: qty,
+                    notes: src?.notes || '',
+                    departmentId: fromId,
+                });
+            }
+        }
+
+        await batch.commit();
+    };
+
 
     const deleteTransfer = async (t) => {
         handleCloseDetailView();
+        setSigning(s => ({ ...s, [t.id]: true }));
 
-        // Chỉ hoàn kho khi phiếu đã hoàn thành
-        if (t.status === "COMPLETED") {
-            try {
-                const batch = writeBatch(db);
-
-                const assetsMap = new Map(assets.map((a) => [a.id, a]));
-                const deptIdByName = new Map(departments.map((d) => [norm(d.name), d.id]));
-                const preById = new Map((t.preStocks || []).map((p) => [p.id, p]));
-
-                for (const item of t.assets || []) {
-                    const movedQty = Number(item.quantity || 0);
-                    const pre = preById.get(item.id);
-                    const preQty = Number(pre?.quantity ?? 0);
-                    const fromId = t.fromDeptId || deptIdByName.get(norm(t.from));
-                    const toId = t.toDeptId || deptIdByName.get(norm(t.to));
-
-                    let destAsset = assetsMap.get(item.id);
-                    if (!(destAsset && destAsset.departmentId === toId)) {
-                        destAsset = assets.find(
-                            (a) =>
-                                a.departmentId === toId &&
-                                norm(a.name) === norm(item.name) &&
-                                norm(a.unit) === norm(item.unit)
-                        );
-                    }
-
-                    if (pre && movedQty === preQty) {
-                        const assetToMoveBack =
-                            destAsset && destAsset.id === item.id ? destAsset : assetsMap.get(item.id);
-                        if (assetToMoveBack) {
-                            batch.update(doc(db, "assets", assetToMoveBack.id), { departmentId: fromId });
-                        } else {
-                            batch.set(doc(collection(db, "assets")), {
-                                name: item.name, unit: item.unit, quantity: preQty,
-                                departmentId: fromId, description: "", notes: "",
-                            });
-                        }
-
-                        if (destAsset && destAsset.id !== item.id) {
-                            const newQuantity = Math.max(0, Number(destAsset.quantity || 0) - movedQty);
-                            if (newQuantity <= 0) {
-                                batch.delete(doc(db, "assets", destAsset.id));
-                            } else {
-                                batch.update(doc(db, "assets", destAsset.id), { quantity: newQuantity });
-                            }
-                        }
-                    } else {
-                        if (destAsset) {
-                            const newQuantity = Math.max(0, Number(destAsset.quantity || 0) - movedQty);
-                            if (newQuantity <= 0) {
-                                batch.delete(doc(db, "assets", destAsset.id));
-                            } else {
-                                batch.update(doc(db, "assets", destAsset.id), { quantity: newQuantity });
-                            }
-                        } else {
-                            console.warn(`Không tìm thấy tài sản ở phòng nhận để trừ: ${item.name} (${item.unit})`);
-                        }
-
-                        const srcAsset =
-                            assets.find(
-                                (a) =>
-                                    a.departmentId === fromId &&
-                                    norm(a.name) === norm(item.name) &&
-                                    norm(a.unit) === norm(item.unit)
-                            ) ||
-                            (assetsMap.get(item.id)?.departmentId === fromId ? assetsMap.get(item.id) : null);
-
-                        if (srcAsset) {
-                            batch.update(doc(db, "assets", srcAsset.id), {
-                                quantity: Number(srcAsset.quantity || 0) + movedQty,
-                            });
-                        } else {
-                            batch.set(doc(collection(db, "assets")), {
-                                name: item.name, unit: item.unit, quantity: movedQty,
-                                departmentId: fromId, description: "", notes: "",
-                            });
-                        }
-                    }
-                }
-
-                batch.delete(doc(db, "transfers", t.id));
-                await batch.commit();
-
-                setToast({
-                    open: true,
-                    msg: "Đã hủy phiếu và hoàn trả tồn kho đúng phòng.",
-                    severity: "success",
-                });
-            } catch (e) {
-                console.error(e);
-                setToast({
-                    open: true,
-                    msg: "Lỗi khi hủy phiếu và hoàn kho.",
-                    severity: "error",
-                });
-            }
-            return;
-        }
-
-        // >>> Phiếu chưa hoàn thành → trả lại reserved rồi xóa <<<
         try {
-            const batch = writeBatch(db);
-
-            for (const item of (t.assets || [])) {
-                const qty = Number(item.quantity || 0);
-                if (qty > 0) {
-                    batch.update(doc(db, "assets", item.id), { reserved: increment(-qty) });
-                }
+            if (t.status === 'COMPLETED') {
+                // 1) Hoàn tác kho trước
+                await revertStockMove(t);
+                // 2) Xóa phiếu
+                await deleteDoc(doc(db, 'transfers', t.id));
+                setToast({
+                    open: true,
+                    msg: 'Đã xóa phiếu và hoàn tác di chuyển kho về phòng cũ.',
+                    severity: 'success'
+                });
+                return;
             }
 
-            batch.delete(doc(db, "transfers", t.id));
-            await batch.commit();
-
-            setUndo({ open: true, transfer: t });
-            setToast({
-                open: true,
-                msg: "Đã xóa phiếu chờ duyệt và trả lại tồn khả dụng.",
-                severity: "success",
+            // Chưa COMPLETED: chỉ trả reserved như cũ
+            await runTransaction(db, async (tx) => {
+                for (const item of (t.assets || [])) {
+                    const qty = Number(item.quantity || 0);
+                    if (qty > 0) {
+                        const assetRef = doc(db, 'assets', item.id);
+                        const assetSnap = await tx.get(assetRef);
+                        if (assetSnap.exists()) {
+                            tx.update(assetRef, { reserved: increment(-qty) });
+                        }
+                    }
+                }
+                tx.delete(doc(db, 'transfers', t.id));
             });
+
+            setToast({ open: true, msg: 'Đã xóa phiếu và trả lại tồn khả dụng.', severity: 'success' });
+            setUndo({ open: true, transfer: t }); // vẫn cho hoàn tác nếu muốn
         } catch (e) {
             console.error(e);
-            setToast({
-                open: true,
-                msg: "Xóa phiếu thất bại.",
-                severity: "error",
-            });
+            setToast({ open: true, msg: 'Xóa phiếu thất bại: ' + e.message, severity: 'error' });
+        } finally {
+            setSigning(s => ({ ...s, [t.id]: false }));
         }
     };
-
 
     const handleUndoDelete = async () => {
         const t = undo.transfer; if (!t) return;
@@ -999,34 +1308,43 @@ export default function AssetTransferPage() {
         }
     };
 
+    // Tìm và thay thế hàm handleCreatePrintRequest cũ bằng hàm này
 
-    // Dán 5 hàm này vào file AssetTransferPage.jsx của bạn
+    // src/pages/AssetTransferPage.jsx
 
+    // Thay thế hàm cũ bằng hàm đã được cập nhật này
     const handleCreatePrintRequest = async () => {
         if (!currentUser) {
             return setToast({ open: true, msg: "Vui lòng đăng nhập.", severity: "warning" });
         }
-        if (printType === 'department' && !selectedDeptForPrint) {
-            return setToast({ open: true, msg: "Vui lòng chọn phòng ban.", severity: "warning" });
+        if ((printType === 'block' && !selectedBlockForPrint) || !printType) {
+            return setToast({ open: true, msg: "Vui lòng chọn đầy đủ thông tin báo cáo.", severity: "warning" });
         }
+
+        // ✅ BẬT TRẠNG THÁI ĐANG XỬ LÝ
+        setIsCreatingReport(true);
 
         try {
             const createReportCallable = httpsCallable(functions, 'createInventoryReport');
-            const payload = {
-                type: printType,
-                departmentId: printType === 'department' ? selectedDeptForPrint : null,
-            };
-            const result = await createReportCallable(payload);
+            let payload;
+            if (printType === 'block') {
+                payload = { type: 'BLOCK_INVENTORY', blockName: selectedBlockForPrint };
+            } else {
+                payload = { type: 'SUMMARY_REPORT', departmentId: null };
+            }
 
+            const result = await createReportCallable(payload);
             setToast({ open: true, msg: `Đã tạo yêu cầu báo cáo ${result.data.displayId} thành công.`, severity: "success" });
             setIsPrintModalOpen(false);
-            setTabIndex(3);
+            setTabIndex(4);
         } catch (error) {
             console.error("Lỗi khi tạo yêu cầu báo cáo:", error);
             setToast({ open: true, msg: "Có lỗi xảy ra: " + error.message, severity: "error" });
+        } finally {
+            // ✅ TẮT TRẠNG THÁI ĐANG XỬ LÝ (DÙ THÀNH CÔNG HAY THẤT BẠI)
+            setIsCreatingReport(false);
         }
     };
-
     const handleCreateTransfer = async () => {
         if (!currentUser) return setToast({ open: true, msg: "Vui lòng đăng nhập.", severity: "warning" });
         if (creating) return;
@@ -1072,6 +1390,12 @@ export default function AssetTransferPage() {
             return setToast({ open: true, msg: "Vui lòng điền đủ thông tin.", severity: "warning" });
         }
 
+        // TÌM PHÒNG BAN ĐƯỢC CHỌN TỪ STATE
+        const selectedDept = departments.find(d => d.id === currentAsset.departmentId);
+        if (!selectedDept) {
+            return setToast({ open: true, msg: "Phòng ban đã chọn không hợp lệ.", severity: "error" });
+        }
+
         if (modalMode === "add") {
             try {
                 const createRequestCallable = httpsCallable(functions, 'createAssetRequest');
@@ -1085,6 +1409,7 @@ export default function AssetTransferPage() {
                         unit: currentAsset.unit,
                         notes: currentAsset.notes || "",
                         departmentId: currentAsset.departmentId,
+                        managementBlock: selectedDept.managementBlock || null, // <-- THÊM DÒNG NÀY
                     }
                 };
                 const result = await createRequestCallable(payload);
@@ -1099,32 +1424,95 @@ export default function AssetTransferPage() {
             if (currentUser?.role !== 'admin') {
                 return setToast({ open: true, msg: "Chỉ Admin mới được phép sửa trực tiếp.", severity: "warning" });
             }
-            await updateDoc(doc(db, "assets", currentAsset.id), currentAsset);
+            // KHI SỬA, CŨNG CẬP NHẬT LẠI managementBlock
+            const updatedAssetData = {
+                ...currentAsset,
+                managementBlock: selectedDept.managementBlock || null,
+            };
+            await updateDoc(doc(db, "assets", currentAsset.id), updatedAssetData);
             setToast({ open: true, msg: "Đã cập nhật tài sản.", severity: "success" });
             setIsAssetModalOpen(false);
+        }
+    };
+    const handleConfirmReduceQuantity = async () => {
+        if (!reduceQuantityTarget || !currentUser || quantityToDelete <= 0) return;
+
+        try {
+            const createRequestCallable = httpsCallable(functions, 'createAssetRequest');
+            const payload = {
+                type: "REDUCE_QUANTITY", // <-- TYPE MỚI
+                targetAssetId: reduceQuantityTarget.id,
+                quantity: Number(quantityToDelete), // <-- Số lượng cần giảm
+            };
+
+            const result = await createRequestCallable(payload);
+
+            setReduceQuantityTarget(null); // Đóng dialog
+            setToast({ open: true, msg: `Đã gửi yêu cầu giảm số lượng ${result.data.displayId}.`, severity: "success" });
+            setTabIndex(3); // Chuyển sang tab Yêu cầu để người dùng thấy
+        } catch (e) {
+            console.error(e);
+            setToast({ open: true, msg: "Lỗi khi tạo yêu cầu giảm số lượng: " + e.message, severity: "error" });
         }
     };
 
     const handleDeleteAsset = async () => {
         if (!deleteConfirm || !currentUser) return;
+
+        const assetToDelete = deleteConfirm;
+
+        // ====================== BẮT ĐẦU LOGIC MỚI ======================
+        // Chỉ áp dụng logic kiểm tra này khi số lượng tài sản cần xóa là 1
+        if (assetToDelete.quantity === 1) {
+            // Tìm xem có yêu cầu XÓA nào đang trong quá trình xử lý cho tài sản này không
+            const existingRequest = assetRequests.find(req =>
+                req.type === 'DELETE' &&
+                req.targetAssetId === assetToDelete.id &&
+                !['COMPLETED', 'REJECTED'].includes(req.status) // Chỉ xét các phiếu đang chờ
+            );
+
+            // Nếu tìm thấy một yêu cầu đang tồn tại
+            if (existingRequest) {
+                // Hiển thị thông báo cho người dùng và không tạo phiếu mới
+                setToast({
+                    open: true,
+                    msg: `Phiếu yêu cầu xóa đã tồn tại: ${existingRequest.maPhieuHienThi || '#' + shortId(existingRequest.id)}`,
+                    severity: 'info' // Dùng 'info' để thông báo thay vì 'success'
+                });
+                setDeleteConfirm(null); // Đóng dialog xác nhận
+                return; // Dừng hàm tại đây, không thực hiện các bước sau
+            }
+        }
+        // ======================= KẾT THÚC LOGIC MỚI =======================
+
+        // Nếu số lượng > 1, hoặc SL=1 nhưng chưa có phiếu, thì tiến hành tạo như bình thường.
         try {
             const createRequestCallable = httpsCallable(functions, 'createAssetRequest');
-            const payload = { type: "DELETE", targetAssetId: deleteConfirm.id };
+            const payload = { type: "DELETE", targetAssetId: assetToDelete.id };
             const result = await createRequestCallable(payload);
             setDeleteConfirm(null);
             setToast({ open: true, msg: `Đã gửi yêu cầu xóa ${result.data.displayId}.`, severity: "success" });
-            setTabIndex(2);
+            setTabIndex(2); // Chuyển sang tab Yêu cầu để người dùng thấy
         } catch (e) {
             console.error(e);
             setToast({ open: true, msg: "Lỗi khi tạo yêu cầu xóa: " + e.message, severity: "error" });
         }
     };
 
+
     const handlePasteAndSave = async () => {
         if (!pastedText.trim() || !filterDeptForAsset) {
             return setToast({ open: true, msg: "Vui lòng dán dữ liệu và chọn phòng ban.", severity: "warning" });
         }
+
+        setCreating(true); // Bật trạng thái loading để vô hiệu hóa nút bấm
+
         try {
+            const selectedDept = departments.find(d => d.id === filterDeptForAsset);
+            if (!selectedDept) {
+                throw new Error("Phòng ban đã chọn không hợp lệ. Vui lòng thử lại.");
+            }
+
             const rows = pastedText.trim().split('\n').filter(row => row.trim() !== "");
             if (rows.length === 0) throw new Error("Không có dữ liệu hợp lệ.");
 
@@ -1135,32 +1523,60 @@ export default function AssetTransferPage() {
                     throw new Error(`Dòng ${index + 1} thiếu thông tin hoặc số lượng không hợp lệ.`);
                 }
                 return {
-                    name: columns[0]?.trim() || "", size: columns[1]?.trim() || "",
-                    unit: columns[2]?.trim() || "", quantity: quantity,
-                    notes: columns[4]?.trim() || "", departmentId: filterDeptForAsset,
+                    name: columns[0]?.trim() || "",
+                    size: columns[1]?.trim() || "",
+                    unit: columns[2]?.trim() || "",
+                    quantity: quantity,
+                    notes: columns[4]?.trim() || "",
+                    departmentId: filterDeptForAsset,
+                    managementBlock: selectedDept.managementBlock || null,
                 };
             });
 
-            const createRequestCallable = httpsCallable(functions, 'createAssetRequest');
-            await createRequestCallable({ type: 'BATCH_ADD', assetsData: assetsData });
+            // ✅ THAY ĐỔI 1: Gọi đến Cloud Function mới
+            const batchAddAssetsCallable = httpsCallable(functions, 'batchAddAssetsDirectly');
+            await batchAddAssetsCallable({ assetsData: assetsData });
 
-            setToast({ open: true, msg: `Đã gửi ${assetsData.length} yêu cầu thêm tài sản.`, severity: "success" });
+            // ✅ THAY ĐỔI 2: Cập nhật lại thông báo cho đúng
+            setToast({ open: true, msg: `Đã thêm thành công ${assetsData.length} tài sản vào danh sách.`, severity: "success" });
+
             setIsPasteModalOpen(false);
             setPastedText("");
-            setTabIndex(2);
+
+            // ✅ THAY ĐỔI 3: Không chuyển sang tab Yêu cầu nữa
+            // setTabIndex(2); // Xóa hoặc comment dòng này
+
         } catch (error) {
-            console.error("Lỗi khi nhập hàng loạt:", error);
-            setToast({ open: true, msg: error.message, severity: "error" });
+            console.error("Lỗi khi nhập hàng loạt trực tiếp:", error);
+            setToast({ open: true, msg: "Có lỗi xảy ra: " + error.message, severity: "error" });
+        } finally {
+            setCreating(false); // Tắt trạng thái loading dù thành công hay thất bại
         }
     };
-    // NEW: Function to call Cloud Function for processing requests
     const handleProcessRequest = async (req, action) => {
         if (isProcessingRequest[req.id]) return;
-
         setIsProcessingRequest(prev => ({ ...prev, [req.id]: true }));
+
         try {
             const processAssetRequest = httpsCallable(functions, 'processAssetRequest');
             const result = await processAssetRequest({ requestId: req.id, action });
+
+            // ✅ Cập nhật lại selectedRequest nếu đang mở
+            if (selectedRequest?.id === req.id) {
+                setSelectedRequest(prev => ({
+                    ...prev,
+                    status: action === 'approve' ? (req.status === 'PENDING_HC' ? 'PENDING_KT' : 'COMPLETED') : 'REJECTED',
+                    signatures: {
+                        ...(prev.signatures || {}),
+                        [req.status === 'PENDING_HC' ? 'hc' : 'kt']: {
+                            uid: currentUser.uid,
+                            name: currentUser.displayName || currentUser.email,
+                            signedAt: new Date().toISOString(),
+                        },
+                    },
+                }));
+            }
+
             setToast({ open: true, msg: result.data.message, severity: "success" });
         } catch (error) {
             console.error("Lỗi khi xử lý yêu cầu:", error);
@@ -1169,6 +1585,7 @@ export default function AssetTransferPage() {
             setIsProcessingRequest(prev => ({ ...prev, [req.id]: false }));
         }
     };
+
 
     // ✅ BẠN HÃY ĐẶT HÀM MỚI VÀO NGAY ĐÂY
     const handleDeleteRequest = async () => {
@@ -1190,30 +1607,7 @@ export default function AssetTransferPage() {
     };
 
     const handleOpenReportDetail = (report) => {
-        // map id → tên phòng từ state hiện có
-        const deptById = new Map(departments.map(d => [d.id, d.name]));
-        const departmentMap = Object.fromEntries(deptById);
-
-        // chuẩn hóa tên phòng cho từng asset
-        const enrichedAssets = (report.assets || []).map(a => {
-            const idFromObj = (a?.department && typeof a.department === 'object') ? a.department.id : null;
-            const id = a?.departmentId || a?.deptId || idFromObj;
-            const nameFromId = id ? deptById.get(id) : undefined;
-            const name =
-                a?.departmentName ||
-                a?.deptName ||
-                (typeof a?.department === 'string' ? a.department : undefined) ||
-                nameFromId ||
-                'Chưa phân loại';
-            return { ...a, departmentName: name, departmentId: id ?? a?.departmentId ?? a?.deptId ?? null };
-        });
-
-        setSelectedReport({
-            ...report,
-            assets: enrichedAssets,
-            departmentMap,            // để template có thể tra cứu nếu cần
-            departments: departments  // optional: template cũng hỗ trợ dạng mảng
-        });
+        setSelectedReport(report);
         setIsReportDetailOpen(true);
     };
 
@@ -1343,7 +1737,7 @@ export default function AssetTransferPage() {
         if (transfer.status === "PENDING_RECEIVER" && canSignReceiver(transfer)) {
             return <Button variant="contained" size="small" color="info" startIcon={<UserCheck size={16} />} disabled={signing[transfer.id]} onClick={(e) => { e.stopPropagation(); handleSign(transfer, "receiver"); }}>{signing[transfer.id] ? "..." : "Ký nhận"}</Button>;
         }
-        if (transfer.status === "PENDING_ADMIN" && canSignAdmin()) {
+        if (transfer.status === "PENDING_ADMIN" && canSignAdmin(transfer)) {
             return <Button variant="contained" size="small" color="secondary" startIcon={<Handshake size={16} />} disabled={signing[transfer.id]} onClick={(e) => { e.stopPropagation(); handleSign(transfer, "admin"); }}>{signing[transfer.id] ? "..." : "Duyệt HC"}</Button>;
         }
 
@@ -1358,78 +1752,62 @@ export default function AssetTransferPage() {
             fullWidth: true,
         };
 
+        // Admin có thể ký thay cho mọi bước
         if (currentUser?.role === "admin") {
-            let roleToSign = null,
-                label = "Đã hoàn thành",
-                color = "primary",
-                icon = null;
             if (t.status === "PENDING_SENDER") {
-                roleToSign = "sender";
-                label = "Ký phòng chuyển (Admin)";
-                icon = <FilePen size={16} />;
-            } else if (t.status === "PENDING_RECEIVER") {
-                roleToSign = "receiver";
-                label = "Ký phòng nhận (Admin)";
-                color = "info";
-                icon = <UserCheck size={16} />;
-            } else if (t.status === "PENDING_ADMIN") {
-                roleToSign = "admin";
-                label = "Xác nhận P.HC";
-                color = "secondary";
-                icon = <Handshake size={16} />;
+                return (
+                    <Button {...common} startIcon={<FilePen size={16} />} onClick={() => handleSign(t, "sender")}>
+                        Ký thay P. Chuyển
+                    </Button>
+                );
             }
-            return (
-                <Button
-                    {...common}
-                    color={color}
-                    startIcon={icon}
-                    disabled={!roleToSign}
-                    onClick={() => roleToSign && handleSign(t, roleToSign)}
-                >
-                    {label}
-                </Button>
-            );
+            if (t.status === "PENDING_RECEIVER") {
+                return (
+                    <Button {...common} color="info" startIcon={<UserCheck size={16} />} onClick={() => handleSign(t, "receiver")}>
+                        Ký thay P. Nhận
+                    </Button>
+                );
+            }
+            if (t.status === "PENDING_ADMIN") {
+                return (
+                    <Button {...common} color="secondary" startIcon={<Handshake size={16} />} onClick={() => handleSign(t, "admin")}>
+                        Xác nhận (P.HC)
+                    </Button>
+                );
+            }
         }
-        if (t.status === "PENDING_SENDER" && canSignSender(t))
+
+        // Người dùng thường: chỉ hiển thị nút khi đến lượt
+        if (t.status === "PENDING_SENDER" && canSignSender(t)) {
             return (
-                <Button
-                    {...common}
-                    onClick={() => handleSign(t, "sender")}
-                    startIcon={<FilePen size={16} />}
-                >
+                <Button {...common} startIcon={<FilePen size={16} />} onClick={() => handleSign(t, "sender")}>
                     Ký phòng chuyển
                 </Button>
             );
-        if (t.status === "PENDING_RECEIVER" && canSignReceiver(t))
+        }
+        if (t.status === "PENDING_RECEIVER" && canSignReceiver(t)) {
             return (
-                <Button
-                    {...common}
-                    color="info"
-                    onClick={() => handleSign(t, "receiver")}
-                    startIcon={<UserCheck size={16} />}
-                >
+                <Button {...common} color="info" startIcon={<UserCheck size={16} />} onClick={() => handleSign(t, "receiver")}>
                     Ký phòng nhận
                 </Button>
             );
-        if (t.status === "PENDING_ADMIN" && canSignAdmin())
+        }
+        if (t.status === "PENDING_ADMIN" && canSignAdmin(t)) {
             return (
-                <Button
-                    {...common}
-                    color="secondary"
-                    onClick={() => handleSign(t, "admin")}
-                    startIcon={<Handshake size={16} />}
-                >
+                <Button {...common} color="secondary" startIcon={<Handshake size={16} />} onClick={() => handleSign(t, "admin")}>
                     Xác nhận (P.HC)
                 </Button>
             );
+        }
+
+        // Mặc định: Hiển thị trạng thái, không cho hành động
+        const buttonText = t.status === 'COMPLETED' ? "Đã hoàn thành" : "Chờ bước kế tiếp";
         return (
-            <Button {...common} disabled>
-                Chờ bước kế tiếp
+            <Button {...common} disabled startIcon={t.status === 'COMPLETED' ? <Check size={16} /> : <Clock size={16} />}>
+                {buttonText}
             </Button>
         );
-    };
-
-    /* ---------- Skeletons ---------- */
+    };    /* ---------- Skeletons ---------- */
     const StatCardSkeleton = () => (
         <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3 }}>
             <Skeleton width="60%" height={30} />
@@ -1475,27 +1853,50 @@ export default function AssetTransferPage() {
     return (
         <Box sx={{ p: { xs: 2, sm: 4 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
             {/* Header */}
-            {/* Header */}
             <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2} sx={{ mb: 3, flexWrap: "wrap" }}>
                 <Box>
                     <Typography variant="h4" sx={{ fontWeight: 800 }}>Quản lý Tài sản</Typography>
                     <Typography color="text.secondary">Theo dõi, luân chuyển và quản lý các yêu cầu thay đổi tài sản.</Typography>
                 </Box>
                 {/* Nút hành động chính thay đổi theo Tab */}
-                {tabIndex === 0 && <Button variant="contained" size="large" startIcon={<ArrowRightLeft />} onClick={handleOpenTransferModal}>Tạo Phiếu Luân Chuyển</Button>}
-                {tabIndex === 1 && (
+                {tabIndex === 0}
+                {tabIndex === 1 && <Button variant="contained" size="large" startIcon={<ArrowRightLeft />} onClick={handleOpenTransferModal}>Tạo Phiếu Luân Chuyển</Button>}
+                {tabIndex === 2 && (
                     <Stack direction="row" spacing={1}>
-                        <Button variant="outlined" size="large" startIcon={<Sheet />} onClick={() => setIsPasteModalOpen(true)}>Nhập Excel</Button>
+                        <Tooltip title={!filterDeptForAsset ? "Vui lòng chọn một phòng ban để nhập tài sản" : ""}>
+                            <span> {/* Bọc bằng span để Tooltip hoạt động với nút bị disabled */}
+                                <Button
+                                    variant="outlined"
+                                    size="large"
+                                    startIcon={<Sheet />}
+                                    onClick={() => setIsPasteModalOpen(true)}
+                                    disabled={!filterDeptForAsset} // <-- Thêm điều kiện này
+                                >
+                                    Nhập Excel
+                                </Button>
+                            </span>
+                        </Tooltip>
                         <Button variant="contained" size="large" startIcon={<PlusCircle />} onClick={handleOpenAddModal}>Thêm Tài Sản</Button>
                     </Stack>
                 )}
             </Stack>
-
             {/* Stats Cards Động */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
                 {stats.map(stat => (
                     <Grid item xs={12} md={4} key={stat.label}>
-                        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: `${stat.color}.lighter`, borderColor: `${stat.color}.light` }}>
+                        <Paper variant="outlined" sx={{
+                            p: 2.5,
+                            borderRadius: 3,
+                            bgcolor: `${stat.color}.lighter`,
+                            borderColor: `${stat.color}.light`,
+                            cursor: stat.onClick ? 'pointer' : 'default',
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                                transform: stat.onClick ? 'translateY(-4px)' : 'none',
+                                boxShadow: stat.onClick ? '0 4px 12px rgba(0,0,0,0.1)' : 'none'
+                            }
+                        }} onClick={stat.onClick} // Thêm onClick handler
+                        >
                             <Stack direction="row" spacing={2} alignItems="center">
                                 <Avatar sx={{ bgcolor: `${stat.color}.light`, color: `${stat.color}.dark` }}>
                                     {stat.icon}
@@ -1509,18 +1910,205 @@ export default function AssetTransferPage() {
                     </Grid>
                 ))}
             </Grid>
+
             {/* Tabs */}
             <Paper elevation={0} sx={{ border: "1px solid #e2e8f0", borderRadius: 3, overflow: "hidden", }}>
                 <Tabs value={tabIndex} onChange={(e, v) => setTabIndex(v)} sx={{ borderBottom: 1, borderColor: "divider", px: 2 }} variant="fullWidth">
+                    {/* TAB MỚI */}
+                    <Tab
+                        label={
+                            <Badge badgeContent={actionableItems.total} color="primary" max={99}>
+                                Dashboard
+                            </Badge>
+                        }
+                        icon={<Inbox size={18} />}
+                        iconPosition="start"
+                    />
+
+                    {/* CÁC TAB CŨ */}
                     <Tab label="Theo dõi Luân chuyển" icon={<Send size={18} />} iconPosition="start" />
                     <Tab label="Danh sách Tài sản" icon={<Warehouse size={18} />} iconPosition="start" />
-                    <Tab label="Yêu cầu Thay đổi" icon={<History size={18} />} iconPosition="start" /> {/* NEW TAB */}
+                    <Tab label="Yêu cầu Thay đổi" icon={<History size={18} />} iconPosition="start" />
                     <Tab label="Báo cáo Kiểm kê" icon={<BookCheck size={18} />} iconPosition="start" />
-
                 </Tabs>
+                {/* ======================================================================= */}
+                {/* ==================== TAB 0: DASHBOARD (NỘI DUNG MỚI) =================== */}
+                {/* ======================================================================= */}
 
-                {/* Tab 0: Transfers (giữ nguyên) */}
+
                 {tabIndex === 0 && (
+                    <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
+                        {actionableItems.total === 0 ? (
+                            // Trạng thái rỗng không đổi
+                            <Box sx={{ textAlign: 'center', py: 8 }}>
+                                <Stack alignItems="center" spacing={1.5} sx={{ color: 'text.secondary' }}>
+                                    <CheckCircleOutline sx={{ fontSize: 48, color: 'success.main' }} />
+                                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Tuyệt vời!</Typography>
+                                    <Typography>Bạn không có công việc nào cần xử lý ngay bây giờ.</Typography>
+                                </Stack>
+                            </Box>
+                        ) : (
+                            <Stack spacing={4}>
+                                {/* ====== KHU VỰC PHIẾU LUÂN CHUYỂN ======= */}
+                                {actionableItems.transfers.length > 0 && (
+                                    <Box>
+                                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+                                            Phiếu luân chuyển chờ bạn ký ({actionableItems.transfers.length})
+                                        </Typography>
+                                        <Grid container spacing={2.5}>
+                                            {actionableItems.transfers.map((t) => {
+                                                // ✅ CẢI TIẾN 1: Xác định vai trò ký của người dùng hiện tại
+                                                let userActionLabel = "";
+                                                if (t.status === "PENDING_SENDER") userActionLabel = "Bạn ký với vai trò P. Chuyển";
+                                                if (t.status === "PENDING_RECEIVER") userActionLabel = "Bạn ký với vai trò P. Nhận";
+                                                if (t.status === "PENDING_ADMIN") userActionLabel = "Bạn duyệt với vai trò P.HC";
+                                                if (currentUser?.role === 'admin' && t.status !== 'COMPLETED') userActionLabel = "Bạn có thể ký thay";
+
+                                                return (
+                                                    <Grid item xs={12} md={6} lg={4} key={t.id}>
+                                                        <WorkflowCard
+                                                            isHighlighted={true}
+                                                            isExpanded={expandedRequestId === t.id}
+                                                            onExpandClick={(e) => { e.stopPropagation(); setExpandedRequestId(prev => (prev === t.id ? null : t.id)); }}
+                                                            onCardClick={() => handleOpenDetailView(t)}
+                                                            headerLeft={<Chip label="LUÂN CHUYỂN" size="small" color="secondary" icon={<ArrowRightLeft size={14} />} sx={{ fontWeight: 700, fontSize: '0.7rem' }} />}
+                                                            headerRight={
+                                                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                                                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>{t.maPhieuHienThi || `#${shortId(t.id)}`}</Typography>
+                                                                    <Chip size="small" label={statusConfig[t.status]?.label} color={statusConfig[t.status]?.color} icon={statusConfig[t.status]?.icon} />
+                                                                </Stack>
+                                                            }
+                                                            title={
+                                                                <Stack direction="row" alignItems="center" spacing={1} sx={{ my: 2 }}>
+                                                                    <Typography noWrap variant="body1" sx={{ fontWeight: 600, flex: 1, textAlign: "left" }}>{t.from}</Typography>
+                                                                    <Box sx={{ flexShrink: 0, width: 24, height: 24, borderRadius: '50%', bgcolor: 'primary.lighter', color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ArrowRightLeft size={14} /></Box>
+                                                                    <Typography noWrap variant="body1" sx={{ fontWeight: 700, color: 'primary.main', flex: 1, textAlign: "right" }}>{t.to}</Typography>
+                                                                </Stack>
+                                                            }
+                                                            body={
+                                                                <Stack spacing={1}>
+                                                                    {/* ✅ CẢI TIẾN 2: Thêm nhãn hành động rõ ràng */}
+                                                                    <Chip icon={<UserCheck size={16} />} label={userActionLabel} color="primary" variant="outlined" size="small" sx={{ p: 1, height: 'auto', fontWeight: 500, '& .MuiChip-label': { whiteSpace: 'normal' } }} />
+                                                                    <Typography variant="caption" color="text.secondary">Tạo bởi: <b>{t.createdBy?.name}</b> lúc {fullTime(t.date)}</Typography>
+                                                                </Stack>
+                                                            }
+                                                            timeline={<SignatureTimeline signatures={t.signatures} status={t.status} />}
+                                                            // ✅ CẢI TIẾN 3: Làm nổi bật nút hành động chính
+                                                            footer={<TransferActionButtons transfer={t} />}
+                                                        />
+                                                    </Grid>
+                                                )
+                                            })}
+                                        </Grid>
+                                    </Box>
+                                )}
+
+                                {/* ====== KHU VỰC YÊU CẦU THAY ĐỔI ======= */}
+                                {actionableItems.requests.length > 0 && (
+                                    <Box>
+                                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+                                            Yêu cầu thay đổi chờ bạn duyệt ({actionableItems.requests.length})
+                                        </Typography>
+                                        <Grid container spacing={2.5}>
+                                            {actionableItems.requests.map((req) => (
+                                                <Grid item xs={12} md={6} lg={4} key={req.id}>
+                                                    <WorkflowCard
+                                                        isHighlighted={true}
+                                                        isExpanded={expandedRequestId === req.id}
+                                                        onExpandClick={(e) => { e.stopPropagation(); setExpandedRequestId(prev => (prev === req.id ? null : req.id)); }}
+                                                        onCardClick={() => handleOpenRequestDetail(req)}
+                                                        headerLeft={<Chip label={req.type === 'ADD' ? 'Y/C THÊM' : (req.type === 'DELETE' ? 'Y/C XÓA' : 'Y/C GIẢM SL')} size="small" color={req.type === 'ADD' ? 'success' : (req.type === 'DELETE' ? 'error' : 'warning')} icon={req.type === 'ADD' ? <FilePlus size={14} /> : (req.type === 'DELETE' ? <FileX size={14} /> : <FilePen size={14} />)} sx={{ fontWeight: 700, fontSize: '0.7rem' }} />}
+                                                        headerRight={
+                                                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                                                <Chip size="small" variant="outlined" label={req.maPhieuHienThi || `#${shortId(req.id)}`} />
+                                                                <Chip size="small" label={requestStatusConfig[req.status]?.label} color={requestStatusConfig[req.status]?.color} icon={requestStatusConfig[req.status]?.icon} />
+                                                            </Stack>
+                                                        }
+                                                        title={<Typography variant="h6" component="div" sx={{ fontWeight: 700 }}>{req.assetData?.name}</Typography>}
+                                                        // ✅ THAY THẾ PROP `body` CŨ BẰNG KHỐI NÀY
+                                                        body={
+                                                            <>
+                                                                <Typography color="text.secondary">Phòng: <b>{req.departmentName}</b></Typography>
+                                                                {/* Tự động hiển thị Khối nếu có */}
+                                                                {req.managementBlock && (
+                                                                    <Typography variant="caption" color="text.secondary">Khối: {req.managementBlock}</Typography>
+                                                                )}
+                                                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                                                    Số lượng: {req.assetData?.quantity} {req.assetData?.unit}
+                                                                </Typography>
+                                                            </>
+                                                        }
+                                                        timeline={<RequestSignatureTimeline signatures={req.signatures} status={req.status} blockName={req.managementBlock} />}
+                                                        footer={
+                                                            <>
+                                                                <Box sx={{ flexGrow: 1 }}><Typography variant="caption" display="block" color="text.secondary">Y/C bởi: <b>{req.requester?.name}</b></Typography><Typography variant="caption" color="text.secondary">{fullTime(req.createdAt)}</Typography></Box>
+                                                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                                                    {canProcessRequest(req) && (<>
+                                                                        {/* ✅ CẢI TIẾN 4: Chuyển nút từ chối thành nút phụ (text) */}
+                                                                        <Button size="small" color="error" onClick={(e) => { e.stopPropagation(); setRejectConfirm(req); }} disabled={isProcessingRequest[req.id]}>Từ chối</Button>
+                                                                        <Button variant="contained" size="small" onClick={(e) => { e.stopPropagation(); handleProcessRequest(req, 'approve'); }} disabled={isProcessingRequest[req.id]} startIcon={<Check size={16} />}>{isProcessingRequest[req.id] ? "..." : "Duyệt"}</Button>
+                                                                    </>)}
+                                                                    {currentUser?.role === 'admin' && (<Tooltip title="Xóa vĩnh viễn (Admin)"><IconButton size="small" onClick={(e) => { e.stopPropagation(); setDeleteRequestConfirm(req); }}><Trash2 size={16} /></IconButton></Tooltip>)}
+                                                                </Stack>
+                                                            </>
+                                                        }
+                                                    />
+                                                </Grid>
+                                            ))}
+                                        </Grid>
+                                    </Box>
+                                )}
+
+                                {/* ====== KHU VỰC BÁO CÁO KIỂM KÊ ======== */}
+                                {actionableItems.reports.length > 0 && (
+                                    <Box>
+                                        <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+                                            Báo cáo kiểm kê chờ bạn duyệt ({actionableItems.reports.length})
+                                        </Typography>
+                                        <Grid container spacing={2.5}>
+                                            {actionableItems.reports.map((report) => (
+                                                <Grid item xs={12} md={6} lg={4} key={report.id}>
+                                                    <WorkflowCard
+                                                        isHighlighted={true}
+                                                        isExpanded={expandedRequestId === report.id}
+                                                        onExpandClick={(e) => { e.stopPropagation(); setExpandedRequestId(prev => (prev === report.id ? null : report.id)); }}
+                                                        onCardClick={() => handleOpenReportDetail(report)}
+                                                        headerLeft={<Chip label={report.type === 'DEPARTMENT_INVENTORY' ? 'KIỂM KÊ PHÒNG' : 'TỔNG HỢP'} size="small" color={report.type === 'DEPARTMENT_INVENTORY' ? 'info' : 'secondary'} icon={<Sheet size={14} />} sx={{ fontWeight: 700, fontSize: '0.7rem' }} />}
+                                                        headerRight={
+                                                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                                                <Chip size="small" variant="outlined" label={report.maPhieuHienThi || `#${shortId(report.id)}`} />
+                                                                <Chip label={reportStatusConfig[report.status]?.label} color={reportStatusConfig[report.status]?.color} icon={reportStatusConfig[report.status]?.icon} size="small" />
+                                                            </Stack>
+                                                        }
+                                                        title={<Typography variant="h6" component="div" sx={{ fontWeight: 700 }}>{report.title}</Typography>}
+                                                        body={<><Typography color="text.secondary">Phòng: <b>{report.departmentName}</b></Typography><Typography color="text.secondary">Bao gồm <b>{report.assets?.length || 0}</b> loại tài sản.</Typography></>}
+                                                        timeline={<ReportSignatureTimeline signatures={report.signatures} status={report.status} type={report.type} />}
+                                                        footer={
+                                                            <>
+                                                                <Box sx={{ flexGrow: 1 }}><Typography variant="caption" display="block" color="text.secondary">Y/C bởi: <b>{report.requester?.name}</b></Typography><Typography variant="caption" color="text.secondary">{fullTime(report.createdAt)}</Typography></Box>
+                                                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                                                    {canProcessReport(report) && (
+                                                                        <>
+                                                                            {/* ✅ CẢI TIẾN 4: Chuyển nút từ chối thành nút phụ (text) */}
+                                                                            <Button size="small" color="error" onClick={(e) => { e.stopPropagation(); setRejectReportConfirm(report); }} disabled={processingReport[report.id]}>Từ chối</Button>
+                                                                            <Button variant="contained" size="small" onClick={(e) => { e.stopPropagation(); handleSignReport(report); }} disabled={processingReport[report.id]} startIcon={<Check size={16} />}>{processingReport[report.id] ? "..." : "Duyệt"}</Button>
+                                                                        </>
+                                                                    )}
+                                                                    {canDeleteReport(report) && (<Tooltip title="Xóa báo cáo"><IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); setDeleteReportConfirm(report); }}><Trash2 size={16} /></IconButton></Tooltip>)}
+                                                                </Stack>
+                                                            </>
+                                                        }
+                                                    />
+                                                </Grid>
+                                            ))}
+                                        </Grid>
+                                    </Box>
+                                )}
+                            </Stack>
+                        )}
+                    </Box>
+                )}
+                {tabIndex === 1 && (
                     <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
                         {/* Thanh công cụ với Bộ lọc và Nút chuyển đổi View */}
                         <Paper variant="outlined" sx={{ p: 1.5, mb: 2.5, borderRadius: 2 }}>
@@ -1549,126 +2137,187 @@ export default function AssetTransferPage() {
 
                         {/* --- Khu vực hiển thị nội dung động --- */}
 
-                        {/* Chế độ xem thẻ (Card View) */}
+                        {/* Chế độ xem thẻ (Card View) - GIAO DIỆN MỚI */}
                         {viewMode === 'card' && (
                             <Grid container spacing={2.5}>
-                                {filteredTransfers.map((t) => {
-                                    // Logic để quyết định nút hành động nào sẽ hiển thị
+                                {filteredTransfers.map((t) => (
+                                    <Grid item xs={12} md={6} lg={4} key={t.id}>
+                                        <WorkflowCard
+                                            isHighlighted={isMyTurn(t)} // <-- PROP MỚI
 
-                                    return (
-                                        <Grid item xs={12} md={6} lg={4} key={t.id}>
-                                            <WorkflowCard
-                                                isExpanded={expandedRequestId === t.id}
-                                                onExpandClick={() => setExpandedRequestId(prev => (prev === t.id ? null : t.id))}
-                                                headerLeft={
-                                                    <Chip label="LUÂN CHUYỂN" size="small" color="secondary" icon={<ArrowRightLeft size={14} />} sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
-                                                }
-                                                headerRight={
-                                                    <Stack direction="row" spacing={0.5} alignItems="center">
-                                                        <Chip size="small" variant="outlined" label={t.maPhieuHienThi || `#${shortId(t.id)}`} />
-                                                        <Chip
-                                                            size="small"
-                                                            label={statusConfig[t.status]?.label}
-                                                            color={statusConfig[t.status]?.color || "default"}
-                                                        />
-                                                    </Stack>
-                                                }
-
-                                                title={
-                                                    <Tooltip title="Xem chi tiết tài sản">
-                                                        <Stack direction="row" alignItems="center" spacing={1} onClick={() => handleOpenDetailView(t)} sx={{ cursor: 'pointer', width: '100%' }}>
-                                                            <Typography noWrap sx={{ fontWeight: 600, flex: 1, textAlign: "left" }}>{hi(t.from, debSearch)}</Typography>
-                                                            <ArrowRightLeft size={18} color="#64748b" />
-                                                            <Typography noWrap sx={{ fontWeight: 700, color: 'primary.main', flex: 1, textAlign: "right" }}>{hi(t.to, debSearch)}</Typography>
-                                                        </Stack>
-                                                    </Tooltip>
-                                                }
-                                                body={
-                                                    <Box mt={1.5}>
+                                            isExpanded={expandedRequestId === t.id}
+                                            onExpandClick={(e) => {
+                                                e.stopPropagation();
+                                                setExpandedRequestId(prev => (prev === t.id ? null : t.id));
+                                            }}
+                                            onCardClick={() => handleOpenDetailView(t)}
+                                            headerLeft={
+                                                <Chip
+                                                    icon={<ArrowRightLeft size={14} />}
+                                                    label="LUÂN CHUYỂN"
+                                                    variant="outlined"
+                                                    size="small"
+                                                    color="secondary"
+                                                />
+                                            }
+                                            headerRight={
+                                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                                        {t.maPhieuHienThi || `#${shortId(t.id)}`}
+                                                    </Typography>
+                                                    <Chip
+                                                        size="small"
+                                                        label={statusConfig[t.status]?.label}
+                                                        color={statusConfig[t.status]?.color || "default"}
+                                                        icon={statusConfig[t.status]?.icon}
+                                                    />
+                                                </Stack>
+                                            }
+                                            title={
+                                                <Stack direction="row" alignItems="center" spacing={1} sx={{ my: 2 }}>
+                                                    <Typography noWrap variant="body1" sx={{ fontWeight: 600, flex: 1, textAlign: "left" }}>
+                                                        {hi(t.from, debSearch)}
+                                                    </Typography>
+                                                    <Box sx={{
+                                                        flexShrink: 0,
+                                                        width: 24,
+                                                        height: 24,
+                                                        borderRadius: '50%',
+                                                        bgcolor: 'primary.lighter',
+                                                        color: 'primary.main',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}>
+                                                        <ArrowRightLeft size={14} />
+                                                    </Box>
+                                                    <Typography noWrap variant="body1" sx={{ fontWeight: 700, color: 'primary.main', flex: 1, textAlign: "right" }}>
+                                                        {hi(t.to, debSearch)}
+                                                    </Typography>
+                                                </Stack>
+                                            }
+                                            body={
+                                                <>
+                                                    <Stack spacing={0.5}>
                                                         {(t.assets || []).slice(0, 2).map((asset, index) => (
-                                                            <Stack key={index} direction="row" spacing={1} sx={{ mb: 0.5 }}>
-                                                                <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>• {asset.name}</Typography>
-                                                                <Typography variant="body2" color="text.secondary">(SL: {asset.quantity})</Typography>
-                                                            </Stack>
+                                                            <Typography key={index} variant="body2" color="text.secondary">
+                                                                • {asset.name} (SL: {asset.quantity})
+                                                            </Typography>
                                                         ))}
                                                         {(t.assets?.length || 0) > 2 && (
-                                                            <Typography variant="caption" sx={{ fontStyle: 'italic', color: 'text.secondary', ml: 1.5 }}>... và {t.assets.length - 2} tài sản khác.</Typography>
+                                                            <Typography variant="caption" sx={{ fontStyle: 'italic', color: 'text.disabled', ml: 1.5 }}>
+                                                                ... và {t.assets.length - 2} tài sản khác.
+                                                            </Typography>
                                                         )}
-                                                    </Box>
-                                                }
-                                                timeline={<SignatureTimeline signatures={t.signatures} status={t.status} />}
-                                                footer={
-                                                    <>
-                                                        <Box sx={{ flexGrow: 1 }}>
-                                                            <Typography variant="caption" display="block" color="text.secondary">Tạo bởi: <b>{t.createdBy?.name}</b></Typography>
-                                                            <Typography variant="caption" color="text.secondary">{fullTime(t.date)}</Typography>
-                                                        </Box>
-                                                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                                                            <TransferActionButtons transfer={t} />
-                                                            {canDeleteTransfer(t) && (
-                                                                <Tooltip title="Xóa phiếu">
-                                                                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); deleteTransfer(t); }}>
-                                                                        <Trash2 size={16} />
-                                                                    </IconButton>
-                                                                </Tooltip>
-                                                            )}
-                                                        </Stack>
-                                                    </>
-                                                }
-                                            />
-                                        </Grid>
-                                    )
-                                })}
+                                                    </Stack>
+                                                    <Box sx={{ flexGrow: 1 }} />
+                                                    <Stack sx={{ mt: 2, pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Tạo bởi: <b>{t.createdBy?.name}</b>
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {fullTime(t.date)}
+                                                        </Typography>
+                                                    </Stack>
+                                                </>
+                                            }
+                                            timeline={<SignatureTimeline signatures={t.signatures} status={t.status} />}
+                                            footer={
+                                                <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                                    <TransferActionButtons transfer={t} />
+                                                    {canDeleteTransfer(t) && (
+                                                        <Tooltip title="Xóa phiếu">
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={(e) => { e.stopPropagation(); deleteTransfer(t); }}
+                                                                sx={{ color: 'error.main' }}
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    )}
+                                                </Stack>
+                                            }
+                                        />
+                                    </Grid>
+                                ))}
                             </Grid>
                         )}
-
-                        {/* Chế độ xem bảng (Table View) */}
+                        {/* Chế độ xem bảng (Table View) - GIAO DIỆN MỚI HIỆN ĐẠI */}
                         {viewMode === 'table' && (
-                            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                            <TableContainer>
                                 <Table sx={{ minWidth: 650 }} aria-label="transfer table">
-                                    <TableHead sx={{ bgcolor: 'grey.50' }}>
-                                        <TableRow>
-                                            <TableCell sx={{ fontWeight: 700 }}>Mã Phiếu</TableCell>
-                                            <TableCell sx={{ fontWeight: 700 }}>Từ phòng</TableCell>
-                                            <TableCell sx={{ fontWeight: 700 }}>Đến phòng</TableCell>
-                                            <TableCell sx={{ fontWeight: 700 }}>Ngày tạo</TableCell>
-                                            <TableCell sx={{ fontWeight: 700 }}>Trạng thái</TableCell>
-                                            <TableCell sx={{ fontWeight: 700 }} align="right">Hành động</TableCell>
+                                    <TableHead>
+                                        <TableRow sx={{ '& .MuiTableCell-root': { border: 0, py: 1 } }}>
+                                            <TableCell sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem' }}>Mã Phiếu</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem' }}>Lộ trình</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem' }}>Người tạo & Ngày tạo</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem' }}>Trạng thái</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem' }} align="right">Hành động</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {filteredTransfers.map((t) => {
-                                            // Logic để quyết định nút hành động nào sẽ hiển thị (lặp lại để đảm bảo tính nhất quán)
-
-                                            return (
-                                                <TableRow key={t.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleOpenDetailView(t)}>
-                                                    <TableCell component="th" scope="row" sx={{ fontWeight: 600 }}>
-                                                        <Badge color="primary" variant="dot" invisible={!isMyTurn(t)}>{t.maPhieuHienThi || `#${shortId(t.id)}`}</Badge>
-                                                    </TableCell>
-                                                    <TableCell>{hi(t.from, debSearch)}</TableCell>
-                                                    <TableCell>{hi(t.to, debSearch)}</TableCell>
-                                                    <TableCell>{formatTime(t.date)}</TableCell>
-                                                    <TableCell><Chip size="small" label={statusConfig[t.status]?.label} color={statusConfig[t.status]?.color || "default"} /></TableCell>
-                                                    <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                                                        <Stack direction="row" spacing={0.5} alignItems="center">
-                                                            <TransferActionButtons transfer={t} />
-                                                            {canDeleteTransfer(t) && (
-                                                                <Tooltip title="Xóa phiếu">
-                                                                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); deleteTransfer(t); }}>
-                                                                        <Trash2 size={16} />
-                                                                    </IconButton>
-                                                                </Tooltip>
-                                                            )}
-                                                        </Stack>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
+                                        {filteredTransfers.map((t) => (
+                                            <TableRow
+                                                key={t.id}
+                                                hover
+                                                sx={{
+                                                    cursor: 'pointer',
+                                                    '&:last-child td, &:last-child th': { border: 0 },
+                                                    '& .MuiTableCell-root': {
+                                                        borderBottom: 1,
+                                                        borderColor: 'divider',
+                                                        py: 1.5, // Tăng khoảng cách dọc
+                                                    }
+                                                }}
+                                                onClick={() => handleOpenDetailView(t)}
+                                            >
+                                                <TableCell component="th" scope="row">
+                                                    <Badge color="primary" variant="dot" invisible={!isMyTurn(t)}>
+                                                        <Chip size="small" variant="outlined" label={t.maPhieuHienThi || `#${shortId(t.id)}`} sx={{ fontWeight: 600 }} />
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Stack>
+                                                        <Typography variant="body2">{hi(t.from, debSearch)}</Typography>
+                                                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>→ {hi(t.to, debSearch)}</Typography>
+                                                    </Stack>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{t.createdBy?.name}</Typography>
+                                                    <Typography variant="caption" color="text.secondary">{fullTime(t.date)}</Typography>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        size="small"
+                                                        label={statusConfig[t.status]?.label}
+                                                        color={statusConfig[t.status]?.color || "default"}
+                                                        icon={statusConfig[t.status]?.icon}
+                                                    />
+                                                </TableCell>
+                                                <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                                                    <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+                                                        {/* Chỉ hiển thị nút hành động chính khi phiếu chưa hoàn thành */}
+                                                        {t.status !== 'COMPLETED' ? <TransferActionButtons transfer={t} /> : (
+                                                            <Tooltip title="Xem chi tiết">
+                                                                <Button size="small" variant="text" onClick={() => handleOpenDetailView(t)}>Xem</Button>
+                                                            </Tooltip>
+                                                        )}
+                                                        {canDeleteTransfer(t) && (
+                                                            <Tooltip title="Xóa phiếu">
+                                                                <IconButton size="small" sx={{ color: 'error.main' }} onClick={(e) => { e.stopPropagation(); deleteTransfer(t); }}>
+                                                                    <Trash2 size={18} />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        )}
+                                                    </Stack>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
                                     </TableBody>
                                 </Table>
                             </TableContainer>
                         )}
-
                         {/* Trạng thái rỗng */}
                         {filteredTransfers.length === 0 && (
                             <Box sx={{ textAlign: 'center', py: 8 }}>
@@ -1680,9 +2329,7 @@ export default function AssetTransferPage() {
                         )}
                     </Box>
                 )}
-
-                {/* Tab 1: Assets (giữ nguyên) */}
-                {tabIndex === 1 && (
+                {tabIndex === 2 && (
                     <Box sx={{ p: 2 }}>
                         <Paper
                             variant="outlined"
@@ -1789,12 +2436,26 @@ export default function AssetTransferPage() {
                                                     <TableCell>{a.unit}</TableCell>
                                                     <TableCell>{a.notes || "—"}</TableCell>
                                                     <TableCell align="right">
-                                                        {/* nút Sửa/Xóa giữ nguyên */}
-                                                        <Tooltip title="Chỉnh sửa">
-                                                            <IconButton size="small" onClick={() => handleOpenEditModal(a)}><Edit size={18} /></IconButton>
-                                                        </Tooltip>
-                                                        <Tooltip title="Xóa">
-                                                            <IconButton size="small" color="error" onClick={() => setDeleteConfirm(a)}><Trash2 size={18} /></IconButton>
+                                                        {/* ✅ CHỈ HIỂN THỊ NÚT SỬA KHI LÀ ADMIN */}
+                                                        {currentUser?.role === 'admin' && (
+                                                            <Tooltip title="Chỉnh sửa (Admin)">
+                                                                <IconButton size="small" onClick={() => handleOpenEditModal(a)}>
+                                                                    <Edit size={18} />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        )}
+
+                                                        <Tooltip title="Yêu cầu Xóa/Giảm SL">
+                                                            <IconButton size="small" color="error" onClick={() => {
+                                                                if (a.quantity > 1) {
+                                                                    setReduceQuantityTarget(a);
+                                                                    setQuantityToDelete(1);
+                                                                } else {
+                                                                    setDeleteConfirm(a);
+                                                                }
+                                                            }}>
+                                                                <Trash2 size={18} />
+                                                            </IconButton>
                                                         </Tooltip>
                                                     </TableCell>
                                                 </TableRow>
@@ -1820,10 +2481,7 @@ export default function AssetTransferPage() {
                         </TableContainer>
                     </Box>
                 )}
-                {/* Tab 2: Asset Requests (UPDATED for Modern UI/UX) */}
-
-                {/* Tab 2: Yêu cầu Thay đổi */}
-                {tabIndex === 2 && (
+                {tabIndex === 3 && (
                     <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
                         {/* Thanh công cụ với Bộ lọc và Nút chuyển đổi View */}
                         <Paper variant="outlined" sx={{ p: 1.5, mb: 2.5, borderRadius: 2 }}>
@@ -1855,19 +2513,36 @@ export default function AssetTransferPage() {
                                     <Grid item xs={12} md={6} lg={4} key={i}><RequestCardSkeleton /></Grid>
                                 ))}
                             </Grid>
-                        ) : requestsWithDeptName.length === 0 ? (
+                        ) : filteredRequests.length === 0 ? (
                             <Box sx={{ textAlign: 'center', py: 8 }}><Stack alignItems="center" spacing={1.5} sx={{ color: 'text.secondary' }}><Inbox size={32} /><Typography variant="h6" sx={{ fontWeight: 600 }}>Không có yêu cầu nào</Typography></Stack></Box>
                         ) : viewMode === 'card' ? (
                             // Chế độ xem thẻ (Card View)
                             <Grid container spacing={2.5}>
-                                {requestsWithDeptName.map(req => (
+                                {filteredRequests.map(req => (
                                     <Grid item xs={12} md={6} lg={4} key={req.id}>
                                         <WorkflowCard
+
                                             isExpanded={expandedRequestId === req.id}
                                             onExpandClick={() => setExpandedRequestId(prev => (prev === req.id ? null : req.id))}
                                             onCardClick={() => handleOpenRequestDetail(req)} // THÊM DÒNG NÀY
-                                            headerLeft={<Chip label={req.type === 'ADD' ? 'Y/C THÊM' : 'Y/C XÓA'} size="small" color={req.type === 'ADD' ? 'success' : 'error'} icon={req.type === 'ADD' ? <FilePlus size={14} /> : <FileX size={14} />} sx={{ fontWeight: 700, fontSize: '0.7rem' }} />}
-                                            headerRight={
+                                            headerLeft={
+                                                <Chip
+                                                    label={
+                                                        req.type === 'ADD' ? 'Y/C THÊM MỚI' :
+                                                            req.type === 'DELETE' ? 'Y/C XÓA TOÀN BỘ' : 'Y/C GIẢM SỐ LƯỢNG'
+                                                    }
+                                                    size="small"
+                                                    color={
+                                                        req.type === 'ADD' ? 'success' :
+                                                            req.type === 'DELETE' ? 'error' : 'warning' // Dùng màu warning cho Giảm SL
+                                                    }
+                                                    icon={
+                                                        req.type === 'ADD' ? <FilePlus size={14} /> :
+                                                            req.type === 'DELETE' ? <FileX size={14} /> : <FilePen size={14} /> // Dùng icon khác
+                                                    }
+                                                    sx={{ fontWeight: 700, fontSize: '0.7rem' }}
+                                                />
+                                            } headerRight={
                                                 <Stack direction="row" spacing={0.5} alignItems="center">
                                                     <Chip size="small" variant="outlined" label={req.maPhieuHienThi || `#${shortId(req.id)}`} />
                                                     <Chip
@@ -1880,7 +2555,7 @@ export default function AssetTransferPage() {
                                             }
                                             title={<Typography variant="h6" component="div" sx={{ fontWeight: 700 }}>{req.assetData?.name}</Typography>}
                                             body={<><Typography color="text.secondary">Phòng: <b>{req.departmentName}</b></Typography><Typography variant="body2" color="text.secondary">Số lượng: {req.assetData?.quantity} {req.assetData?.unit}</Typography></>}
-                                            timeline={<RequestSignatureTimeline signatures={req.signatures} />}
+                                            timeline={<RequestSignatureTimeline signatures={req.signatures} status={req.status} blockName={req.managementBlock} />}
                                             footer={
                                                 <>
                                                     <Box sx={{ flexGrow: 1 }}>
@@ -1918,7 +2593,7 @@ export default function AssetTransferPage() {
                                     </TableHead>
 
                                     <TableBody>
-                                        {requestsWithDeptName.map((req) => (
+                                        {filteredRequests.map((req) => (
                                             <TableRow key={req.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 }, cursor: 'pointer' }} onClick={() => handleOpenRequestDetail(req)}>
                                                 <TableCell><Chip label={req.type} size="small" color={req.type === 'ADD' ? 'success' : 'error'} variant="outlined" /></TableCell>
                                                 {/* NEW: Mã phiếu */}
@@ -1947,7 +2622,7 @@ export default function AssetTransferPage() {
                         )}
                     </Box>
                 )}
-                {tabIndex === 3 && (
+                {tabIndex === 4 && (
                     <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
                         {/* Toolbar: Tìm kiếm + chuyển chế độ xem */}
                         <Paper variant="outlined" sx={{ p: 1.5, mb: 2.5, borderRadius: 2 }}>
@@ -2154,7 +2829,6 @@ export default function AssetTransferPage() {
                     </Box>
                 )}
 
-
                 {/* REJECT CONFIRM DIALOG (NEW) */}
                 <Dialog open={!!rejectConfirm} onClose={() => setRejectConfirm(null)}>
                     <DialogTitle>Xác nhận Từ chối Yêu cầu</DialogTitle>
@@ -2257,23 +2931,24 @@ export default function AssetTransferPage() {
                     <Button
                         onClick={handlePasteAndSave}
                         variant="contained"
-                        disabled={!pastedText.trim() || !filterDeptForAsset}
+                        disabled={!pastedText.trim() || !filterDeptForAsset || creating} // Thêm 'creating' để vô hiệu hóa khi đang xử lý
                     >
-                        Gửi yêu cầu
+                        {creating ? "Đang xử lý..." : "Thêm vào danh sách"} {/* <-- SỬA LẠI THÀNH DÒNG NÀY */}
                     </Button>
                 </DialogActions>
             </Dialog>
 
 
-            {/* Dialog Chi tiết Phiếu - ĐÃ CẬP NHẬT */}
+            {/* Dialog Chi tiết Phiếu - GIAO DIỆN MỚI HIỆN ĐẠI */}
             <Dialog open={detailViewOpen} onClose={handleCloseDetailView} fullWidth maxWidth="md">
                 {selectedTransfer && (
                     <>
+                        {/* Component ẩn để in */}
                         <div style={{ position: 'absolute', left: -10000, top: 0, height: 0, overflow: 'hidden' }}>
-                            <TransferPrintTemplate ref={printRef} transfer={selectedTransfer} />
+                            <TransferPrintTemplate ref={printRef} transfer={selectedTransfer} company={companyInfo} />
                         </div>
 
-                        <DialogTitle>
+                        <DialogTitle sx={{ py: 1.5, px: 2 }}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center">
                                 <Box>
                                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
@@ -2284,7 +2959,6 @@ export default function AssetTransferPage() {
                                     </Typography>
                                 </Box>
 
-                                {/* === THAY ĐỔI BẮT ĐẦU TỪ ĐÂY === */}
                                 <Stack direction="row" alignItems="center" spacing={1}>
                                     <Button
                                         variant="outlined"
@@ -2297,33 +2971,58 @@ export default function AssetTransferPage() {
                                         <X />
                                     </IconButton>
                                 </Stack>
-                                {/* === THAY ĐỔI KẾT THÚC TẠI ĐÂY === */}
-
                             </Stack>
                         </DialogTitle>
-                        <DialogContent dividers>
+                        <DialogContent dividers sx={{ bgcolor: 'grey.50' }}>
                             <Grid container spacing={3}>
+                                {/* ===== CỘT TRÁI: QUY TRÌNH & HÀNH ĐỘNG ===== */}
                                 <Grid item xs={12} md={5}>
                                     <Typography variant="overline" color="text.secondary">Quy trình ký duyệt</Typography>
-                                    <SignatureTimeline signatures={selectedTransfer.signatures} status={selectedTransfer.status} />
-                                    <Divider sx={{ my: 2 }} />
-                                    {renderActionButtons(selectedTransfer)}
-                                    {canDeleteTransfer(selectedTransfer) && (
-                                        <Button fullWidth variant="text" color="error" startIcon={<Trash2 size={16} />} onClick={() => deleteTransfer(selectedTransfer)} sx={{ mt: 1 }}>
-                                            Xóa phiếu
-                                        </Button>
-                                    )}
+                                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper' }}>
+                                        <SignatureTimeline signatures={selectedTransfer.signatures} status={selectedTransfer.status} />
+                                    </Paper>
+                                    {/* ✅ BẮT ĐẦU THÊM MÃ QR TẠI ĐÂY */}
+                                    <Box sx={{ mt: 2, textAlign: 'center' }}>
+                                        <QRCodeSVG
+                                            value={`${window.location.origin}/transfers/${selectedTransfer.id}`}
+                                            size={128}
+                                            level="H"
+                                            imageSettings={{
+                                                src: "/logo.png", // Đường dẫn tới logo trong thư mục public
+                                                height: 24,
+                                                width: 24,
+                                                excavate: true,
+                                            }}
+                                        />
+                                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+                                            Quét để mở & duyệt trên điện thoại
+                                        </Typography>
+                                    </Box>
+
+                                    <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 2, mb: 1 }}>Hành động</Typography>
+                                    <Stack spacing={1}>
+                                        {renderActionButtons(selectedTransfer)}
+                                        {canDeleteTransfer(selectedTransfer) && (
+                                            <Button fullWidth variant="text" color="error" startIcon={<Trash2 size={16} />} onClick={() => deleteTransfer(selectedTransfer)}>
+                                                Xóa phiếu
+                                            </Button>
+                                        )}
+                                    </Stack>
                                 </Grid>
+
+                                {/* ===== CỘT PHẢI: THÔNG TIN CHI TIẾT ===== */}
                                 <Grid item xs={12} md={7}>
                                     <Typography variant="overline" color="text.secondary">Thông tin luân chuyển</Typography>
-                                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 2 }}>
-                                        <Stack direction="row" alignItems="center" spacing={2}>
-                                            <Box sx={{ flex: 1 }}>
+                                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 2, bgcolor: 'background.paper' }}>
+                                        <Stack direction="row" alignItems="center" spacing={{ xs: 1, sm: 2 }} justifyContent="space-between">
+                                            <Box sx={{ flex: 1, textAlign: 'center' }}>
                                                 <Typography variant="caption">Từ phòng</Typography>
                                                 <Typography sx={{ fontWeight: 600 }}>{selectedTransfer.from}</Typography>
                                             </Box>
-                                            <ArrowRightLeft size={20} />
-                                            <Box sx={{ flex: 1 }}>
+                                            <Avatar sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                                                <ArrowRightLeft size={20} />
+                                            </Avatar>
+                                            <Box sx={{ flex: 1, textAlign: 'center' }}>
                                                 <Typography variant="caption">Đến phòng</Typography>
                                                 <Typography sx={{ fontWeight: 600 }}>{selectedTransfer.to}</Typography>
                                             </Box>
@@ -2331,19 +3030,23 @@ export default function AssetTransferPage() {
                                     </Paper>
 
                                     <Typography variant="overline" color="text.secondary">Danh sách tài sản</Typography>
-                                    <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                                    <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, bgcolor: 'background.paper' }}>
                                         <Table size="small">
                                             <TableHead>
                                                 <TableRow>
-                                                    <TableCell>Tên tài sản</TableCell>
-                                                    <TableCell align="right">Số lượng</TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold', width: '40%' }}>Tên tài sản</TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold', width: '20%' }}>Kích thước</TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold', width: '15%' }} align="right">Số lượng</TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold' }}>Ghi chú</TableCell>
                                                 </TableRow>
                                             </TableHead>
                                             <TableBody>
                                                 {(selectedTransfer.assets || []).map((a) => (
-                                                    <TableRow key={a.id}>
+                                                    <TableRow key={a.id || a.name} hover>
                                                         <TableCell>{a.name}</TableCell>
-                                                        <TableCell align="right">{a.quantity} {a.unit}</TableCell>
+                                                        <TableCell>{a.size || '—'}</TableCell>
+                                                        <TableCell align="right" sx={{ fontWeight: 500 }}>{a.quantity} {a.unit}</TableCell>
+                                                        <TableCell>{a.notes || '—'}</TableCell>
                                                     </TableRow>
                                                 ))}
                                             </TableBody>
@@ -2355,8 +3058,6 @@ export default function AssetTransferPage() {
                     </>
                 )}
             </Dialog>
-
-
             {/* Create Transfer dialog */}
             <Dialog open={isTransferModalOpen} onClose={() => { setIsTransferModalOpen(false); setAssetSearchInDialog("") }}>
                 <DialogTitle sx={{ fontWeight: 700 }}>Tạo Phiếu Luân Chuyển Tài Sản</DialogTitle>
@@ -2393,7 +3094,7 @@ export default function AssetTransferPage() {
                                         MenuProps={{ PaperProps: { sx: { maxHeight: 250 }, }, }}
                                     >
                                         {assetsWithAvailability
-                                            .filter((a) => a.departmentId === fromDept && norm(a.name).includes(norm(assetSearchInDialog)))
+                                            .filter((a) => a.departmentId === fromDept && normVn(a.name).includes(normVn(assetSearchInDialog)))
                                             .map((a) => (
                                                 <MenuItem key={a.id} value={a.id} disabled={a.availableQuantity <= 0}>
                                                     <Checkbox checked={selectedAssets.indexOf(a.id) > -1} />
@@ -2402,7 +3103,7 @@ export default function AssetTransferPage() {
                                                 </MenuItem>
                                             ))}
                                         {assetsWithAvailability.filter((a) => a.departmentId === fromDept).length === 0 && (<MenuItem disabled>Không có tài sản nào trong phòng này.</MenuItem>)}
-                                        {assetsWithAvailability.filter((a) => a.departmentId === fromDept && norm(a.name).includes(norm(assetSearchInDialog))).length === 0
+                                        {assetsWithAvailability.filter((a) => a.departmentId === fromDept && normVn(a.name).includes(normVn(assetSearchInDialog))).length === 0
                                             && assetsWithAvailability.filter((a) => a.departmentId === fromDept).length > 0 && (<MenuItem disabled>Không tìm thấy tài sản phù hợp.</MenuItem>)}
                                     </Select>
                                 </FormControl>
@@ -2516,6 +3217,60 @@ export default function AssetTransferPage() {
             </Dialog>
 
 
+            {/* ✅ THÊM DIALOG MỚI CHO VIỆC GIẢM SỐ LƯỢNG */}
+            <Dialog open={!!reduceQuantityTarget} onClose={() => setReduceQuantityTarget(null)}>
+                <DialogTitle>Xác nhận Giảm Số lượng Tài sản</DialogTitle>
+                <DialogContent>
+                    <DialogContentText component="div" sx={{ mb: 2 }}>
+                        Tài sản "<b>{reduceQuantityTarget?.name}</b>" đang có <b>{reduceQuantityTarget?.quantity}</b> {reduceQuantityTarget?.unit}.
+                        <br />
+                        Vui lòng nhập số lượng bạn muốn xóa (giảm bớt). Một yêu cầu sẽ được tạo để chờ duyệt.
+                    </DialogContentText>
+                    <TextField
+                        autoFocus
+                        margin="dense"
+                        id="quantity-to-delete"
+                        label={`Số lượng muốn xóa (tối đa ${reduceQuantityTarget?.quantity})`}
+                        type="number"
+                        fullWidth
+                        variant="outlined"
+                        value={quantityToDelete}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "") {
+                                setQuantityToDelete("");
+                                return;
+                            }
+                            const num = parseInt(val, 10);
+                            const max = reduceQuantityTarget?.quantity || 1;
+                            // Ràng buộc giá trị nhập vào
+                            if (num <= 0) {
+                                setQuantityToDelete(1);
+                            } else if (num > max) {
+                                setQuantityToDelete(max);
+                            } else {
+                                setQuantityToDelete(num);
+                            }
+                        }}
+                        inputProps={{
+                            min: 1,
+                            max: reduceQuantityTarget?.quantity,
+                        }}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setReduceQuantityTarget(null)}>Hủy</Button>
+                    <Button
+                        onClick={handleConfirmReduceQuantity}
+                        color="error"
+                        variant="contained"
+                        // Vô hiệu hóa nút nếu không nhập số lượng
+                        disabled={!quantityToDelete || quantityToDelete <= 0}
+                    >
+                        Gửi Yêu Cầu
+                    </Button>
+                </DialogActions>
+            </Dialog>
             {/* DELETE REQUEST CONFIRM DIALOG (NEW) */}
             <Dialog open={!!deleteRequestConfirm} onClose={() => setDeleteRequestConfirm(null)}>
                 <DialogTitle>Xác nhận Xóa Yêu cầu</DialogTitle>
@@ -2538,10 +3293,16 @@ export default function AssetTransferPage() {
                     </Button>
                 </DialogActions>
             </Dialog>
-            {/* --- Dialog Chi tiết Yêu cầu Thay đổi (NEW) --- */}
+
+            {/* --- Dialog Chi tiết Yêu cầu Thay đổi (ĐÃ CẬP NHẬT HOÀN CHỈNH) --- */}
             <Dialog open={isRequestDetailOpen} onClose={handleCloseRequestDetail} fullWidth maxWidth="md">
                 {selectedRequest && (
                     <>
+                        {/* Component ẩn để in */}
+                        <div style={{ display: 'none' }}>
+                            <RequestPrintTemplate ref={requestPrintRef} request={selectedRequest} company={companyInfo} />
+                        </div>
+
                         <DialogTitle>
                             <Stack direction="row" justifyContent="space-between" alignItems="center">
                                 <Box>
@@ -2552,7 +3313,17 @@ export default function AssetTransferPage() {
                                         Tạo bởi {selectedRequest.requester?.name} lúc {fullTime(selectedRequest.createdAt)}
                                     </Typography>
                                 </Box>
-                                <IconButton onClick={handleCloseRequestDetail}><X /></IconButton>
+                                <Stack direction="row" alignItems="center" spacing={1}>
+                                    {/* Nút In phiếu */}
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<Printer size={16} />}
+                                        onClick={handlePrintRequest}
+                                    >
+                                        In phiếu
+                                    </Button>
+                                    <IconButton onClick={handleCloseRequestDetail}><X /></IconButton>
+                                </Stack>
                             </Stack>
                         </DialogTitle>
                         <DialogContent dividers>
@@ -2560,26 +3331,59 @@ export default function AssetTransferPage() {
                                 {/* Cột trái: Thông tin duyệt */}
                                 <Grid item xs={12} md={5}>
                                     <Typography variant="overline" color="text.secondary">Quy trình ký duyệt</Typography>
-                                    <RequestSignatureTimeline signatures={selectedRequest.signatures} />
-
+                                    <RequestSignatureTimeline signatures={selectedRequest.signatures} status={selectedRequest.status} blockName={selectedRequest.managementBlock} />
+                                    {/* ✅ BẮT ĐẦU THÊM MÃ QR TẠI ĐÂY */}
+                                    <Box sx={{ mt: 2, textAlign: 'center' }}>
+                                        <QRCodeSVG
+                                            value={`${window.location.origin}/asset-requests/${selectedRequest.id}`}
+                                            size={128}
+                                            level="H"
+                                            imageSettings={{
+                                                src: "/logo.png", // Đường dẫn tới logo trong thư mục public
+                                                height: 24,
+                                                width: 24,
+                                                excavate: true,
+                                            }}
+                                        />
+                                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+                                            Quét để mở & duyệt trên điện thoại
+                                        </Typography>
+                                    </Box>
+                                    {/* ✅ KẾT THÚC THÊM MÃ QR */}
                                     <Divider sx={{ my: 2 }} />
 
                                     <Typography variant="overline" color="text.secondary">Hành động</Typography>
                                     <Stack spacing={1} sx={{ mt: 1 }}>
-                                        {canProcessRequest(selectedRequest) ? (
-                                            <>
-                                                <Button variant="contained" onClick={() => handleProcessRequest(selectedRequest, 'approve')} disabled={isProcessingRequest[selectedRequest.id]} startIcon={<Check size={16} />}>
-                                                    {isProcessingRequest[selectedRequest.id] ? "Đang xử lý..." : "Duyệt Yêu Cầu"}
-                                                </Button>
-                                                <Button variant="outlined" color="error" onClick={() => { setRejectConfirm(selectedRequest); handleCloseRequestDetail(); }} disabled={isProcessingRequest[selectedRequest.id]}>
-                                                    Từ chối Yêu cầu
-                                                </Button>
-                                            </>
-                                        ) : (
+                                        {canProcessRequest(selectedRequest) && (
+                                            <Button
+                                                variant="contained"
+                                                onClick={() => handleProcessRequest(selectedRequest, 'approve')}
+                                                disabled={isProcessingRequest[selectedRequest.id]}
+                                                startIcon={<Check size={16} />}
+                                            >
+                                                {isProcessingRequest[selectedRequest.id] ? "Đang xử lý..." : "Duyệt Yêu Cầu"}
+                                            </Button>
+                                        )}
+                                        {canProcessRequest(selectedRequest) && (
+                                            <Button
+                                                variant="outlined"
+                                                color="error"
+                                                onClick={() => { setRejectConfirm(selectedRequest); handleCloseRequestDetail(); }}
+                                                disabled={isProcessingRequest[selectedRequest.id]}
+                                            >
+                                                Từ chối Yêu cầu
+                                            </Button>
+                                        )}
+                                        {!canProcessRequest(selectedRequest) && selectedRequest.status !== 'COMPLETED' && selectedRequest.status !== 'REJECTED' && (
                                             <Button variant="outlined" disabled>Đã xử lý hoặc chờ lượt</Button>
                                         )}
                                         {currentUser?.role === 'admin' &&
-                                            <Button variant="text" color="error" startIcon={<Trash2 size={16} />} onClick={() => { setDeleteRequestConfirm(selectedRequest); handleCloseRequestDetail(); }}>
+                                            <Button
+                                                variant="text"
+                                                color="error"
+                                                startIcon={<Trash2 size={16} />}
+                                                onClick={() => { setDeleteRequestConfirm(selectedRequest); handleCloseRequestDetail(); }}
+                                            >
                                                 Xóa vĩnh viễn (Admin)
                                             </Button>
                                         }
@@ -2589,7 +3393,6 @@ export default function AssetTransferPage() {
                                 {/* Cột phải: Thông tin tài sản */}
                                 <Grid item xs={12} md={7}>
                                     <Typography variant="overline" color="text.secondary">Thông tin tài sản được yêu cầu</Typography>
-                                    {/* Thay thế khối <Paper> chứa <Stack spacing={1}> */}
                                     <Paper variant="outlined" sx={{ p: 0, borderRadius: 2, overflow: 'hidden' }}>
                                         <Table size="small">
                                             <TableBody>
@@ -2597,9 +3400,15 @@ export default function AssetTransferPage() {
                                                     <TableCell variant="head" sx={{ fontWeight: 'bold', width: '35%' }}>Loại yêu cầu</TableCell>
                                                     <TableCell>
                                                         <Chip
-                                                            label={selectedRequest.type === 'ADD' ? 'YÊU CẦU THÊM MỚI' : 'YÊU CẦU XÓA'}
+                                                            label={
+                                                                selectedRequest.type === 'ADD' ? 'YÊU CẦU THÊM MỚI' :
+                                                                    selectedRequest.type === 'DELETE' ? 'YÊU CẦU XÓA TOÀN BỘ' : 'YÊU CẦU GIẢM SỐ LƯỢNG'
+                                                            }
                                                             size="small"
-                                                            color={selectedRequest.type === 'ADD' ? 'success' : 'error'}
+                                                            color={
+                                                                selectedRequest.type === 'ADD' ? 'success' :
+                                                                    selectedRequest.type === 'DELETE' ? 'error' : 'warning'
+                                                            }
                                                         />
                                                     </TableCell>
                                                 </TableRow>
@@ -2613,10 +3422,17 @@ export default function AssetTransferPage() {
                                                 </TableRow>
                                                 <TableRow>
                                                     <TableCell variant="head" sx={{ fontWeight: 'bold' }}>Phòng ban</TableCell>
-                                                    <TableCell>{departments.find(d => d.id === selectedRequest.assetData?.departmentId)?.name}</TableCell>
+                                                    <TableCell>{selectedRequest.departmentName}</TableCell>
                                                 </TableRow>
                                                 <TableRow>
-                                                    <TableCell variant="head" sx={{ fontWeight: 'bold' }}>Số lượng</TableCell>
+                                                    <TableCell variant="head" sx={{ fontWeight: 'bold' }}>Khối</TableCell>
+                                                    <TableCell>{selectedRequest.managementBlock || '—'}</TableCell>
+                                                </TableRow>
+                                                <TableRow>
+                                                    <TableCell variant="head" sx={{ fontWeight: 'bold' }}>
+                                                        {selectedRequest.type === 'REDUCE_QUANTITY' ? 'Số lượng cần giảm' :
+                                                            selectedRequest.type === 'DELETE' ? 'Số lượng hiện có' : 'Số lượng'}
+                                                    </TableCell>
                                                     <TableCell>{selectedRequest.assetData?.quantity} {selectedRequest.assetData?.unit}</TableCell>
                                                 </TableRow>
                                                 <TableRow>
@@ -2640,42 +3456,108 @@ export default function AssetTransferPage() {
                 )}
             </Dialog>
 
-            <Dialog open={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)}>
-                <DialogTitle>Tạo Báo cáo & In</DialogTitle>
+            <Dialog open={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} fullWidth maxWidth="sm">
+                <DialogTitle sx={{ fontWeight: 700 }}>Tạo Báo cáo Kiểm kê</DialogTitle>
                 <DialogContent>
-                    <DialogContentText sx={{ mb: 2 }}>
-                        Chọn loại báo cáo bạn muốn tạo. Báo cáo sẽ được tạo và đưa vào luồng ký duyệt trước khi có thể in chính thức.
+                    <DialogContentText sx={{ mb: 3 }}>
+                        Chọn loại báo cáo bạn muốn tạo. Báo cáo sẽ được tạo và đưa vào luồng ký duyệt.
                     </DialogContentText>
-                    <FormControl fullWidth sx={{ mb: 2 }}>
-                        <InputLabel>Loại Báo cáo</InputLabel>
-                        <Select
-                            value={printType}
-                            label="Loại Báo cáo"
-                            onChange={(e) => setPrintType(e.target.value)}
-                        >
-                            <MenuItem value="department">Biên bản Kiểm kê/Bàn giao theo Phòng</MenuItem>
-                            <MenuItem value="summary">Báo cáo Tổng hợp Toàn công ty</MenuItem>
-                        </Select>
-                    </FormControl>
-                    {printType === 'department' && (
-                        <FormControl fullWidth>
-                            <InputLabel>Chọn Phòng ban</InputLabel>
-                            <Select
-                                value={selectedDeptForPrint}
-                                label="Chọn Phòng ban"
-                                onChange={(e) => setSelectedDeptForPrint(e.target.value)}
+
+                    <Grid container spacing={2}>
+                        {/* THẺ CHỌN 1: BÁO CÁO THEO KHỐI */}
+                        <Grid item xs={12} sm={6}>
+                            <Card
+                                variant="outlined"
+                                sx={{
+                                    height: '100%',
+                                    borderColor: printType === 'block' ? 'primary.main' : 'divider',
+                                    boxShadow: printType === 'block' ? '0 2px 12px rgba(0,0,0,0.08)' : 'none'
+                                }}
                             >
-                                {departments.map(d => (
-                                    <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    )}
+                                <CardActionArea onClick={() => setPrintType('block')} sx={{ p: 2, height: '100%' }}>
+                                    <Stack direction="row" spacing={2} alignItems="center">
+                                        <Avatar sx={{ bgcolor: printType === 'block' ? 'primary.main' : 'grey.300', color: 'white' }}>
+                                            <Users size={20} />
+                                        </Avatar>
+                                        <Box>
+                                            <Typography sx={{ fontWeight: 600 }}>Theo Phòng</Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                Kiểm kê/Bàn giao tài sản cho các phòng.
+                                            </Typography>
+                                        </Box>
+                                    </Stack>
+                                </CardActionArea>
+                            </Card>
+                        </Grid>
+
+                        {/* THẺ CHỌN 2: BÁO CÁO TOÀN CÔNG TY */}
+                        <Grid item xs={12} sm={6}>
+                            <Card
+                                variant="outlined"
+                                sx={{
+                                    height: '100%',
+                                    borderColor: printType === 'summary' ? 'primary.main' : 'divider',
+                                    boxShadow: printType === 'summary' ? '0 2px 12px rgba(0,0,0,0.08)' : 'none'
+                                }}
+                            >
+                                <CardActionArea onClick={() => setPrintType('summary')} sx={{ p: 2, height: '100%' }}>
+                                    <Stack direction="row" spacing={2} alignItems="center">
+                                        <Avatar sx={{ bgcolor: printType === 'summary' ? 'primary.main' : 'grey.300', color: 'white' }}>
+                                            <Warehouse size={20} />
+                                        </Avatar>
+                                        <Box>
+                                            <Typography sx={{ fontWeight: 600 }}>Toàn công ty</Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                Báo cáo tổng hợp tài sản toàn bộ công ty.
+                                            </Typography>
+                                        </Box>
+                                    </Stack>
+                                </CardActionArea>
+                            </Card>
+                        </Grid>
+                    </Grid>
+
+                    {/* Ô CHỌN KHỐI (chỉ hiện khi cần) */}
+                    <Collapse in={printType === 'block'} timeout={300}>
+                        <Autocomplete
+                            options={departments}
+                            // ✅ CẬP NHẬT 1: Vô hiệu hóa lựa chọn nếu phòng không có tài sản
+                            getOptionDisabled={(option) => departmentAssetCounts[option.id] === 0}
+                            // ✅ CẬP NHẬT 2: Hiển thị số lượng tài sản bên cạnh tên phòng
+                            getOptionLabel={(option) =>
+                                `${option.name || ''} (${departmentAssetCounts[option.id] || 0} tài sản)`
+                            }
+                            value={departments.find(d => d.id === selectedDeptForPrint) || null}
+                            onChange={(event, newValue) => {
+                                setSelectedDeptForPrint(newValue ? newValue.id : '');
+                            }}
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Chọn Phòng ban"
+                                    margin="normal"
+                                    fullWidth
+                                />
+                            )}
+                            sx={{ mt: 1 }}
+                        />
+                    </Collapse>
+
                 </DialogContent>
-                <DialogActions>
+                <DialogActions sx={{ p: '16px 24px' }}>
                     <Button onClick={() => setIsPrintModalOpen(false)}>Hủy</Button>
-                    <Button onClick={handleCreatePrintRequest} variant="contained">
-                        Tạo Yêu cầu
+                    <Button
+                        onClick={handleCreatePrintRequest}
+                        variant="contained"
+                        disabled={
+                            isCreatingReport ||
+                            // ✅ THÊM ĐIỀU KIỆN KIỂM TRA NÀY
+                            (printType === 'department' && (!selectedDeptForPrint || departmentAssetCounts[selectedDeptForPrint] === 0)) ||
+                            (printType === 'summary' && assets.length === 0) || // Tùy chọn: Vô hiệu hóa nếu toàn công ty không có tài sản
+                            !printType
+                        }
+                    >
+                        {isCreatingReport ? "Đang xử lý..." : "Tạo Yêu cầu"}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -2684,7 +3566,7 @@ export default function AssetTransferPage() {
                     <>
                         {/* Component ẩn để in - SẼ CHỌN TEMPLATE PHÙ HỢP */}
                         <div style={{ position: 'absolute', left: -10000, top: 0, height: 0, overflow: 'hidden' }}>
-                            {selectedReport.type === 'DEPARTMENT_INVENTORY'
+                            {(selectedReport.type === 'DEPARTMENT_INVENTORY' || selectedReport.type === 'BLOCK_INVENTORY')
                                 ? <AssetListPrintTemplate ref={reportPrintRef} report={selectedReport} company={companyInfo} />
                                 : <AssetSummaryPrintTemplate ref={reportPrintRef} report={selectedReport} company={companyInfo} />
                             }
@@ -2709,6 +3591,23 @@ export default function AssetTransferPage() {
                                 <Grid item xs={12} md={5}>
                                     <Typography variant="overline" color="text.secondary">Quy trình ký duyệt</Typography>
                                     <ReportSignatureTimeline signatures={selectedReport.signatures} status={selectedReport.status} type={selectedReport.type} />
+                                    {/* ✅ BẮT ĐẦU THÊM MÃ QR TẠI ĐÂY */}
+                                    <Box sx={{ mt: 2, textAlign: 'center' }}>
+                                        <QRCodeSVG
+                                            value={`${window.location.origin}/inventory-reports/${selectedReport.id}`}
+                                            size={128}
+                                            level="H"
+                                            imageSettings={{
+                                                src: "/logo.png", // Đường dẫn tới logo trong thư mục public
+                                                height: 24,
+                                                width: 24,
+                                                excavate: true,
+                                            }}
+                                        />
+                                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+                                            Quét để mở báo cáo trên điện thoại
+                                        </Typography>
+                                    </Box>
                                     <Divider sx={{ my: 2 }} />
 
                                     {/* Nút Duyệt */}
@@ -2746,19 +3645,57 @@ export default function AssetTransferPage() {
                                         <Table size="small" stickyHeader>
                                             <TableHead>
                                                 <TableRow>
-                                                    <TableCell sx={{ fontWeight: 'bold' }}>Tên tài sản</TableCell>
-                                                    <TableCell sx={{ fontWeight: 'bold' }} align="right">Số lượng</TableCell>
-                                                    <TableCell sx={{ fontWeight: 'bold' }}>ĐVT</TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold', width: '35%' }}>Tên tài sản</TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold', width: '15%' }}>Kích thước</TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold', width: '10%' }} align="right">Số lượng</TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold', width: '10%' }}>ĐVT</TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold' }}>Ghi chú</TableCell>
                                                 </TableRow>
                                             </TableHead>
                                             <TableBody>
-                                                {(selectedReport.assets || []).map((a, index) => (
-                                                    <TableRow key={a.id || index}>
-                                                        <TableCell>{a.name}</TableCell>
-                                                        <TableCell align="right">{a.quantity}</TableCell>
-                                                        <TableCell>{a.unit}</TableCell>
+                                                {groupedReportAssets.length > 0 ? groupedReportAssets.map((block) => (
+                                                    <React.Fragment key={block.blockName}>
+                                                        <TableRow>
+                                                            <TableCell
+                                                                colSpan={5}
+                                                                sx={{
+                                                                    fontWeight: 800,
+                                                                    textTransform: 'uppercase',
+                                                                    bgcolor: 'grey.200',
+                                                                    color: 'grey.800',
+                                                                    borderBottom: '2px solid',
+                                                                    borderColor: 'grey.400'
+                                                                }}
+                                                            >
+                                                                Khối: {block.blockName}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        {block.departments.map(dept => (
+                                                            <React.Fragment key={dept.deptName}>
+                                                                <TableRow>
+                                                                    <TableCell colSpan={5} sx={{ fontWeight: 600, bgcolor: 'grey.50', pl: 4 }}>
+                                                                        Phòng: {dept.deptName}
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                                {dept.assets.map((a, index) => (
+                                                                    <TableRow key={a.id || index}>
+                                                                        <TableCell sx={{ pl: 6 }}>{a.name}</TableCell>
+                                                                        <TableCell>{a.size || '—'}</TableCell>
+                                                                        <TableCell align="right">{a.quantity}</TableCell>
+                                                                        <TableCell>{a.unit}</TableCell>
+                                                                        <TableCell>{a.notes || '—'}</TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </React.Fragment>
+                                                        ))}
+                                                    </React.Fragment>
+                                                )) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                                                            <Typography color="text.secondary">Không có tài sản nào trong báo cáo này.</Typography>
+                                                        </TableCell>
                                                     </TableRow>
-                                                ))}
+                                                )}
                                             </TableBody>
                                         </Table>
                                     </TableContainer>

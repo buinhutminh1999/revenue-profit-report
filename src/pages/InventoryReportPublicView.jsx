@@ -1,132 +1,144 @@
 import React, {
-    useState,
-    useEffect,
-    useRef,
-    useMemo,
+    useState,
+    useEffect,
+    useRef,
+    useMemo,
+    useCallback,
 } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import {
-    doc,
-    runTransaction,
-    serverTimestamp,
-    onSnapshot,
-    collection,
-    getDoc,
+    doc,
+    runTransaction,
+    serverTimestamp,
+    onSnapshot,
+    collection,
+    getDoc,
+    getDocs,
 } from "firebase/firestore";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { db } from "../services/firebase-config";
 
 import {
-    Box,
-    Typography,
-    CircularProgress,
-    Button,
-    Container,
-    Stack,
-    Alert,
-    Chip,
-    Snackbar,
-    Grid,
-    Card,
-    CardContent,
-    Paper,
-    Divider,
-    Tooltip,
-    IconButton,
-    Skeleton,
-    useTheme,
-    ButtonGroup,
+    Box,
+    Typography,
+    CircularProgress,
+    Button,
+    Container,
+    Stack,
+    Alert,
+    Chip,
+    Snackbar,
+    Grid,
+    Card,
+    CardContent,
+    Paper,
+    Divider,
+    Tooltip,
+    IconButton,
+    useTheme,
+    ButtonGroup,
 } from "@mui/material";
 import { styled, alpha } from "@mui/material/styles";
 import {
-    ArrowLeft,
-    Printer,
-    Check,
-    Clock,
-    MoreHorizontal,
-    UserCheck,
-    CheckCircle2,
-    FileText,
-    Copy,
-    ZoomIn,
-    ZoomOut,
+    ArrowLeft,
+    Printer,
+    Check,
+    Clock,
+    MoreHorizontal,
+    UserCheck,
+    CheckCircle2,
+    FileText,
+    Copy,
+    ZoomIn,
+    ZoomOut,
 } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 
-// ================== IMPORT CÁC MẪU IN ==================
 import { AssetListPrintTemplate } from "../components/AssetListPrintTemplate";
 import { AssetSummaryPrintTemplate } from "../components/AssetSummaryPrintTemplate";
 
 // ================== CONFIG & HELPERS ==================
 const reportStatusConfig = {
-    PENDING_HC: { label: "Chờ P.HC duyệt", color: "warning" },
-    PENDING_DEPT_LEADER: { label: "Chờ Lãnh đạo Phòng", color: "info" },
-    PENDING_KT: { label: "Chờ P.KT duyệt", color: "info" },
-    PENDING_DIRECTOR: { label: "Chờ BTGĐ duyệt", color: "primary" },
-    COMPLETED: { label: "Hoàn thành", color: "success" },
-    REJECTED: { label: "Bị từ chối", color: "error" },
+    PENDING_HC: { label: "Chờ P.HC duyệt", color: "warning" },
+    PENDING_DEPT_LEADER: { label: "Chờ Lãnh đạo Phòng", color: "info" },
+    PENDING_KT: { label: "Chờ P.KT duyệt", color: "info" },
+    PENDING_DIRECTOR: { label: "Chờ BTGĐ duyệt", color: "primary" },
+    COMPLETED: { label: "Hoàn thành", color: "success" },
+    REJECTED: { label: "Bị từ chối", color: "error" },
 };
 
 const reportWorkflows = {
-    DEPARTMENT_INVENTORY: [
-        { status: "PENDING_HC", label: "P. Hành chính Ký duyệt", signatureKey: "hc" },
-        { status: "PENDING_DEPT_LEADER", label: "Lãnh đạo Phòng Ký nhận", signatureKey: "deptLeader" },
-        { status: "PENDING_DIRECTOR", label: "BTGĐ duyệt", signatureKey: "director" },
-    ],
-    SUMMARY_REPORT: [
-        { status: "PENDING_HC", label: "P.HC duyệt", signatureKey: "hc" },
-        { status: "PENDING_KT", label: "P.KT duyệt", signatureKey: "kt" },
-        { status: "PENDING_DIRECTOR", label: "BTGĐ duyệt", signatureKey: "director" },
-    ],
-};
-
-const hardcodedCompanyInfo = {
-    name: "CÔNG TY CP XÂY DỰNG BÁCH KHOA",
-    address: "Số 39, Đường Trần Hưng Đạo, Phường Mỹ Long, TP. Long Xuyên, Tỉnh An Giang",
-    phone: "02963 835 787",
+    DEPARTMENT_INVENTORY: [
+        { status: "PENDING_HC", label: "P. Hành chính Ký duyệt", signatureKey: "hc" },
+        { status: "PENDING_DEPT_LEADER", label: "Lãnh đạo Phòng Ký nhận", signatureKey: "deptLeader" },
+        { status: "PENDING_DIRECTOR", label: "BTGĐ duyệt", signatureKey: "director" },
+    ],
+    BLOCK_INVENTORY: [
+        { status: "PENDING_HC", label: "P. Hành chính Ký duyệt", signatureKey: "hc" },
+        { status: "PENDING_DEPT_LEADER", label: "Lãnh đạo Khối Ký nhận", signatureKey: "deptLeader" },
+        { status: "PENDING_DIRECTOR", label: "BTGĐ duyệt", signatureKey: "director" },
+    ],
+    SUMMARY_REPORT: [
+        { status: "PENDING_HC", label: "P.HC duyệt", signatureKey: "hc" },
+        { status: "PENDING_KT", label: "P.KT duyệt", signatureKey: "kt" },
+        { status: "PENDING_DIRECTOR", label: "BTGĐ duyệt", signatureKey: "director" },
+    ],
 };
 
 const fullTime = (ts) => {
-    const d = ts?.toDate ? ts.toDate() : new Date(ts);
-    if (!d || Number.isNaN(+d)) return "";
-    return d.toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+    const d = ts?.toDate ? ts.toDate() : new Date(ts);
+    if (!d || Number.isNaN(+d)) return "";
+    return d.toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
 };
 
-const makeCanProcessReport = (currentUser, departments) => (report) => {
-    if (!currentUser || !report || ["COMPLETED", "REJECTED"].includes(report.status))
-        return false;
-    if (currentUser?.role === "admin") return true;
+// ✅ HÀM KIỂM TRA QUYỀN MỚI, ĐỒNG BỘ VỚI AssetTransferPage
+const canProcessReport = (report, currentUser, departments, blockLeaders, approvalPermissions) => {
+    if (!currentUser || !report || !blockLeaders || !departments || !approvalPermissions) return false;
+    if (report.status === 'COMPLETED' || report.status === 'REJECTED') return false;
+    if (currentUser?.role === 'admin') return true;
 
-    const reportDept = departments.find((d) => d.id === report.departmentId);
-    const checkPermission = (key) => {
-        if (reportDept)
-            return (reportDept[key] || []).includes(currentUser.uid);
-        return departments.some((d) => (d[key] || []).includes(currentUser.uid));
-    };
+    const reportDept = departments.find(d => d.id === report.departmentId);
+    const managementBlock = report.blockName || reportDept?.managementBlock;
 
-    switch (report.status) {
-        case "PENDING_HC": return checkPermission("hcStep3ApproverIds");
-        case "PENDING_DEPT_LEADER": {
-            if (!reportDept) return false;
-            const leaderIds = [...(reportDept.headIds || []), ...(reportDept.deputyIds || [])];
-            return leaderIds.includes(currentUser.uid);
-        }
-        case "PENDING_KT": return checkPermission("ktApproverIds");
-        case "PENDING_DIRECTOR": return checkPermission("directorApproverIds");
-        default: return false;
-    }
+    const permissionGroupKey = managementBlock === 'Nhà máy' ? 'Nhà máy' : 'default';
+    const permissions = approvalPermissions[permissionGroupKey];
+
+    switch (report.status) {
+        case 'PENDING_DEPT_LEADER': {
+            if (!managementBlock || !blockLeaders[managementBlock]) return false;
+            const leadersOfBlock = blockLeaders[managementBlock];
+            const leaderIds = [...(leadersOfBlock.headIds || []), ...(leadersOfBlock.deputyIds || [])];
+            return leaderIds.includes(currentUser.uid);
+        }
+        case 'PENDING_HC':
+            return (permissions?.hcApproverIds || []).includes(currentUser.uid);
+        case 'PENDING_KT':
+            return (permissions?.ktApproverIds || []).includes(currentUser.uid);
+        case 'PENDING_DIRECTOR': {
+            if (managementBlock && blockLeaders[managementBlock]) {
+                const leadersOfBlock = blockLeaders[managementBlock];
+                return (leadersOfBlock.directorApproverIds || []).includes(currentUser.uid);
+            } else if (!managementBlock && report.type === 'SUMMARY_REPORT') {
+                const adminBlockLeaders = blockLeaders["Hành chính"];
+                return (adminBlockLeaders?.directorApproverIds || []).includes(currentUser.uid);
+            }
+            return false;
+        }
+        default:
+            return false;
+    }
 };
 
 // ================== UI COMPONENTS ==================
 const ReportHeader = styled(Paper)(({ theme }) => ({
-    position: "sticky", top: 0, zIndex: 1100, backdropFilter: "blur(16px)",
-    backgroundColor: alpha(theme.palette.background.paper, 0.75),
-    borderBottom: `1px solid ${theme.palette.divider}`, borderRadius: 0,
+    position: "sticky", top: 0, zIndex: 1100, backdropFilter: "blur(16px)",
+    backgroundColor: alpha(theme.palette.background.paper, 0.75),
+    borderBottom: `1px solid ${theme.palette.divider}`, borderRadius: 0,
 }));
 
 const StatusBadge = ({ status }) => {
-    const cfg = reportStatusConfig[status] || { label: status, color: "default" };
-    return <Chip label={cfg.label} color={cfg.color} size="small" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }} />;
+    const cfg = reportStatusConfig[status] || { label: status, color: "default" };
+    return <Chip label={cfg.label} color={cfg.color} size="small" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }} />;
 };
 
 const EnhancedWorkflowStepper = ({ report, workflow }) => {
@@ -145,14 +157,18 @@ const EnhancedWorkflowStepper = ({ report, workflow }) => {
                 else { icon = <MoreHorizontal size={20} />; }
 
                 return (
-                    <Stack key={step.signatureKey} direction="row" spacing={2} sx={{ alignItems: "flex-start" }}>
-                        <Stack alignItems="center" sx={{ position: "relative", minHeight: "60px" }}>
+                    // ✅ Bọc trong một Box để kiểm soát layout tốt hơn
+                    <Box key={step.signatureKey} sx={{ display: 'flex', alignItems: 'flex-start', position: 'relative', pb: index < workflow.length - 1 ? 2.5 : 0 }}>
+                        {/* Cột timeline icon */}
+                        <Stack alignItems="center" sx={{ mr: 2, flexShrink: 0 }}>
                             <Box sx={{ color: iconColor, lineHeight: 1 }}>{icon}</Box>
                             {index < workflow.length - 1 && (
                                 <Box sx={{ width: "2px", flexGrow: 1, my: 1, background: isCompleted ? "success.main" : "divider" }} />
                             )}
                         </Stack>
-                        <Box sx={{ pb: index < workflow.length - 1 ? 2.5 : 0, mt: "-4px" }}>
+
+                        {/* Cột nội dung */}
+                        <Box sx={{ mt: "-4px", flexGrow: 1 }}>
                             <Typography variant="body1" fontWeight={isActive ? 700 : 500} color={isFuture ? "text.disabled" : "text.primary"}>
                                 {step.label}
                             </Typography>
@@ -165,7 +181,7 @@ const EnhancedWorkflowStepper = ({ report, workflow }) => {
                                 <Typography variant="caption" color="primary.main">Đang chờ ký...</Typography>
                             )}
                         </Box>
-                    </Stack>
+                    </Box>
                 );
             })}
         </Stack>
@@ -207,13 +223,13 @@ const ControlSidebar = ({ report, workflow, onApprove, isApproving, canProcess, 
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Typography variant="body2" color="text.secondary">Loại biên bản</Typography>
                         <Typography fontWeight={700}>
-                            {report.type === "DEPARTMENT_INVENTORY" ? "Kiểm kê phòng ban" : "Báo cáo Tổng hợp"}
+                            {report.type === "DEPARTMENT_INVENTORY" ? "Kiểm kê phòng ban" : report.type === "BLOCK_INVENTORY" ? "Kiểm kê khối" : "Báo cáo Tổng hợp"}
                         </Typography>
                     </Stack>
-                    {report.type === "DEPARTMENT_INVENTORY" && (
-                        <Stack direction="row" justifyContent="space-between" alignItems="center">
-                            <Typography variant="body2" color="text.secondary">Phòng ban</Typography>
-                            <Chip size="small" label={departmentMap?.[report.departmentId] || report.departmentName || "—"} />
+                    {(report.type === "DEPARTMENT_INVENTORY" || report.type === "BLOCK_INVENTORY") && (
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                            <Typography variant="body2" color="text.secondary" sx={{ mr: 1, flexShrink: 0 }}>Phòng/Khối</Typography>
+                            <Chip size="small" label={report.departmentName || report.blockName || "—"} />
                         </Stack>
                     )}
                 </Stack>
@@ -237,18 +253,19 @@ export default function InventoryReportPublicView() {
     const [busy, setBusy] = useState(false);
     const [toast, setToast] = useState({ open: false, msg: "", severity: "info" });
     const [scale, setScale] = useState(1);
+    const [companyInfo, setCompanyInfo] = useState(null);
+    const [blockLeaders, setBlockLeaders] = useState(null);
+    const [approvalPermissions, setApprovalPermissions] = useState(null);
 
-    // ================== BỘ CHỌN MẪU IN TỰ ĐỘNG ==================
     const PrintTemplateMap = {
         DEPARTMENT_INVENTORY: AssetListPrintTemplate,
+        BLOCK_INVENTORY: AssetListPrintTemplate,
         SUMMARY_REPORT: AssetSummaryPrintTemplate,
     };
 
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, async (u) => {
-            if (!u) {
-                navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`, { replace: true });
-            } else {
+            if (u) {
                 const userDoc = await getDoc(doc(db, "users", u.uid));
                 setCurrentUser({
                     uid: u.uid,
@@ -256,13 +273,45 @@ export default function InventoryReportPublicView() {
                     displayName: userDoc.data()?.displayName || u.displayName || u.email,
                     role: userDoc.data()?.role || "user",
                 });
+            } else {
+                navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`, { replace: true });
             }
         });
         return () => unsub();
     }, [auth, navigate, location]);
+    
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                const configDoc = await getDoc(doc(db, "app_config", "leadership"));
+                if (configDoc.exists()) {
+                    const configData = configDoc.data();
+                    setBlockLeaders(configData.blockLeaders || {});
+                    setApprovalPermissions(configData.approvalPermissions || {});
+                } else {
+                    throw new Error("Không tìm thấy document cấu hình 'app_config/leadership'.");
+                }
+                
+                const deptsSnapshot = await getDocs (collection(db, "departments"));
+                setDepartments(deptsSnapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+
+                setCompanyInfo({
+                    name: 'CÔNG TY CP XÂY DỰNG BÁCH KHOA',
+                    address: 'Số 39, Đường Trần Hưng Đạo, Phường Long Xuyên, Tỉnh An Giang',
+                    phone: '02963 835 787'
+                });
+            } catch (err) {
+                console.error("Lỗi tải dữ liệu ban đầu:", err);
+                setError("Không thể tải dữ liệu cấu hình cần thiết.");
+                setLoading(false);
+            }
+        };
+        fetchInitialData();
+    }, []);
 
     useEffect(() => {
-        if (!reportId) return;
+        if (!reportId || !departments || !blockLeaders || !approvalPermissions) return;
+
         setLoading(true);
         const unsub = onSnapshot(doc(db, "inventory_reports", reportId),
             (docSnap) => {
@@ -270,53 +319,55 @@ export default function InventoryReportPublicView() {
                     setReport({ id: docSnap.id, ...docSnap.data() });
                     setError("");
                 } else {
+                    setReport(null); 
                     setError("Biên bản không tồn tại hoặc đã bị xóa.");
                 }
                 setLoading(false);
             },
             (err) => {
-                console.error(err);
+                console.error("Lỗi tải chi tiết biên bản:", err);
+                setReport(null);
                 setError("Không thể tải dữ liệu biên bản.");
                 setLoading(false);
             }
         );
         return () => unsub();
-    }, [reportId]);
-
-    useEffect(() => {
-        const unsub = onSnapshot(collection(db, "departments"), (qs) => {
-            setDepartments(qs.docs.map((d) => ({ id: d.id, ...d.data() })));
-        });
-        return () => unsub();
-    }, []);
+    }, [reportId, departments, blockLeaders, approvalPermissions]);
 
     const departmentMap = useMemo(() => Object.fromEntries(departments.map((d) => [d.id, d.name])), [departments]);
-    const canProcessReport = useMemo(() => makeCanProcessReport(currentUser, departments), [currentUser, departments]);
+    
+    const checkCanProcess = useCallback((reportToCheck) => {
+        return canProcessReport(reportToCheck, currentUser, departments, blockLeaders, approvalPermissions);
+    }, [currentUser, departments, blockLeaders, approvalPermissions]);
+
     const reportForPrint = useMemo(() => {
         if (!report) return null;
-        return { ...report, departmentMap, departments };
+        const departmentDetails = departments.find(d => d.id === report.departmentId);
+        return { 
+            ...report, 
+            department: departmentDetails || null,
+            departmentMap, 
+            departments 
+        };
     }, [report, departmentMap, departments]);
 
     const printRef = useRef(null);
     const handlePrint = useReactToPrint({
-        contentRef: printRef, // v3 chuẩn
+        contentRef: printRef,
         documentTitle: `bien-ban-${report?.type?.toLowerCase()}-${reportId}`,
-        pageStyle:
-            "@page { size: A4; margin: 10mm; } @media print { html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }",
+        pageStyle: "@page { size: A4; margin: 10mm; } @media print { html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }",
     });
 
     const handleApprove = async (signatureKeyToSign) => {
-        if (!report || !currentUser || !canProcessReport(report)) {
+        if (!report || !currentUser || !checkCanProcess(report)) {
             setToast({ open: true, msg: "Bạn không có quyền thực hiện hành động này.", severity: "warning" });
             return;
         }
-
         const workflow = reportWorkflows[report.type];
         if (!workflow) {
             setToast({ open: true, msg: "Không tìm thấy luồng duyệt hợp lệ.", severity: "error" });
             return;
         }
-
         const currentStepIndex = workflow.findIndex((s) => s.status === report.status);
         if (currentStepIndex === -1 || workflow[currentStepIndex].signatureKey !== signatureKeyToSign) {
             setToast({ open: true, msg: "Trạng thái biên bản không hợp lệ hoặc đã thay đổi.", severity: "warning" });
@@ -331,7 +382,6 @@ export default function InventoryReportPublicView() {
                 if (!snap.exists() || snap.data().status !== report.status) {
                     throw new Error("Trạng thái biên bản đã thay đổi. Vui lòng thử lại.");
                 }
-
                 const nextStatus = currentStepIndex < workflow.length - 1 ? workflow[currentStepIndex + 1].status : "COMPLETED";
                 const signature = {
                     uid: currentUser.uid,
@@ -352,7 +402,7 @@ export default function InventoryReportPublicView() {
         }
     };
 
-    if (loading || !report || !currentUser) {
+    if (loading || !currentUser || !blockLeaders || !approvalPermissions) {
         return (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", bgcolor: "grey.50" }}>
                 <Stack spacing={2} alignItems="center"><CircularProgress /><Typography>Đang tải dữ liệu...</Typography></Stack>
@@ -365,13 +415,21 @@ export default function InventoryReportPublicView() {
             <Container sx={{ py: 6 }}>
                 <Card variant="outlined" sx={{ p: 3, borderRadius: 3 }}>
                     <Alert severity="error">{error}</Alert>
-                    <Button component={Link} to="/" startIcon={<ArrowLeft />} sx={{ mt: 2 }}>Quay về trang chủ</Button>
+                    <Button component={Link} to="/" startIcon={<ArrowLeft />} sx={{ mt: 2 }}>Quay về trang quản lý</Button>
                 </Card>
             </Container>
         );
     }
+    
+    if (!report) {
+         return (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", bgcolor: "grey.50" }}>
+                <Stack spacing={2} alignItems="center"><CircularProgress /><Typography>Đang chờ dữ liệu báo cáo...</Typography></Stack>
+            </Box>
+        );
+    }
 
-    const SelectedTemplate = PrintTemplateMap[report?.type] || AssetSummaryPrintTemplate; // Chọn mẫu in
+    const SelectedTemplate = PrintTemplateMap[report?.type] || AssetSummaryPrintTemplate;
     const currentWorkflow = reportWorkflows[report?.type] || [];
     const clamp = (v, a, b) => Math.max(a, Math.min(v, b));
 
@@ -380,23 +438,25 @@ export default function InventoryReportPublicView() {
             <ReportHeader elevation={0}>
                 <Container maxWidth="xl">
                     <Stack direction="row" alignItems="center" spacing={2} sx={{ height: "64px" }}>
-                        <Button component={Link} to="/" variant="text" startIcon={<ArrowLeft size={20} />} sx={{ color: "text.secondary", mr: 1 }}>
+                        <Button component={Link} to="/" variant="text" startIcon={<ArrowLeft size={20} />} sx={{ color: "text.secondary", mr: 1, flexShrink: 0 }}>
                             Quay về
                         </Button>
                         <Divider orientation="vertical" flexItem />
-                        <Typography variant="h6" fontWeight={700} noWrap>Biên bản: {report.id}</Typography>
-                        <Tooltip title="Sao chép mã">
+                        <Typography variant="h6" fontWeight={700} noWrap sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 100 }}>
+                            Biên bản: {report.maPhieuHienThi || reportId}
+                        </Typography>
+                        <Tooltip title="Sao chép mã hiển thị">
                             <IconButton size="small" onClick={() => {
-                                navigator.clipboard.writeText(report.id);
-                                setToast({ open: true, msg: "Đã sao chép mã biên bản", severity: "success" });
+                                navigator.clipboard.writeText(report.maPhieuHienThi || report.id);
+                                setToast({ open: true, msg: "Đã sao chép mã hiển thị", severity: "success" });
                             }}>
                                 <Copy size={16} />
                             </IconButton>
                         </Tooltip>
                         <Box flexGrow={1} />
                         <StatusBadge status={report?.status} />
-                        <Button onClick={handlePrint} variant="contained" startIcon={<Printer size={18} />} sx={{ borderRadius: 2 }} disabled={!reportForPrint}>
-                            {report?.status === "COMPLETED" ? "In Biên bản" : "In Bản nháp"}
+                        <Button onClick={handlePrint} variant="contained" startIcon={<Printer size={18} />} sx={{ borderRadius: 2, flexShrink: 0 }} disabled={!reportForPrint || !companyInfo}>
+                            {!companyInfo ? "Đang tải..." : (report?.status === "COMPLETED" ? "In Biên bản" : "In Bản nháp")}
                         </Button>
                     </Stack>
                 </Container>
@@ -411,12 +471,11 @@ export default function InventoryReportPublicView() {
                                 workflow={currentWorkflow}
                                 onApprove={handleApprove}
                                 isApproving={busy}
-                                canProcess={canProcessReport}
+                                canProcess={checkCanProcess}
                                 departmentMap={departmentMap}
                             />
                         </Box>
                     </Grid>
-
                     <Grid item xs={12} md={8} lg={8.5}>
                         <Stack spacing={2}>
                             <Paper variant="outlined" sx={{ p: 1, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -431,7 +490,7 @@ export default function InventoryReportPublicView() {
                             </Paper>
                             <Paper elevation={0} variant="outlined" sx={{ backgroundColor: "white", overflow: "auto", p: { xs: 1, sm: 2 }, display: "flex", justifyContent: "center", borderRadius: 3, height: "calc(100vh - 180px)" }}>
                                 <Box sx={{ width: "210mm", minWidth: "210mm", transform: `scale(${scale})`, transformOrigin: "top center", transition: "transform 0.2s ease" }}>
-                                    <SelectedTemplate report={reportForPrint} company={hardcodedCompanyInfo} />
+                                    <SelectedTemplate report={reportForPrint} company={companyInfo} />
                                 </Box>
                             </Paper>
                         </Stack>
@@ -439,19 +498,16 @@ export default function InventoryReportPublicView() {
                 </Grid>
             </Container>
 
-            {/* Host for printing */}
-            {/* Host for printing (ẩn khỏi màn hình nhưng vẫn render) */}
             <div style={{ position: "absolute", top: "-10000px", left: 0, width: "210mm" }}>
                 {reportForPrint && (
                     <SelectedTemplate
-                        ref={printRef}                         // ref chỉ đặt ở Template
+                        ref={printRef}
                         report={reportForPrint}
-                        company={hardcodedCompanyInfo}
+                        company={companyInfo}
                     />
                 )}
             </div>
 
-            {/* Notification Snackbar */}
             <Snackbar open={toast.open} autoHideDuration={5000} onClose={() => setToast((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
                 <Alert onClose={() => setToast((s) => ({ ...s, open: false }))} severity={toast.severity} sx={{ width: "100%" }} variant="filled">
                     {toast.msg}

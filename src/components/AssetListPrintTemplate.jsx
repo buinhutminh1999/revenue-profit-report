@@ -233,7 +233,7 @@ const SignatureDisplay = ({ signature, role }) => (
                 <p style={styles.signatureTime}>{fullTime(signature.signedAt)}</p>
             </div>
         ) : (
-            <div style={{...styles.signatureBox, ...styles.signaturePlaceholder}}>
+            <div style={{ ...styles.signatureBox, ...styles.signaturePlaceholder }}>
                 <span>(Chưa ký)</span>
             </div>
         )}
@@ -247,8 +247,10 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref
 
     const createdDate = formatDate(report.createdAt);
     const { signatures = {} } = report;
-    
-    const qrValue = typeof window !== 'undefined'
+
+
+    // Lấy tên Khối quản lý cho báo cáo. Ưu tiên blockName, sau đó đến managementBlock của phòng ban.
+    const managementBlockName = report.blockName || report.department?.managementBlock || report.departmentName; const qrValue = typeof window !== 'undefined'
         ? `${window.location.origin}/inventory-reports/${report.id}`
         : `/inventory-reports/${report.id}`;
 
@@ -274,16 +276,15 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref
                     Ngày {createdDate.day} tháng {createdDate.month} năm {createdDate.year}
                 </p>
                 <p style={styles.documentId}>
-                    Mã biên bản: {report.id?.slice(0, 8).toUpperCase()}
+                    Mã biên bản: {report.maPhieuHienThi || report.id?.slice(0, 8).toUpperCase()}
                 </p>
             </section>
-
             <main>
                 <table style={styles.infoTable}>
                     <tbody>
                         <tr>
                             <td style={styles.infoLabel}>Phòng ban kiểm kê:</td>
-                            <td style={styles.infoValue}><b>{report.departmentName}</b></td>
+                            <td style={styles.infoValue}><b>{managementBlockName    }</b></td>
                         </tr>
                         <tr>
                             <td style={styles.infoLabel}>Người lập biên bản:</td>
@@ -293,7 +294,7 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref
                 </table>
 
                 <p style={{ margin: '20px 0 15px 0' }}>
-                    Danh sách tài sản và công cụ được kiểm kê tại phòng <b>{report.departmentName}</b> như sau:
+                    Danh sách tài sản và công cụ được kiểm kê tại phòng <b>{managementBlockName}</b> như sau:
                 </p>
 
                 <table style={styles.table}>
@@ -326,18 +327,17 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref
                 <p style={{ marginTop: '15px', fontStyle: 'italic', color: theme.colors.textSecondary }}>
                     Tổng cộng: {report.assets?.length || 0} loại tài sản.
                 </p>
-                
-                {/* --- PHẦN KẾT LUẬN MỚI --- */}
+
                 <div style={styles.conclusionSection} className="no-break">
                     <div style={styles.conclusionTitle}>KẾT LUẬN:</div>
                     <div style={styles.conclusionPoint}>
-                        <b>1. Sở hữu và quản lý tài sản:</b> Hai bên thống nhất rằng số tài sản trên đang thuộc quản lý và sở hữu của <b>{report.departmentName}</b>.
+                        <b>1. Sở hữu và quản lý tài sản:</b> Hai bên thống nhất rằng số tài sản trên đang thuộc quản lý và sở hữu của <b>{managementBlockName}</b>.
                     </div>
                     <div style={styles.conclusionPoint}>
-                        <b>2. Trách nhiệm bảo quản tài sản:</b> <b>{report.departmentName}</b> có trách nhiệm bảo quản tài sản này và đảm bảo tài sản luôn trong tình trạng tốt, không bị hư hỏng hoặc mất mát.
+                        <b>2. Trách nhiệm bảo quản tài sản:</b> <b>{managementBlockName}</b> có trách nhiệm bảo quản tài sản này và đảm bảo tài sản luôn trong tình trạng tốt, không bị hư hỏng hoặc mất mát.
                     </div>
                     <div style={styles.conclusionPoint}>
-                        <b>3. Quy trình luân chuyển tài sản:</b> Trong trường hợp có luân chuyển tài sản, phải có biên bản luân chuyển được Ban Tổng Giám đốc duyệt và chuyển kịp thời cho Phòng Hành chính để cập nhật lại thông tin tài sản của phòng mình.
+                        <b>3. Quy trình luân chuyển tài sản:</b> Trong trường hợp có luân chuyển tài sản, phải có biên bản luân chuyển để cập nhật lại thông tin tài sản của phòng mình.
                     </div>
                     <div style={styles.conclusionPoint}>
                         <b>4. Hư hỏng tài sản:</b> Các tài sản trên nếu có hư hỏng, phải đề xuất Phòng Hành chính kiểm tra và khắc phục sửa chữa nếu cần thiết.

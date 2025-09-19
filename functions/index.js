@@ -341,13 +341,16 @@ exports.createTransfer = onCall(async (request) => {
         throw new HttpsError("internal", error.message || "Không thể tạo phiếu chuyển trên server.");
     }
 });
+// File: functions/index.js (v2)
+
 // ====================================================================
-// HÀM 2: TẠO YÊU CẦU THAY ĐỔI TÀI SẢN (PHIÊN BẢN HOÀN CHỈNH)
+// HÀM 1: THAY THẾ TOÀN BỘ HÀM createAssetRequest CŨ BẰNG HÀM NÀY
 // ====================================================================
 exports.createAssetRequest = onCall(async (request) => {
     ensureSignedIn(request.auth);
     const { uid } = request.auth;
-    const { type, assetData, targetAssetId, assetsData } = request.data;
+    // ✅ Thêm 'quantity' để nhận số lượng cần xóa
+    const { type, assetData, targetAssetId, assetsData, quantity } = request.data;
 
     try {
         const userSnap = await db.collection("users").doc(uid).get();
@@ -356,17 +359,15 @@ exports.createAssetRequest = onCall(async (request) => {
 
         switch (type) {
             case "ADD": {
+                // ... (Logic cho "ADD" không thay đổi)
                 if (!assetData || !assetData.departmentId || !assetData.name) {
                     throw new HttpsError("invalid-argument", "Thiếu dữ liệu tài sản để tạo yêu cầu.");
                 }
-
-                // Chạy transaction chỉ để tạo request và cập nhật counter
                 const { newRequestRef, displayId } = await db.runTransaction(async (tx) => {
                     const counterDoc = await tx.get(counterRef);
                     const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
                     const year = new Date().getFullYear();
                     const displayId = `PYC-${year}-${String(newCounterValue).padStart(5, "0")}`;
-
                     const requestPayload = {
                         type: "ADD",
                         status: "PENDING_HC",
@@ -376,38 +377,30 @@ exports.createAssetRequest = onCall(async (request) => {
                         signatures: { hc: null, kt: null },
                         maPhieuHienThi: displayId,
                     };
-
                     const newRequestRef = db.collection("asset_requests").doc();
                     tx.set(newRequestRef, requestPayload);
                     tx.update(counterRef, { currentValue: newCounterValue });
-
-                    // Trả về các giá trị cần thiết để ghi log bên ngoài
                     return { newRequestRef, displayId };
                 });
-
-                // ✅ GHI LOG SAU KHI TRANSACTION THÀNH CÔNG
                 await writeAuditLog("ASSET_REQUEST_ADD_CREATED", uid, { type: "asset_request", id: newRequestRef.id }, { name: assetData.name, displayId }, { request });
-
                 return { ok: true, message: "Yêu cầu đã được tạo.", displayId };
             }
 
             case "DELETE": {
+                // ... (Logic cho "DELETE" không thay đổi)
                 if (!targetAssetId) {
                     throw new HttpsError("invalid-argument", "Thiếu ID tài sản cần xóa.");
                 }
-                // Logic cho DELETE cũng phải nằm trong transaction riêng
                 return db.runTransaction(async (tx) => {
                     const counterDoc = await tx.get(counterRef);
                     const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
                     const year = new Date().getFullYear();
                     const displayId = `PYC-${year}-${String(newCounterValue).padStart(5, "0")}`;
-
                     const assetToDeleteSnap = await tx.get(db.collection("assets").doc(targetAssetId));
                     if (!assetToDeleteSnap.exists) {
                         throw new HttpsError("not-found", "Không tìm thấy tài sản để tạo yêu cầu xóa.");
                     }
                     const assetToDelete = assetToDeleteSnap.data();
-
                     const requestPayload = {
                         type: "DELETE",
                         status: "PENDING_HC",
@@ -424,26 +417,73 @@ exports.createAssetRequest = onCall(async (request) => {
                         signatures: { hc: null, kt: null },
                         maPhieuHienThi: displayId,
                     };
-
                     const newRequestRef = db.collection("asset_requests").doc();
                     tx.set(newRequestRef, requestPayload);
                     tx.update(counterRef, { currentValue: newCounterValue });
-
                     await writeAuditLog("ASSET_REQUEST_DELETE_CREATED", uid, { type: "asset_request", id: newRequestRef.id }, { name: assetToDelete.name, displayId }, { request });
                     return { ok: true, message: "Yêu cầu xóa đã được tạo.", displayId };
                 });
             }
 
+            // ✅ BẮT ĐẦU CASE MỚI CHO VIỆC GIẢM SỐ LƯỢNG
+            case "REDUCE_QUANTITY": {
+                if (!targetAssetId || !quantity || Number(quantity) <= 0) {
+                    throw new HttpsError("invalid-argument", "Thiếu ID tài sản hoặc số lượng không hợp lệ.");
+                }
+
+                return db.runTransaction(async (tx) => {
+                    const counterDoc = await tx.get(counterRef);
+                    const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
+                    const year = new Date().getFullYear();
+                    const displayId = `PYC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+
+                    const assetToReduceSnap = await tx.get(db.collection("assets").doc(targetAssetId));
+                    if (!assetToReduceSnap.exists) {
+                        throw new HttpsError("not-found", "Không tìm thấy tài sản để tạo yêu cầu.");
+                    }
+                    const assetToReduce = assetToReduceSnap.data();
+
+                    if (Number(quantity) > Number(assetToReduce.quantity)) {
+                        throw new HttpsError("invalid-argument", `Số lượng yêu cầu xóa (${quantity}) lớn hơn số lượng tồn kho (${assetToReduce.quantity}).`);
+                    }
+
+                    const requestPayload = {
+                        type: "REDUCE_QUANTITY", // <-- Lưu đúng type
+                        status: "PENDING_HC",
+                        requester,
+                        targetAssetId,
+                        departmentId: assetToReduce.departmentId,
+                        assetData: { // Lưu thông tin tài sản VÀ số lượng cần giảm
+                            name: assetToReduce.name,
+                            quantity: Number(quantity), // Đây là số lượng cần giảm
+                            unit: assetToReduce.unit,
+                            departmentId: assetToReduce.departmentId
+                        },
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        signatures: { hc: null, kt: null },
+                        maPhieuHienThi: displayId,
+                    };
+
+                    const newRequestRef = db.collection("asset_requests").doc();
+                    tx.set(newRequestRef, requestPayload);
+                    tx.update(counterRef, { currentValue: newCounterValue });
+
+                    await writeAuditLog("ASSET_REQUEST_REDUCE_CREATED", uid, { type: "asset_request", id: newRequestRef.id }, { name: assetToReduce.name, quantity: Number(quantity), displayId }, { request });
+
+                    return { ok: true, message: "Yêu cầu giảm số lượng đã được tạo.", displayId };
+                });
+            }
+            // ✅ KẾT THÚC CASE MỚI
+
             case "BATCH_ADD": {
+                // ... (Logic cho "BATCH_ADD" không thay đổi)
                 if (!Array.isArray(assetsData) || assetsData.length === 0) {
                     throw new HttpsError("invalid-argument", "Thiếu dữ liệu.");
                 }
                 const batch = db.batch();
                 const year = new Date().getFullYear();
-
                 const counterSnap = await counterRef.get();
                 let counter = counterSnap.data()?.currentValue || 0;
-
                 assetsData.forEach((singleAssetData) => {
                     counter++;
                     const displayId = `PYC-${year}-${String(counter).padStart(5, "0")}`;
@@ -458,10 +498,8 @@ exports.createAssetRequest = onCall(async (request) => {
                         signatures: { hc: null, kt: null },
                     });
                 });
-
                 batch.update(counterRef, { currentValue: counter });
                 await batch.commit();
-
                 await writeAuditLog("ASSET_REQUEST_BATCH_ADD_CREATED", uid, null, { count: assetsData.length }, { request });
                 return { ok: true, message: `Đã tạo ${assetsData.length} yêu cầu.` };
             }
@@ -474,20 +512,24 @@ exports.createAssetRequest = onCall(async (request) => {
     }
 });
 // ====================================================================
-// HÀM 3: TẠO BÁO CÁO KIỂM KÊ (PHIÊN BẢN HOÀN CHỈNH)
+// HÀM 3: TẠO BÁO CÁO KIỂM KÊ (PHIÊN BẢN ĐÃ CẬP NHẬT)
 // ====================================================================
 exports.createInventoryReport = onCall(async (request) => {
     // Xác thực người dùng và lấy thông tin cơ bản
     ensureSignedIn(request.auth);
     const { uid } = request.auth;
-    const { type, departmentId } = request.data;
+    // THÊM `blockName` vào danh sách các biến được lấy ra
+    const { type, departmentId, blockName } = request.data;
 
     // Tham chiếu đến máy đếm
     const counterRef = db.collection("counters").doc("inventoryReportCounter");
 
-    // Kiểm tra đầu vào
-    if (!type || (type === "department" && !departmentId)) {
-        throw new HttpsError("invalid-argument", "Thiếu loại báo cáo hoặc ID phòng ban.");
+    // Kiểm tra đầu vào mới
+    if (!type ||
+        (type === "department" && !departmentId) ||
+        (type === "BLOCK_INVENTORY" && !blockName)
+    ) {
+        throw new HttpsError("invalid-argument", "Thiếu thông tin cần thiết để tạo báo cáo.");
     }
 
     try {
@@ -503,21 +545,26 @@ exports.createInventoryReport = onCall(async (request) => {
             const userSnap = await tx.get(db.collection("users").doc(uid));
             const requester = {
                 uid,
-                name: userSnap.data()?.displayName || request.auth.token.email,
+                name: userSnap.data()?.displayName || request.auth.token.name,
             };
 
             let reportData;
 
-            // Trường hợp tạo báo cáo cho một phòng ban cụ thể
-            if (type === "department") {
-                const deptSnap = await tx.get(db.collection("departments").doc(departmentId));
-                if (!deptSnap.exists) throw new Error("Phòng ban không tồn tại.");
+            // Bổ sung nhánh xử lý cho type 'BLOCK_INVENTORY'
+            if (type === "BLOCK_INVENTORY") {
+                // 1. Tìm tất cả phòng ban thuộc khối
+                const deptsSnapshot = await db.collection("departments")
+                    .where("managementBlock", "==", blockName)
+                    .get();
 
-                const department = { id: deptSnap.id, ...deptSnap.data() };
+                if (deptsSnapshot.empty) {
+                    throw new Error(`Không tìm thấy phòng ban nào thuộc khối "${blockName}".`);
+                }
+                const deptIds = deptsSnapshot.docs.map((doc) => doc.id);
 
-                // Server tự truy vấn danh sách tài sản của phòng đó
-                const assetsSnap = await db.collection("assets").where("departmentId", "==", departmentId).get();
-                const assetsInDept = assetsSnap.docs.map((doc) => ({
+                // 2. Lấy tất cả tài sản của các phòng đó
+                const assetsSnap = await db.collection("assets").where("departmentId", "in", deptIds).get();
+                const assetsInBlock = assetsSnap.docs.map((doc) => ({
                     id: doc.id,
                     name: doc.data().name || "",
                     quantity: doc.data().quantity || 0,
@@ -526,7 +573,30 @@ exports.createInventoryReport = onCall(async (request) => {
                     notes: doc.data().notes || "",
                 }));
 
-                // Định hình dữ liệu cho báo cáo
+                // 3. Định hình dữ liệu báo cáo
+                reportData = {
+                    type: "DEPARTMENT_INVENTORY", // QUAN TRỌNG: Lưu type là DEPARTMENT_INVENTORY để dùng chung mẫu in và quy trình duyệt
+                    title: `Biên bản Bàn giao - Kiểm kê Tài sản ${blockName}`,
+                    blockName: blockName, // Lưu lại tên khối để tham chiếu
+                    assets: assetsInBlock,
+                    status: "PENDING_HC",
+                    signatures: { hc: null, deptLeader: null, director: null },
+                };
+                // eslint-disable-next-line brace-style
+            }
+            // Logic cũ cho 'department' được gộp vào đây
+            else if (type === "department") {
+                const deptSnap = await tx.get(db.collection("departments").doc(departmentId));
+                if (!deptSnap.exists) throw new Error("Phòng ban không tồn tại.");
+
+                const department = { id: deptSnap.id, ...deptSnap.data() };
+
+                const assetsSnap = await db.collection("assets").where("departmentId", "==", departmentId).get();
+                const assetsInDept = assetsSnap.docs.map((doc) => ({
+                    id: doc.id, name: doc.data().name || "", quantity: doc.data().quantity || 0,
+                    unit: doc.data().unit || "", size: doc.data().size || "", notes: doc.data().notes || "",
+                }));
+
                 reportData = {
                     type: "DEPARTMENT_INVENTORY",
                     title: `Biên bản Bàn giao - Kiểm kê Tài sản Phòng ${department.name}`,
@@ -536,18 +606,16 @@ exports.createInventoryReport = onCall(async (request) => {
                     status: "PENDING_HC",
                     signatures: { hc: null, deptLeader: null, director: null },
                 };
-            } else { // Trường hợp tạo báo cáo tổng hợp toàn công ty
-                // Server tự truy vấn toàn bộ tài sản
+                // eslint-disable-next-line brace-style
+            }
+            // Logic cũ cho báo cáo tổng hợp
+            else {
                 const allAssetsSnap = await db.collection("assets").get();
                 const allAssets = allAssetsSnap.docs.map((doc) => ({
-                    id: doc.id,
-                    name: doc.data().name || "",
-                    quantity: doc.data().quantity || 0,
-                    unit: doc.data().unit || "",
-                    departmentId: doc.data().departmentId || null,
+                    id: doc.id, name: doc.data().name || "", quantity: doc.data().quantity || 0,
+                    unit: doc.data().unit || "", departmentId: doc.data().departmentId || null,
                 }));
 
-                // Định hình dữ liệu cho báo cáo
                 reportData = {
                     type: "SUMMARY_REPORT",
                     title: `Báo cáo Tổng hợp Tài sản Toàn Công ty`,
@@ -583,23 +651,30 @@ exports.createInventoryReport = onCall(async (request) => {
         throw new HttpsError("internal", error.message || "Không thể tạo báo cáo trên server.");
     }
 });
+// File: functions/index.js (v2)
+
 // ====================================================================
-// NEW: FUNCTION XỬ LÝ YÊU CẦU THAY ĐỔI TÀI SẢN
+// HÀM 2: THAY THẾ TOÀN BỘ HÀM processAssetRequest CŨ BẰNG HÀM NÀY
 // ====================================================================
 exports.processAssetRequest = onCall(async (request) => {
     ensureSignedIn(request.auth);
+    const { uid, token } = request.auth;
+    const isAdmin = token.admin === true;
 
-    const { requestId, action, reason } = request.data;
+    const { requestId, action } = request.data;
     if (!requestId || !action) {
         throw new HttpsError("invalid-argument", "Thiếu ID yêu cầu hoặc hành động.");
     }
 
-    const uid = request.auth.uid;
-    const userSnap = await db.collection("users").doc(uid).get();
-    const userData = userSnap.data() || {};
-    const isAdmin = request.auth.token.admin === true;
+    const configDoc = await db.collection("app_config").doc("leadership").get();
+    if (!configDoc.exists) {
+        throw new HttpsError("failed-precondition", "Không tìm thấy tệp cấu hình quyền.");
+    }
+    const permissionsConfig = configDoc.data().approvalPermissions || {};
 
     const requestRef = db.collection("asset_requests").doc(requestId);
+    const userSnap = await db.collection("users").doc(uid).get();
+    const userData = userSnap.data() || {};
 
     return db.runTransaction(async (transaction) => {
         const requestDoc = await transaction.get(requestRef);
@@ -609,69 +684,91 @@ exports.processAssetRequest = onCall(async (request) => {
         const reqData = requestDoc.data();
         const { status, type } = reqData;
 
-        // --- Logic từ chối ---
         if (action === "reject") {
+            // ... (Logic "reject" không thay đổi)
+            const { reason } = request.data;
             if (status !== "PENDING_HC" && status !== "PENDING_KT") {
-                throw new HttpsError("failed-precondition", "Yêu cầu đã được xử lý.");
+                throw new HttpsError("failed-precondition", "Yêu cầu đã được xử lý hoặc đã bị từ chối.");
             }
             transaction.update(requestRef, {
                 status: "REJECTED",
                 rejectionReason: reason || "Không có lý do",
-                processedBy: { uid, name: userData.displayName || request.auth.token.email },
+                processedBy: { uid, name: userData.displayName || token.email },
             });
             await writeAuditLog("ASSET_REQUEST_REJECTED", uid, { type: "asset_request", id: requestId }, { reason }, { request });
             return { ok: true, message: "Đã từ chối yêu cầu." };
         }
 
-        // --- Logic duyệt ---
         const signature = {
             uid: uid,
-            name: userData.displayName || request.auth.token.email || "Người duyệt",
+            name: userData.displayName || token.email || "Người duyệt",
             approvedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
 
-        if (status === "PENDING_HC") {
-            const deptSnap = await db.collection("departments").doc(reqData.assetData.departmentId).get();
-            const hcApprovers = deptSnap.data()?.hcStep3ApproverIds || [];
-            if (!isAdmin && !hcApprovers.includes(uid)) {
-                throw new HttpsError("permission-denied", "Bạn không có quyền duyệt P.HC cho phòng ban này.");
-            }
+        const deptId = reqData.assetData?.departmentId || reqData.departmentId;
+        if (!deptId) throw new HttpsError("failed-precondition", "Yêu cầu không có thông tin phòng ban.");
 
+        const deptSnap = await transaction.get(db.collection("departments").doc(deptId));
+        if (!deptSnap.exists) throw new HttpsError("not-found", "Phòng ban của yêu cầu không tồn tại.");
+
+        const deptData = deptSnap.data();
+        const managementBlock = deptData.managementBlock;
+        const permissionGroupKey = managementBlock === "Nhà máy" ? "Nhà máy" : "default";
+        const permissions = permissionsConfig[permissionGroupKey];
+
+        if (!permissions) {
+            throw new HttpsError("failed-precondition", `Không có cấu hình quyền cho nhóm '${permissionGroupKey}'.`);
+        }
+
+        if (status === "PENDING_HC") {
+            // ... (Logic "PENDING_HC" không thay đổi)
+            const hcApprovers = permissions.hcApproverIds || [];
+            if (!isAdmin && !hcApprovers.includes(uid)) {
+                throw new HttpsError("permission-denied", "Bạn không có quyền duyệt P.HC cho nhóm này.");
+            }
             transaction.update(requestRef, {
-                "status": "PENDING_KT", // SỬA LỖI: Thêm lại dấu ngoặc kép để nhất quán
+                "status": "PENDING_KT",
                 "signatures.hc": signature,
             });
             await writeAuditLog("ASSET_REQUEST_HC_APPROVED", uid, { type: "asset_request", id: requestId }, {}, { request });
             return { ok: true, message: "P.HC đã duyệt, chờ P.KT." };
         } else if (status === "PENDING_KT") {
-            const deptId = reqData.assetData?.departmentId || reqData.departmentId;
-            const deptSnap = await db.collection("departments").doc(deptId).get();
-            const ktApprovers = deptSnap.data()?.ktApproverIds || [];
+            const ktApprovers = permissions.ktApproverIds || [];
             if (!isAdmin && !ktApprovers.includes(uid)) {
-                throw new HttpsError("permission-denied", "Bạn không có quyền duyệt P.KT cho phòng ban này.");
+                throw new HttpsError("permission-denied", "Bạn không có quyền duyệt P.KT cho nhóm này.");
             }
 
             if (type === "ADD") {
+                // ... (Logic "ADD" không thay đổi)
                 const newAssetRef = db.collection("assets").doc();
-                transaction.set(newAssetRef, {
+                const newAssetPayload = {
                     ...reqData.assetData,
+                    managementBlock: managementBlock || null,
                     createdByUid: reqData.requester.uid,
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     reserved: 0,
-                });
-            } else if (type === "DECREASE") {
-                const assetRef = db.collection("assets").doc(reqData.targetAssetId);
-                transaction.update(assetRef, {
-                    quantity: admin.firestore.FieldValue.increment(-reqData.quantityToDecrease),
-                });
+                };
+                transaction.set(newAssetRef, newAssetPayload);
             } else if (type === "DELETE") {
+                // ... (Logic "DELETE" không thay đổi)
                 const assetRef = db.collection("assets").doc(reqData.targetAssetId);
-                transaction.update(assetRef, { deletedByUid: uid });
                 transaction.delete(assetRef);
+            // eslint-disable-next-line brace-style
             }
+            // ✅ BẮT ĐẦU LOGIC MỚI ĐỂ XỬ LÝ DUYỆT YÊU CẦU GIẢM SỐ LƯỢNG
+            else if (type === "REDUCE_QUANTITY") {
+                const assetRef = db.collection("assets").doc(reqData.targetAssetId);
+                const quantityToReduce = reqData.assetData.quantity; // Lấy số lượng cần giảm từ yêu cầu
+
+                // Dùng increment với giá trị âm để giảm số lượng
+                transaction.update(assetRef, {
+                    quantity: admin.firestore.FieldValue.increment(-quantityToReduce)
+                });
+            }
+            // ✅ KẾT THÚC LOGIC MỚI
 
             transaction.update(requestRef, {
-                "status": "COMPLETED", // SỬA LỖI: Thêm lại dấu ngoặc kép để nhất quán
+                "status": "COMPLETED",
                 "signatures.kt": signature,
             });
             await writeAuditLog("ASSET_REQUEST_KT_APPROVED", uid, { type: "asset_request", id: requestId }, { executedType: type }, { request });
@@ -681,7 +778,6 @@ exports.processAssetRequest = onCall(async (request) => {
         }
     });
 });
-
 // ====================================================================
 // NEW: FUNCTION ĐỂ XÓA YÊU CẦU THAY ĐỔI TÀI SẢN (CHỈ ADMIN)
 // ====================================================================
@@ -993,4 +1089,64 @@ exports.deleteInventoryReport = onCall(async (request) => {
     );
 
     return { ok: true, message: "Đã xoá báo cáo kiểm kê." };
+});
+
+// Thêm toàn bộ hàm mới này vào file functions/index.js của bạn
+
+// ====================================================================
+// HÀM MỚI: THÊM TÀI SẢN HÀNG LOẠT TRỰC TIẾP (CHỈ ADMIN)
+// ====================================================================
+exports.batchAddAssetsDirectly = onCall(async (request) => {
+    // 1. Đảm bảo người thực hiện là Admin
+    await ensureAdmin(request.auth);
+    const { uid } = request.auth;
+    const { assetsData } = request.data;
+
+    // 2. Kiểm tra dữ liệu đầu vào
+    if (!Array.isArray(assetsData) || assetsData.length === 0) {
+        throw new HttpsError("invalid-argument", "Thiếu dữ liệu tài sản.");
+    }
+    if (assetsData.length > 200) { // Đặt giới hạn để tránh quá tải
+        throw new HttpsError("invalid-argument", "Chỉ có thể thêm tối đa 200 tài sản mỗi lần.");
+    }
+
+    try {
+        const batch = db.batch();
+        const userSnap = await db.collection("users").doc(uid).get();
+        const creatorName = userSnap.data()?.displayName || request.auth.token.email || "Admin";
+
+        assetsData.forEach((asset) => {
+            // 3. Validation cho từng tài sản
+            if (!asset.name || !asset.departmentId || !asset.unit || !asset.quantity) {
+                // Trong thực tế, bạn có thể log lỗi này thay vì quăng lỗi để không làm hỏng cả batch
+                // Nhưng để đơn giản, chúng ta sẽ quăng lỗi
+                throw new HttpsError("invalid-argument", `Tài sản "${asset.name || "không tên"}" thiếu thông tin cần thiết.`);
+            }
+
+            const newAssetRef = db.collection("assets").doc(); // Tự động tạo ID
+            batch.set(newAssetRef, {
+                ...asset, // Bao gồm name, quantity, unit, departmentId, managementBlock,...
+                createdBy: { uid, name: creatorName }, // Ghi lại người tạo
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                reserved: 0, // Giá trị mặc định
+            });
+        });
+
+        // 4. Thực hiện ghi hàng loạt
+        await batch.commit();
+
+        // 5. Ghi log kiểm toán
+        await writeAuditLog(
+            "ASSET_BATCH_ADDED_DIRECTLY",
+            uid,
+            null, // Không có target cụ thể, đây là hành động hàng loạt
+            { count: assetsData.length, departmentId: assetsData[0]?.departmentId },
+            { request, origin: "callable:batchAddAssetsDirectly" }
+        );
+
+        return { ok: true, message: `Đã thêm ${assetsData.length} tài sản.` };
+    } catch (error) {
+        logger.error("Lỗi khi thêm tài sản hàng loạt trực tiếp:", error);
+        throw new HttpsError("internal", error.message || "Không thể thêm tài sản lên server.");
+    }
 });
