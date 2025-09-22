@@ -44,6 +44,7 @@ const AssetTransferPage = lazy(() => import('../pages/AssetTransferPage'));
 const TransferDetailPage = lazy(() => import('../pages/TransferDetailPage'));
 const InventoryReportPublicView = lazy(() => import('../pages/InventoryReportPublicView'));
 const AssetRequestDetailPage = lazy(() => import('../pages/AssetRequestDetailPage')); // <-- THÊM DÒNG NÀY
+const AssetDetailPage = lazy(() => import('../pages/AssetDetailPage'));
 
 // Report Modules
 const ProfitReportQuarter = lazy(() => import('../pages/ProfitReportQuarter'));
@@ -86,6 +87,7 @@ function AppRoutes() {
                     <Route path="/event" element={lazyLoad(EventSlideshow)} />
                     <Route path="/transfers/:transferId" element={lazyLoad(TransferDetailPage)} />
                     <Route path="/asset-requests/:requestId" element={lazyLoad(AssetRequestDetailPage)} />
+                    <Route path="/assets/:assetId" element={lazyLoad(AssetDetailPage)} />
 
                     <Route
                         path="/inventory-reports/:reportId"
