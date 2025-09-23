@@ -674,7 +674,7 @@ export default function ProfitReportQuarter() {
             const vuotQuarterProfit = toNum(rows[idxVuotQuarter].profit);
             console.log('vuotQuarterProfit', vuotQuarterProfit)
             // Công thức tính toán vẫn giữ nguyên
-            rows[idxLNRong].profit = loiNhuanSauGiamTru - vuotQuarterProfit;
+            rows[idxLNRong].profit = loiNhuanSauGiamTru + vuotQuarterProfit;
         }
 
         return rows;

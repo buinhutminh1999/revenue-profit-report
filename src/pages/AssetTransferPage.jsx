@@ -109,14 +109,14 @@ const RequestCardSkeleton = () => (
     </Card>
 );
 
-// Thay thế TOÀN BỘ component RequestSignatureTimeline cũ bằng component này
+
+// ✅ TÌM VÀ THAY THẾ TOÀN BỘ COMPONENT NÀY
 const RequestSignatureTimeline = ({ signatures = {}, status, blockName }) => {
-    // ✅ Tự động tạo nhãn động, nếu không có tên khối thì dùng nhãn mặc định
-    const blockLeaderLabel = blockName ? `${blockName} duyệt` : "Lãnh đạo Khối duyệt";
+    // Tự động tạo nhãn động, nếu không có tên khối thì dùng nhãn mặc định
+    const blockLeaderLabel = blockName ? `Khối ${blockName} duyệt` : "Lãnh đạo Khối duyệt";
 
     const steps = [
         { label: "P. Hành chính duyệt", sig: signatures.hc, statusKey: "PENDING_HC" },
-        // ✅ Sử dụng nhãn động vừa tạo
         { label: blockLeaderLabel, sig: signatures.blockLeader, statusKey: "PENDING_BLOCK_LEADER" },
         { label: "P. Kế toán duyệt", sig: signatures.kt, statusKey: "PENDING_KT" },
     ];
@@ -124,12 +124,12 @@ const RequestSignatureTimeline = ({ signatures = {}, status, blockName }) => {
     const activeIndex = steps.findIndex(step => step.statusKey === status);
 
     return (
-        // ... JSX còn lại của component này giữ nguyên, không cần thay đổi ...
         <Stack spacing={0} sx={{ position: 'relative', pl: 1.5 }}>
             <Box sx={{
                 position: 'absolute', left: '22px', top: '12px',
                 bottom: '12px', width: '2px', bgcolor: 'divider', zIndex: 1,
             }} />
+
             {steps.map((step, index) => {
                 const isCompleted = !!step.sig;
                 const isActive = index === activeIndex;
@@ -585,33 +585,56 @@ const handlePrintLabels = useReactToPrint({
         )
     }, [currentUser, canSignSender, canSignReceiver, canSignAdmin]);
 
-    // MÃ MỚI (Đã sửa đúng logic)
-    const canProcessRequest = useCallback((req) => {
-        // Các điều kiện ban đầu để thoát sớm
-        if (!currentUser || !req || !approvalPermissions || !departments) return false;
-        if (req.status !== 'PENDING_HC' && req.status !== 'PENDING_KT') return false;
-        if (currentUser?.role === 'admin') return true;
+// src/pages/AssetTransferPage.jsx
 
-        // 1. Tìm phòng ban của tài sản trong yêu cầu
-        const deptId = req.assetData?.departmentId || req.departmentId;
-        const dept = departments.find(d => d.id === deptId);
-        if (!dept?.managementBlock) return false; // Yêu cầu phòng ban phải thuộc một khối
+// TÌM VÀ THAY THẾ TOÀN BỘ HÀM NÀY
+const canProcessRequest = useCallback((req) => {
+    // Các điều kiện ban đầu để thoát sớm
+    if (!currentUser || !req || !approvalPermissions || !departments || !blockLeaders) return false;
+    
+    // Các trạng thái hợp lệ có thể có nút hành động
+    const actionableStatuses = ["PENDING_HC", "PENDING_BLOCK_LEADER", "PENDING_KT"];
+    if (!actionableStatuses.includes(req.status)) return false;
+    
+    // Admin luôn có quyền xử lý
+    if (currentUser?.role === 'admin') return true;
 
-        // 2. Xác định nhóm quyền (default hay Nhà máy) dựa vào khối quản lý
-        const permissionGroupKey = dept.managementBlock === 'Nhà máy' ? 'Nhà máy' : 'default';
-        const permissions = approvalPermissions[permissionGroupKey];
-        if (!permissions) return false; // Không có cấu hình quyền cho nhóm này
+    // Tìm phòng ban và khối quản lý của yêu cầu
+    const deptId = req.assetData?.departmentId || req.departmentId;
+    const dept = departments.find(d => d.id === deptId);
+    if (!dept) return false;
+    
+    const managementBlock = dept.managementBlock;
 
-        // 3. Kiểm tra quyền dựa trên trạng thái của yêu cầu và cấu hình mới
-        if (req.status === 'PENDING_HC') {
-            return (permissions.hcApproverIds || []).includes(currentUser.uid);
+    // Kiểm tra quyền dựa trên trạng thái hiện tại của yêu cầu
+    switch (req.status) {
+        case 'PENDING_HC': {
+            const permissionGroupKey = managementBlock === 'Nhà máy' ? 'Nhà máy' : 'default';
+            const permissions = approvalPermissions[permissionGroupKey];
+            return (permissions?.hcApproverIds || []).includes(currentUser.uid);
         }
-        if (req.status === 'PENDING_KT') {
-            return (permissions.ktApproverIds || []).includes(currentUser.uid);
+
+        // ✅ LOGIC MỚI ĐƯỢC THÊM VÀO ĐÂY
+        case 'PENDING_BLOCK_LEADER': {
+            if (!managementBlock || !blockLeaders[managementBlock]) return false;
+            const leadersOfBlock = blockLeaders[managementBlock];
+            const leaderIds = [
+                ...(leadersOfBlock.headIds || []),
+                ...(leadersOfBlock.deputyIds || [])
+            ];
+            return leaderIds.includes(currentUser.uid);
         }
 
-        return false;
-    }, [currentUser, departments, approvalPermissions]); // Quan trọng: Thêm approvalPermissions vào dependency array
+        case 'PENDING_KT': {
+            const permissionGroupKey = managementBlock === 'Nhà máy' ? 'Nhà máy' : 'default';
+            const permissions = approvalPermissions[permissionGroupKey];
+            return (permissions?.ktApproverIds || []).includes(currentUser.uid);
+        }
+
+        default:
+            return false;
+    }
+}, [currentUser, departments, approvalPermissions, blockLeaders]); // Thêm blockLeaders vào dependencies
     // Thay thế hàm canProcessReport cũ bằng hàm này
     const canProcessReport = useCallback((report) => {
         if (!currentUser || !report || !blockLeaders || !departments) return false;
@@ -1605,6 +1628,7 @@ const handlePrintLabels = useReactToPrint({
             }
 
             setToast({ open: true, msg: result.data.message, severity: "success" });
+             handleCloseRequestDetail();
         } catch (error) {
             console.error("Lỗi khi xử lý yêu cầu:", error);
             setToast({ open: true, msg: error.message, severity: "error" });

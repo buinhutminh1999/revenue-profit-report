@@ -651,11 +651,9 @@ exports.createInventoryReport = onCall(async (request) => {
         throw new HttpsError("internal", error.message || "Không thể tạo báo cáo trên server.");
     }
 });
-// File: functions/index.js (v2)
+// functions/index.js
 
-// ====================================================================
-// HÀM 2: THAY THẾ TOÀN BỘ HÀM processAssetRequest CŨ BẰNG HÀM NÀY
-// ====================================================================
+// TÌM VÀ THAY THẾ TOÀN BỘ HÀM NÀY
 exports.processAssetRequest = onCall(async (request) => {
     ensureSignedIn(request.auth);
     const { uid, token } = request.auth;
@@ -670,7 +668,10 @@ exports.processAssetRequest = onCall(async (request) => {
     if (!configDoc.exists) {
         throw new HttpsError("failed-precondition", "Không tìm thấy tệp cấu hình quyền.");
     }
-    const permissionsConfig = configDoc.data().approvalPermissions || {};
+    const leadershipConfig = configDoc.data();
+    const permissionsConfig = leadershipConfig.approvalPermissions || {};
+    // ✅ THÊM DÒNG NÀY: Lấy thông tin lãnh đạo khối
+    const blockLeaders = leadershipConfig.blockLeaders || {};
 
     const requestRef = db.collection("asset_requests").doc(requestId);
     const userSnap = await db.collection("users").doc(uid).get();
@@ -687,7 +688,7 @@ exports.processAssetRequest = onCall(async (request) => {
         if (action === "reject") {
             // ... (Logic "reject" không thay đổi)
             const { reason } = request.data;
-            if (status !== "PENDING_HC" && status !== "PENDING_KT") {
+            if (status !== "PENDING_HC" && status !== "PENDING_KT" && status !== "PENDING_BLOCK_LEADER") {
                 throw new HttpsError("failed-precondition", "Yêu cầu đã được xử lý hoặc đã bị từ chối.");
             }
             transaction.update(requestRef, {
@@ -707,65 +708,71 @@ exports.processAssetRequest = onCall(async (request) => {
 
         const deptId = reqData.assetData?.departmentId || reqData.departmentId;
         if (!deptId) throw new HttpsError("failed-precondition", "Yêu cầu không có thông tin phòng ban.");
-
         const deptSnap = await transaction.get(db.collection("departments").doc(deptId));
         if (!deptSnap.exists) throw new HttpsError("not-found", "Phòng ban của yêu cầu không tồn tại.");
-
         const deptData = deptSnap.data();
         const managementBlock = deptData.managementBlock;
-        const permissionGroupKey = managementBlock === "Nhà máy" ? "Nhà máy" : "default";
-        const permissions = permissionsConfig[permissionGroupKey];
-
-        if (!permissions) {
-            throw new HttpsError("failed-precondition", `Không có cấu hình quyền cho nhóm '${permissionGroupKey}'.`);
-        }
 
         if (status === "PENDING_HC") {
-            // ... (Logic "PENDING_HC" không thay đổi)
+            const permissionGroupKey = managementBlock === "Nhà máy" ? "Nhà máy" : "default";
+            const permissions = permissionsConfig[permissionGroupKey];
+            if (!permissions) throw new HttpsError("failed-precondition", `Không có cấu hình quyền cho nhóm '${permissionGroupKey}'.`);
+
             const hcApprovers = permissions.hcApproverIds || [];
             if (!isAdmin && !hcApprovers.includes(uid)) {
                 throw new HttpsError("permission-denied", "Bạn không có quyền duyệt P.HC cho nhóm này.");
             }
             transaction.update(requestRef, {
-                "status": "PENDING_KT",
+                "status": "PENDING_BLOCK_LEADER",
                 "signatures.hc": signature,
             });
+
+            const nextStepMessage = managementBlock ? `chờ Khối ${managementBlock} duyệt.` : "chờ Lãnh đạo Khối duyệt.";
             await writeAuditLog("ASSET_REQUEST_HC_APPROVED", uid, { type: "asset_request", id: requestId }, {}, { request });
-            return { ok: true, message: "P.HC đã duyệt, chờ P.KT." };
+            return { ok: true, message: `P.HC đã duyệt, ${nextStepMessage}` };
+        // eslint-disable-next-line brace-style
+        }
+
+        // ✅ THÊM TOÀN BỘ KHỐI NÀY VÀO
+        else if (status === "PENDING_BLOCK_LEADER") {
+            if (!managementBlock || !blockLeaders[managementBlock]) {
+                throw new HttpsError("failed-precondition", `Yêu cầu không có thông tin khối quản lý hợp lệ.`);
+            }
+            const leadersOfBlock = blockLeaders[managementBlock];
+            const leaderIds = [...(leadersOfBlock.headIds || []), ...(leadersOfBlock.deputyIds || [])];
+
+            if (!isAdmin && !leaderIds.includes(uid)) {
+                throw new HttpsError("permission-denied", `Bạn không có quyền duyệt cho Khối ${managementBlock}.`);
+            }
+
+            transaction.update(requestRef, {
+                "status": "PENDING_KT", // Chuyển đến bước P.KT
+                "signatures.blockLeader": signature,
+            });
+
+            await writeAuditLog("ASSET_REQUEST_BLOCK_APPROVED", uid, { type: "asset_request", id: requestId }, {}, { request });
+            return { ok: true, message: `Khối ${managementBlock} đã duyệt, chờ P.KT.` };
         } else if (status === "PENDING_KT") {
+            const permissionGroupKey = managementBlock === "Nhà máy" ? "Nhà máy" : "default";
+            const permissions = permissionsConfig[permissionGroupKey];
+            if (!permissions) throw new HttpsError("failed-precondition", `Không có cấu hình quyền cho nhóm '${permissionGroupKey}'.`);
+
             const ktApprovers = permissions.ktApproverIds || [];
             if (!isAdmin && !ktApprovers.includes(uid)) {
                 throw new HttpsError("permission-denied", "Bạn không có quyền duyệt P.KT cho nhóm này.");
             }
 
             if (type === "ADD") {
-                // ... (Logic "ADD" không thay đổi)
                 const newAssetRef = db.collection("assets").doc();
-                const newAssetPayload = {
-                    ...reqData.assetData,
-                    managementBlock: managementBlock || null,
-                    createdByUid: reqData.requester.uid,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    reserved: 0,
-                };
-                transaction.set(newAssetRef, newAssetPayload);
+                transaction.set(newAssetRef, { ...reqData.assetData, managementBlock: managementBlock || null, createdByUid: reqData.requester.uid, createdAt: admin.firestore.FieldValue.serverTimestamp(), reserved: 0 });
             } else if (type === "DELETE") {
-                // ... (Logic "DELETE" không thay đổi)
                 const assetRef = db.collection("assets").doc(reqData.targetAssetId);
                 transaction.delete(assetRef);
-            // eslint-disable-next-line brace-style
-            }
-            // ✅ BẮT ĐẦU LOGIC MỚI ĐỂ XỬ LÝ DUYỆT YÊU CẦU GIẢM SỐ LƯỢNG
-            else if (type === "REDUCE_QUANTITY") {
+            } else if (type === "REDUCE_QUANTITY") {
                 const assetRef = db.collection("assets").doc(reqData.targetAssetId);
-                const quantityToReduce = reqData.assetData.quantity; // Lấy số lượng cần giảm từ yêu cầu
-
-                // Dùng increment với giá trị âm để giảm số lượng
-                transaction.update(assetRef, {
-                    quantity: admin.firestore.FieldValue.increment(-quantityToReduce)
-                });
+                const quantityToReduce = reqData.assetData.quantity;
+                transaction.update(assetRef, { quantity: admin.firestore.FieldValue.increment(-quantityToReduce) });
             }
-            // ✅ KẾT THÚC LOGIC MỚI
 
             transaction.update(requestRef, {
                 "status": "COMPLETED",
@@ -777,6 +784,77 @@ exports.processAssetRequest = onCall(async (request) => {
             throw new HttpsError("failed-precondition", "Yêu cầu không ở trạng thái chờ duyệt.");
         }
     });
+});
+
+/**
+ * [GIAI ĐOẠN 3 - v2] Tự động cập nhật ngày kiểm kê khi phiếu luân chuyển hoàn tất.
+ */
+exports.onTransferCompleted = onDocumentUpdated("transfers/{transferId}", async (event) => {
+    const beforeData = event.data.before.data();
+    const afterData = event.data.after.data();
+
+    // Chỉ chạy khi trạng thái thay đổi và chuyển thành "COMPLETED"
+    if (beforeData.status !== "COMPLETED" && afterData.status === "COMPLETED") {
+        const assets = afterData.assets;
+        const { transferId } = event.params;
+
+        if (!assets || assets.length === 0) {
+            logger.log(`Phiếu ${transferId} hoàn tất nhưng không có tài sản.`);
+            return;
+        }
+
+        const batch = db.batch();
+        const now = admin.firestore.FieldValue.serverTimestamp();
+
+        assets.forEach((asset) => {
+            if (asset.id) {
+                const assetRef = db.collection("assets").doc(asset.id);
+                batch.update(assetRef, { lastChecked: now });
+            }
+        });
+
+        try {
+            await batch.commit();
+            logger.log(`Đã cập nhật ngày kiểm kê cho ${assets.length} tài sản từ phiếu ${transferId}.`);
+        } catch (error) {
+            logger.error(`Lỗi khi cập nhật tài sản từ phiếu ${transferId}:`, error);
+        }
+    }
+});
+
+/**
+ * [GIAI ĐOẠN 2 - v2] Tự động cập nhật ngày kiểm kê khi báo cáo kiểm kê hoàn tất.
+ */
+exports.onReportCompleted = onDocumentUpdated("inventory_reports/{reportId}", async (event) => {
+    const beforeData = event.data.before.data();
+    const afterData = event.data.after.data();
+
+    if (beforeData.status !== "COMPLETED" && afterData.status === "COMPLETED") {
+        const assets = afterData.assets;
+        const { reportId } = event.params;
+
+        if (!assets || assets.length === 0) {
+            logger.log(`Báo cáo ${reportId} hoàn tất nhưng không có tài sản.`);
+            return;
+        }
+
+        const batch = db.batch();
+        const now = admin.firestore.FieldValue.serverTimestamp();
+
+        assets.forEach((asset) => {
+            if (asset.id) {
+                const assetRef = db.collection("assets").doc(asset.id);
+                batch.update(assetRef, { lastChecked: now });
+            }
+        });
+
+        try {
+            await batch.commit();
+            logger.log(`Đã cập nhật ngày kiểm kê cho ${assets.length} tài sản từ báo cáo ${reportId}.`);
+        } catch (error) {
+            logger.error(`Lỗi khi cập nhật tài sản từ báo cáo ${reportId}:`, error);
+        }
+    }
 });
 // ====================================================================
 // NEW: FUNCTION ĐỂ XÓA YÊU CẦU THAY ĐỔI TÀI SẢN (CHỈ ADMIN)
@@ -1150,3 +1228,4 @@ exports.batchAddAssetsDirectly = onCall(async (request) => {
         throw new HttpsError("internal", error.message || "Không thể thêm tài sản lên server.");
     }
 });
+
