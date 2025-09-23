@@ -68,11 +68,7 @@ const reportStatusConfig = {
 };
 
 const reportWorkflows = {
-    DEPARTMENT_INVENTORY: [
-        { status: "PENDING_HC", label: "P. Hành chính Ký duyệt", signatureKey: "hc" },
-        { status: "PENDING_DEPT_LEADER", label: "Lãnh đạo Phòng Ký nhận", signatureKey: "deptLeader" },
-        { status: "PENDING_DIRECTOR", label: "BTGĐ duyệt", signatureKey: "director" },
-    ],
+  
     BLOCK_INVENTORY: [
         { status: "PENDING_HC", label: "P. Hành chính Ký duyệt", signatureKey: "hc" },
         { status: "PENDING_DEPT_LEADER", label: "Lãnh đạo Khối Ký nhận", signatureKey: "deptLeader" },
@@ -223,10 +219,10 @@ const ControlSidebar = ({ report, workflow, onApprove, isApproving, canProcess, 
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Typography variant="body2" color="text.secondary">Loại biên bản</Typography>
                         <Typography fontWeight={700}>
-                            {report.type === "DEPARTMENT_INVENTORY" ? "Kiểm kê phòng ban" : report.type === "BLOCK_INVENTORY" ? "Kiểm kê khối" : "Báo cáo Tổng hợp"}
+                            {report.type === "BLOCK_INVENTORY" ? "Kiểm kê khối" : "Báo cáo Tổng hợp"}
                         </Typography>
                     </Stack>
-                    {(report.type === "DEPARTMENT_INVENTORY" || report.type === "BLOCK_INVENTORY") && (
+                    {(report.type === "SUMMARY_REPORT" || report.type === "BLOCK_INVENTORY") && (
                         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                             <Typography variant="body2" color="text.secondary" sx={{ mr: 1, flexShrink: 0 }}>Phòng/Khối</Typography>
                             <Chip size="small" label={report.departmentName || report.blockName || "—"} />
@@ -490,7 +486,7 @@ export default function InventoryReportPublicView() {
                             </Paper>
                             <Paper elevation={0} variant="outlined" sx={{ backgroundColor: "white", overflow: "auto", p: { xs: 1, sm: 2 }, display: "flex", justifyContent: "center", borderRadius: 3, height: "calc(100vh - 180px)" }}>
                                 <Box sx={{ width: "210mm", minWidth: "210mm", transform: `scale(${scale})`, transformOrigin: "top center", transition: "transform 0.2s ease" }}>
-                                    <SelectedTemplate report={reportForPrint} company={companyInfo} />
+                                    <SelectedTemplate report={reportForPrint} company={companyInfo} departments={reportForPrint?.departments}/>
                                 </Box>
                             </Paper>
                         </Stack>
@@ -504,6 +500,7 @@ export default function InventoryReportPublicView() {
                         ref={printRef}
                         report={reportForPrint}
                         company={companyInfo}
+                        departments={reportForPrint?.departments} // ✅ THÊM DÒNG NÀY
                     />
                 )}
             </div>

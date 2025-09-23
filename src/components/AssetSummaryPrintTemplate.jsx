@@ -1,7 +1,7 @@
-import React from "react";
-import { QRCodeSVG } from "qrcode.react";
+import React, { useMemo } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 
-// --- Theme & Styles (Đã được cập nhật) ---
+// --- Theme & Styles ---
 const theme = {
     colors: {
         primary: "#0d6efd",
@@ -89,7 +89,6 @@ const styles = {
     departmentSection: {
         marginTop: theme.spacing.xlarge,
     },
-    // Cập nhật trong đối tượng `styles`
     departmentHeader: {
         padding: `${theme.spacing.medium} 0`,
         borderBottom: `2px solid ${theme.colors.text}`,
@@ -98,28 +97,28 @@ const styles = {
         fontWeight: 700,
         textTransform: "uppercase",
         letterSpacing: "0.5px",
-        breakAfter: 'avoid', // <<< THÊM DÒNG NÀY
-        pageBreakAfter: 'avoid', // <<< Thêm cả dòng này để hỗ trợ trình duyệt cũ
+        breakAfter: 'avoid',
+        pageBreakAfter: 'avoid',
     },
     table: {
         width: "100%",
         borderCollapse: "collapse",
         fontSize: "13px",
-        border: `1px solid ${theme.colors.border}`, // <<< THÊM VIỀN BAO QUANH BẢNG
+        border: `1px solid ${theme.colors.border}`,
     },
     th: {
         padding: theme.spacing.medium,
-        border: `1px solid ${theme.colors.border}`, // <<< THAY borderBottom BẰNG border
+        border: `1px solid ${theme.colors.border}`,
         fontWeight: 600,
         textAlign: "left",
         textTransform: "uppercase",
         fontSize: "12px",
         color: theme.colors.textSecondary,
-        backgroundColor: theme.colors.background, // <<< THÊM LẠI NỀN CHO HEADER
+        backgroundColor: theme.colors.background,
     },
     td: {
         padding: `12px ${theme.spacing.medium}`,
-        border: `1px solid ${theme.colors.border}`, // <<< THAY borderBottom BẰNG border
+        border: `1px solid ${theme.colors.border}`,
         textAlign: "left",
         verticalAlign: "middle",
     },
@@ -228,7 +227,7 @@ const SignatureDisplay = ({ signature, role }) => (
             <div style={{ ...styles.signatureBox, ...styles.signatureContent }}>
                 <p style={styles.signatureStatus}>✔ Đã ký điện tử</p>
                 <p style={styles.signatureTime}>
-                    {fullTime(signature.signedAt)}
+                    {fullTime(signature.approvedAt || signature.signedAt)}
                 </p>
             </div>
         ) : (
@@ -245,52 +244,40 @@ const SignatureDisplay = ({ signature, role }) => (
     </>
 );
 
+
 // --- Main Print Component ---
 export const AssetSummaryPrintTemplate = React.forwardRef(
-    ({ report, company }, ref) => {
-        const processedData = React.useMemo(() => {
-            if (!report) return null;
-
-            const departmentMap = {};
-            if (
-                report?.departmentMap &&
-                typeof report.departmentMap === "object"
-            ) {
-                Object.assign(departmentMap, report.departmentMap);
+    ({ report, company, departments }, ref) => {
+        
+        const processedData = useMemo(() => {
+            if (!report?.assets || !Array.isArray(departments)) {
+                return { sortedDeptNames: [], assetsByDept: {}, grandTotal: 0 };
             }
-            if (Array.isArray(report?.departments)) {
-                for (const d of report.departments) {
-                    if (d?.id && d?.name) departmentMap[d.id] = d.name;
+
+            const departmentMap = new Map(
+                departments.map(d => [d.id, d.name])
+            );
+
+            const assetsByDept = report.assets.reduce((acc, asset) => {
+                const deptName = departmentMap.get(asset.departmentId) || "Chưa phân loại";
+                if (!acc[deptName]) {
+                    acc[deptName] = [];
                 }
-            }
-
-            const resolveDeptName = (asset) => {
-                if (asset?.departmentName) return asset.departmentName;
-                const id =
-                    asset?.departmentId ||
-                    (asset?.department && typeof asset.department === "object"
-                        ? asset.department.id
-                        : null);
-                return departmentMap[id] || "Chưa phân loại";
-            };
-
-            const assetsByDept = (report.assets || []).reduce((acc, asset) => {
-                const deptName = resolveDeptName(asset);
-                if (!acc[deptName]) acc[deptName] = [];
                 acc[deptName].push(asset);
                 return acc;
             }, {});
 
-            const sortedDeptNames = Object.keys(assetsByDept).sort((a, b) =>
-                a.localeCompare(b, "vi")
-            );
+            const sortedDeptNames = Object.keys(assetsByDept).sort((a, b) => a.localeCompare(b, "vi"));
+            const totalAssetTypes = report.assets.length;
 
-            const totalAssetTypes = (report.assets || []).length; // <<< Đếm số dòng
+            return { sortedDeptNames, assetsByDept, grandTotal: totalAssetTypes };
+            
+        }, [report, departments]);
 
-            return { sortedDeptNames, assetsByDept, grandTotal: totalAssetTypes }; // <<< Trả về giá trị đếm
-        }, [report]);
-
-        if (!report || !processedData) return null;
+        if (!report || !processedData) {
+             // Thêm một điểm return an toàn ở đây
+             return <div ref={ref}>Đang tải dữ liệu...</div>;
+        }
 
         const { sortedDeptNames, assetsByDept, grandTotal } = processedData;
         const createdDate = formatDate(report.createdAt);
@@ -345,7 +332,6 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
                                 (a.name || "").localeCompare(b.name || "", "vi")
                             );
 
-
                         return (
                             <div
                                 key={deptName}
@@ -394,7 +380,6 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
                                                 </td>
                                             </tr>
                                         ))}
-
                                     </tbody>
                                 </table>
                             </div>
@@ -416,7 +401,7 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
                         </table>
                     </div>
                 </main>
-
+                
                 <section className="no-break" style={styles.signatureRow}>
                     <div style={styles.signatureCol}>
                         <SignatureDisplay
@@ -450,28 +435,22 @@ export const AssetSummaryPrintTemplate = React.forwardRef(
     size: A4;
     margin: 10mm 10mm 12mm 10mm;
 }
-
 @media print {
     html, body { margin:0 !important; padding:0 !important; }
-
-    /* Trong thẻ <style> và khối @media print */
-.print-page {
-    box-shadow: none;
-    width: 188mm !important; /* <<< GIẢM TỪ 190mm XUỐNG CÒN 188mm */
-    min-height: auto !important;
-    padding: 0 !important;
-    margin: 0 auto !important;
-}
-
+    .print-page {
+        box-shadow: none;
+        width: 100% !important;
+        min-height: auto !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
     .dept-section table tbody tr:nth-child(even) {
         background-color: #f8f9fa;
     }
-
     table { page-break-inside:auto; }
     tr, td, th { page-break-inside:avoid; break-inside:avoid; }
     thead { display: table-header-group; }
     tfoot { display: table-footer-group; }
-
     .no-break {
         break-inside: avoid;
         page-break-inside: avoid;

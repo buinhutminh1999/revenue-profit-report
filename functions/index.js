@@ -511,37 +511,31 @@ exports.createAssetRequest = onCall(async (request) => {
         throw new HttpsError("internal", error.message || "Không thể tạo yêu cầu tài sản.");
     }
 });
+
 // ====================================================================
-// HÀM 3: TẠO BÁO CÁO KIỂM KÊ (PHIÊN BẢN ĐÃ CẬP NHẬT)
+// HÀM 3: TẠO BÁO CÁO KIỂM KÊ (SỬA LỖI TRẠNG THÁI BAN ĐẦU)
 // ====================================================================
 exports.createInventoryReport = onCall(async (request) => {
-    // Xác thực người dùng và lấy thông tin cơ bản
     ensureSignedIn(request.auth);
     const { uid } = request.auth;
-    // THÊM `blockName` vào danh sách các biến được lấy ra
-    const { type, departmentId, blockName } = request.data;
+    const { type, departmentId, departmentName, blockName } = request.data;
 
-    // Tham chiếu đến máy đếm
     const counterRef = db.collection("counters").doc("inventoryReportCounter");
 
-    // Kiểm tra đầu vào mới
     if (!type ||
-        (type === "department" && !departmentId) ||
+        (type === "DEPARTMENT_INVENTORY" && !departmentId) ||
         (type === "BLOCK_INVENTORY" && !blockName)
     ) {
         throw new HttpsError("invalid-argument", "Thiếu thông tin cần thiết để tạo báo cáo.");
     }
 
     try {
-        // Chạy toàn bộ logic trong một transaction
         const result = await db.runTransaction(async (tx) => {
-            // Lấy và tăng giá trị của máy đếm
             const counterDoc = await tx.get(counterRef);
             const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
             const year = new Date().getFullYear();
             const displayId = `PBC-${year}-${String(newCounterValue).padStart(5, "0")}`;
 
-            // Lấy thông tin người yêu cầu
             const userSnap = await tx.get(db.collection("users").doc(uid));
             const requester = {
                 uid,
@@ -550,9 +544,7 @@ exports.createInventoryReport = onCall(async (request) => {
 
             let reportData;
 
-            // Bổ sung nhánh xử lý cho type 'BLOCK_INVENTORY'
             if (type === "BLOCK_INVENTORY") {
-                // 1. Tìm tất cả phòng ban thuộc khối
                 const deptsSnapshot = await db.collection("departments")
                     .where("managementBlock", "==", blockName)
                     .get();
@@ -562,58 +554,40 @@ exports.createInventoryReport = onCall(async (request) => {
                 }
                 const deptIds = deptsSnapshot.docs.map((doc) => doc.id);
 
-                // 2. Lấy tất cả tài sản của các phòng đó
                 const assetsSnap = await db.collection("assets").where("departmentId", "in", deptIds).get();
                 const assetsInBlock = assetsSnap.docs.map((doc) => ({
-                    id: doc.id,
-                    name: doc.data().name || "",
-                    quantity: doc.data().quantity || 0,
-                    unit: doc.data().unit || "",
-                    size: doc.data().size || "",
-                    notes: doc.data().notes || "",
+                    id: doc.id, ...doc.data()
                 }));
 
-                // 3. Định hình dữ liệu báo cáo
                 reportData = {
-                    type: "DEPARTMENT_INVENTORY", // QUAN TRỌNG: Lưu type là DEPARTMENT_INVENTORY để dùng chung mẫu in và quy trình duyệt
+                    type: "BLOCK_INVENTORY",
                     title: `Biên bản Bàn giao - Kiểm kê Tài sản ${blockName}`,
-                    blockName: blockName, // Lưu lại tên khối để tham chiếu
+                    blockName: blockName,
                     assets: assetsInBlock,
+                    // ✅ SỬA LẠI ĐÂY: Trạng thái bắt đầu phải là PENDING_HC
                     status: "PENDING_HC",
                     signatures: { hc: null, deptLeader: null, director: null },
                 };
-                // eslint-disable-next-line brace-style
-            }
-            // Logic cũ cho 'department' được gộp vào đây
-            else if (type === "department") {
-                const deptSnap = await tx.get(db.collection("departments").doc(departmentId));
-                if (!deptSnap.exists) throw new Error("Phòng ban không tồn tại.");
-
-                const department = { id: deptSnap.id, ...deptSnap.data() };
-
+            } else if (type === "DEPARTMENT_INVENTORY") {
                 const assetsSnap = await db.collection("assets").where("departmentId", "==", departmentId).get();
                 const assetsInDept = assetsSnap.docs.map((doc) => ({
-                    id: doc.id, name: doc.data().name || "", quantity: doc.data().quantity || 0,
-                    unit: doc.data().unit || "", size: doc.data().size || "", notes: doc.data().notes || "",
+                    id: doc.id, ...doc.data()
                 }));
 
                 reportData = {
                     type: "DEPARTMENT_INVENTORY",
-                    title: `Biên bản Bàn giao - Kiểm kê Tài sản Phòng ${department.name}`,
-                    departmentId: department.id,
-                    departmentName: department.name,
+                    title: `Biên bản Bàn giao - Kiểm kê Tài sản Phòng ${departmentName}`,
+                    departmentId: departmentId,
+                    departmentName: departmentName,
                     assets: assetsInDept,
+                    // ✅ SỬA LẠI ĐÂY: Trạng thái bắt đầu phải là PENDING_HC
                     status: "PENDING_HC",
                     signatures: { hc: null, deptLeader: null, director: null },
                 };
-                // eslint-disable-next-line brace-style
-            }
-            // Logic cũ cho báo cáo tổng hợp
-            else {
+            } else { // Logic cho type === "SUMMARY_REPORT"
                 const allAssetsSnap = await db.collection("assets").get();
                 const allAssets = allAssetsSnap.docs.map((doc) => ({
-                    id: doc.id, name: doc.data().name || "", quantity: doc.data().quantity || 0,
-                    unit: doc.data().unit || "", departmentId: doc.data().departmentId || null,
+                    id: doc.id, ...doc.data()
                 }));
 
                 reportData = {
@@ -625,7 +599,6 @@ exports.createInventoryReport = onCall(async (request) => {
                 };
             }
 
-            // Gộp các thông tin lại để tạo payload cuối cùng
             const payload = {
                 ...reportData,
                 maPhieuHienThi: displayId,
@@ -633,7 +606,6 @@ exports.createInventoryReport = onCall(async (request) => {
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
             };
 
-            // Tạo document mới và cập nhật máy đếm
             const newReportRef = db.collection("inventory_reports").doc();
             tx.set(newReportRef, payload);
             tx.update(counterRef, { currentValue: newCounterValue });
@@ -641,17 +613,14 @@ exports.createInventoryReport = onCall(async (request) => {
             return { reportId: newReportRef.id, displayId: displayId };
         });
 
-        // Ghi log sau khi transaction thành công
         await writeAuditLog("REPORT_CREATED_VIA_FUNC", uid, { type: "inventory_report", id: result.reportId }, { type, displayId: result.displayId }, { request });
 
-        // Trả kết quả về cho client
         return { ok: true, reportId: result.reportId, displayId: result.displayId };
     } catch (error) {
         logger.error("Lỗi khi tạo báo cáo kiểm kê:", error);
         throw new HttpsError("internal", error.message || "Không thể tạo báo cáo trên server.");
     }
 });
-// functions/index.js
 
 // TÌM VÀ THAY THẾ TOÀN BỘ HÀM NÀY
 exports.processAssetRequest = onCall(async (request) => {
@@ -730,7 +699,7 @@ exports.processAssetRequest = onCall(async (request) => {
             const nextStepMessage = managementBlock ? `chờ Khối ${managementBlock} duyệt.` : "chờ Lãnh đạo Khối duyệt.";
             await writeAuditLog("ASSET_REQUEST_HC_APPROVED", uid, { type: "asset_request", id: requestId }, {}, { request });
             return { ok: true, message: `P.HC đã duyệt, ${nextStepMessage}` };
-        // eslint-disable-next-line brace-style
+            // eslint-disable-next-line brace-style
         }
 
         // ✅ THÊM TOÀN BỘ KHỐI NÀY VÀO

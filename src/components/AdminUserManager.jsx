@@ -573,6 +573,7 @@ export default function AdminUserManager() {
                       checked={filteredUsers.length > 0 && selected.length === filteredUsers.length}
                       onChange={handleSelectAllClick}
                     />
+                    
                   </TableCell>
                   {headCells.map((headCell) => (
                     <TableCell

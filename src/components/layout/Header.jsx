@@ -1,5 +1,3 @@
-// src/components/layout/Header.jsx — ERP-modern header (a11y, reduced-motion, shortcuts, tidy menus)
-
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
     Toolbar, Box, IconButton, Tooltip, Menu, MenuItem, Divider,
@@ -29,7 +27,7 @@ import {
     doc,
     updateDoc,
     arrayUnion,
-    writeBatch, // << Bổ sung writeBatch
+    writeBatch,
 } from "firebase/firestore";
 
 // lucide-react icons
@@ -111,56 +109,26 @@ const pathMap = {
     "admin": "Quản trị Hệ thống",
 };
 
-// ---------- Notification Config (Tùy chỉnh icon & text) ----------
+// ---------- Notification Config ----------
 const notificationConfig = {
-    // Luồng Tài sản (Asset)
     ASSET_CREATED: { icon: <PlusCircle size={20} color="#2e7d32" />, template: (actor, target) => `**${actor}** đã tạo tài sản mới **${target}**.` },
     ASSET_DELETED: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã xóa tài sản **${target}**.` },
-
-    // Luồng Yêu cầu Thay đổi (Asset Request)
     ASSET_REQUEST_CREATED: { icon: <FilePlus size={20} color="#0288d1" />, template: (actor, target) => `**${actor}** đã gửi yêu cầu thêm tài sản **${target}**.` },
     ASSET_REQUEST_DELETED: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor) => `**${actor}** đã xóa một yêu cầu thay đổi.` },
     ASSET_REQUEST_REJECTED: { icon: <X size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã từ chối yêu cầu cho tài sản **${target}**.` },
     ASSET_REQUEST_APPROVED: { icon: <Check size={20} color="#2e7d32" />, template: (actor, target) => `**${actor}** đã duyệt yêu cầu cho tài sản **${target}**.` },
     ASSET_REQUEST_HC_APPROVED: { icon: <UserCheck size={20} color="#1976d2" />, template: (actor, target) => `**${actor}** (P.HC) đã duyệt yêu cầu cho **${target}**.` },
     ASSET_REQUEST_KT_APPROVED: { icon: <Check size={20} color="#2e7d32" />, template: (actor, target) => `**${actor}** (P.KT) đã duyệt xong yêu cầu cho **${target}**.` },
-
-    // NEW: Bổ sung các hành động cho Phiếu Luân Chuyển
-    TRANSFER_CREATED: {
-        icon: <Send size={20} color="#0288d1" />,
-        template: (actor, target) => `**${actor}** đã tạo phiếu luân chuyển **${target}**.`
-    },
-    TRANSFER_DELETED: {
-        icon: <Trash2 size={20} color="#d32f2f" />,
-        template: (actor, target) => `**${actor}** đã xóa phiếu luân chuyển **${target}**.`
-    },
-    TRANSFER_SIGNED: {
-        icon: <FilePen size={20} color="#1976d2" />,
-        template: (actor, target, details) => `**${actor}** đã ký **${details}** cho phiếu **${target}**.`
-    },
-    // --- Inventory Report (Báo cáo kiểm kê) ---
-    REPORT_CREATED: {
-        icon: <FilePlus size={20} color="#0288d1" />,
-        template: (actor, target) => `**${actor}** đã tạo **${target}**.`
-    },
-    REPORT_SIGNED: {
-        icon: <Check size={20} color="#2e7d32" />,
-        // details = bước ký: "P.HC", "Lãnh đạo Phòng", "P.KT", "BTGĐ"
-        template: (actor, target, details) => `**${actor}** đã ký **${details}** cho **${target}**.`
-    },
-    REPORT_DELETED: {
-        icon: <Trash2 size={20} color="#d32f2f" />,
-        template: (actor, target) => `**${actor}** đã xóa **${target}**.`
-    },
-    REPORT_DELETED_BY_CALLABLE: {
-        icon: <Trash2 size={20} color="#d32f2f" />,
-        template: (actor, target) => `**${actor}** đã xóa **${target}** (qua tác vụ hệ thống).`
-    },
-
-    // Mặc định
+    TRANSFER_CREATED: { icon: <Send size={20} color="#0288d1" />, template: (actor, target) => `**${actor}** đã tạo phiếu luân chuyển **${target}**.` },
+    TRANSFER_DELETED: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã xóa phiếu luân chuyển **${target}**.` },
+    TRANSFER_SIGNED: { icon: <FilePen size={20} color="#1976d2" />, template: (actor, target, details) => `**${actor}** đã ký **${details}** cho phiếu **${target}**.` },
+    REPORT_CREATED: { icon: <FilePlus size={20} color="#0288d1" />, template: (actor, target) => `**${actor}** đã tạo **${target}**.` },
+    REPORT_SIGNED: { icon: <Check size={20} color="#2e7d32" />, template: (actor, target, details) => `**${actor}** đã ký **${details}** cho **${target}**.` },
+    REPORT_DELETED: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã xóa **${target}**.` },
+    REPORT_DELETED_BY_CALLABLE: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã xóa **${target}** (qua tác vụ hệ thống).` },
     DEFAULT: { icon: <Bell size={20} />, template: (actor) => `**${actor}** đã thực hiện một hành động.` }
 };
-//xóa phiếu luân chuyển, yêu cầu thêm xóa tài sản cũng hiện thông báo cho hợp lý nhất nhé
+
 export default function Header({ onSidebarToggle, isSidebarOpen }) {
     const theme = useTheme();
     const reduce = useReducedMotion();
@@ -174,19 +142,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
     const [userMenuAnchor, setUserMenuAnchor] = useState(null);
     const [notificationAnchor, setNotificationAnchor] = useState(null);
     const [notificationTab, setNotificationTab] = useState(0);
-
-    // State và useEffect cho thông báo
     const [notifications, setNotifications] = useState([]);
 
     useEffect(() => {
         if (!user?.uid) return;
-
-        const q = query(
-            collection(db, "audit_logs"),
-            orderBy("timestamp", "desc"),
-            limit(20)
-        );
-
+        const q = query(collection(db, "audit_logs"), orderBy("timestamp", "desc"), limit(20));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const logsData = querySnapshot.docs.map(doc => ({
                 id: doc.id,
@@ -195,11 +155,9 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
             }));
             setNotifications(logsData);
         });
-
         return () => unsubscribe();
     }, [user?.uid]);
 
-    // Shortcuts
     useHotkeys("ctrl+k, cmd+k", (e) => { e.preventDefault(); setSearchOpen(true); });
     useHotkeys("ctrl+b, cmd+b", (e) => { e.preventDefault(); onSidebarToggle?.(); });
     useHotkeys("esc", () => { setSearchOpen(false); setSearchValue(""); }, { enableOnFormTags: true });
@@ -215,29 +173,21 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         if (!user?.uid || !notificationId) return;
         const notifRef = doc(db, "audit_logs", notificationId);
         try {
-            await updateDoc(notifRef, {
-                readBy: arrayUnion(user.uid),
-            });
+            await updateDoc(notifRef, { readBy: arrayUnion(user.uid) });
         } catch (error) {
             console.error("Lỗi khi đánh dấu đã đọc:", error);
         }
     };
 
-    // ✅ HÀM MỚI: ĐÁNH DẤU TẤT CẢ LÀ ĐÃ ĐỌC
     const handleMarkAllAsRead = async () => {
         if (!user?.uid) return;
-
         const unreadNotifications = notifications.filter(n => !n.isRead);
         if (unreadNotifications.length === 0) return;
-
         const batch = writeBatch(db);
         unreadNotifications.forEach(notif => {
             const notifRef = doc(db, "audit_logs", notif.id);
-            batch.update(notifRef, {
-                readBy: arrayUnion(user.uid)
-            });
+            batch.update(notifRef, { readBy: arrayUnion(user.uid) });
         });
-
         try {
             await batch.commit();
         } catch (error) {
@@ -378,7 +328,6 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         </Box>
                     </Tooltip>
 
-                    {/* Notification */}
                     <Tooltip title="Thông báo">
                         <IconButton
                             color="inherit"
@@ -393,7 +342,6 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
 
                     <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: "none", sm: "block" } }} />
 
-                    {/* User */}
                     <UserSection
                         onClick={(e) => setUserMenuAnchor(e.currentTarget)}
                         aria-label="Mở menu người dùng"
@@ -432,10 +380,15 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     <ListItemIcon><SettingsIcon size={18} /></ListItemIcon>
                     <ListItemText primary="Cài đặt" />
                 </MenuItem>
-                <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/admin"); }}>
-                    <ListItemIcon><Shield size={18} /></ListItemIcon>
-                    <ListItemText primary="Quản trị" />
-                </MenuItem>
+                
+                {/* ✅ BƯỚC 1: Bọc mục "Quản trị" trong điều kiện kiểm tra vai trò */}
+                {user?.role === 'admin' && (
+                    <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/admin"); }}>
+                        <ListItemIcon><Shield size={18} /></ListItemIcon>
+                        <ListItemText primary="Quản trị" />
+                    </MenuItem>
+                )}
+                
                 <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/help"); }}>
                     <ListItemIcon><HelpCircle size={18} /></ListItemIcon>
                     <ListItemText primary="Trợ giúp" />
@@ -497,11 +450,10 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                     <ListItemText
                                         primary={
                                             <Typography variant="body2" fontWeight={n.isRead ? 400 : 600} sx={{ mb: 0.25 }}>
-                                                {/* Logic mới để tạo câu văn */}
                                                 {config.template(
                                                     n.actor?.name || "Một người dùng",
                                                     n.target?.name || "",
-                                                    n.details?.step || "" // Truyền chi tiết nếu có
+                                                    n.details?.step || ""
                                                 ).split('**').map((text, index) => (
                                                     index % 2 === 1 ? <b key={index}>{text}</b> : text
                                                 ))}
@@ -531,7 +483,6 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                 </Box>
                 <Box sx={{ p: 1, borderTop: t => `1px solid ${t.palette.divider}` }}>
                     <Button fullWidth size="small" onClick={() => {
-                        // Tùy chọn: navigate đến một trang xem tất cả thông báo
                         setNotificationAnchor(null)
                     }}>
                         Xem tất cả

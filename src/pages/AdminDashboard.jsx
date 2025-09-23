@@ -6,14 +6,16 @@ import { motion } from 'framer-motion';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase-config';
 
-import { Users, Settings, BarChart, HardDrive, ClipboardList, ChevronRight, FileText, Landmark } from 'lucide-react';
-// --- DỮ LIỆU CẤU HÌNH (Đã kiểm tra và đảm bảo mọi item đều có 'group') ---
+// ✅ BƯỚC 1: Thêm icon mới
+import { Users, Settings, BarChart, HardDrive, ClipboardList, ChevronRight, FileText, Landmark, ShieldCheck } from 'lucide-react';
+
+// --- DỮ LIỆU CẤU HÌNH ---
 const adminItems = [
     {
         title: "Quản lý người dùng",
         description: "Thêm, xóa, và phân quyền cho người dùng hệ thống.",
         icon: <Users />,
-        countKey: 'userCount', // Key để lấy số liệu từ state
+        countKey: 'userCount',
         color: 'primary',
         path: "/admin/users",
         group: "Người dùng & Phân quyền",
@@ -21,10 +23,19 @@ const adminItems = [
     {
         title: "Quản lý Phòng ban",
         description: "Tạo, sửa đổi và chỉ định trưởng phòng cho các đơn vị.",
-        icon: <Landmark  />,
-        countKey: 'departmentCount', // Key để lấy số liệu từ state
+        icon: <Landmark />,
+        countKey: 'departmentCount',
         color: 'secondary',
         path: "/admin/departments",
+        group: "Người dùng & Phân quyền",
+    },
+    // ✅ BƯỚC 2: Thêm mục mới cho trang quản lý phân quyền tại đây
+    {
+        title: "Quản lý Phân quyền",
+        description: "Cấp quyền truy cập chi tiết cho người dùng vào các trang.",
+        icon: <ShieldCheck />,
+        color: 'warning',
+        path: "/admin/whitelist", // Đường dẫn đến trang quản lý
         group: "Người dùng & Phân quyền",
     },
     {
@@ -47,7 +58,7 @@ const adminItems = [
         title: "Báo cáo Tuần",
         description: "Tổng hợp các báo cáo công việc được gửi lên hàng tuần.",
         icon: <FileText />,
-        countKey: 'reportCount', // Key để lấy số liệu từ state
+        countKey: 'reportCount',
         path: "/reports/weekly",
         color: 'info',
         group: "Thống kê & Báo cáo",
@@ -71,7 +82,7 @@ const adminItems = [
     },
 ];
 
-// --- STYLED COMPONENTS (Giữ nguyên) ---
+// --- STYLED COMPONENTS ---
 const AdminItemCard = styled(Paper)(({ theme, disabled }) => ({
     display: 'flex',
     alignItems: 'center',
@@ -103,31 +114,28 @@ const NavLinkButton = styled(ListItemButton)(({ theme }) => ({
     }
 }));
 
-
 // --- COMPONENT CHÍNH ---
 export default function AdminDashboard() {
     const navigate = useNavigate();
-    // Khởi tạo state với giá trị null để dễ kiểm tra
     const [stats, setStats] = useState({ userCount: null, reportCount: null, departmentCount: null });
     const sectionRefs = useRef({});
     const theme = useTheme(); 
 
     useEffect(() => {
         const fetchStats = async () => {
-            // Helper function để lấy dữ liệu an toàn
             const safeGetDocs = async (collectionName) => {
                 try {
                     const snap = await getDocs(collection(db, collectionName));
                     return snap.size;
                 } catch (error) {
                     console.warn(`Cảnh báo: Không thể tải collection '${collectionName}'.`, error.message);
-                    return 0; // Trả về 0 nếu có lỗi
+                    return 0;
                 }
             };
 
             const [userCount, reportCount, departmentCount] = await Promise.all([
                 safeGetDocs("users"),
-                safeGetDocs("weeklyReports"), // Sẽ không gây lỗi nếu collection này không tồn tại
+                safeGetDocs("weeklyReports"),
                 safeGetDocs("departments")
             ]);
             
@@ -136,21 +144,15 @@ export default function AdminDashboard() {
         fetchStats();
     }, []);
 
-    // Gom nhóm các mục, đảm bảo logic này luôn chạy đúng
     const groupedItems = useMemo(() => {
         return adminItems.reduce((acc, item) => {
-            // Gán số liệu thống kê vào từng mục
             const itemWithStat = { ...item, count: stats[item.countKey] };
-
-            // Đảm bảo thuộc tính 'group' luôn tồn tại
             const group = item.group || 'Chưa phân loại';
-            
-            // Thêm item vào nhóm
             acc[group] = acc[group] || [];
             acc[group].push(itemWithStat);
             return acc;
         }, {});
-    }, [stats]); // Tính toán lại chỉ khi stats thay đổi
+    }, [stats]);
 
     const handleNavClick = (groupId) => {
         sectionRefs.current[groupId]?.scrollIntoView({
@@ -173,7 +175,7 @@ export default function AdminDashboard() {
         <Box p={{xs: 2, md: 3}}>
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
                  <Typography variant="h4" gutterBottom fontWeight={700}>
-                   Trang quản trị
+                    Trang quản trị
                 </Typography>
                 <Typography variant="body1" color="text.secondary" mb={4}>
                     Tổng quan các chức năng quản lý, cấu hình và báo cáo hệ thống.
@@ -202,7 +204,6 @@ export default function AdminDashboard() {
                                     <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>{group}</Typography>
                                 </motion.div>
                                 <Stack spacing={2}>
-                                    {/* ✨ SỬA LỖI: Thêm `items &&` để kiểm tra trước khi map */}
                                     {items && items.map((item, idx) => (
                                         <motion.div variants={itemVariants} key={idx}>
                                             <AdminItemCard
@@ -214,7 +215,6 @@ export default function AdminDashboard() {
                                                     <Typography fontWeight="bold">{item.title}</Typography>
                                                     <Typography variant="body2" color="text.secondary">{item.description}</Typography>
                                                 </Box>
-                                                {/* Chỉ hiển thị Chip nếu count là một con số */}
                                                 {typeof item.count === 'number' && <Chip label={item.count} size="small" sx={{ mx: 2, fontWeight: 'bold' }} />}
                                                 
                                                 {!item.disabled && <ChevronRight style={{ color: theme.palette.text.secondary }} />}

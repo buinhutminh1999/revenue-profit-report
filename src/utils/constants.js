@@ -23,7 +23,7 @@ export const reportStatusConfig = {
 };
 
 export const reportWorkflows = {
-    DEPARTMENT_INVENTORY: [
+    BLOCK_INVENTORY : [
         { status: "PENDING_HC", label: "P. Hành chính Ký duyệt", signatureKey: "hc" },
         { status: "PENDING_DEPT_LEADER", label: "Lãnh đạo Phòng Ký nhận", signatureKey: "deptLeader" },
         { status: "PENDING_DIRECTOR", label: "BTGĐ duyệt", signatureKey: "director" },

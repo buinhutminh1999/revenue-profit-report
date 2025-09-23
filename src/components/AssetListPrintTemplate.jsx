@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
-// --- Theme & Styles ---
+// --- Theme & Styles (Không đổi) ---
 const theme = {
     colors: {
         primary: "#0d6efd",
@@ -230,7 +230,7 @@ const SignatureDisplay = ({ signature, role }) => (
         {signature ? (
             <div style={{ ...styles.signatureBox, ...styles.signatureContent }}>
                 <p style={styles.signatureStatus}>✔ Đã ký điện tử</p>
-                <p style={styles.signatureTime}>{fullTime(signature.signedAt)}</p>
+                <p style={styles.signatureTime}>{fullTime(signature.approvedAt || signature.signedAt)}</p>
             </div>
         ) : (
             <div style={{ ...styles.signatureBox, ...styles.signaturePlaceholder }}>
@@ -241,16 +241,39 @@ const SignatureDisplay = ({ signature, role }) => (
     </>
 );
 
+
 // --- Main Print Component ---
-export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref) => {
-    if (!report) return null;
+export const AssetListPrintTemplate = React.forwardRef(({ report, company, departments }, ref) => {
+    
+    // ✅ BƯỚC 1: DI CHUYỂN HOOK useMemo LÊN ĐẦU COMPONENT
+    const groupedAssets = useMemo(() => {
+        // Thêm kiểm tra props bên trong hook để tránh lỗi
+        if (!report?.assets || !departments) return [];
+
+        const departmentMap = new Map(departments.map(d => [d.id, d.name]));
+        const groups = new Map();
+        
+        for (const asset of report.assets) {
+            const deptName = departmentMap.get(asset.departmentId) || "Phòng không xác định";
+            if (!groups.has(deptName)) {
+                groups.set(deptName, []);
+            }
+            groups.get(deptName).push(asset);
+        }
+
+        return Array.from(groups.entries())
+            .map(([departmentName, assets]) => ({ departmentName, assets }))
+            .sort((a, b) => a.departmentName.localeCompare(b.departmentName, 'vi'));
+            
+    }, [report?.assets, departments]);
+
+    // ✅ BƯỚC 2: KIỂM TRA PROPS SAU KHI TẤT CẢ CÁC HOOK ĐÃ ĐƯỢC GỌI
+    if (!report || !departments) return null;
 
     const createdDate = formatDate(report.createdAt);
     const { signatures = {} } = report;
-
-
-    // Lấy tên Khối quản lý cho báo cáo. Ưu tiên blockName, sau đó đến managementBlock của phòng ban.
-    const managementBlockName = report.blockName || report.department?.managementBlock || report.departmentName; const qrValue = typeof window !== 'undefined'
+    const managementBlockName = report.blockName || report.departmentName;
+    const qrValue = typeof window !== 'undefined'
         ? `${window.location.origin}/inventory-reports/${report.id}`
         : `/inventory-reports/${report.id}`;
 
@@ -279,12 +302,13 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref
                     Mã biên bản: {report.maPhieuHienThi || report.id?.slice(0, 8).toUpperCase()}
                 </p>
             </section>
+            
             <main>
                 <table style={styles.infoTable}>
                     <tbody>
                         <tr>
-                            <td style={styles.infoLabel}>Phòng ban kiểm kê:</td>
-                            <td style={styles.infoValue}><b>{managementBlockName    }</b></td>
+                            <td style={styles.infoLabel}>{report.blockName ? "Khối kiểm kê:" : "Phòng ban kiểm kê:"}</td>
+                            <td style={styles.infoValue}><b>{managementBlockName}</b></td>
                         </tr>
                         <tr>
                             <td style={styles.infoLabel}>Người lập biên bản:</td>
@@ -294,7 +318,7 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref
                 </table>
 
                 <p style={{ margin: '20px 0 15px 0' }}>
-                    Danh sách tài sản và công cụ được kiểm kê tại phòng <b>{managementBlockName}</b> như sau:
+                    Danh sách tài sản và công cụ được kiểm kê tại <b>{managementBlockName}</b> như sau:
                 </p>
 
                 <table style={styles.table}>
@@ -308,18 +332,28 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref
                             <th style={{ ...styles.th, width: '30%', textAlign: 'left' }}>Ghi chú</th>
                         </tr>
                     </thead>
+                    
                     <tbody>
-                        {(report.assets || []).map((asset, index) => (
-                            <tr key={asset.id || index}>
-                                <td style={styles.td}>{index + 1}</td>
-                                <td style={{ ...styles.td, textAlign: 'left' }}>
-                                    <b>{asset.name}</b>
-                                </td>
-                                <td style={styles.td}>{asset.size || '–'}</td>
-                                <td style={styles.td}>{asset.unit || ''}</td>
-                                <td style={{ ...styles.td, fontWeight: '500' }}>{formatNumber(Number(asset.quantity || 0))}</td>
-                                <td style={{ ...styles.td, textAlign: 'left' }}>{asset.notes || ''}</td>
-                            </tr>
+                        {groupedAssets.map(({ departmentName, assets }) => (
+                            <React.Fragment key={departmentName}>
+                                <tr style={{ backgroundColor: '#f0f0f0' }}>
+                                    <td colSpan="6" style={{ ...styles.td, padding: '8px 12px', fontWeight: 700, textAlign: 'left', border: `1px solid ${theme.colors.border}` }}>
+                                        {departmentName.toUpperCase()}
+                                    </td>
+                                </tr>
+                                {assets.map((asset, index) => (
+                                    <tr key={asset.id || index}>
+                                        <td style={styles.td}>{index + 1}</td>
+                                        <td style={{ ...styles.td, textAlign: 'left' }}>
+                                            <b>{asset.name}</b>
+                                        </td>
+                                        <td style={styles.td}>{asset.size || '–'}</td>
+                                        <td style={styles.td}>{asset.unit || ''}</td>
+                                        <td style={{ ...styles.td, fontWeight: '500' }}>{formatNumber(Number(asset.quantity || 0))}</td>
+                                        <td style={{ ...styles.td, textAlign: 'left' }}>{asset.notes || ''}</td>
+                                    </tr>
+                                ))}
+                            </React.Fragment>
                         ))}
                     </tbody>
                 </table>
@@ -343,7 +377,6 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref
                         <b>4. Hư hỏng tài sản:</b> Các tài sản trên nếu có hư hỏng, phải đề xuất Phòng Hành chính kiểm tra và khắc phục sửa chữa nếu cần thiết.
                     </div>
                 </div>
-
             </main>
 
             <section className="no-break" style={styles.signatureRow}>
@@ -351,7 +384,7 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company }, ref
                     <SignatureDisplay signature={signatures.hc} role="Phòng Hành chính" />
                 </div>
                 <div style={styles.signatureCol}>
-                    <SignatureDisplay signature={signatures.deptLeader} role="Lãnh đạo Phòng" />
+                    <SignatureDisplay signature={signatures.deptLeader} role="Lãnh đạo Khối" />
                 </div>
                 <div style={styles.signatureCol}>
                     <SignatureDisplay signature={signatures.director} role="Ban Giám đốc" />

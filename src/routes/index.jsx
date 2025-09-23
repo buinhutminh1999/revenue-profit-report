@@ -1,5 +1,3 @@
-// src/routes/index.jsx
-
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
@@ -11,6 +9,8 @@ import LoadingScreen from '../components/common/LoadingScreen';
 import PageTransition from '../components/common/PageTransition';
 import ProgressBar from '../components/common/ProgressBar';
 import RequireRole from '../components/auth/RequireRole';
+// --- THÊM CÁC IMPORT MỚI ---
+import RequireEmailAccess from '../components/auth/RequireEmailAccess'; 
 
 // --- LAZY-LOAD CÁC TRANG ---
 const lazyLoad = (Component) => (
@@ -28,6 +28,8 @@ const NotFound = lazy(() => import('../components/NotFound'));
 const UserProfile = lazy(() => import('../pages/UserProfile'));
 const EventSlideshow = lazy(() => import('../pages/EventSlideshow'));
 const EventEditor = lazy(() => import('../pages/EventEditor'));
+const UnauthorizedPage = lazy(() => import('../pages/UnauthorizedPage')); 
+
 // Main Modules
 const ConstructionPlan = lazy(() => import('../components/ConstructionPlan/ConstructionPlan'));
 const ProjectsList = lazy(() => import('../pages/ProjectsList'));
@@ -43,7 +45,7 @@ const ProfitChange = lazy(() => import('../pages/ProfitChange'));
 const AssetTransferPage = lazy(() => import('../pages/AssetTransferPage'));
 const TransferDetailPage = lazy(() => import('../pages/TransferDetailPage'));
 const InventoryReportPublicView = lazy(() => import('../pages/InventoryReportPublicView'));
-const AssetRequestDetailPage = lazy(() => import('../pages/AssetRequestDetailPage')); // <-- THÊM DÒNG NÀY
+const AssetRequestDetailPage = lazy(() => import('../pages/AssetRequestDetailPage'));
 const AssetDetailPage = lazy(() => import('../pages/AssetDetailPage'));
 
 // Report Modules
@@ -54,15 +56,13 @@ const OverallReportPage = lazy(() => import('../pages/OverallReportPage'));
 const CapitalUtilizationReport = lazy(() => import('../pages/CapitalUtilizationReport'));
 const QuarterlyCostAllocationReport = lazy(() => import('../pages/QuarterlyCostAllocationReport'));
 
-
-
 // Admin Modules
 const AdminDashboard = lazy(() => import('../pages/AdminDashboard'));
 const AdminUserManager = lazy(() => import('../components/AdminUserManager'));
-const AdminDepartmentManager = lazy(() => import('../pages/AdminDepartmentManager')); // <-- THÊM DÒNG NÀY
+const AdminDepartmentManager = lazy(() => import('../pages/AdminDepartmentManager'));
 const AdminAuditLog = lazy(() => import('../pages/AdminAuditLog'));
 const CloseQuarterPage = lazy(() => import('../pages/CloseQuarterPage'));
-
+const WhitelistManager = lazy(() => import('../pages/WhitelistManager'));
 
 // --- COMPONENT ĐỊNH TUYẾN CHÍNH ---
 export default function Router() {
@@ -88,11 +88,9 @@ function AppRoutes() {
                     <Route path="/transfers/:transferId" element={lazyLoad(TransferDetailPage)} />
                     <Route path="/asset-requests/:requestId" element={lazyLoad(AssetRequestDetailPage)} />
                     <Route path="/assets/:assetId" element={lazyLoad(AssetDetailPage)} />
+                    <Route path="/inventory-reports/:reportId" element={lazyLoad(InventoryReportPublicView)} />
+                    <Route path="/unauthorized" element={lazyLoad(UnauthorizedPage)} />
 
-                    <Route
-                        path="/inventory-reports/:reportId"
-                        element={lazyLoad(InventoryReportPublicView)}
-                    />
                     {/* Route được bảo vệ, yêu cầu đăng nhập */}
                     <Route
                         path="/*"
@@ -105,50 +103,48 @@ function AppRoutes() {
                         <Route index element={lazyLoad(Home)} />
                         <Route path="user" element={lazyLoad(UserProfile)} />
 
-                        {/* Các module chính */}
-                        <Route path="construction-plan" element={lazyLoad(ConstructionPlan)} />
-                        <Route path="project-manager" element={lazyLoad(ProjectsList)} />
-                        <Route path="accounts-receivable" element={lazyLoad(AccountsReceivable)} />
-                        <Route path="construction-payables" element={lazyLoad(ConstructionPayables)} />
-                        <Route path="allocations" element={lazyLoad(CostAllocation)} />
-                        <Route path="balance-sheet" element={lazyLoad(BalanceSheet)} />
-                        <Route path="profit-change" element={lazyLoad(ProfitChange)} />
-                        <Route path="project-details/:id" element={lazyLoad(ProjectDetailsLayout)} />
-                        <Route path="asset-transfer" element={lazyLoad(AssetTransferPage)} />
+                        {/* ========================================================= */}
+                        {/* CÁC ROUTE ĐƯỢC BẢO VỆ BỞI PHÂN QUYỀN EMAIL */}
+                        {/* ========================================================= */}
 
-
-
-                        {/* Các module báo cáo (<<< ĐÃ TÁI CẤU TRÚC) */}
+                        {/* --- CÁC MODULE CHÍNH --- */}
+                        <Route path="construction-plan" element={<RequireEmailAccess pathKey="construction-plan">{lazyLoad(ConstructionPlan)}</RequireEmailAccess>} />
+                        <Route path="project-manager" element={<RequireEmailAccess pathKey="project-manager">{lazyLoad(ProjectsList)}</RequireEmailAccess>} />
+                        <Route path="accounts-receivable" element={<RequireEmailAccess pathKey="accounts-receivable">{lazyLoad(AccountsReceivable)}</RequireEmailAccess>} />
+                        <Route path="construction-payables" element={<RequireEmailAccess pathKey="construction-payables">{lazyLoad(ConstructionPayables)}</RequireEmailAccess>} />
+                        <Route path="allocations" element={<RequireEmailAccess pathKey="allocations">{lazyLoad(CostAllocation)}</RequireEmailAccess>} />
+                        <Route path="balance-sheet" element={<RequireEmailAccess pathKey="balance-sheet">{lazyLoad(BalanceSheet)}</RequireEmailAccess>} />
+                        <Route path="profit-change" element={<RequireEmailAccess pathKey="profit-change">{lazyLoad(ProfitChange)}</RequireEmailAccess>} />
+                        <Route path="asset-transfer" element={<RequireEmailAccess pathKey="asset-transfer">{lazyLoad(AssetTransferPage)}</RequireEmailAccess>} />
+                        
+                        {/* --- CÁC MODULE BÁO CÁO --- */}
                         <Route path="reports">
-                            <Route path="profit-quarter" element={lazyLoad(ProfitReportQuarter)} />
-                            <Route path="profit-year" element={lazyLoad(ProfitReportYear)} />
-                            <Route path="broker-debt" element={lazyLoad(BrokerDebtReport)} />
-                            <Route path="overall" element={lazyLoad(OverallReportPage)} />
-                            <Route path="capital-utilization" element={lazyLoad(CapitalUtilizationReport)} />
-                            <Route path="quarterly-cost-allocation" element={lazyLoad(QuarterlyCostAllocationReport)} />
+                            <Route path="profit-quarter" element={<RequireEmailAccess pathKey="reports/profit-quarter">{lazyLoad(ProfitReportQuarter)}</RequireEmailAccess>} />
+                            <Route path="profit-year" element={<RequireEmailAccess pathKey="reports/profit-year">{lazyLoad(ProfitReportYear)}</RequireEmailAccess>} />
+                            <Route path="broker-debt" element={<RequireEmailAccess pathKey="reports/broker-debt">{lazyLoad(BrokerDebtReport)}</RequireEmailAccess>} />
+                            <Route path="overall" element={<RequireEmailAccess pathKey="reports/overall">{lazyLoad(OverallReportPage)}</RequireEmailAccess>} />
+                            <Route path="capital-utilization" element={<RequireEmailAccess pathKey="reports/capital-utilization">{lazyLoad(CapitalUtilizationReport)}</RequireEmailAccess>} />
+                            <Route path="quarterly-cost-allocation" element={<RequireEmailAccess pathKey="reports/quarterly-cost-allocation">{lazyLoad(QuarterlyCostAllocationReport)}</RequireEmailAccess>} />
                         </Route>
 
-                        {/* Các route yêu cầu quyền truy cập cụ thể */}
-                        <Route
-                            path="cost-allocation-quarter"
-                            element={<RequireRole >{lazyLoad(CostAllocationQuarter)}</RequireRole>}
-                        />
-                        <Route
-                            path="chart-of-accounts"
-                            element={<RequireRole >{lazyLoad(ChartOfAccountsPage)}</RequireRole>}
-                        />
-                        <Route
-                            path="categories"
-                            element={<RequireRole >{lazyLoad(CategoryConfig)}</RequireRole>}
-                        />
+                        {/* --- CÁC TRANG CẤU HÌNH NHẠY CẢM (2 LỚP BẢO VỆ) --- */}
+                        <Route path="cost-allocation-quarter" element={<RequireRole><RequireEmailAccess pathKey="cost-allocation-quarter">{lazyLoad(CostAllocationQuarter)}</RequireEmailAccess></RequireRole>} />
+                        <Route path="chart-of-accounts" element={<RequireRole><RequireEmailAccess pathKey="chart-of-accounts">{lazyLoad(ChartOfAccountsPage)}</RequireEmailAccess></RequireRole>} />
+                        <Route path="categories" element={<RequireRole><RequireEmailAccess pathKey="categories">{lazyLoad(CategoryConfig)}</RequireEmailAccess></RequireRole>} />
+
+                        {/* ========================================================= */}
+                        {/* CÁC ROUTE CÔNG KHAI BÊN TRONG & ADMIN (KHÔNG THAY ĐỔI) */}
+                        {/* ========================================================= */}
+                        <Route path="project-details/:id" element={lazyLoad(ProjectDetailsLayout)} />
 
                         {/* Admin Routes */}
                         <Route path="admin">
                             <Route index element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminDashboard)}</RequireRole>} />
                             <Route path="users" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminUserManager)}</RequireRole>} />
-                            <Route path="departments" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminDepartmentManager)}</RequireRole>} /> {/* <-- THÊM DÒNG NÀY */}
+                            <Route path="departments" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminDepartmentManager)}</RequireRole>} />
                             <Route path="audit-log" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminAuditLog)}</RequireRole>} />
                             <Route path="close-quarter" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(CloseQuarterPage)}</RequireRole>} />
+                            <Route path="whitelist" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(WhitelistManager)}</RequireRole>} />
                         </Route>
 
                         {/* Trang không tìm thấy */}

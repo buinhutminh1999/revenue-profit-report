@@ -14,7 +14,7 @@ import { TransferPrintTemplate } from '../components/TransferPrintTemplate'
 import { AssetListPrintTemplate } from "../components/AssetListPrintTemplate";
 import { AssetSummaryPrintTemplate } from "../components/AssetSummaryPrintTemplate";
 import { RequestPrintTemplate } from "../components/RequestPrintTemplate";
-import { CheckCircleOutline } from "@mui/icons-material";
+import { CheckCircleOutline, GroupWork } from "@mui/icons-material";
 import { ALL_STATUS, reportStatusConfig, reportWorkflows, requestStatusConfig, statusConfig } from "../utils/constants";
 import { AssetLabelPrintTemplate } from "../components/AssetLabelPrintTemplate";
 
@@ -301,9 +301,27 @@ const ReportSignatureTimeline = ({ signatures = {}, status, type }) => {
     );
 };
 
+const getApprovalActionLabel = (req) => {
+    if (!req) return "Duyệt";
+    switch (req.status) {
+        case "PENDING_HC":
+            return "Duyệt P.HC";
+        case "PENDING_BLOCK_LEADER":
+            return `Duyệt Khối ${req.managementBlock || ''}`;
+        case "PENDING_KT":
+            return "Duyệt P.KT & Hoàn tất";
+        default:
+            return "Duyệt";
+    }
+};
+
 export default function AssetTransferPage() {
+
     const auth = getAuth();
     const [currentUser, setCurrentUser] = useState(null);
+    // THÊM STATE MỚI
+    const [assetManagerEmails, setAssetManagerEmails] = useState([]);
+    const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
     const [departments, setDepartments] = useState([]);
     const [assets, setAssets] = useState([]);
     const [transfers, setTransfers] = useState([]);
@@ -389,11 +407,11 @@ export default function AssetTransferPage() {
 
     // src/pages/AssetTransferPage.jsx
 
-const handlePrintLabels = useReactToPrint({
-    // Sửa từ 'contentRef' thành 'content' và dùng hàm mũi tên
-    contentRef: labelPrintRef, 
-    documentTitle: `tem-tai-san-${new Date().toISOString()}`,
-});
+    const handlePrintLabels = useReactToPrint({
+        // Sửa từ 'contentRef' thành 'content' và dùng hàm mũi tên
+        contentRef: labelPrintRef,
+        documentTitle: `tem-tai-san-${new Date().toISOString()}`,
+    });
     // ✅ VỊ TRÍ TỐT NHẤT ĐỂ ĐẶT ĐOẠN CODE NÀY LÀ Ở ĐÂY
     const managementBlocks = useMemo(() => {
         if (!departments) return [];
@@ -455,7 +473,9 @@ const handlePrintLabels = useReactToPrint({
         return () => unsub()
     }, [auth]);
 
-    // Data listeners
+    // src/pages/AssetTransferPage.jsx
+
+    // Data listeners (ĐÃ HỢP NHẤT)
     useEffect(() => {
         const unsubDepts = onSnapshot(query(collection(db, "departments"), fsOrderBy("name")), (qs) => setDepartments(qs.docs.map((d) => ({ id: d.id, ...d.data() }))));
         const unsubAssets = onSnapshot(query(collection(db, "assets")), (qs) => setAssets(qs.docs.map((d) => ({ id: d.id, ...d.data() }))));
@@ -467,30 +487,51 @@ const handlePrintLabels = useReactToPrint({
             setInventoryReports(qs.docs.map((d) => ({ id: d.id, ...d.data() })));
         });
 
-        // NEW: Lắng nghe document cấu hình quyền
+        // Lắng nghe document cấu hình quyền lãnh đạo
         const unsubConfig = onSnapshot(doc(db, "app_config", "leadership"), (docSnap) => {
             if (docSnap.exists()) {
                 const configData = docSnap.data();
                 setBlockLeaders(configData.blockLeaders || {});
                 setApprovalPermissions(configData.approvalPermissions || {});
             } else {
-                console.warn("Không tìm thấy document cấu hình 'app_config/leadership'. Các quyền sẽ không hoạt động đúng.");
-                // Set giá trị rỗng để tránh lỗi
+                console.warn("Không tìm thấy document cấu hình 'app_config/leadership'.");
                 setBlockLeaders({});
                 setApprovalPermissions({});
             }
         });
 
+        // --- BẮT ĐẦU CODE MỚI ĐƯỢC TÍCH HỢP ---
+        // Lắng nghe document cấu hình truy cập cho các chức năng đặc biệt
+        const unsubAccessControl = onSnapshot(doc(db, "configuration", "accessControl"), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                // Lấy danh sách email quản lý tài sản, nếu không có thì trả về mảng rỗng
+                setAssetManagerEmails(data.asset_management_functions || []);
+            } else {
+                console.warn("Không tìm thấy document 'configuration/accessControl'.");
+                setAssetManagerEmails([]);
+            }
+        });
+        // --- KẾT THÚC CODE MỚI ĐƯỢC TÍCH HỢP ---
+
+        // Hàm dọn dẹp (cleanup)
         return () => {
             unsubDepts();
             unsubAssets();
             unsubTransfers();
             unsubRequests();
             unsubReports();
-            unsubConfig(); // NEW: Hủy lắng nghe khi component unmount
+            unsubConfig();
+            unsubAccessControl(); // <-- THÊM DÒNG NÀY ĐỂ DỌN DẸP
         }
-    }, []);
-
+    }, []); // Dependency rỗng để chỉ chạy 1 lần
+// TẠO BIẾN KIỂM TRA QUYỀN
+    const canManageAssets = useMemo(() => {
+        if (!currentUser) return false;
+        if (currentUser.role === 'admin') return true; // Admin luôn có quyền
+        if (!currentUser.email) return false;
+        return assetManagerEmails.includes(currentUser.email);
+    }, [currentUser, assetManagerEmails]);
     // Debounce search inputs
     useEffect(() => { clearTimeout(searchDeb.current); searchDeb.current = setTimeout(() => setDebSearch(search), 300); return () => clearTimeout(searchDeb.current) }, [search]);
     useEffect(() => { const id = setTimeout(() => setCreatedByDeb(createdBy), 300); return () => clearTimeout(id) }, [createdBy]);
@@ -585,56 +626,56 @@ const handlePrintLabels = useReactToPrint({
         )
     }, [currentUser, canSignSender, canSignReceiver, canSignAdmin]);
 
-// src/pages/AssetTransferPage.jsx
+    // src/pages/AssetTransferPage.jsx
 
-// TÌM VÀ THAY THẾ TOÀN BỘ HÀM NÀY
-const canProcessRequest = useCallback((req) => {
-    // Các điều kiện ban đầu để thoát sớm
-    if (!currentUser || !req || !approvalPermissions || !departments || !blockLeaders) return false;
-    
-    // Các trạng thái hợp lệ có thể có nút hành động
-    const actionableStatuses = ["PENDING_HC", "PENDING_BLOCK_LEADER", "PENDING_KT"];
-    if (!actionableStatuses.includes(req.status)) return false;
-    
-    // Admin luôn có quyền xử lý
-    if (currentUser?.role === 'admin') return true;
+    // TÌM VÀ THAY THẾ TOÀN BỘ HÀM NÀY
+    const canProcessRequest = useCallback((req) => {
+        // Các điều kiện ban đầu để thoát sớm
+        if (!currentUser || !req || !approvalPermissions || !departments || !blockLeaders) return false;
 
-    // Tìm phòng ban và khối quản lý của yêu cầu
-    const deptId = req.assetData?.departmentId || req.departmentId;
-    const dept = departments.find(d => d.id === deptId);
-    if (!dept) return false;
-    
-    const managementBlock = dept.managementBlock;
+        // Các trạng thái hợp lệ có thể có nút hành động
+        const actionableStatuses = ["PENDING_HC", "PENDING_BLOCK_LEADER", "PENDING_KT"];
+        if (!actionableStatuses.includes(req.status)) return false;
 
-    // Kiểm tra quyền dựa trên trạng thái hiện tại của yêu cầu
-    switch (req.status) {
-        case 'PENDING_HC': {
-            const permissionGroupKey = managementBlock === 'Nhà máy' ? 'Nhà máy' : 'default';
-            const permissions = approvalPermissions[permissionGroupKey];
-            return (permissions?.hcApproverIds || []).includes(currentUser.uid);
+        // Admin luôn có quyền xử lý
+        if (currentUser?.role === 'admin') return true;
+
+        // Tìm phòng ban và khối quản lý của yêu cầu
+        const deptId = req.assetData?.departmentId || req.departmentId;
+        const dept = departments.find(d => d.id === deptId);
+        if (!dept) return false;
+
+        const managementBlock = dept.managementBlock;
+
+        // Kiểm tra quyền dựa trên trạng thái hiện tại của yêu cầu
+        switch (req.status) {
+            case 'PENDING_HC': {
+                const permissionGroupKey = managementBlock === 'Nhà máy' ? 'Nhà máy' : 'default';
+                const permissions = approvalPermissions[permissionGroupKey];
+                return (permissions?.hcApproverIds || []).includes(currentUser.uid);
+            }
+
+            // ✅ LOGIC MỚI ĐƯỢC THÊM VÀO ĐÂY
+            case 'PENDING_BLOCK_LEADER': {
+                if (!managementBlock || !blockLeaders[managementBlock]) return false;
+                const leadersOfBlock = blockLeaders[managementBlock];
+                const leaderIds = [
+                    ...(leadersOfBlock.headIds || []),
+                    ...(leadersOfBlock.deputyIds || [])
+                ];
+                return leaderIds.includes(currentUser.uid);
+            }
+
+            case 'PENDING_KT': {
+                const permissionGroupKey = managementBlock === 'Nhà máy' ? 'Nhà máy' : 'default';
+                const permissions = approvalPermissions[permissionGroupKey];
+                return (permissions?.ktApproverIds || []).includes(currentUser.uid);
+            }
+
+            default:
+                return false;
         }
-
-        // ✅ LOGIC MỚI ĐƯỢC THÊM VÀO ĐÂY
-        case 'PENDING_BLOCK_LEADER': {
-            if (!managementBlock || !blockLeaders[managementBlock]) return false;
-            const leadersOfBlock = blockLeaders[managementBlock];
-            const leaderIds = [
-                ...(leadersOfBlock.headIds || []),
-                ...(leadersOfBlock.deputyIds || [])
-            ];
-            return leaderIds.includes(currentUser.uid);
-        }
-
-        case 'PENDING_KT': {
-            const permissionGroupKey = managementBlock === 'Nhà máy' ? 'Nhà máy' : 'default';
-            const permissions = approvalPermissions[permissionGroupKey];
-            return (permissions?.ktApproverIds || []).includes(currentUser.uid);
-        }
-
-        default:
-            return false;
-    }
-}, [currentUser, departments, approvalPermissions, blockLeaders]); // Thêm blockLeaders vào dependencies
+    }, [currentUser, departments, approvalPermissions, blockLeaders]); // Thêm blockLeaders vào dependencies
     // Thay thế hàm canProcessReport cũ bằng hàm này
     const canProcessReport = useCallback((report) => {
         if (!currentUser || !report || !blockLeaders || !departments) return false;
@@ -696,10 +737,25 @@ const canProcessRequest = useCallback((req) => {
     const assetsWithDept = useMemo(() => { const byId = new Map(departments.map((d) => [d.id, d.name])); return assets.map((a) => ({ ...a, departmentName: byId.get(a.departmentId) || "Chưa gán" })) }, [assets, departments]);
     const assetsWithAvailability = useMemo(() => { return assetsWithDept.map((a) => ({ ...a, reserved: Number(a.reserved || 0), availableQuantity: Math.max(0, Number(a.quantity || 0) - Number(a.reserved || 0)) })) }, [assetsWithDept]);
     // ✅ BƯỚC 4: Tạo một useMemo để lấy thông tin chi tiết các tài sản đã chọn để in
-    const assetsToPrint = useMemo(() => {
+     const assetsToPrint = useMemo(() => {
         if (selectedAssetIdsForPrint.length === 0) return [];
+        
         const assetMap = new Map(assetsWithDept.map(a => [a.id, a]));
-        return selectedAssetIdsForPrint.map(id => assetMap.get(id)).filter(Boolean);
+        const selectedAssets = selectedAssetIdsForPrint.map(id => assetMap.get(id)).filter(Boolean);
+
+        // Dùng flatMap để "nhân bản" các tài sản có số lượng > 1
+        return selectedAssets.flatMap(asset => {
+            const quantity = Number(asset.quantity) || 0;
+            if (quantity <= 0) return []; // Bỏ qua nếu số lượng không hợp lệ
+
+            // Tạo ra một mảng gồm 'quantity' bản sao của tài sản
+            // Mỗi bản sao được bổ sung thông tin về số thứ tự để in
+            return Array.from({ length: quantity }, (_, i) => ({
+                ...asset,
+                printIndex: i + 1,      // Số thứ tự của tem này (1, 2, 3,...)
+                printTotal: quantity,   // Tổng số tem cho loại tài sản này
+            }));
+        });
     }, [selectedAssetIdsForPrint, assetsWithDept]);
 
     const filteredTransfers = useMemo(() => {
@@ -904,6 +960,31 @@ const canProcessRequest = useCallback((req) => {
         }));
 
     }, [selectedReport, departments]);
+
+    // ✅ BẠN HÃY ĐẶT KHỐI CODE MỚI VÀO NGAY ĐÂY
+    const sortedDepartmentsForPrint = useMemo(() => {
+        const blockOrder = [
+            "Hành chính", "Cung ứng", "Tổ Thầu", "Kế toán",
+            "XNXD1", "XNXD2", "KH-ĐT", "Nhà máy",
+        ];
+
+        return [...departments].sort((a, b) => {
+            const blockA = a.managementBlock || "Ω";
+            const blockB = b.managementBlock || "Ω";
+            const indexA = blockOrder.indexOf(blockA);
+            const indexB = blockOrder.indexOf(blockB);
+
+            if (indexA !== -1 && indexB !== -1) {
+                if (indexA !== indexB) {
+                    return indexA - indexB;
+                }
+            }
+            else if (indexA !== -1) return -1;
+            else if (indexB !== -1) return 1;
+
+            return a.name.localeCompare(b.name, 'vi');
+        });
+    }, [departments]);
     // ✅ BẠN HÃY ĐẶT KHỐI CODE MỚI VÀO NGAY BÊN DƯỚI ĐÂY
     const departmentAssetCounts = useMemo(() => {
         const counts = {};
@@ -1358,29 +1439,30 @@ const canProcessRequest = useCallback((req) => {
         }
     };
 
-    // Tìm và thay thế hàm handleCreatePrintRequest cũ bằng hàm này
 
-    // src/pages/AssetTransferPage.jsx
-
-    // Thay thế hàm cũ bằng hàm đã được cập nhật này
+    // THAY THẾ TOÀN BỘ HÀM NÀY BẰNG PHIÊN BẢN GỌN HƠN
     const handleCreatePrintRequest = async () => {
         if (!currentUser) {
             return setToast({ open: true, msg: "Vui lòng đăng nhập.", severity: "warning" });
         }
-        if ((printType === 'block' && !selectedBlockForPrint) || !printType) {
+
+        if (!printType || (printType === 'block' && !selectedBlockForPrint)) {
             return setToast({ open: true, msg: "Vui lòng chọn đầy đủ thông tin báo cáo.", severity: "warning" });
         }
 
-        // ✅ BẬT TRẠNG THÁI ĐANG XỬ LÝ
         setIsCreatingReport(true);
 
         try {
             const createReportCallable = httpsCallable(functions, 'createInventoryReport');
             let payload;
+
             if (printType === 'block') {
-                payload = { type: 'BLOCK_INVENTORY', blockName: selectedBlockForPrint };
-            } else {
-                payload = { type: 'SUMMARY_REPORT', departmentId: null };
+                payload = {
+                    type: 'BLOCK_INVENTORY',
+                    blockName: selectedBlockForPrint
+                };
+            } else { // 'summary'
+                payload = { type: 'SUMMARY_REPORT' };
             }
 
             const result = await createReportCallable(payload);
@@ -1391,7 +1473,6 @@ const canProcessRequest = useCallback((req) => {
             console.error("Lỗi khi tạo yêu cầu báo cáo:", error);
             setToast({ open: true, msg: "Có lỗi xảy ra: " + error.message, severity: "error" });
         } finally {
-            // ✅ TẮT TRẠNG THÁI ĐANG XỬ LÝ (DÙ THÀNH CÔNG HAY THẤT BẠI)
             setIsCreatingReport(false);
         }
     };
@@ -1603,6 +1684,7 @@ const canProcessRequest = useCallback((req) => {
             setCreating(false); // Tắt trạng thái loading dù thành công hay thất bại
         }
     };
+
     const handleProcessRequest = async (req, action) => {
         if (isProcessingRequest[req.id]) return;
         setIsProcessingRequest(prev => ({ ...prev, [req.id]: true }));
@@ -1610,34 +1692,15 @@ const canProcessRequest = useCallback((req) => {
         try {
             const processAssetRequest = httpsCallable(functions, 'processAssetRequest');
             const result = await processAssetRequest({ requestId: req.id, action });
-
-            // ✅ Cập nhật lại selectedRequest nếu đang mở
-            if (selectedRequest?.id === req.id) {
-                setSelectedRequest(prev => ({
-                    ...prev,
-                    status: action === 'approve' ? (req.status === 'PENDING_HC' ? 'PENDING_KT' : 'COMPLETED') : 'REJECTED',
-                    signatures: {
-                        ...(prev.signatures || {}),
-                        [req.status === 'PENDING_HC' ? 'hc' : 'kt']: {
-                            uid: currentUser.uid,
-                            name: currentUser.displayName || currentUser.email,
-                            signedAt: new Date().toISOString(),
-                        },
-                    },
-                }));
-            }
-
             setToast({ open: true, msg: result.data.message, severity: "success" });
-             handleCloseRequestDetail();
         } catch (error) {
             console.error("Lỗi khi xử lý yêu cầu:", error);
             setToast({ open: true, msg: error.message, severity: "error" });
         } finally {
+            // Luôn tắt loading để cho phép hành động tiếp theo
             setIsProcessingRequest(prev => ({ ...prev, [req.id]: false }));
         }
     };
-
-
     // ✅ BẠN HÃY ĐẶT HÀM MỚI VÀO NGAY ĐÂY
     const handleDeleteRequest = async () => {
         const req = deleteRequestConfirm;
@@ -1658,6 +1721,8 @@ const canProcessRequest = useCallback((req) => {
     };
 
     const handleOpenReportDetail = (report) => {
+        console.log("Opening report:", report); // <-- THÊM DÒNG NÀY
+
         setSelectedReport(report);
         setIsReportDetailOpen(true);
     };
@@ -1995,7 +2060,8 @@ const canProcessRequest = useCallback((req) => {
                 {tabIndex === 0}
                 {tabIndex === 1 && <Button variant="contained" size="large" startIcon={<ArrowRightLeft />} onClick={handleOpenTransferModal}>Tạo Phiếu Luân Chuyển</Button>}
                 {tabIndex === 2 && (
-                    <Stack direction="row" spacing={1}>
+                    canManageAssets && (
+                        <Stack direction="row" spacing={1}>
                         <Tooltip title={!filterDeptForAsset ? "Vui lòng chọn một phòng ban để nhập tài sản" : ""}>
                             <span> {/* Bọc bằng span để Tooltip hoạt động với nút bị disabled */}
                                 <Button
@@ -2011,6 +2077,7 @@ const canProcessRequest = useCallback((req) => {
                         </Tooltip>
                         <Button variant="contained" size="large" startIcon={<PlusCircle />} onClick={handleOpenAddModal}>Thêm Tài Sản</Button>
                     </Stack>
+                    )
                 )}
             </Stack>
             {/* Stats Cards Động */}
@@ -2178,8 +2245,15 @@ const canProcessRequest = useCallback((req) => {
                                                                     {canProcessRequest(req) && (<>
                                                                         {/* ✅ CẢI TIẾN 4: Chuyển nút từ chối thành nút phụ (text) */}
                                                                         <Button size="small" color="error" onClick={(e) => { e.stopPropagation(); setRejectConfirm(req); }} disabled={isProcessingRequest[req.id]}>Từ chối</Button>
-                                                                        <Button variant="contained" size="small" onClick={(e) => { e.stopPropagation(); handleProcessRequest(req, 'approve'); }} disabled={isProcessingRequest[req.id]} startIcon={<Check size={16} />}>{isProcessingRequest[req.id] ? "..." : "Duyệt"}</Button>
-                                                                    </>)}
+                                                                        <Button
+                                                                            variant="contained"
+                                                                            size="small"
+                                                                            onClick={(e) => { e.stopPropagation(); handleProcessRequest(req, 'approve'); }}
+                                                                            disabled={isProcessingRequest[req.id]}
+                                                                            startIcon={<Check size={16} />}
+                                                                        >
+                                                                            {isProcessingRequest[req.id] ? "..." : getApprovalActionLabel(req)}
+                                                                        </Button>                                                                    </>)}
                                                                     {currentUser?.role === 'admin' && (<Tooltip title="Xóa vĩnh viễn (Admin)"><IconButton size="small" onClick={(e) => { e.stopPropagation(); setDeleteRequestConfirm(req); }}><Trash2 size={16} /></IconButton></Tooltip>)}
                                                                 </Stack>
                                                             </>
@@ -2470,198 +2544,183 @@ const canProcessRequest = useCallback((req) => {
                         )}
                     </Box>
                 )}
-                {tabIndex === 2 && (
-                    <Box sx={{ p: 2 }}>
-                        <Paper
+                {/* ======================================================================= */}
+{/* ==================== TAB 2: DANH SÁCH TÀI SẢN (ĐÃ PHÂN QUYỀN) =========== */}
+{/* ======================================================================= */}
+{tabIndex === 2 && (
+    <Box sx={{ p: 2 }}>
+        {/* Toolbar chứa bộ lọc và các nút hành động */}
+        <Paper
+            variant="outlined"
+            sx={{ p: 1.5, mb: 2, borderRadius: 2 }}
+        >
+            <Toolbar
+                disableGutters
+                sx={{ gap: 1, flexWrap: "wrap" }}
+            >
+                <TextField
+                    placeholder="🔎 Tìm theo tên tài sản..."
+                    size="small"
+                    sx={{ flex: "1 1 320px" }}
+                    value={assetSearch}
+                    onChange={(e) => setAssetSearch(e.target.value)}
+                />
+                <FormControl size="small" sx={{ minWidth: 220 }}>
+                    <InputLabel>Lọc theo phòng ban</InputLabel>
+                    <Select
+                        value={filterDeptForAsset}
+                        label="Lọc theo phòng ban"
+                        onChange={(e) => setFilterDeptForAsset(e.target.value)}
+                    >
+                        <MenuItem value="">
+                            <em>Tất cả phòng ban</em>
+                        </MenuItem>
+                        {departments.map((d) => (
+                            <MenuItem key={d.id} value={d.id}>
+                                {d.name}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+                <Box flexGrow={1} />
+
+                {/* === THAY ĐỔI: Chỉ hiển thị các nút này cho người có quyền === */}
+                {canManageAssets && (
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                        <Button
                             variant="outlined"
-                            sx={{ p: 1.5, mb: 2, borderRadius: 2 }}
+                            color="secondary"
+                            startIcon={<QrCode />}
+                            onClick={() => setIsLabelPrintModalOpen(true)}
+                            disabled={selectedAssetIdsForPrint.length === 0}
                         >
-                            <Toolbar
-                                disableGutters
-                                sx={{ gap: 1, flexWrap: "wrap" }}
-                            >
-                                <TextField
-                                    placeholder="🔎 Tìm theo tên tài sản..."
-                                    size="small"
-                                    sx={{ flex: "1 1 320px" }}
-                                    value={assetSearch}
-                                    onChange={(e) =>
-                                        setAssetSearch(e.target.value)
-                                    }
-                                />
-                                <FormControl
-                                    size="small"
-                                    sx={{ minWidth: 220 }}
-                                >
-                                    <InputLabel>Lọc theo phòng ban</InputLabel>
-                                    <Select
-                                        value={filterDeptForAsset}
-                                        label="Lọc theo phòng ban"
-                                        onChange={(e) =>
-                                            setFilterDeptForAsset(
-                                                e.target.value
-                                            )
-                                        }
-                                    >
-                                        <MenuItem value="">
-                                            <em>Tất cả phòng ban</em>
-                                        </MenuItem>
-                                        {departments.map((d) => (
-                                            <MenuItem key={d.id} value={d.id}>
-                                                {d.name}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
-                                <Box flexGrow={1} />
-
-                                {/* NÚT IN TEM MỚI ĐƯỢC THÊM VÀO ĐÂY */}
-                                <Button
-                                    variant="outlined"
-                                    color="secondary"
-                                    startIcon={<QrCode />}
-                                    onClick={() => setIsLabelPrintModalOpen(true)}
-                                    disabled={selectedAssetIdsForPrint.length === 0}
-                                >
-                                    In Tem ({selectedAssetIdsForPrint.length})
-                                </Button>
-
-                                <Button
-                                    variant="contained"
-                                    startIcon={<PlusCircle />}
-                                    onClick={handleOpenAddModal}
-                                >
-                                    Thêm Tài Sản
-                                </Button>
-                                <Button
-                                    variant="contained"
-                                    startIcon={<Printer />}
-                                    onClick={() => setIsPrintModalOpen(true)}
-                                >
-                                    In Báo cáo
-                                </Button>
-                            </Toolbar>
-                        </Paper>
-                        <TableContainer
-                            component={Paper}
-                            variant="outlined"
-                            sx={{ borderRadius: 2 }}
+                            In Tem ({selectedAssetIdsForPrint.length})
+                        </Button>
+                        <Button
+                            variant="contained"
+                            startIcon={<Printer />}
+                            onClick={() => setIsPrintModalOpen(true)}
                         >
-                            <Table stickyHeader>
-                                <TableHead>
-                                    <TableRow>
-                                        {/* CỘT CHECKBOX MỚI ĐỂ CHỌN TẤT CẢ */}
-                                        <TableCell padding="checkbox">
-                                            <Checkbox
-                                                color="primary"
-                                                indeterminate={selectedAssetIdsForPrint.length > 0 && selectedAssetIdsForPrint.length < filteredAssets.length}
-                                                checked={filteredAssets.length > 0 && selectedAssetIdsForPrint.length === filteredAssets.length}
-                                                onChange={handleSelectAllAssets}
-                                                inputProps={{ 'aria-label': 'chọn tất cả tài sản' }}
-                                            />
-                                        </TableCell>
-                                        <TableCell sx={{ fontWeight: "bold" }}>Tên tài sản</TableCell>
-                                        <TableCell sx={{ fontWeight: "bold" }}>Kích thước</TableCell>
-                                        <TableCell sx={{ fontWeight: "bold" }} align="center">Số lượng</TableCell>
-                                        <TableCell sx={{ fontWeight: "bold" }}>ĐVT</TableCell>
-                                        <TableCell sx={{ fontWeight: "bold" }}>Ghi chú</TableCell>
-                                        <TableCell sx={{ fontWeight: "bold" }} align="right">Thao tác</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {groupedAssets.map((group) => (
-                                        <React.Fragment key={group.name}>
-                                            {/* Hàng tiêu đề nhóm phòng */}
-                                            <TableRow>
-                                                <TableCell colSpan={7} // Cập nhật colSpan thành 7
-                                                    sx={{
-                                                        position: 'sticky',
-                                                        zIndex: 1,
-                                                        backgroundColor: 'grey.100',
-                                                        fontWeight: 800,
-                                                        textTransform: 'uppercase',
-                                                        letterSpacing: '0.5px',
-                                                        color: 'primary.main',
-                                                        borderBottom: '2px solid',
-                                                        borderColor: 'grey.300'
-                                                    }}
-                                                >
-                                                    PHÒNG BAN: {group.name}
-                                                </TableCell>
-                                            </TableRow>
-
-                                            {/* Các tài sản trong phòng */}
-                                            {group.items.map((a) => {
-                                                const isSelected = selectedAssetIdsForPrint.indexOf(a.id) !== -1;
-                                                return (
-                                                    <TableRow
-                                                        key={a.id}
-                                                        hover
-                                                        role="checkbox"
-                                                        aria-checked={isSelected}
-                                                        tabIndex={-1}
-                                                        selected={isSelected}
-                                                    >
-                                                        {/* Ô CHECKBOX MỚI CHO TỪNG TÀI SẢN */}
-                                                        <TableCell padding="checkbox">
-                                                            <Checkbox
-                                                                color="primary"
-                                                                checked={isSelected}
-                                                                onChange={(event) => handleSelectAssetForPrint(event, a.id)}
-                                                                inputProps={{ 'aria-labelledby': `asset-checkbox-${a.id}` }}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell id={`asset-checkbox-${a.id}`} sx={{ fontWeight: 600 }}>{hi(a.name, assetSearch)}</TableCell>
-                                                        <TableCell>{a.size || "—"}</TableCell>
-                                                        <TableCell align="center">{a.quantity}</TableCell>
-                                                        <TableCell>{a.unit}</TableCell>
-                                                        <TableCell>{a.notes || "—"}</TableCell>
-                                                        <TableCell align="right">
-                                                            {currentUser?.role === 'admin' && (
-                                                                <Tooltip title="Chỉnh sửa (Admin)">
-                                                                    <IconButton size="small" onClick={() => handleOpenEditModal(a)}>
-                                                                        <Edit size={18} />
-                                                                    </IconButton>
-                                                                </Tooltip>
-                                                            )}
-
-                                                            <Tooltip title="Yêu cầu Xóa/Giảm SL">
-                                                                <IconButton size="small" color="error" onClick={() => {
-                                                                    if (a.quantity > 1) {
-                                                                        setReduceQuantityTarget(a);
-                                                                        setQuantityToDelete(1);
-                                                                    } else {
-                                                                        setDeleteConfirm(a);
-                                                                    }
-                                                                }}>
-                                                                    <Trash2 size={18} />
-                                                                </IconButton>
-                                                            </Tooltip>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </React.Fragment>
-                                    ))}
-                                    {filteredAssets.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={7}> {/* Cập nhật colSpan thành 7 */}
-                                                <Typography
-                                                    align="center"
-                                                    color="text.secondary"
-                                                    sx={{ py: 4 }}
-                                                >
-                                                    Không có tài sản nào phù
-                                                    hợp.
-                                                </Typography>
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    </Box>
+                            In Báo cáo
+                        </Button>
+                    </Stack>
                 )}
+            </Toolbar>
+        </Paper>
+
+        {/* Bảng danh sách tài sản */}
+        <TableContainer
+            component={Paper}
+            variant="outlined"
+            sx={{ borderRadius: 2 }}
+        >
+            <Table stickyHeader>
+                <TableHead>
+                    <TableRow>
+                        {/* === THAY ĐỔI: Ẩn cột Checkbox nếu không có quyền === */}
+                        {canManageAssets && (
+                            <TableCell padding="checkbox">
+                                <Checkbox
+                                    color="primary"
+                                    indeterminate={selectedAssetIdsForPrint.length > 0 && selectedAssetIdsForPrint.length < filteredAssets.length}
+                                    checked={filteredAssets.length > 0 && selectedAssetIdsForPrint.length === filteredAssets.length}
+                                    onChange={handleSelectAllAssets}
+                                    inputProps={{ 'aria-label': 'chọn tất cả tài sản' }}
+                                />
+                            </TableCell>
+                        )}
+                        <TableCell sx={{ fontWeight: "bold" }}>Tên tài sản</TableCell>
+                        <TableCell sx={{ fontWeight: "bold" }}>Kích thước</TableCell>
+                        <TableCell sx={{ fontWeight: "bold" }} align="center">Số lượng</TableCell>
+                        <TableCell sx={{ fontWeight: "bold" }}>ĐVT</TableCell>
+                        <TableCell sx={{ fontWeight: "bold" }}>Ghi chú</TableCell>
+                        {/* === THAY ĐỔI: Ẩn cột Thao tác nếu không có quyền === */}
+                        {canManageAssets && (
+                            <TableCell sx={{ fontWeight: "bold" }} align="right">Thao tác</TableCell>
+                        )}
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {groupedAssets.map((group) => (
+                        <React.Fragment key={group.name}>
+                            <TableRow>
+                                {/* === THAY ĐỔI: colSpan động dựa trên quyền === */}
+                                <TableCell colSpan={canManageAssets ? 7 : 5}
+                                    sx={{
+                                        position: 'sticky', top: 56, zIndex: 1,
+                                        backgroundColor: 'grey.100', fontWeight: 800,
+                                        textTransform: 'uppercase', letterSpacing: '0.5px',
+                                        color: 'primary.main', borderBottom: '2px solid',
+                                        borderColor: 'grey.300'
+                                    }}
+                                >
+                                    PHÒNG BAN: {group.name}
+                                </TableCell>
+                            </TableRow>
+                            {group.items.map((a) => {
+                                const isSelected = selectedAssetIdsForPrint.indexOf(a.id) !== -1;
+                                return (
+                                    <TableRow key={a.id} hover role="checkbox" aria-checked={isSelected} tabIndex={-1} selected={isSelected}>
+                                        {/* === THAY ĐỔI: Ẩn checkbox của dòng nếu không có quyền === */}
+                                        {canManageAssets && (
+                                            <TableCell padding="checkbox">
+                                                <Checkbox
+                                                    color="primary"
+                                                    checked={isSelected}
+                                                    onChange={(event) => handleSelectAssetForPrint(event, a.id)}
+                                                    inputProps={{ 'aria-labelledby': `asset-checkbox-${a.id}` }}
+                                                />
+                                            </TableCell>
+                                        )}
+                                        <TableCell id={`asset-checkbox-${a.id}`} sx={{ fontWeight: 600 }}>{hi(a.name, assetSearch)}</TableCell>
+                                        <TableCell>{a.size || "—"}</TableCell>
+                                        <TableCell align="center">{a.quantity}</TableCell>
+                                        <TableCell>{a.unit}</TableCell>
+                                        <TableCell>{a.notes || "—"}</TableCell>
+                                        {/* === THAY ĐỔI: Ẩn các nút thao tác của dòng nếu không có quyền === */}
+                                        {canManageAssets && (
+                                            <TableCell align="right">
+                                                {currentUser?.role === 'admin' && (
+                                                    <Tooltip title="Chỉnh sửa (Admin)">
+                                                        <IconButton size="small" onClick={() => handleOpenEditModal(a)}>
+                                                            <Edit size={18} />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
+                                                <Tooltip title="Yêu cầu Xóa/Giảm SL">
+                                                    <IconButton size="small" color="error" onClick={() => {
+                                                        if (a.quantity > 1) {
+                                                            setReduceQuantityTarget(a);
+                                                            setQuantityToDelete(1);
+                                                        } else {
+                                                            setDeleteConfirm(a);
+                                                        }
+                                                    }}>
+                                                        <Trash2 size={18} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </TableCell>
+                                        )}
+                                    </TableRow>
+                                );
+                            })}
+                        </React.Fragment>
+                    ))}
+                    {filteredAssets.length === 0 && (
+                        <TableRow>
+                             {/* === THAY ĐỔI: colSpan động dựa trên quyền === */}
+                            <TableCell colSpan={canManageAssets ? 7 : 5}>
+                                <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
+                                    Không có tài sản nào phù hợp.
+                                </Typography>
+                            </TableCell>
+                        </TableRow>
+                    )}
+                </TableBody>
+            </Table>
+        </TableContainer>
+    </Box>
+)}
                 {tabIndex === 3 && (
                     <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
                         {/* Thanh công cụ với Bộ lọc và Nút chuyển đổi View */}
@@ -3127,7 +3186,7 @@ const canProcessRequest = useCallback((req) => {
                         <Button
                             onClick={() => {
                                 // THÊM DÒNG NÀY ĐỂ KIỂM TRA
-            console.log('Giá trị của labelPrintRef.current:', labelPrintRef.current); 
+                                console.log('Giá trị của labelPrintRef.current:', labelPrintRef.current);
                                 handlePrintLabels();
                                 setIsLabelPrintModalOpen(false);
                             }}
@@ -3679,7 +3738,8 @@ const canProcessRequest = useCallback((req) => {
                                                 disabled={isProcessingRequest[selectedRequest.id]}
                                                 startIcon={<Check size={16} />}
                                             >
-                                                {isProcessingRequest[selectedRequest.id] ? "Đang xử lý..." : "Duyệt Yêu Cầu"}
+                                                {/* ✅ SỬA LẠI DÒNG NÀY */}
+                                                {isProcessingRequest[selectedRequest.id] ? "Đang xử lý..." : getApprovalActionLabel(selectedRequest)}
                                             </Button>
                                         )}
                                         {canProcessRequest(selectedRequest) && (
@@ -3781,8 +3841,9 @@ const canProcessRequest = useCallback((req) => {
                         Chọn loại báo cáo bạn muốn tạo. Báo cáo sẽ được tạo và đưa vào luồng ký duyệt.
                     </DialogContentText>
 
+                    {/* BỐ CỤC 2 LỰA CHỌN */}
                     <Grid container spacing={2}>
-                        {/* THẺ CHỌN 1: BÁO CÁO THEO KHỐI */}
+                        {/* Lựa chọn 1: Theo Khối */}
                         <Grid item xs={12} sm={6}>
                             <Card
                                 variant="outlined"
@@ -3793,14 +3854,14 @@ const canProcessRequest = useCallback((req) => {
                                 }}
                             >
                                 <CardActionArea onClick={() => setPrintType('block')} sx={{ p: 2, height: '100%' }}>
-                                    <Stack direction="row" spacing={2} alignItems="center">
+                                    <Stack spacing={1} alignItems="center" textAlign="center">
                                         <Avatar sx={{ bgcolor: printType === 'block' ? 'primary.main' : 'grey.300', color: 'white' }}>
-                                            <Users size={20} />
+                                            <GroupWork />
                                         </Avatar>
                                         <Box>
-                                            <Typography sx={{ fontWeight: 600 }}>Theo Phòng</Typography>
+                                            <Typography sx={{ fontWeight: 600 }}>Theo Khối</Typography>
                                             <Typography variant="caption" color="text.secondary">
-                                                Kiểm kê/Bàn giao tài sản cho các phòng.
+                                                Gộp nhiều phòng trong một khối.
                                             </Typography>
                                         </Box>
                                     </Stack>
@@ -3808,7 +3869,7 @@ const canProcessRequest = useCallback((req) => {
                             </Card>
                         </Grid>
 
-                        {/* THẺ CHỌN 2: BÁO CÁO TOÀN CÔNG TY */}
+                        {/* Lựa chọn 2: Toàn công ty */}
                         <Grid item xs={12} sm={6}>
                             <Card
                                 variant="outlined"
@@ -3819,14 +3880,14 @@ const canProcessRequest = useCallback((req) => {
                                 }}
                             >
                                 <CardActionArea onClick={() => setPrintType('summary')} sx={{ p: 2, height: '100%' }}>
-                                    <Stack direction="row" spacing={2} alignItems="center">
+                                    <Stack spacing={1} alignItems="center" textAlign="center">
                                         <Avatar sx={{ bgcolor: printType === 'summary' ? 'primary.main' : 'grey.300', color: 'white' }}>
                                             <Warehouse size={20} />
                                         </Avatar>
                                         <Box>
                                             <Typography sx={{ fontWeight: 600 }}>Toàn công ty</Typography>
                                             <Typography variant="caption" color="text.secondary">
-                                                Báo cáo tổng hợp tài sản toàn bộ công ty.
+                                                Tổng hợp tất cả tài sản.
                                             </Typography>
                                         </Box>
                                     </Stack>
@@ -3835,27 +3896,17 @@ const canProcessRequest = useCallback((req) => {
                         </Grid>
                     </Grid>
 
-                    {/* Ô CHỌN KHỐI (chỉ hiện khi cần) */}
+                    {/* Autocomplete để chọn KHỐI (chỉ hiện khi chọn 'Theo Khối') */}
                     <Collapse in={printType === 'block'} timeout={300}>
                         <Autocomplete
-                            options={departments}
-                            // ✅ CẬP NHẬT 1: Vô hiệu hóa lựa chọn nếu phòng không có tài sản
-                            getOptionDisabled={(option) => departmentAssetCounts[option.id] === 0}
-                            // ✅ CẬP NHẬT 2: Hiển thị số lượng tài sản bên cạnh tên phòng
-                            getOptionLabel={(option) =>
-                                `${option.name || ''} (${departmentAssetCounts[option.id] || 0} tài sản)`
-                            }
-                            value={departments.find(d => d.id === selectedDeptForPrint) || null}
+                            options={managementBlocks}
+                            getOptionLabel={(option) => option}
+                            value={selectedBlockForPrint || null}
                             onChange={(event, newValue) => {
-                                setSelectedDeptForPrint(newValue ? newValue.id : '');
+                                setSelectedBlockForPrint(newValue || '');
                             }}
                             renderInput={(params) => (
-                                <TextField
-                                    {...params}
-                                    label="Chọn Phòng ban"
-                                    margin="normal"
-                                    fullWidth
-                                />
+                                <TextField {...params} label="Chọn Khối quản lý" margin="normal" fullWidth />
                             )}
                             sx={{ mt: 1 }}
                         />
@@ -3869,9 +3920,8 @@ const canProcessRequest = useCallback((req) => {
                         variant="contained"
                         disabled={
                             isCreatingReport ||
-                            // ✅ THÊM ĐIỀU KIỆN KIỂM TRA NÀY
-                            (printType === 'department' && (!selectedDeptForPrint || departmentAssetCounts[selectedDeptForPrint] === 0)) ||
-                            (printType === 'summary' && assets.length === 0) || // Tùy chọn: Vô hiệu hóa nếu toàn công ty không có tài sản
+                            (printType === 'block' && !selectedBlockForPrint) ||
+                            (printType === 'summary' && assets.length === 0) ||
                             !printType
                         }
                     >
@@ -3885,8 +3935,8 @@ const canProcessRequest = useCallback((req) => {
                         {/* Component ẩn để in - SẼ CHỌN TEMPLATE PHÙ HỢP */}
                         <div style={{ position: 'absolute', left: -10000, top: 0, height: 0, overflow: 'hidden' }}>
                             {(selectedReport.type === 'DEPARTMENT_INVENTORY' || selectedReport.type === 'BLOCK_INVENTORY')
-                                ? <AssetListPrintTemplate ref={reportPrintRef} report={selectedReport} company={companyInfo} />
-                                : <AssetSummaryPrintTemplate ref={reportPrintRef} report={selectedReport} company={companyInfo} />
+                                ? <AssetListPrintTemplate ref={reportPrintRef} report={selectedReport} company={companyInfo} departments={departments} />
+                                : <AssetSummaryPrintTemplate ref={reportPrintRef} report={selectedReport} company={companyInfo} departments={departments} />
                             }
                         </div>
 
