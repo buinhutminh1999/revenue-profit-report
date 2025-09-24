@@ -1,7 +1,7 @@
 // src/components/auth/RequireRole.jsx
 
 import React from 'react';
-import { useAuth } from '../../App';
+import { useAuth } from '../../contexts/AuthContext'; // Chỉnh lại đường dẫn nếu cần
 import PermissionDenied from '../../pages/PermissionDenied'; // Import trang mới
 
 /**

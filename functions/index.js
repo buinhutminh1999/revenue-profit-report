@@ -14,6 +14,10 @@ setGlobalOptions({ region: "asia-southeast1", cpu: "gcf_gen1" });
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { closeQuarterAndCarryOver } = require("./dataProcessing");
+// ✨ 1. THÊM IMPORT VÀ CẤU HÌNH SENDGRID
+// BẰNG ĐOẠN NÀY:
+const sgMail = require("@sendgrid/mail");
+sgMail.setApiKey(process.env.SENDGRID_KEY);
 
 admin.initializeApp();
 
@@ -197,6 +201,102 @@ exports.deleteUserByUid = onCall(async (request) => {
         throw new HttpsError(
             "internal",
             e?.message || "Xoá người dùng thất bại."
+        );
+    }
+});
+
+// ✨ 2. TÌM VÀ THAY THẾ TOÀN BỘ HÀM `inviteUser` BẰNG PHIÊN BẢN DƯỚI ĐÂY
+exports.inviteUser = onCall(async (request) => {
+    // Đảm bảo chỉ admin mới có quyền thực hiện
+    await ensureAdmin(request.auth);
+
+    // Lấy dữ liệu từ client
+    const { email, displayName, role, primaryDepartmentId, managedDepartmentIds } = request.data;
+
+    // Kiểm tra dữ liệu đầu vào
+    if (!email || !displayName) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Vui lòng cung cấp đầy đủ email và tên hiển thị."
+        );
+    }
+
+    try {
+        // 1. Tạo tài khoản người dùng trên Firebase Authentication
+        const userRecord = await admin.auth().createUser({
+            email: email,
+            displayName: displayName,
+            emailVerified: false, // Ban đầu chưa xác thực
+        });
+
+        // 2. Tạo tài liệu người dùng trong Firestore
+        await db.collection("users").doc(userRecord.uid).set({
+            email: email,
+            displayName: displayName,
+            role: role || "nhan-vien",
+            primaryDepartmentId: primaryDepartmentId || null,
+            managedDepartmentIds: managedDepartmentIds || [],
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastLogin: null,
+            locked: false,
+            emailVerified: false,
+        });
+
+        // 3. Tạo link xác thực có kèm URL chuyển hướng để đặt mật khẩu
+        const isEmulated = process.env.FUNCTIONS_EMULATOR === "true";
+        const productionUrl = process.env.APP_URL || "";
+
+        const continueUrl = isEmulated ?
+            "http://localhost:3000/finish-setup" :
+            `${productionUrl}/finish-setup`;
+
+        if (!isEmulated && !productionUrl) {
+            logger.error("Biến môi trường APP_URL chưa được cài đặt cho production.");
+            throw new HttpsError("internal", "Lỗi cấu hình server, không thể gửi email.");
+        }
+
+        const actionLink = await admin
+            .auth()
+            .generateEmailVerificationLink(email, { url: continueUrl });
+
+        // 4. Gửi email mời tùy chỉnh bằng SendGrid
+        const msg = {
+            to: email,
+            // THAY THẾ 'your-verified-email@example.com' BẰNG EMAIL BẠN ĐÃ XÁC THỰC TRÊN SENDGRID
+            from: "bachkhoa_lx@yahoo.com.vn",
+            subject: `Chào mừng ${displayName} đến với hệ thống!`,
+            html: `
+                <h1>Chào mừng bạn, ${displayName}!</h1>
+                <p>Một tài khoản đã được tạo cho bạn trên hệ thống của chúng tôi.</p>
+                <p>Vui lòng nhấp vào nút bên dưới để xác thực địa chỉ email và tạo mật khẩu đầu tiên của bạn.</p>
+                <a href="${actionLink}"
+                   style="background-color: #007bff; color: white; padding: 15px 25px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px;"
+                >Hoàn tất đăng ký & Tạo mật khẩu</a>
+                <p>Link này sẽ sớm hết hạn. Nếu bạn không yêu cầu tạo tài khoản, vui lòng bỏ qua email này.</p>
+            `,
+        };
+
+        await sgMail.send(msg);
+
+        // 5. Ghi log kiểm toán
+        await writeAuditLog(
+            "USER_INVITED",
+            request.auth.uid, // Người thực hiện là admin
+            { type: "user", id: userRecord.uid, name: displayName }, // Đối tượng bị tác động
+            { email, role },
+            { request, origin: "callable:inviteUser" }
+        );
+
+        return { success: true, message: `Lời mời đã được gửi thành công tới ${email}` };
+    } catch (error) {
+        logger.error("Lỗi khi mời người dùng:", error);
+        if (error.code === "auth/email-already-exists") {
+            throw new HttpsError("already-exists", "Email này đã được sử dụng.");
+        }
+        throw new HttpsError(
+            "internal",
+            "Đã xảy ra lỗi khi tạo lời mời.",
+            error.message
         );
     }
 });

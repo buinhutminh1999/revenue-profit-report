@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useAuth } from "../App";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Box, Typography, Button, TextField, Stack, Alert,
   CircularProgress, IconButton

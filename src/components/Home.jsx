@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 // --- CÁC HOOK VÀ CẤU HÌNH ---
-import { useAuth } from '../App'; // Hook để lấy thông tin người dùng
+import { useAuth } from '../contexts/AuthContext'; // Hook để lấy thông tin người dùng
 import { db } from '../services/firebase-config'; // Import db instance
 import { doc, getDoc } from 'firebase/firestore'; // Firestore functions
 

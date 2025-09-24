@@ -14,14 +14,11 @@ import {
   collection, getDocs, updateDoc, doc, setDoc, serverTimestamp,
   writeBatch, addDoc, query, orderBy as fsOrderBy
 } from "firebase/firestore";
-import { createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail } from "firebase/auth";
-import { initializeApp, getApp, deleteApp } from "firebase/app";
+import { getAuth, sendPasswordResetEmail } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "../services/firebase-config";
 
 /* ---------------- Vai trò & màu sắc ---------------- */
-
-// Danh mục vai trò theo yêu cầu (vẫn giữ admin cho hệ thống)
 const ROLE_OPTIONS = [
   { id: "admin", label: "Quản trị viên" },
   { id: "truong-phong", label: "Trưởng phòng" },
@@ -49,7 +46,6 @@ const roleColors = {
 };
 
 /* ---------------- Table header ---------------- */
-
 const headCells = [
   { id: "displayName", numeric: false, label: "Người dùng" },
   { id: "departmentName", numeric: false, label: "Phòng ban chính" },
@@ -61,7 +57,6 @@ const headCells = [
 ];
 
 /* ---------------- Utils ---------------- */
-
 const logActivity = async (action, actor, target = null, details = {}) => {
   try {
     await addDoc(collection(db, "audit_logs"), {
@@ -97,7 +92,6 @@ function stableSort(array, comparator) {
 }
 
 /* ---------------- Small components ---------------- */
-
 const StatCard = ({ icon, title, count, color }) => (
   <Card elevation={0} sx={{ bgcolor: "grey.100", borderRadius: 2 }}>
     <CardContent>
@@ -140,18 +134,17 @@ const UserFormDialog = ({
   open, onClose, onSave, form, setForm, isEdit, departments
 }) => (
   <Dialog open={open} onClose={onClose}>
-    <DialogTitle>{isEdit ? "Chỉnh Sửa Người Dùng" : "Thêm Tài Khoản Mới"}</DialogTitle>
+    <DialogTitle>{isEdit ? "Chỉnh Sửa Người Dùng" : "Gửi Lời Mời Người Dùng Mới"}</DialogTitle>
     <DialogContent>
+      <DialogContentText sx={{ mb: 2 }}>
+        {!isEdit && "Hệ thống sẽ tạo tài khoản và gửi email mời người dùng xác thực và tự tạo mật khẩu."}
+      </DialogContentText>
       <Stack spacing={2} sx={{ mt: 1, minWidth: { sm: 520 } }}>
         <TextField autoFocus label="Tên hiển thị" fullWidth
           value={form.displayName || ""} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
         <TextField label="Email" type="email" fullWidth
           value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} disabled={isEdit} />
-        {!isEdit && (
-          <TextField label="Mật khẩu tạm" type="password" fullWidth
-            value={form.password || ""} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-        )}
-
+        
         {/* Vai trò */}
         <FormControl fullWidth>
           <InputLabel>Vai trò</InputLabel>
@@ -213,7 +206,7 @@ const UserFormDialog = ({
     </DialogContent>
     <DialogActions sx={{ p: "0 24px 16px" }}>
       <Button onClick={onClose}>Hủy</Button>
-      <Button onClick={onSave} variant="contained">{isEdit ? "Lưu thay đổi" : "Tạo mới"}</Button>
+      <Button onClick={onSave} variant="contained">{isEdit ? "Lưu thay đổi" : "Gửi Lời Mời"}</Button>
     </DialogActions>
   </Dialog>
 );
@@ -240,17 +233,20 @@ export default function AdminUserManager() {
   const [currentUser, setCurrentUser] = useState(null);
 
   const [form, setForm] = useState({
-    email: "", password: "", displayName: "",
-    role: "nhan-vien",
-    primaryDepartmentId: "",
-    managedDepartmentIds: []
+    email: "", displayName: "", role: "nhan-vien",
+    primaryDepartmentId: "", managedDepartmentIds: []
   });
 
   const auth = getAuth();
-  const functions = getFunctions(undefined, "asia-southeast1");
+  const functions = getFunctions();
   const deleteUserByUid = httpsCallable(functions, "deleteUserByUid");
+  const inviteUser = httpsCallable(functions, 'inviteUser');
 
-  // fetch
+  const actionCodeSettings = {
+    url: `${window.location.origin}/login`,
+    handleCodeInApp: true,
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -263,8 +259,7 @@ export default function AdminUserManager() {
         const userData = d.data();
         const primary = deptsList.find((x) => x.id === userData.primaryDepartmentId);
         return {
-          uid: d.id,
-          ...userData,
+          uid: d.id, ...userData,
           departmentName: primary ? primary.name : "Chưa gán",
           managedCount: (userData.managedDepartmentIds || []).length,
         };
@@ -357,7 +352,7 @@ export default function AdminUserManager() {
       if (originalUser.role !== form.role)
         await logActivity("USER_ROLE_UPDATED", adminUser, form, { from: originalUser.role, to: form.role });
       if (originalUser.primaryDepartmentId !== form.primaryDepartmentId ||
-          JSON.stringify(originalUser.managedDepartmentIds||[]) !== JSON.stringify(form.managedDepartmentIds||[]))
+        JSON.stringify(originalUser.managedDepartmentIds || []) !== JSON.stringify(form.managedDepartmentIds || []))
         await logActivity("USER_DEPT_UPDATED", adminUser, form);
 
       fetchData();
@@ -368,52 +363,42 @@ export default function AdminUserManager() {
     }
   };
 
-  // Tạo user bằng secondary app để không làm admin bị đăng xuất
+  // --- HÀM TẠO USER ĐÃ ĐƯỢC THAY THẾ HOÀN TOÀN ---
   const handleCreateUser = async () => {
-    const adminUser = auth.currentUser;
-
-    if (!form.email || !form.password || !form.displayName) {
-      setFeedback({ open: true, message: "Vui lòng nhập đủ Email, Mật khẩu, Tên hiển thị.", severity: "warning" });
+    if (!form.email || !form.displayName) {
+      setFeedback({ open: true, message: "Vui lòng nhập đủ Email và Tên hiển thị.", severity: "warning" });
       return;
     }
-
-    setLoading(true);
+    
+    // ✨ Bọc toàn bộ logic trong try...finally để đảm bảo setLoading(false) luôn được gọi
+    setLoading(true); 
     try {
-      const primaryApp = getApp();
-      const secondaryApp = initializeApp(primaryApp.options, "Secondary-App");
-      const secondaryAuth = getAuth(secondaryApp);
-
-      const cred = await createUserWithEmailAndPassword(secondaryAuth, form.email, form.password);
-      const newUser = cred.user;
-
-      const newUserDoc = {
+      const result = await inviteUser({
         email: form.email,
         displayName: form.displayName,
-        role: form.role || "nhan-vien",
-        primaryDepartmentId: form.primaryDepartmentId || null,
-        managedDepartmentIds: form.managedDepartmentIds || [],
-        createdAt: serverTimestamp(),
-        lastLogin: null,
-        locked: false,
-        emailVerified: false,
-      };
-      await setDoc(doc(db, "users", newUser.uid), newUserDoc);
-
-      await logActivity("USER_CREATED", adminUser, { uid: newUser.uid, email: form.email }, {
-        role: newUserDoc.role,
-        name: newUserDoc.displayName,
+        role: form.role,
+        primaryDepartmentId: form.primaryDepartmentId,
+        managedDepartmentIds: form.managedDepartmentIds,
       });
 
-      try { await sendPasswordResetEmail(auth, form.email); } catch (e) { console.warn("Reset mail error:", e); }
-
-      await deleteApp(secondaryApp);
-
-      await fetchData();
-      setFeedback({ open: true, message: "🎉 Tạo tài khoản thành công! (Đã gửi email đặt lại mật khẩu)", severity: "success" });
-      setAddUserOpen(false);
+      if (result.data.success) {
+        await fetchData();
+        setFeedback({
+          open: true,
+          message: result.data.message || "🎉 Lời mời đã được gửi thành công!",
+          severity: "success",
+        });
+        setAddUserOpen(false);
+      } else {
+        throw new Error(result.data.message || "Có lỗi xảy ra từ phía server.");
+      }
     } catch (error) {
-      console.error(error);
-      setFeedback({ open: true, message: `❌ Lỗi: ${error.message}`, severity: "error" });
+      console.error("Lỗi khi mời người dùng:", error);
+      setFeedback({
+        open: true,
+        message: `❌ Lỗi: ${error.message}`,
+        severity: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -468,7 +453,7 @@ export default function AdminUserManager() {
 
   return (
     <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
-      {/* Header */}
+      {/* ... Toàn bộ JSX của bạn giữ nguyên ... */}
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
         <Box>
           <Typography variant="h5" fontWeight={600}>
@@ -481,42 +466,19 @@ export default function AdminUserManager() {
           Nhật ký hoạt động
         </Button>
       </Stack>
-
-      {/* Stats */}
       <Grid container spacing={3} mb={3}>
         <Grid item xs={6} sm={3}><StatCard icon={<PeopleAlt />} title="Tổng số" count={stats.total} color="info.main" /></Grid>
         <Grid item xs={6} sm={3}><StatCard icon={<AdminPanelSettings />} title="Quản trị" count={stats.admin} color="error.main" /></Grid>
         <Grid item xs={6} sm={3}><StatCard icon={<SupervisorAccount />} title="Nhóm quản lý" count={stats.managerLike} color="warning.main" /></Grid>
         <Grid item xs={6} sm={3}><StatCard icon={<Lock />} title="Bị khóa" count={stats.locked} color="action.disabled" /></Grid>
       </Grid>
-
-      {/* Card */}
       <Card elevation={4} sx={{ borderRadius: 3, overflow: "visible" }}>
-        {/* Toolbar */}
         {selected.length > 0 ? (
           <EnhancedTableToolbar
             numSelected={selected.length}
-            onBulkDelete={() =>
-              executeActionWithConfirmation(
-                "Xóa Hàng Loạt?",
-                `Bạn có chắc muốn xóa ${selected.length} người dùng đã chọn?`,
-                () => handleBulkAction("delete")
-              )
-            }
-            onBulkLock={() =>
-              executeActionWithConfirmation(
-                "Khóa Hàng Loạt?",
-                `Bạn có chắc muốn khóa ${selected.length} người dùng đã chọn?`,
-                () => handleBulkAction("lock")
-              )
-            }
-            onBulkUnlock={() =>
-              executeActionWithConfirmation(
-                "Mở Khóa Hàng Loạt?",
-                `Bạn có chắc muốn mở khóa ${selected.length} người dùng đã chọn?`,
-                () => handleBulkAction("unlock")
-              )
-            }
+            onBulkDelete={() => executeActionWithConfirmation("Xóa Hàng Loạt?", `Bạn có chắc muốn xóa ${selected.length} người dùng đã chọn?`, () => handleBulkAction("delete"))}
+            onBulkLock={() => executeActionWithConfirmation("Khóa Hàng Loạt?", `Bạn có chắc muốn khóa ${selected.length} người dùng đã chọn?`, () => handleBulkAction("lock"))}
+            onBulkUnlock={() => executeActionWithConfirmation("Mở Khóa Hàng Loạt?", `Bạn có chắc muốn mở khóa ${selected.length} người dùng đã chọn?`, () => handleBulkAction("unlock"))}
           />
         ) : (
           <Toolbar sx={{ p: 2, display: "flex", flexWrap: "wrap", gap: 2 }}>
@@ -546,8 +508,8 @@ export default function AdminUserManager() {
             <Button
               onClick={() => {
                 setForm({
-                  email: "", password: "", displayName: "",
-                  role: "nhan-vien", primaryDepartmentId: "", managedDepartmentIds: []
+                  email: "", displayName: "", role: "nhan-vien",
+                  primaryDepartmentId: "", managedDepartmentIds: []
                 });
                 setAddUserOpen(true);
               }}
@@ -558,8 +520,6 @@ export default function AdminUserManager() {
             </Button>
           </Toolbar>
         )}
-
-        {/* Table */}
         <TableContainer>
           {loading ? (
             <Box textAlign="center" py={10}><CircularProgress /></Box>
@@ -573,7 +533,6 @@ export default function AdminUserManager() {
                       checked={filteredUsers.length > 0 && selected.length === filteredUsers.length}
                       onChange={handleSelectAllClick}
                     />
-                    
                   </TableCell>
                   {headCells.map((headCell) => (
                     <TableCell
@@ -647,7 +606,6 @@ export default function AdminUserManager() {
             </Table>
           )}
         </TableContainer>
-
         <TablePagination
           rowsPerPageOptions={[5, 10, 25]}
           component="div"
@@ -661,8 +619,6 @@ export default function AdminUserManager() {
           }}
         />
       </Card>
-
-      {/* Menu row actions */}
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => { setAnchorEl(null); }}>
         <MenuItem onClick={handleOpenEditDialog}>
           <Edit sx={{ mr: 1 }} fontSize="small" /> Chỉnh sửa
@@ -670,12 +626,12 @@ export default function AdminUserManager() {
         <MenuItem
           onClick={() => {
             const adminUser = auth.currentUser;
-            sendPasswordResetEmail(auth, currentUser.email)
+            sendPasswordResetEmail(auth, currentUser.email, actionCodeSettings)
               .then(() => {
                 logActivity("USER_PASSWORD_RESET_TRIGGERED", adminUser, currentUser);
                 setFeedback({
                   open: true,
-                  message: `Email reset mật khẩu đã gửi tới ${currentUser.email}`,
+                  message: `Đã gửi lại email đặt mật khẩu tới ${currentUser.email}`,
                   severity: "success",
                 });
               })
@@ -683,7 +639,7 @@ export default function AdminUserManager() {
             handleCloseMenu();
           }}
         >
-          <Email sx={{ mr: 1 }} fontSize="small" /> Reset Mật khẩu
+          <Email sx={{ mr: 1 }} fontSize="small" /> Gửi lại email đặt mật khẩu
         </MenuItem>
         <MenuItem
           sx={{ color: "error.main" }}
@@ -712,8 +668,6 @@ export default function AdminUserManager() {
           <Delete sx={{ mr: 1 }} fontSize="small" /> Xóa người dùng
         </MenuItem>
       </Menu>
-
-      {/* Dialogs */}
       <UserFormDialog
         open={addUserOpen}
         onClose={() => setAddUserOpen(false)}
@@ -732,7 +686,6 @@ export default function AdminUserManager() {
         isEdit={true}
         departments={departments}
       />
-
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
         <DialogTitle>{confirmAction.title}</DialogTitle>
         <DialogContent><DialogContentText>{confirmAction.content}</DialogContentText></DialogContent>
@@ -743,8 +696,6 @@ export default function AdminUserManager() {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* Snackbar */}
       <Snackbar
         open={feedback.open}
         autoHideDuration={5000}

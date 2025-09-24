@@ -1,18 +1,20 @@
+// src/routes/Router.jsx
+
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 
 // --- CÁC COMPONENT CỐT LÕI ---
-import { useAuth } from '../App';
-import Layout from '../components/layout/Layout';
+import { useAuth } from '../contexts/AuthContext';
 import LoadingScreen from '../components/common/LoadingScreen';
 import PageTransition from '../components/common/PageTransition';
 import ProgressBar from '../components/common/ProgressBar';
 import RequireRole from '../components/auth/RequireRole';
-// --- THÊM CÁC IMPORT MỚI ---
-import RequireEmailAccess from '../components/auth/RequireEmailAccess'; 
+import RequireEmailAccess from '../components/auth/RequireEmailAccess';
+import VerifiedAccessLayout from '../components/auth/VerifiedAccessLayout';
+import ModernLayout from '../components/layout/Layout';
 
-// --- LAZY-LOAD CÁC TRANG ---
+// --- LAZY-LOAD HELPER ---
 const lazyLoad = (Component) => (
     <Suspense fallback={<LoadingScreen isSuspense />}>
         <PageTransition>
@@ -21,16 +23,16 @@ const lazyLoad = (Component) => (
     </Suspense>
 );
 
-// Core Pages
+// --- LAZY-LOAD CÁC TRANG ---
 const Home = lazy(() => import('../components/Home'));
 const LoginPage = lazy(() => import('../pages/LoginPage'));
 const NotFound = lazy(() => import('../components/NotFound'));
 const UserProfile = lazy(() => import('../pages/UserProfile'));
 const EventSlideshow = lazy(() => import('../pages/EventSlideshow'));
 const EventEditor = lazy(() => import('../pages/EventEditor'));
-const UnauthorizedPage = lazy(() => import('../pages/UnauthorizedPage')); 
-
-// Main Modules
+const UnauthorizedPage = lazy(() => import('../pages/UnauthorizedPage'));
+const PleaseVerifyEmail = lazy(() => import('../pages/PleaseVerifyEmail'));
+const FinishSetupPage = lazy(() => import('../pages/FinishSetupPage'));
 const ConstructionPlan = lazy(() => import('../components/ConstructionPlan/ConstructionPlan'));
 const ProjectsList = lazy(() => import('../pages/ProjectsList'));
 const AccountsReceivable = lazy(() => import('../pages/AccountsReceivable'));
@@ -47,16 +49,12 @@ const TransferDetailPage = lazy(() => import('../pages/TransferDetailPage'));
 const InventoryReportPublicView = lazy(() => import('../pages/InventoryReportPublicView'));
 const AssetRequestDetailPage = lazy(() => import('../pages/AssetRequestDetailPage'));
 const AssetDetailPage = lazy(() => import('../pages/AssetDetailPage'));
-
-// Report Modules
 const ProfitReportQuarter = lazy(() => import('../pages/ProfitReportQuarter'));
 const ProfitReportYear = lazy(() => import('../pages/ProfitReportYear'));
 const BrokerDebtReport = lazy(() => import('../pages/BrokerDebtReport'));
 const OverallReportPage = lazy(() => import('../pages/OverallReportPage'));
 const CapitalUtilizationReport = lazy(() => import('../pages/CapitalUtilizationReport'));
 const QuarterlyCostAllocationReport = lazy(() => import('../pages/QuarterlyCostAllocationReport'));
-
-// Admin Modules
 const AdminDashboard = lazy(() => import('../pages/AdminDashboard'));
 const AdminUserManager = lazy(() => import('../components/AdminUserManager'));
 const AdminDepartmentManager = lazy(() => import('../pages/AdminDepartmentManager'));
@@ -68,46 +66,50 @@ const WhitelistManager = lazy(() => import('../pages/WhitelistManager'));
 export default function Router() {
     return (
         <BrowserRouter>
+            <ProgressBar />
             <AppRoutes />
         </BrowserRouter>
     );
 }
 
 function AppRoutes() {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, loading } = useAuth();
     const location = useLocation();
+    const backTo = location.state?.from?.pathname || '/';
 
     return (
-        <>
-            <ProgressBar />
-            <AnimatePresence mode="wait">
-                <Routes location={location} key={location.pathname}>
-                    {/* Route công khai */}
-                    <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : lazyLoad(LoginPage)} />
-                    <Route path="/event" element={lazyLoad(EventSlideshow)} />
-                    <Route path="/transfers/:transferId" element={lazyLoad(TransferDetailPage)} />
-                    <Route path="/asset-requests/:requestId" element={lazyLoad(AssetRequestDetailPage)} />
-                    <Route path="/assets/:assetId" element={lazyLoad(AssetDetailPage)} />
-                    <Route path="/inventory-reports/:reportId" element={lazyLoad(InventoryReportPublicView)} />
-                    <Route path="/unauthorized" element={lazyLoad(UnauthorizedPage)} />
+        <AnimatePresence mode="wait">
+            <Routes location={location} key={location.pathname}>
+                {/* ========================================================= */}
+                {/* LUỒNG 1: CÁC ROUTE CÔNG KHAI & XÁC THỰC                  */}
+                {/* ========================================================= */}
+                <Route
+                    path="/login"
+                    element={
+                        loading
+                            ? <LoadingScreen isSuspense />
+                            : (isAuthenticated
+                                ? <Navigate to={backTo} replace />
+                                : lazyLoad(LoginPage))
+                    }
+                />
+                <Route path="/please-verify" element={lazyLoad(PleaseVerifyEmail)} />
+                <Route path="/finish-setup" element={lazyLoad(FinishSetupPage)} />
+                <Route path="/event" element={lazyLoad(EventSlideshow)} />
+                <Route path="/transfers/:transferId" element={lazyLoad(TransferDetailPage)} />
+                <Route path="/asset-requests/:requestId" element={lazyLoad(AssetRequestDetailPage)} />
+                <Route path="/assets/:assetId" element={lazyLoad(AssetDetailPage)} />
+                <Route path="/inventory-reports/:reportId" element={lazyLoad(InventoryReportPublicView)} />
+                <Route path="/unauthorized" element={lazyLoad(UnauthorizedPage)} />
 
-                    {/* Route được bảo vệ, yêu cầu đăng nhập */}
-                    <Route
-                        path="/*"
-                        element={isAuthenticated ? <Layout /> : <Navigate to="/login" replace />}
-                    >
-                        {/* Trang quản trị sự kiện */}
-                        <Route path="event-editor" element={lazyLoad(EventEditor)} />
-
-                        {/* Các route con sẽ được render bên trong Layout */}
+                {/* ========================================================= */}
+                {/* LUỒNG 2: CÁC ROUTE ĐƯỢC BẢO VỆ                            */}
+                {/* ========================================================= */}
+                <Route element={<VerifiedAccessLayout />}>
+                    <Route element={<ModernLayout />}>
                         <Route index element={lazyLoad(Home)} />
                         <Route path="user" element={lazyLoad(UserProfile)} />
-
-                        {/* ========================================================= */}
-                        {/* CÁC ROUTE ĐƯỢC BẢO VỆ BỞI PHÂN QUYỀN EMAIL */}
-                        {/* ========================================================= */}
-
-                        {/* --- CÁC MODULE CHÍNH --- */}
+                        <Route path="event-editor" element={lazyLoad(EventEditor)} />
                         <Route path="construction-plan" element={<RequireEmailAccess pathKey="construction-plan">{lazyLoad(ConstructionPlan)}</RequireEmailAccess>} />
                         <Route path="project-manager" element={<RequireEmailAccess pathKey="project-manager">{lazyLoad(ProjectsList)}</RequireEmailAccess>} />
                         <Route path="accounts-receivable" element={<RequireEmailAccess pathKey="accounts-receivable">{lazyLoad(AccountsReceivable)}</RequireEmailAccess>} />
@@ -116,8 +118,6 @@ function AppRoutes() {
                         <Route path="balance-sheet" element={<RequireEmailAccess pathKey="balance-sheet">{lazyLoad(BalanceSheet)}</RequireEmailAccess>} />
                         <Route path="profit-change" element={<RequireEmailAccess pathKey="profit-change">{lazyLoad(ProfitChange)}</RequireEmailAccess>} />
                         <Route path="asset-transfer" element={<RequireEmailAccess pathKey="asset-transfer">{lazyLoad(AssetTransferPage)}</RequireEmailAccess>} />
-                        
-                        {/* --- CÁC MODULE BÁO CÁO --- */}
                         <Route path="reports">
                             <Route path="profit-quarter" element={<RequireEmailAccess pathKey="reports/profit-quarter">{lazyLoad(ProfitReportQuarter)}</RequireEmailAccess>} />
                             <Route path="profit-year" element={<RequireEmailAccess pathKey="reports/profit-year">{lazyLoad(ProfitReportYear)}</RequireEmailAccess>} />
@@ -126,18 +126,10 @@ function AppRoutes() {
                             <Route path="capital-utilization" element={<RequireEmailAccess pathKey="reports/capital-utilization">{lazyLoad(CapitalUtilizationReport)}</RequireEmailAccess>} />
                             <Route path="quarterly-cost-allocation" element={<RequireEmailAccess pathKey="reports/quarterly-cost-allocation">{lazyLoad(QuarterlyCostAllocationReport)}</RequireEmailAccess>} />
                         </Route>
-
-                        {/* --- CÁC TRANG CẤU HÌNH NHẠY CẢM (2 LỚP BẢO VỆ) --- */}
                         <Route path="cost-allocation-quarter" element={<RequireRole><RequireEmailAccess pathKey="cost-allocation-quarter">{lazyLoad(CostAllocationQuarter)}</RequireEmailAccess></RequireRole>} />
                         <Route path="chart-of-accounts" element={<RequireRole><RequireEmailAccess pathKey="chart-of-accounts">{lazyLoad(ChartOfAccountsPage)}</RequireEmailAccess></RequireRole>} />
                         <Route path="categories" element={<RequireRole><RequireEmailAccess pathKey="categories">{lazyLoad(CategoryConfig)}</RequireEmailAccess></RequireRole>} />
-
-                        {/* ========================================================= */}
-                        {/* CÁC ROUTE CÔNG KHAI BÊN TRONG & ADMIN (KHÔNG THAY ĐỔI) */}
-                        {/* ========================================================= */}
                         <Route path="project-details/:id" element={lazyLoad(ProjectDetailsLayout)} />
-
-                        {/* Admin Routes */}
                         <Route path="admin">
                             <Route index element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminDashboard)}</RequireRole>} />
                             <Route path="users" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminUserManager)}</RequireRole>} />
@@ -146,12 +138,14 @@ function AppRoutes() {
                             <Route path="close-quarter" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(CloseQuarterPage)}</RequireRole>} />
                             <Route path="whitelist" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(WhitelistManager)}</RequireRole>} />
                         </Route>
-
-                        {/* Trang không tìm thấy */}
-                        <Route path="*" element={lazyLoad(NotFound)} />
                     </Route>
-                </Routes>
-            </AnimatePresence>
-        </>
+                </Route>
+
+                {/* ========================================================= */}
+                {/* LUỒNG 3: ROUTE KHÔNG TÌM THẤY                           */}
+                {/* ========================================================= */}
+                <Route path="*" element={lazyLoad(NotFound)} />
+            </Routes>
+        </AnimatePresence>
     );
 }

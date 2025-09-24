@@ -9,7 +9,7 @@ import { Link as RouterLink, useLocation } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 
 // --- CÁC HOOK VÀ CẤU HÌNH ---
-import { useAuth } from "../../App";
+import { useAuth } from "../../contexts/AuthContext"; // Chỉnh lại đường dẫn nếu cần
 import { db } from "../../services/firebase-config";
 import { doc, getDoc } from "firebase/firestore";
 

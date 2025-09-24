@@ -13,7 +13,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 
 // Context & Hooks
 import { ThemeSettingsContext } from "../../styles/ThemeContext";
-import { useAuth } from "../../App";
+import { useAuth } from "../../contexts/AuthContext";
 import DensityToggleButton from "../../components/DensityToggleButton";
 
 // Firestore

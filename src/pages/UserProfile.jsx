@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Box, Paper, Typography, Tabs, Tab, Avatar } from "@mui/material";
-import { useAuth } from "../App";
+import { useAuth } from "../contexts/AuthContext";
 import PersonIcon from "@mui/icons-material/Person";
 import LockIcon from "@mui/icons-material/Lock";
 
