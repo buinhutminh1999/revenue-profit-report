@@ -364,46 +364,44 @@ export default function AdminUserManager() {
     }
   };
 
-  // --- HÀM TẠO USER ĐÃ ĐƯỢC THAY THẾ HOÀN TOÀN ---
-  const handleCreateUser = async () => {
-    if (!form.email || !form.displayName) {
-      setFeedback({ open: true, message: "Vui lòng nhập đủ Email và Tên hiển thị.", severity: "warning" });
-      return;
-    }
-    
-    // ✨ Bọc toàn bộ logic trong try...finally để đảm bảo setLoading(false) luôn được gọi
-    setLoading(true); 
-    try {
-      const result = await inviteUser({
-        email: form.email,
-        displayName: form.displayName,
-        role: form.role,
-        primaryDepartmentId: form.primaryDepartmentId,
-        managedDepartmentIds: form.managedDepartmentIds,
-      });
+const handleCreateUser = async () => {
+  if (!form.email || !form.displayName) {
+    setFeedback({ open: true, message: "Vui lòng nhập đủ Email và Tên hiển thị.", severity: "warning" });
+    return;
+  }
 
-      if (result.data.success) {
-        await fetchData();
-        setFeedback({
-          open: true,
-          message: result.data.message || "🎉 Lời mời đã được gửi thành công!",
-          severity: "success",
-        });
-        setAddUserOpen(false);
-      } else {
-        throw new Error(result.data.message || "Có lỗi xảy ra từ phía server.");
-      }
-    } catch (error) {
-      console.error("Lỗi khi mời người dùng:", error);
-      setFeedback({
-        open: true,
-        message: `❌ Lỗi: ${error.message}`,
-        severity: "error",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    // Gọi Cloud Function: tạo user + gửi email reset qua Yahoo SMTP (đã làm ở backend)
+    await inviteUser({
+      email: form.email,
+      displayName: form.displayName,
+      role: form.role,
+      primaryDepartmentId: form.primaryDepartmentId || null,
+      managedDepartmentIds: form.managedDepartmentIds || [],
+    });
+
+    // KHÔNG gọi sendPasswordResetEmail ở client nữa (tránh gửi 2 mail)
+
+    await fetchData();
+    setFeedback({
+      open: true,
+      message: `✅ Đã tạo tài khoản & đã gửi email thiết lập mật khẩu tới ${form.email}`,
+      severity: "success",
+    });
+    setAddUserOpen(false);
+  } catch (error) {
+    console.error("Lỗi khi tạo người dùng:", error);
+    setFeedback({
+      open: true,
+      message: `❌ Lỗi: ${error.message || "Không thể tạo người dùng."}`,
+      severity: "error",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const executeActionWithConfirmation = (title, content, onConfirm) => {
     setConfirmAction({ title, content, onConfirm });

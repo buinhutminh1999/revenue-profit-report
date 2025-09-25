@@ -1,6 +1,6 @@
-// File: functions/index.js (v2)
 /* eslint-disable no-console */
-
+const nodemailer = require("nodemailer");
+const { getAuth: getAdminAuth } = require("firebase-admin/auth");
 // --- Imports v2 ---
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const {
@@ -9,7 +9,11 @@ const {
     onDocumentUpdated
 } = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2");
-setGlobalOptions({ region: "asia-southeast1", cpu: "gcf_gen1" });
+setGlobalOptions({
+    region: "asia-southeast1",
+    cpu: "gcf_gen1",
+    secrets: ["GMAIL_SMTP_USER", "GMAIL_SMTP_APP_PASSWORD"],
+});
 
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
@@ -20,6 +24,161 @@ const { closeQuarterAndCarryOver } = require("./dataProcessing");
 admin.initializeApp();
 
 const db = admin.firestore();
+// ==== REPLACE FROM HERE (email/env/config helpers) ====
+
+// ENV secrets (Gmail)
+const gmailUser = process.env.GMAIL_SMTP_USER; // ví dụ: yourname@gmail.com
+const gmailPass = process.env.GMAIL_SMTP_APP_PASSWORD; // app password 16 ký tự
+
+// URL frontend cho ActionCodeSettings (điền bằng biến môi trường nếu có)
+const FRONTEND_URL =
+    process.env.FRONTEND_URL || "https://revenue-profit-report.vercel.app";
+// Khi test local, tạm đặt FRONTEND_URL=http://localhost:3000
+
+// Transporter Gmail (App Password)
+const gmailTransporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465, // SSL
+    secure: true,
+    auth: { user: gmailUser, pass: gmailPass },
+});
+
+// ActionCodeSettings: nơi người dùng quay về sau khi reset/verify
+const DEFAULT_ACS = {
+    url: `${FRONTEND_URL}/login`,
+    handleCodeInApp: true,
+};
+// ✅ THAY THẾ TOÀN BỘ HÀM TEMPLATE CŨ BẰNG HÀM "BULLETPROOF" NÀY
+/**
+ * Tạo template email mời với độ tương thích cao nhất (bulletproof).
+ * @param {string} displayName Tên người nhận.
+ * @param {string} actionLink URL để tạo mật khẩu.
+ * @returns {string} Chuỗi HTML của email.
+ */
+function createModernInviteEmailHtml(displayName, actionLink) {
+    // --- TÙY CHỈNH THƯƠNG HIỆU ---
+    const companyName = "Công ty Cổ phần Xây dựng Bách Khoa";
+    // Logo của công ty bạn
+    const logoUrl = "https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png";
+    const primaryColor = "#1a73e8"; // Màu chủ đạo
+    const year = new Date().getFullYear();
+    // ----------------------------
+
+    return `
+    <!DOCTYPE html>
+    <html lang="vi" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="color-scheme" content="light dark">
+        <meta name="supported-color-schemes" content="light dark">
+        <title>Lời mời tham gia hệ thống</title>
+        <style>
+            /* General Styles */
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0 !important;
+                padding: 0 !important;
+                background-color: #f4f7f6;
+            }
+            h1 { font-size: 24px; color: #333333; font-weight: bold; }
+            p { font-size: 16px; color: #555555; line-height: 1.7; }
+
+            /* Dark Mode Overrides */
+            @media (prefers-color-scheme: dark) {
+                body { background-color: #121212 !important; }
+                .email-card { background-color: #1e1e1e !important; }
+                h1 { color: #e0e0e0 !important; }
+                p, .footer-text { color: #bbbbbb !important; }
+                .divider-line { border-top-color: #444444 !important; }
+                .fallback-link a { color: #82a5ff !important; }
+            }
+        </style>
+    </head>
+    <body style="margin: 0 !important; padding: 0 !important; background-color: #f4f7f6;">
+        <div style="display: none; max-height: 0; overflow: hidden;">
+            Chào mừng bạn đến với hệ thống của ${companyName}. Hãy tạo mật khẩu để bắt đầu.
+        </div>
+    
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td style="padding: 20px 0;">
+                    <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; padding: 30px;" class="email-card">
+                        
+                        <tr>
+                            <td align="center" style="padding-bottom: 20px; border-bottom: 1px solid #dddddd;" class="divider-line">
+                                <img src="${logoUrl}" alt="${companyName} Logo" width="140" style="max-width: 140px;" />
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td style="padding: 30px 0;">
+                                <h1>Chào mừng bạn, ${displayName}!</h1>
+                                <p>Một tài khoản đã được tạo cho bạn tại hệ thống của <strong>${companyName}</strong>. Để hoàn tất thiết lập, vui lòng nhấn vào nút bên dưới để tạo mật khẩu đầu tiên.</p>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td align="center">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                    <tr>
+                                        <td align="center" style="background-color: ${primaryColor}; border-radius: 8px;">
+                                            <a href="${actionLink}" target="_blank" style="font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; display: inline-block;">
+                                                Tạo Mật Khẩu & Đăng Nhập
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td style="padding-top: 30px; border-top: 1px solid #dddddd; margin-top: 30px;" class="divider-line">
+                                <p class="fallback-link" style="font-size: 12px; text-align: center; color: #888888;">
+                                    Nếu nút không hoạt động, sao chép link sau vào trình duyệt:<br/>
+                                    <a href="${actionLink}" target="_blank" style="color: #888888;">${actionLink.substring(0, 50)}...</a>
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td align="center" style="padding-top: 20px;">
+                                 <p class="footer-text" style="font-size: 12px; color: #888888;">&copy; ${year} ${companyName}. All Rights Reserved.</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>`;
+}
+// Tạo link verify/reset bằng Admin SDK
+async function createActionLink(type, email, acs = DEFAULT_ACS) {
+    const auth = getAdminAuth();
+    if (type === "VERIFY") return auth.generateEmailVerificationLink(email, acs);
+    if (type === "RESET") return auth.generatePasswordResetLink(email, acs);
+    throw new HttpsError("invalid-argument", "type phải là VERIFY hoặc RESET");
+}
+
+// Gửi mail qua Gmail
+async function sendWithGmail({ to, subject, html, fromName = "Bách Khoa" }) {
+    if (!gmailUser || !gmailPass) {
+        throw new HttpsError("failed-precondition", "Chưa cấu hình GMAIL_SMTP_USER / GMAIL_SMTP_APP_PASSWORD");
+    }
+    const from = `"${fromName}" <${gmailUser}>`;
+    return gmailTransporter.sendMail({
+        from,
+        to,
+        subject,
+        html,
+        text: html.replace(/<[^>]*>/g, ""),
+        replyTo: gmailUser,
+        headers: { "X-Priority": "1 (Highest)", "X-MSMail-Priority": "High", "Importance": "High" },
+    });
+}
+
+// ==== REPLACE UNTIL HERE ====
 
 
 /** ----------------- Helpers chung (v2) ----------------- **/
@@ -204,94 +363,65 @@ exports.deleteUserByUid = onCall(async (request) => {
 });
 
 
-// ✨ THAY THẾ TOÀN BỘ HÀM CŨ BẰNG HÀM MỚI NÀY
+// ==== THAY THẾ HÀM inviteUser ====
 exports.inviteUser = onCall(async (request) => {
-    // Đảm bảo chỉ admin mới có quyền thực hiện
     await ensureAdmin(request.auth);
 
-    // Lấy dữ liệu từ client
     const { email, displayName, role, primaryDepartmentId, managedDepartmentIds } = request.data;
-
-    // Kiểm tra dữ liệu đầu vào
     if (!email || !displayName) {
-        throw new HttpsError(
-            "invalid-argument",
-            "Vui lòng cung cấp đầy đủ email và tên hiển thị."
-        );
+        throw new HttpsError("invalid-argument", "Vui lòng cung cấp đầy đủ email và tên hiển thị.");
     }
 
     try {
-        // 1. Tạo tài khoản người dùng trên Firebase Authentication (Giữ nguyên)
+        // 1) Tạo user trên Firebase Auth
         const userRecord = await admin.auth().createUser({
-            email: email,
-            displayName: displayName,
+            email,
+            displayName,
             emailVerified: false,
         });
 
-        // 2. Tạo tài liệu người dùng trong Firestore (Giữ nguyên)
+        // 2) Ghi thông tin user vào Firestore
         await db.collection("users").doc(userRecord.uid).set({
-            email: email,
-            displayName: displayName,
+            email,
+            displayName,
             role: role || "nhan-vien",
             primaryDepartmentId: primaryDepartmentId || null,
             managedDepartmentIds: managedDepartmentIds || [],
             createdAt: FieldValue.serverTimestamp(),
-            // ... các trường khác
         });
 
-        // 3. Tạo link xác thực để đặt mật khẩu (Giữ nguyên)
-        // ⚠️ Lưu ý: Hãy đảm bảo bạn có một biến môi trường APP_URL được thiết lập
-        const isEmulated = process.env.FUNCTIONS_EMULATOR === "true";
-        const productionUrl = process.env.APP_URL || ""; // URL của trang web của bạn, ví dụ: "https://your-app.com"
+        // 3) Tạo link để người dùng tạo mật khẩu đầu tiên
+        const actionLink = await createActionLink("RESET", email, DEFAULT_ACS);
 
-        const continueUrl = isEmulated ?
-            "http://localhost:3000/finish-setup" :
-            `${productionUrl}/finish-setup`;
+        // 4) GỌI HÀM TEMPLATE MỚI
+        const emailHtml = createModernInviteEmailHtml(displayName, actionLink);
 
-        if (!isEmulated && !productionUrl) {
-            logger.error("Biến môi trường APP_URL chưa được cài đặt.");
-            throw new HttpsError("internal", "Lỗi cấu hình server.");
-        }
-
-        const actionLink = await admin
-            .auth()
-            .generateEmailVerificationLink(email, { url: continueUrl });
-
-        // ✅ 4. GỬI EMAIL BẰNG EXTENSION (Thay thế code SendGrid)
-        // Ghi một document vào collection 'mail' để kích hoạt extension
-        await db.collection("mail").add({
-            to: [email], // Email người nhận phải là một mảng
-            message: {
-                subject: `Chào mừng ${displayName} đến với hệ thống!`,
-                html: `
-                    <h1>Chào mừng bạn, ${displayName}!</h1>
-                    <p>Một tài khoản đã được tạo cho bạn. Vui lòng nhấp vào nút bên dưới để xác thực email và tạo mật khẩu đầu tiên.</p>
-                    <a href="${actionLink}"
-                       style="background-color: #007bff; color: white; padding: 15px 25px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px;"
-                    >Hoàn tất đăng ký & Tạo mật khẩu</a>
-                    <p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
-                `,
-            },
+        // 5) Gửi mail bằng transporter của bạn (Gmail)
+        await sendWithGmail({
+            to: email,
+            subject: `[Bách Khoa] Lời mời tham gia hệ thống và tạo mật khẩu`, // Tiêu đề rõ ràng, chuyên nghiệp hơn
+            html: emailHtml,
         });
 
-        // 5. Ghi log kiểm toán (Giữ nguyên)
+        // 6) Ghi log kiểm toán
         await writeAuditLog(
-            "USER_INVITED",
+            "USER_CREATED_AND_INVITED",
             request.auth.uid,
             { type: "user", id: userRecord.uid, name: displayName },
             { email, role },
             { request, origin: "callable:inviteUser" }
         );
 
-        return { success: true, message: `Lời mời đã được gửi thành công tới ${email}` };
+        return { success: true, message: `Đã tạo tài khoản & gửi lời mời thành công tới ${email}.` };
     } catch (error) {
         logger.error("Lỗi khi mời người dùng:", error);
         if (error.code === "auth/email-already-exists") {
             throw new HttpsError("already-exists", "Email này đã được sử dụng.");
         }
-        throw new HttpsError("internal", "Đã xảy ra lỗi khi tạo lời mời.", error.message);
+        throw new HttpsError("internal", error.message || "Đã xảy ra lỗi khi tạo lời mời.");
     }
 });
+
 
 exports.manualCloseQuarter = onCall(async (request) => {
     ensureSignedIn(request.auth);
