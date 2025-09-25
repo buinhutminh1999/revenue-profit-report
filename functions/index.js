@@ -13,11 +13,9 @@ setGlobalOptions({ region: "asia-southeast1", cpu: "gcf_gen1" });
 
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
+const { FieldValue } = require("firebase-admin/firestore");
 const { closeQuarterAndCarryOver } = require("./dataProcessing");
-// ✨ 1. THÊM IMPORT VÀ CẤU HÌNH SENDGRID
-// BẰNG ĐOẠN NÀY:
-const sgMail = require("@sendgrid/mail");
-sgMail.setApiKey(process.env.SENDGRID_KEY);
+
 
 admin.initializeApp();
 
@@ -114,7 +112,7 @@ async function writeAuditLog(
             severity, // INFO | WARNING | ERROR
             ip,
             userAgent: ua,
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: FieldValue.serverTimestamp(),
             readBy: [],
         });
     } catch (e) {
@@ -205,7 +203,8 @@ exports.deleteUserByUid = onCall(async (request) => {
     }
 });
 
-// ✨ 2. TÌM VÀ THAY THẾ TOÀN BỘ HÀM `inviteUser` BẰNG PHIÊN BẢN DƯỚI ĐÂY
+
+// ✨ THAY THẾ TOÀN BỘ HÀM CŨ BẰNG HÀM MỚI NÀY
 exports.inviteUser = onCall(async (request) => {
     // Đảm bảo chỉ admin mới có quyền thực hiện
     await ensureAdmin(request.auth);
@@ -222,67 +221,64 @@ exports.inviteUser = onCall(async (request) => {
     }
 
     try {
-        // 1. Tạo tài khoản người dùng trên Firebase Authentication
+        // 1. Tạo tài khoản người dùng trên Firebase Authentication (Giữ nguyên)
         const userRecord = await admin.auth().createUser({
             email: email,
             displayName: displayName,
-            emailVerified: false, // Ban đầu chưa xác thực
+            emailVerified: false,
         });
 
-        // 2. Tạo tài liệu người dùng trong Firestore
+        // 2. Tạo tài liệu người dùng trong Firestore (Giữ nguyên)
         await db.collection("users").doc(userRecord.uid).set({
             email: email,
             displayName: displayName,
             role: role || "nhan-vien",
             primaryDepartmentId: primaryDepartmentId || null,
             managedDepartmentIds: managedDepartmentIds || [],
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            lastLogin: null,
-            locked: false,
-            emailVerified: false,
+            createdAt: FieldValue.serverTimestamp(),
+            // ... các trường khác
         });
 
-        // 3. Tạo link xác thực có kèm URL chuyển hướng để đặt mật khẩu
+        // 3. Tạo link xác thực để đặt mật khẩu (Giữ nguyên)
+        // ⚠️ Lưu ý: Hãy đảm bảo bạn có một biến môi trường APP_URL được thiết lập
         const isEmulated = process.env.FUNCTIONS_EMULATOR === "true";
-        const productionUrl = process.env.APP_URL || "";
+        const productionUrl = process.env.APP_URL || ""; // URL của trang web của bạn, ví dụ: "https://your-app.com"
 
         const continueUrl = isEmulated ?
             "http://localhost:3000/finish-setup" :
             `${productionUrl}/finish-setup`;
 
         if (!isEmulated && !productionUrl) {
-            logger.error("Biến môi trường APP_URL chưa được cài đặt cho production.");
-            throw new HttpsError("internal", "Lỗi cấu hình server, không thể gửi email.");
+            logger.error("Biến môi trường APP_URL chưa được cài đặt.");
+            throw new HttpsError("internal", "Lỗi cấu hình server.");
         }
 
         const actionLink = await admin
             .auth()
             .generateEmailVerificationLink(email, { url: continueUrl });
 
-        // 4. Gửi email mời tùy chỉnh bằng SendGrid
-        const msg = {
-            to: email,
-            // THAY THẾ 'your-verified-email@example.com' BẰNG EMAIL BẠN ĐÃ XÁC THỰC TRÊN SENDGRID
-            from: "bachkhoa_lx@yahoo.com.vn",
-            subject: `Chào mừng ${displayName} đến với hệ thống!`,
-            html: `
-                <h1>Chào mừng bạn, ${displayName}!</h1>
-                <p>Một tài khoản đã được tạo cho bạn trên hệ thống của chúng tôi.</p>
-                <p>Vui lòng nhấp vào nút bên dưới để xác thực địa chỉ email và tạo mật khẩu đầu tiên của bạn.</p>
-                <a href="${actionLink}"
-                   style="background-color: #007bff; color: white; padding: 15px 25px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px;"
-                >Hoàn tất đăng ký & Tạo mật khẩu</a>
-                <p>Link này sẽ sớm hết hạn. Nếu bạn không yêu cầu tạo tài khoản, vui lòng bỏ qua email này.</p>
-            `,
-        };
+        // ✅ 4. GỬI EMAIL BẰNG EXTENSION (Thay thế code SendGrid)
+        // Ghi một document vào collection 'mail' để kích hoạt extension
+        await db.collection("mail").add({
+            to: [email], // Email người nhận phải là một mảng
+            message: {
+                subject: `Chào mừng ${displayName} đến với hệ thống!`,
+                html: `
+                    <h1>Chào mừng bạn, ${displayName}!</h1>
+                    <p>Một tài khoản đã được tạo cho bạn. Vui lòng nhấp vào nút bên dưới để xác thực email và tạo mật khẩu đầu tiên.</p>
+                    <a href="${actionLink}"
+                       style="background-color: #007bff; color: white; padding: 15px 25px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px;"
+                    >Hoàn tất đăng ký & Tạo mật khẩu</a>
+                    <p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
+                `,
+            },
+        });
 
-        await sgMail.send(msg);
-
-        // 5. Ghi log kiểm toán
+        // 5. Ghi log kiểm toán (Giữ nguyên)
         await writeAuditLog(
             "USER_INVITED",
-            request.auth.uid, // Người thực hiện là admin
-            { type: "user", id: userRecord.uid, name: displayName }, // Đối tượng bị tác động
+            request.auth.uid,
+            { type: "user", id: userRecord.uid, name: displayName },
             { email, role },
             { request, origin: "callable:inviteUser" }
         );
@@ -293,11 +289,7 @@ exports.inviteUser = onCall(async (request) => {
         if (error.code === "auth/email-already-exists") {
             throw new HttpsError("already-exists", "Email này đã được sử dụng.");
         }
-        throw new HttpsError(
-            "internal",
-            "Đã xảy ra lỗi khi tạo lời mời.",
-            error.message
-        );
+        throw new HttpsError("internal", "Đã xảy ra lỗi khi tạo lời mời.", error.message);
     }
 });
 

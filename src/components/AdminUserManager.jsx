@@ -17,6 +17,7 @@ import {
 import { getAuth, sendPasswordResetEmail } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "../services/firebase-config";
+import { getApp } from "firebase/app";
 
 /* ---------------- Vai trò & màu sắc ---------------- */
 const ROLE_OPTIONS = [
@@ -238,7 +239,7 @@ export default function AdminUserManager() {
   });
 
   const auth = getAuth();
-  const functions = getFunctions();
+    const functions = getFunctions(getApp(), "asia-southeast1");
   const deleteUserByUid = httpsCallable(functions, "deleteUserByUid");
   const inviteUser = httpsCallable(functions, 'inviteUser');
 
