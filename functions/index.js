@@ -2,13 +2,16 @@
 const nodemailer = require("nodemailer");
 const { getAuth: getAdminAuth } = require("firebase-admin/auth");
 // --- Imports v2 ---
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const {
     onDocumentCreated,
     onDocumentDeleted,
     onDocumentUpdated
 } = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2");
+const { defineSecret } = require("firebase-functions/params");
+const crypto = require("crypto");
+
 setGlobalOptions({
     region: "asia-southeast1",
     cpu: "gcf_gen1",
@@ -25,6 +28,7 @@ admin.initializeApp();
 
 const db = admin.firestore();
 // ==== REPLACE FROM HERE (email/env/config helpers) ====
+const BK_INGEST_SECRET = defineSecret("BK_INGEST_SECRET");
 
 // ENV secrets (Gmail)
 const gmailUser = process.env.GMAIL_SMTP_USER; // ví dụ: yourname@gmail.com
@@ -1420,3 +1424,82 @@ exports.batchAddAssetsDirectly = onCall(async (request) => {
     }
 });
 
+
+/* ===================== BK Agent: ingest & status ===================== */
+
+// Verify HMAC header: X-BK-Signature: sha256=<hex>
+function validSignature(rawBody, header, secret) {
+    if (!header || !header.startsWith("sha256=")) return false;
+    const sig = header.slice("sha256=".length).trim();
+    const mac = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+    try {
+ return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac));
+} catch {
+ return false;
+}
+}
+
+// HTTP endpoint nhận log từ agent PowerShell
+exports.ingestEvent = onRequest({ secrets: [BK_INGEST_SECRET] }, async (req, res) => {
+    try {
+                console.log(`SERVER SECRET LENGTH: ${BK_INGEST_SECRET.value().length}`);
+
+        if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+
+        const sig = req.get("X-BK-Signature");
+        const ok = validSignature(req.rawBody, sig, BK_INGEST_SECRET.value());
+        if (!ok) return res.status(401).send("Invalid signature");
+
+        const { machineId, eventId, recordId, createdAt } = req.body || {};
+        if (!machineId || !eventId || !createdAt) return res.status(400).send("Bad request");
+
+        await db.collection("machineEvents").add({
+            machineId,
+            eventId: Number(eventId),
+            recordId: recordId ?? null,
+            createdAt: new Date(createdAt),
+            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            src: "agent-powershell",
+        });
+
+        return res.status(200).send("ok");
+    } catch (e) {
+        console.error(e);
+        return res.status(500).send("error");
+    }
+});
+
+// Khi có event mới -> cập nhật trạng thái realtime machineStatus/{machineId}
+exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+    const { machineId, eventId, createdAt } = data;
+const created = createdAt.toDate();
+    const ref = db.collection("machineStatus").doc(machineId);
+    const update = {
+        lastEventId: Number(eventId),
+        lastEventAt: created,
+        lastSeenAt: created,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    // Quy ước ID:
+    // 6005 = startup (online), 6006 = clean shutdown (offline),
+    // 6008 = unexpected shutdown (offline), 1074 = user-initiated shutdown/restart (offline),
+    // 7001 = heartbeat (online)
+    const ONLINE = new Set([6005, 7001]);
+    const OFFLINE = new Set([6006, 6008, 1074]);
+
+    if (ONLINE.has(Number(eventId))) {
+        update.isOnline = true;
+        if (Number(eventId) === 6005) update.lastBootAt = created;
+    } else if (OFFLINE.has(Number(eventId))) {
+        update.isOnline = false;
+        update.lastShutdownAt = created;
+        update.lastShutdownKind =
+            Number(eventId) === 6008 ? "unexpected" :
+                Number(eventId) === 6006 ? "clean" : "user";
+    }
+
+    await ref.set(update, { merge: true });
+});

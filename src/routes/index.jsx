@@ -67,6 +67,8 @@ const AttendanceCheckIn = lazy(() => import('../pages/attendance/AttendanceCheck
 const AttendanceHistory = lazy(() => import('../pages/attendance/AttendanceHistory'));
 const AttendanceReports = lazy(() => import('../pages/attendance/AttendanceReports'));
 const AttendanceSettings = lazy(() => import('../pages/attendance/AttendanceSettings'));
+// --- LAZY-LOAD CÁC TRANG CỦA MODULE GIÁM SÁT THIẾT BỊ ---
+const DeviceMonitoringDashboard = lazy(() => import('../pages/monitoring/DeviceMonitoringDashboard'));
 // --- COMPONENT ĐỊNH TUYẾN CHÍNH ---
 export default function Router() {
     return (
@@ -123,6 +125,8 @@ function AppRoutes() {
                         <Route path="balance-sheet" element={<RequireEmailAccess pathKey="balance-sheet">{lazyLoad(BalanceSheet)}</RequireEmailAccess>} />
                         <Route path="profit-change" element={<RequireEmailAccess pathKey="profit-change">{lazyLoad(ProfitChange)}</RequireEmailAccess>} />
                         <Route path="asset-transfer" element={<RequireEmailAccess pathKey="asset-transfer">{lazyLoad(AssetTransferPage)}</RequireEmailAccess>} />
+                        <Route path="device-monitoring" element={<RequireEmailAccess pathKey="device-monitoring">{lazyLoad(DeviceMonitoringDashboard)}</RequireEmailAccess>} />
+
                         {/* === MODULE CHẤM CÔNG === */}
                         <Route path="attendance">
                             <Route index element={<RequireEmailAccess pathKey="attendance/dashboard">{lazyLoad(AttendanceDashboard)}</RequireEmailAccess>} />
@@ -130,7 +134,7 @@ function AppRoutes() {
                             <Route path="history" element={<RequireEmailAccess pathKey="attendance/history">{lazyLoad(AttendanceHistory)}</RequireEmailAccess>} />
                             <Route path="reports" element={<RequireRole allowedRoles={["admin", "leader"]}><RequireEmailAccess pathKey="attendance/reports">{lazyLoad(AttendanceReports)}</RequireEmailAccess></RequireRole>} />
                             <Route path="settings" element={<RequireRole allowedRoles={["admin"]}><RequireEmailAccess pathKey="attendance/settings">{lazyLoad(AttendanceSettings)}</RequireEmailAccess></RequireRole>} />
-                        </Route> 
+                        </Route>
                         <Route path="reports">
                             <Route path="profit-quarter" element={<RequireEmailAccess pathKey="reports/profit-quarter">{lazyLoad(ProfitReportQuarter)}</RequireEmailAccess>} />
                             <Route path="profit-year" element={<RequireEmailAccess pathKey="reports/profit-year">{lazyLoad(ProfitReportYear)}</RequireEmailAccess>} />
