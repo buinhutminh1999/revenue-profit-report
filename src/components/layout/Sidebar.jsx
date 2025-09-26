@@ -18,6 +18,10 @@ import {
     LayoutDashboard, ChevronRight, Briefcase, Landmark, BarChart3, Construction,
     Building2, FileCheck2, FileSpreadsheet, BookCheck, BarChart2 as BarChartIcon,
     ClipboardList, BookUser, PieChart, LineChart, TrendingUp,
+    UserCheck,
+    ScanLine,
+    History,
+    SlidersHorizontal,
 } from "lucide-react";
 
 // ----- Drawer styles -----
@@ -38,8 +42,10 @@ const closedMixin = (theme, width) => ({
     overflowX: "hidden",
 });
 
-const StyledDrawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== "open" })(
-    ({ theme, open, widthExpanded, widthCollapsed }) => ({
+const StyledDrawer = styled(MuiDrawer, {
+    shouldForwardProp: (prop) =>
+        prop !== "open" && prop !== "widthExpanded" && prop !== "widthCollapsed",
+})(({ theme, open, widthExpanded, widthCollapsed }) => ({
         width: widthExpanded,
         flexShrink: 0,
         whiteSpace: "nowrap",
@@ -64,12 +70,26 @@ const ListSubheaderStyle = styled(ListSubheader)(({ theme }) => ({
     color: theme.palette.text.secondary,
 }));
 
-
-// --- CẤU HÌNH MENU GỐC ---
 const navigationConfig = [
     {
         subheader: "Tổng quan",
         items: [{ title: "Dashboard", path: "/", icon: <LayoutDashboard size={18} /> }],
+    },
+    {
+        subheader: "Quản lý Nhân sự",
+        items: [
+            {
+                title: "Chấm công",
+                icon: <UserCheck size={18} />,
+                children: [
+                    { title: "Bảng điều khiển", path: "/attendance", icon: <LayoutDashboard size={18} /> },
+                    { title: "Chấm công hàng ngày", path: "/attendance/check-in", icon: <ScanLine size={18} /> },
+                    { title: "Lịch sử chấm công", path: "/attendance/history", icon: <History size={18} /> },
+                    { title: "Báo cáo", path: "/attendance/reports", icon: <BarChart3 size={18} /> },
+                    { title: "Cài đặt", path: "/attendance/settings", icon: <SlidersHorizontal size={18} /> },
+                ],
+            },
+        ],
     },
     {
         subheader: "Quản lý Vận hành",
@@ -116,7 +136,6 @@ const navigationConfig = [
         ],
     },
 ];
-
 // --- ✅ BƯỚC 1: TẠO CUSTOM HOOK ĐỂ LẤY VÀ KIỂM TRA QUYỀN ---
 function useNavigationPermissions() {
     const { user } = useAuth();

@@ -15,7 +15,8 @@ import { styled } from '@mui/material/styles';
 import {
     Construction, Building, BookCheck, FileSpreadsheet, BarChart3,
     Landmark, ClipboardList, BookUser, PieChart, LineChart, TrendingUp,
-    FileCheck2, FileBarChart2, ArrowRightLeft, ShieldOff
+    FileCheck2, FileBarChart2, ArrowRightLeft, ShieldOff,
+    UserCheck
 } from 'lucide-react';
 
 // Styled Card với hiệu ứng ERP hiện đại
@@ -45,7 +46,7 @@ const cardVariants = {
 const Home = () => {
     // Lấy thông tin người dùng từ Auth context
     const { user } = useAuth();
-    
+
     // State để lưu các module người dùng được phép truy cập
     const [allowedModules, setAllowedModules] = useState([]);
     // State để xử lý trạng thái tải dữ liệu
@@ -54,6 +55,8 @@ const Home = () => {
     // Danh sách TẤT CẢ các module trong hệ thống
     const allModules = [
         // --- CÁC MODULE CHÍNH ---
+        { icon: <UserCheck size={26} />, title: "Quản Lý Chấm Công", to: "/attendance", desc: "Theo dõi, quản lý và in bảng chấm công", color: '#16a34a', isNew: true },
+
         { icon: <Construction size={26} />, title: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ công việc", color: '#3b82f6' },
         { icon: <Building size={26} />, title: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết thông tin các công trình", color: '#8b5cf6' },
         { icon: <ArrowRightLeft size={26} />, title: "QL Luân chuyển Tài sản", to: "/asset-transfer", desc: "Theo dõi và luân chuyển tài sản", color: '#0891b2', isNew: true },
@@ -65,7 +68,7 @@ const Home = () => {
         { icon: <FileSpreadsheet size={26} />, title: "Quản Lý Danh Mục", to: "/categories", desc: "Theo dõi công nợ", color: '#f59e0b' },
         { icon: <PieChart size={26} />, title: 'Chi Phí Theo Quý', to: '/cost-allocation-quarter', desc: 'Theo dõi phân bổ chi phí', color: '#8b5cf6' },
         { icon: <TrendingUp size={26} />, title: 'Tăng Giảm Lợi Nhuận', to: '/profit-change', desc: 'Phân tích các yếu tố ảnh hưởng', color: '#f59e0b' },
-        
+
         // --- CÁC MODULE BÁO CÁO ---
         { icon: <Landmark size={26} />, title: "Báo Cáo Sử Dụng Vốn", to: "/reports/capital-utilization", desc: "Đối chiếu kế hoạch và thực tế sử dụng", color: '#6366f1' },
         { icon: <BookUser size={26} />, title: "Báo Cáo Nợ Có", to: "/reports/broker-debt", desc: "Theo dõi và đối chiếu số dư nợ có", color: '#ef4444' },
@@ -94,7 +97,7 @@ const Home = () => {
             try {
                 const docSnap = await getDoc(whitelistDocRef);
                 const rules = docSnap.exists() ? docSnap.data() : {};
-                
+
                 // Lọc danh sách allModules
                 const filteredModules = allModules.filter(module => {
                     // Lấy pathKey từ đường dẫn 'to' của module (bỏ dấu / ở đầu)
@@ -175,7 +178,7 @@ const Home = () => {
 
                 {/* Trạng thái khi không có module nào được phép */}
                 {!isLoading && allowedModules.length === 0 && (
-                     <Box sx={{ mt: 5, p: 4, bgcolor: 'white', borderRadius: 3, textAlign: 'center', border: '1px dashed #e2e8f0' }}>
+                    <Box sx={{ mt: 5, p: 4, bgcolor: 'white', borderRadius: 3, textAlign: 'center', border: '1px dashed #e2e8f0' }}>
                         <ShieldOff size={48} color="#94a3b8" style={{ margin: '0 auto' }} />
                         <Typography variant="h6" sx={{ mt: 2, fontWeight: 600, color: '#334155' }}>
                             Không có chức năng nào được chỉ định
