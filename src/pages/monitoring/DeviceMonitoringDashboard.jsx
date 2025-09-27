@@ -2,24 +2,30 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, CircularProgress, Chip, TextField,
-  InputAdornment, ToggleButtonGroup, ToggleButton, Grid, TableSortLabel
+  InputAdornment, ToggleButtonGroup, ToggleButton, Grid, TableSortLabel,
+  Collapse, IconButton, Stack
 } from '@mui/material';
-import { collection, query, onSnapshot } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getApp } from 'firebase/app';
+import { collection, query, onSnapshot, where, orderBy } from 'firebase/firestore';
 import { db } from '../../services/firebase-config';
-import { format, formatDistanceToNow, isSameDay, parseISO } from 'date-fns';
+import { format, formatDistanceToNow, isSameDay } from 'date-fns';
 import { vi } from 'date-fns/locale';
+
 import SearchIcon from '@mui/icons-material/Search';
 import LaptopMacIcon from '@mui/icons-material/LaptopMac';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { alpha } from '@mui/material/styles';
 
 /* ================= Helpers ================= */
-const ONLINE_STALENESS_MIN = 12; // “tươi” trong 12 phút
+const ONLINE_STALENESS_MIN = 12;
+const START_IDS = new Set([6005, 107, 4801]);              // boot, resume, unlock
+const STOP_IDS  = new Set([6006, 6008, 1074, 42, 4800]);   // clean, crash, user, sleep, lock
 
 const isMachineOnline = (machine) => {
   if (machine?.isOnline !== true) return false;
@@ -29,7 +35,7 @@ const isMachineOnline = (machine) => {
   return minutesAgo <= ONLINE_STALENESS_MIN;
 };
 
-const formatDurationFromSeconds = (seconds) => {
+const fmtDur = (seconds) => {
   if (seconds == null) return '';
   if (seconds < 60) return 'Dưới 1 phút';
   const totalMinutes = Math.round(seconds / 60);
@@ -38,109 +44,227 @@ const formatDurationFromSeconds = (seconds) => {
   const minutes = totalMinutes % 60;
   return `${hours} giờ ${minutes} phút`;
 };
+const toHHMM = (d) => format(d, 'HH:mm', { locale: vi });
+const dayBounds = (d) => {
+  const start = new Date(d); start.setHours(0,0,0,0);
+  const end = new Date(d); end.setHours(23,59,59,999);
+  return { start, end };
+};
 
-const formatYmdLocal = (d) => format(d, 'yyyy-MM-dd'); // không dùng toISOString để tránh lệch múi giờ
+/* ================= Mapping (hiện ở phần Chi tiết) ================= */
+const EVENT_LABEL = {
+  6005: { text: 'Khởi động', color: 'success' },
+  107:  { text: 'Resume', color: 'info' },
+  42:   { text: 'Ngủ (Sleep)', color: 'warning' },
+  4800: { text: 'Khoá', color: 'default' },
+  4801: { text: 'Mở khoá', color: 'info' },
+  1074: { text: 'Tắt/Restart (User)', color: 'default' },
+  6006: { text: 'Tắt máy (Clean)', color: 'default' },
+  6008: { text: 'Mất điện / Crash', color: 'error' },
+};
+
+/* ================= Build Sessions =================
+   - Bỏ qua heartbeat (7001)
+   - START mở phiên, STOP chốt phiên
+   - Phiên cuối:
+     • hôm nay  -> chốt tạm bằng lastSeenAt (đúng với heartbeat/stale)
+     • quá khứ  -> chốt bằng dayEnd
+*/
+function buildSessions(events, machine, selectedDate) {
+  const { end: dayEnd } = dayBounds(selectedDate);
+  const isToday = isSameDay(selectedDate, new Date());
+  const lastSeen = machine?.lastSeenAt?.toDate?.() ?? null;
+
+  const sessions = [];
+  let curStart = null;
+  let total = 0;
+
+  for (const e of events) {
+    const id = Number(e.eventId);
+    const t = e.createdAt.toDate();
+
+    if (START_IDS.has(id)) {
+      // nếu đang mở phiên mà lại gặp START → chốt phiên cũ, mở phiên mới
+      if (curStart) {
+        sessions.push({ start: curStart, end: t, open: false });
+        total += (t - curStart) / 1000;
+      }
+      curStart = t;
+    } else if (STOP_IDS.has(id)) {
+      if (curStart) {
+        sessions.push({ start: curStart, end: t, open: false });
+        total += (t - curStart) / 1000;
+        curStart = null;
+      }
+    }
+  }
+
+  // Phiên còn mở
+  if (curStart) {
+    let endAnchor = isToday ? (lastSeen || new Date()) : dayEnd;
+    // kẹp trong ngày
+    if (endAnchor < curStart) endAnchor = curStart;
+    if (endAnchor > dayEnd) endAnchor = dayEnd;
+
+    sessions.push({ start: curStart, end: endAnchor, open: true });
+    total += (endAnchor - curStart) / 1000;
+  }
+
+  return { sessions, total };
+}
 
 /* ================= Row ================= */
 const MachineRow = ({ machine, selectedDate }) => {
-  const [usageSeconds, setUsageSeconds] = useState(null);
-  const [range, setRange] = useState({ firstStartAt: null, lastEndAt: null });
-  const [loadingUsage, setLoadingUsage] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState([]);
+  const [totalSec, setTotalSec] = useState(0);
+  const [events, setEvents] = useState([]);
+  const [openDetail, setOpenDetail] = useState(false);
 
   const online = isMachineOnline(machine);
   const today = isSameDay(selectedDate, new Date());
 
   useEffect(() => {
-    const fetchUsage = async () => {
-      try {
-        const functions = getFunctions(getApp(), 'asia-southeast1');
-        const getComputerUsageStats = httpsCallable(functions, 'getComputerUsageStats');
-        const isoDate = formatYmdLocal(selectedDate); // YYYY-MM-DD (local)
-        const res = await getComputerUsageStats({ machineId: machine.id, date: isoDate });
-        setUsageSeconds(res.data.totalUsageSeconds ?? 0);
-        setRange({
-          firstStartAt: res.data.firstStartAt || null,
-          lastEndAt: res.data.lastEndAt || null,
-        });
-      } catch (e) {
-        console.error(`Lấy usage cho ${machine.id} lỗi:`, e);
-        setUsageSeconds(0);
-        setRange({ firstStartAt: null, lastEndAt: null });
-      } finally {
-        setLoadingUsage(false);
-      }
+    const { start, end } = dayBounds(selectedDate);
+    const q = query(
+      collection(db, 'machineEvents'),
+      where('machineId', '==', machine.id),
+      where('createdAt', '>=', start),
+      where('createdAt', '<=', end),
+      orderBy('createdAt', 'asc')
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const evs = snap.docs.map((d) => d.data());
+        setEvents(evs);
+        const { sessions, total } = buildSessions(evs, machine, selectedDate);
+        setSessions(sessions);
+        setTotalSec(total);
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+
+    return () => unsub();
+  }, [machine.id, selectedDate, machine?.lastSeenAt]);
+
+  // Cập nhật “đang chạy” mượt mà hơn khi xem hôm nay & máy online & có phiên mở.
+  useEffect(() => {
+    if (!today || !online) return;
+    const open = sessions.find((s) => s.open);
+    if (!open) return;
+
+    const base = sessions
+      .filter((s) => !s.open)
+      .reduce((acc, s) => acc + Math.max(0, (s.end - s.start) / 1000), 0);
+
+    const tick = () => {
+      // dùng lastSeenAt thay vì Date.now để bám đúng heartbeat
+      const lastSeen = machine?.lastSeenAt?.toDate?.() ?? new Date();
+      const extra = Math.max(0, Math.floor((lastSeen.getTime() - open.start.getTime()) / 1000));
+      setTotalSec(base + extra);
     };
+    tick();
+    const id = setInterval(tick, 30 * 1000); // 30s là đủ, không cần mỗi giây
+    return () => clearInterval(id);
+  }, [sessions, today, online, machine?.lastSeenAt]);
 
-    setLoadingUsage(true);
-    fetchUsage();
-
-    // Chỉ poll khi đang xem hôm nay (quá khứ thì số liệu đã cố định)
-    const interval = today ? setInterval(fetchUsage, 2 * 60 * 1000) : null;
-    return () => interval && clearInterval(interval);
-  }, [machine.id, selectedDate, today]);
-
-  const renderRange = () => {
-    const { firstStartAt, lastEndAt } = range;
-    if (!firstStartAt && !lastEndAt) return null;
-    const start = firstStartAt ? parseISO(firstStartAt) : null;
-    const end = lastEndAt ? parseISO(lastEndAt) : null;
-
-    if (start && end) {
-      return (
-        <Typography variant="caption" color="text.secondary">
-          {`Từ ${format(start, 'HH:mm')} → ${format(end, 'HH:mm')}`}
-        </Typography>
-      );
-    }
-    if (start && !end) {
-      return (
-        <Typography variant="caption" color="text.secondary">
-          {`Bắt đầu ${format(start, 'HH:mm')}`}
-        </Typography>
-      );
-    }
-    return null;
-  };
+  const firstStart = sessions[0]?.start || null;
+  const lastEnd = sessions.length ? sessions[sessions.length - 1].end : null;
+  const isOpen = sessions.some((s) => s.open);
 
   return (
-    <TableRow hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-      <TableCell>
-        <Chip
-          icon={online ? <LaptopMacIcon /> : <PowerSettingsNewIcon />}
-          label={online ? 'Online' : 'Offline'}
-          color={online ? 'success' : 'default'}
-          variant={online ? 'filled' : 'outlined'}
-          size="small"
-        />
-      </TableCell>
+    <>
+      <TableRow hover sx={{ '&:nth-of-type(odd)': { bgcolor: (t) => alpha(t.palette.primary.main, 0.02) } }}>
+        <TableCell sx={{ width: 140 }}>
+          <Chip
+            icon={online ? <LaptopMacIcon /> : <PowerSettingsNewIcon />}
+            label={online ? 'Online' : 'Offline'}
+            color={online ? 'success' : 'default'}
+            variant={online ? 'filled' : 'outlined'}
+            size="small"
+          />
+        </TableCell>
 
-      <TableCell sx={{ fontWeight: 500 }}>{machine.id}</TableCell>
+        <TableCell sx={{ fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+          {machine.id}
+        </TableCell>
 
-      <TableCell>
-        {loadingUsage ? (
-          <Typography variant="body2" color="text.secondary">Đang tính…</Typography>
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 220 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              Tổng: {formatDurationFromSeconds(usageSeconds)}
-            </Typography>
-            {renderRange()}
-          </Box>
-        )}
-      </TableCell>
+        <TableCell>
+          {loading ? (
+            <Typography variant="body2" color="text.secondary">Đang tính…</Typography>
+          ) : (
+            <Box>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.25, flexWrap: 'wrap' }}>
+                <Chip
+                  size="small"
+                  color="primary"
+                  icon={<TimelineIcon sx={{ fontSize: 18 }} />}
+                  label={`Tổng: ${fmtDur(totalSec)}${isOpen ? ' (đang chạy)' : ''}`}
+                />
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={
+                    firstStart
+                      ? `Từ ${toHHMM(firstStart)} → ${isOpen ? '…' : (lastEnd ? toHHMM(lastEnd) : '—')}`
+                      : '—'
+                  }
+                />
+                <IconButton size="small" onClick={() => setOpenDetail(v => !v)}>
+                  {openDetail ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                </IconButton>
+                <Typography variant="body2" sx={{ cursor: 'pointer' }} onClick={() => setOpenDetail(v => !v)}>
+                  {openDetail ? 'Ẩn chi tiết' : 'Chi tiết'}
+                </Typography>
+              </Stack>
+            </Box>
+          )}
+        </TableCell>
 
-      <TableCell>
-        {machine.lastSeenAt?.toDate()
-          ? formatDistanceToNow(machine.lastSeenAt.toDate(), { addSuffix: true, locale: vi })
-          : 'Chưa có'}
-      </TableCell>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+          {machine.lastSeenAt?.toDate()
+            ? formatDistanceToNow(machine.lastSeenAt.toDate(), { addSuffix: true, locale: vi })
+            : 'Chưa có'}
+        </TableCell>
 
-      <TableCell>
-        {machine.lastBootAt?.toDate()
-          ? format(machine.lastBootAt.toDate(), 'HH:mm, dd/MM/yyyy', { locale: vi })
-          : 'Chưa có'}
-      </TableCell>
-    </TableRow>
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+          {machine.lastBootAt?.toDate()
+            ? format(machine.lastBootAt.toDate(), 'HH:mm, dd/MM/yyyy', { locale: vi })
+            : 'Chưa có'}
+        </TableCell>
+      </TableRow>
+
+      <TableRow>
+        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={5}>
+          <Collapse in={openDetail} timeout="auto" unmountOnExit>
+            <Box sx={{ px: 2, pb: 2 }}>
+              <Typography variant="overline" color="text.secondary">Các mốc trong ngày</Typography>
+              <Stack direction="row" flexWrap="wrap">
+                {events
+                  .filter((e) => EVENT_LABEL[Number(e.eventId)])
+                  .map((e, i) => {
+                    const meta = EVENT_LABEL[Number(e.eventId)];
+                    const t = e.createdAt.toDate();
+                    return (
+                      <Chip
+                        key={i}
+                        size="small"
+                        sx={{ mr: 1, mb: 1 }}
+                        color={meta.color}
+                        variant="outlined"
+                        label={`${toHHMM(t)} • ${meta.text}`}
+                      />
+                    );
+                  })}
+              </Stack>
+            </Box>
+          </Collapse>
+        </TableCell>
+      </TableRow>
+    </>
   );
 };
 
@@ -172,31 +296,25 @@ export default function DeviceMonitoringDashboard() {
 
   const processedMachines = useMemo(() => {
     let list = [...machines];
-
     if (statusFilter !== 'all') {
       const wantOnline = statusFilter === 'online';
       list = list.filter((m) => isMachineOnline(m) === wantOnline);
     }
-
     if (searchTerm) {
       const kw = searchTerm.toLowerCase();
       list = list.filter((m) => m.id.toLowerCase().includes(kw));
     }
-
     list.sort((a, b) => {
       const key = sortConfig.key;
       let va = a[key], vb = b[key];
       if (va?.toDate) va = va.toDate();
       if (vb?.toDate) vb = vb.toDate();
-
       if (va == null) return 1;
       if (vb == null) return -1;
-
       if (va < vb) return sortConfig.direction === 'asc' ? -1 : 1;
       if (va > vb) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-
     return list;
   }, [machines, searchTerm, statusFilter, sortConfig]);
 
