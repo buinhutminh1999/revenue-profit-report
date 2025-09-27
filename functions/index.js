@@ -29,6 +29,7 @@ admin.initializeApp();
 const db = admin.firestore();
 // ==== REPLACE FROM HERE (email/env/config helpers) ====
 const BK_INGEST_SECRET = defineSecret("BK_INGEST_SECRET");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 // ENV secrets (Gmail)
 const gmailUser = process.env.GMAIL_SMTP_USER; // ví dụ: yourname@gmail.com
@@ -1433,16 +1434,16 @@ function validSignature(rawBody, header, secret) {
     const sig = header.slice("sha256=".length).trim();
     const mac = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
     try {
- return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac));
-} catch {
- return false;
-}
+        return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac));
+    } catch {
+        return false;
+    }
 }
 
 // HTTP endpoint nhận log từ agent PowerShell
 exports.ingestEvent = onRequest({ secrets: [BK_INGEST_SECRET] }, async (req, res) => {
     try {
-                console.log(`SERVER SECRET LENGTH: ${BK_INGEST_SECRET.value().length}`);
+        console.log(`SERVER SECRET LENGTH: ${BK_INGEST_SECRET.value().length}`);
 
         if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
@@ -1469,12 +1470,11 @@ exports.ingestEvent = onRequest({ secrets: [BK_INGEST_SECRET] }, async (req, res
     }
 });
 
-// Khi có event mới -> cập nhật trạng thái realtime machineStatus/{machineId}
 exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) => {
     const data = event.data?.data();
     if (!data) return;
     const { machineId, eventId, createdAt } = data;
-const created = createdAt.toDate();
+    const created = createdAt.toDate();
     const ref = db.collection("machineStatus").doc(machineId);
     const update = {
         lastEventId: Number(eventId),
@@ -1484,11 +1484,15 @@ const created = createdAt.toDate();
     };
 
     // Quy ước ID:
-    // 6005 = startup (online), 6006 = clean shutdown (offline),
-    // 6008 = unexpected shutdown (offline), 1074 = user-initiated shutdown/restart (offline),
+    // 6005 = startup (online)
+    // 6006 = clean shutdown (offline)
+    // 6008 = unexpected shutdown (offline)
+    // 1074 = user-initiated shutdown/restart (offline)
     // 7001 = heartbeat (online)
-    const ONLINE = new Set([6005, 7001]);
-    const OFFLINE = new Set([6006, 6008, 1074]);
+    // 42   = sleep (offline)
+    // 107  = resume from sleep (online)
+    const ONLINE = new Set([6005, 7001, 107]);
+    const OFFLINE = new Set([6006, 6008, 1074, 42]);
 
     if (ONLINE.has(Number(eventId))) {
         update.isOnline = true;
@@ -1498,8 +1502,134 @@ const created = createdAt.toDate();
         update.lastShutdownAt = created;
         update.lastShutdownKind =
             Number(eventId) === 6008 ? "unexpected" :
-                Number(eventId) === 6006 ? "clean" : "user";
+                Number(eventId) === 6006 ? "clean" :
+                    Number(eventId) === 42 ? "sleep" : "user";
     }
 
     await ref.set(update, { merge: true });
 });
+
+exports.getComputerUsageStats = onCall({ cors: true }, async (request) => {
+    ensureSignedIn(request.auth);
+
+    const { machineId, date } = request.data || {};
+    if (!machineId) throw new HttpsError("invalid-argument", "Vui lòng cung cấp machineId.");
+
+    // --- XÁC ĐỊNH NGÀY THEO MÚI GIỜ VIỆT NAM (+07) ---
+    // Nếu client gửi 'date' (yyyy-MM-dd) thì dùng luôn; nếu không, lấy "hôm nay" theo Asia/Ho_Chi_Minh
+    const fmtYMD = new Intl.DateTimeFormat("en-CA", { // en-CA => yyyy-MM-dd
+        timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit", day: "2-digit"
+    });
+
+    const todayYmdVN = fmtYMD.format(new Date());
+    const ymd = date || todayYmdVN;
+
+    // dayStart = 00:00:00 +07, dayEnd = 23:59:59.999 +07 cho đúng cửa sổ ngày VN
+    const base = new Date(`${ymd}T00:00:00+07:00`);
+    const dayStart = new Date(base.getTime());
+    const dayEnd = new Date(base.getTime() + (24 * 60 * 60 * 1000 - 1));
+    const isToday = (ymd === todayYmdVN);
+
+    // --- TRẠNG THÁI HIỆN TẠI (dùng khi tính cho hôm nay) ---
+    const statusDoc = await db.collection("machineStatus").doc(machineId).get();
+    const status = statusDoc.exists ? statusDoc.data() : {};
+    const lastBootAt = status.lastBootAt?.toDate?.() ?? null;
+    const lastShutdownAt = status.lastShutdownAt?.toDate?.() ?? null;
+    const lastSeenAt = status.lastSeenAt?.toDate?.() ?? new Date();
+    const isOnlineNow = !!status.isOnline;
+
+    // --- LẤY CÁC EVENT TRONG NGÀY (+07) ---
+    const snap = await db.collection("machineEvents")
+        .where("machineId", "==", machineId)
+        .where("createdAt", ">=", dayStart)
+        .where("createdAt", "<=", dayEnd)
+        .orderBy("createdAt", "asc")
+        .get();
+
+    const events = snap.docs.map((d) => d.data());
+    const START_EVENTS = new Set([6005, 107]); // startup, resume
+    const STOP_EVENTS = new Set([6006, 6008, 1074, 42]); // shutdowns + sleep
+
+    const sessions = [];
+    let lastStartTime = null;
+
+    // Nếu không có START trong ngày mà (hôm nay) máy đang online → mở phiên từ 00:00 +07
+    const hasStartToday = events.some((e) => START_EVENTS.has(Number(e.eventId)));
+    if (!hasStartToday && isToday && isOnlineNow) {
+        if (!lastShutdownAt || lastShutdownAt < dayStart) {
+            lastStartTime = dayStart;
+        } else {
+            lastStartTime = (lastBootAt && lastBootAt >= dayStart) ? lastBootAt : dayStart;
+        }
+    }
+
+    for (const ev of events) {
+        const t = ev.createdAt.toDate();
+        const id = Number(ev.eventId);
+
+        if (START_EVENTS.has(id)) {
+            if (lastStartTime) sessions.push({ start: lastStartTime, end: t }); // chốt phiên trôi
+            lastStartTime = t;
+        } else if (STOP_EVENTS.has(id)) {
+            if (lastStartTime) {
+                sessions.push({ start: lastStartTime, end: t });
+                lastStartTime = null;
+            }
+        }
+    }
+
+    // Chốt phiên cuối:
+    // - Hôm nay & còn online → chốt tới lastSeenAt
+    // - Ngày quá khứ → chốt tới dayEnd
+    if (lastStartTime) {
+        const endAnchor = (isToday && isOnlineNow) ? lastSeenAt : dayEnd;
+        sessions.push({ start: lastStartTime, end: endAnchor }); // ❗ chỉ push 1 lần
+    }
+
+    const totalUsageSeconds = Math.round(
+        sessions.reduce((acc, s) => acc + Math.max(0, (s.end - s.start) / 1000), 0)
+    );
+    const firstStartAt = sessions.length ? sessions[0].start.toISOString() : null;
+    const lastEndAt = sessions.length ? sessions[sessions.length - 1].end.toISOString() : null;
+
+    return { totalUsageSeconds, firstStartAt, lastEndAt, isOnline: isOnlineNow };
+});
+
+// Máy được coi là stale nếu quá N phút không có heartbeat
+const ONLINE_STALENESS_MIN = 12;
+
+// Mỗi 5 phút, auto set offline các máy stale
+exports.cronMarkStaleOffline = onSchedule(
+    { schedule: "every 5 minutes", timeZone: "Asia/Ho_Chi_Minh" },
+    async () => {
+        const now = new Date();
+        const cutoff = new Date(now.getTime() - ONLINE_STALENESS_MIN * 60 * 1000);
+
+        const snap = await db.collection("machineStatus")
+            .where("isOnline", "==", true)
+            .get();
+
+        const batch = db.batch();
+        let count = 0;
+
+        snap.forEach((doc) => {
+            const d = doc.data();
+            const lastSeen = d.lastSeenAt?.toDate?.();
+            if (!lastSeen || lastSeen < cutoff) {
+                batch.set(doc.ref, {
+                    isOnline: false,
+                    // coi như “mất kết nối” – lưu kiểu tắt đặc biệt
+                    lastShutdownAt: lastSeen || now,
+                    lastShutdownKind: "stale",
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                }, { merge: true });
+                count++;
+            }
+        });
+
+        if (count > 0) await batch.commit();
+        logger.log(`[cronMarkStaleOffline] Marked ${count} machines offline (stale).`);
+    }
+);
+
+
