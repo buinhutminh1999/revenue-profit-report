@@ -1482,8 +1482,6 @@ exports.ingestEvent = onRequest({ secrets: [BK_INGEST_SECRET], cors: true }, asy
 
 // functions/index.js
 
-// functions/index.js
-
 // Thay thế toàn bộ hàm onEventWrite cũ bằng hàm này
 exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) => {
     const data = event.data?.data();
@@ -1517,33 +1515,34 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
     const update = {
         lastEventId: Number(eventId),
         lastEventAt: ts,
-        lastSeenAt: ts,
+        lastSeenAt: ts, // Luôn cập nhật lastSeenAt cho mọi sự kiện hợp lệ
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         lastRecordId: recordId ?? prev.lastRecordId ?? null,
     };
 
+    const eventNum = Number(eventId);
     const ONLINE_EVENTS = new Set([6005, 7001, 107, 4801, 506]);
-    // Thêm event 7002 (mất mạng) vào danh sách offline
-    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 4800, 507, 7000, 7002]);
+    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 507, 7000, 7002]); // Loại bỏ 4800 khỏi đây
 
-    if (ONLINE_EVENTS.has(Number(eventId))) {
+    if (ONLINE_EVENTS.has(eventNum)) {
         update.isOnline = true;
-        if (Number(eventId) === 6005) {
+        if (eventNum === 6005) {
             update.lastBootAt = ts;
         }
-    } else if (OFFLINE_EVENTS.has(Number(eventId))) {
-        // Chỉ không cập nhật isOnline = false ngay khi là sự kiện LOCK
-        if (Number(eventId) !== 4800) {
-            update.isOnline = false;
-        }
-
+    } else if (OFFLINE_EVENTS.has(eventNum)) {
+        // Đây là các sự kiện offline thực sự
+        update.isOnline = false;
         update.lastShutdownAt = ts;
-        // Thêm logic để xử lý cho sự kiện mất mạng
         update.lastShutdownKind =
-            Number(eventId) === 6008 ? "unexpected" :
-                (Number(eventId) === 42 || Number(eventId) === 507) ? "sleep" :
-                    (Number(eventId) === 4800) ? "lock" :
-                        (Number(eventId) === 7002) ? "stale" : "user"; // Khi mất mạng, ghi nhận là "stale"
+            eventNum === 6008 ? "unexpected" :
+            (eventNum === 42 || eventNum === 507) ? "sleep" :
+            eventNum === 7002 ? "stale" :
+            "user"; // Mặc định cho tắt máy (6006, 1074, 7000)
+    } else if (eventNum === 4800) {
+        // Xử lý riêng sự kiện Khóa máy (4800):
+        // Nó không làm máy offline và KHÔNG nên thay đổi `lastShutdownKind`.
+        // `isOnline` vẫn là true (hoặc giữ nguyên trạng thái trước đó).
+        // Chúng ta chỉ cập nhật `lastSeenAt` và `lastEventId` đã có ở trên.
     }
 
     await ref.set(update, { merge: true });

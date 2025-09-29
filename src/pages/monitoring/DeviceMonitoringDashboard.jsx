@@ -37,7 +37,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 /* ===================== Constants ===================== */
 const START_IDS = new Set([6005, 107, 4801, 506]);
-const STOP_IDS  = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]); // Thêm event 7000 (đang tắt)
+const STOP_IDS  = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]);
 
 const EVENT_LABEL = {
     6005: { text: 'Khởi động', color: 'success', icon: <PowerOutlinedIcon sx={{ fontSize: '1rem' }} /> },
@@ -72,19 +72,25 @@ const formatDuration = (seconds) => {
     return `~ ${hours} giờ ${minutes} phút`;
 };
 
-const StatusChip = ({ isOnline, lastShutdownKind }) => {
+// ✅ [BƯỚC 1] THAY THẾ TOÀN BỘ COMPONENT StatusChip
+const StatusChip = ({ isOnline, lastShutdownKind, isStale }) => {
     if (isOnline) {
         return <Chip label="Online" color="success" size="small" />;
     }
-    // Logic hiển thị trạng thái offline được ưu tiên
+
+    if (isStale) {
+        return <Chip label="Mất kết nối" color="warning" size="small" />;
+    }
+
     switch (lastShutdownKind) {
         case 'sleep': return <Chip label="Ngủ" color="warning" size="small" />;
         case 'lock': return <Chip label="Khóa máy" color="default" variant="outlined" size="small" />;
-        case 'stale': return <Chip label="Mất kết nối" color="warning" size="small" />;
         case 'unexpected': return <Chip label="Bị Crash" color="error" size="small" />;
+        case 'stale': return <Chip label="Mất kết nối" color="warning" size="small" />;
         default: return <Chip label="Offline" color="default" size="small" />;
     }
 };
+
 /* ===================== UI Components ===================== */
 const StatCard = ({ title, value, icon, color }) => (
     <Grid item xs={12} sm={6} md={4}>
@@ -112,7 +118,6 @@ const DashboardStats = ({ onlineCount, offlineCount }) => (
     </Grid>
 );
 
-// Tối ưu UI/UX: Hiển thị thanh thời gian 24h trực quan
 const UsageBar = ({ events, selectedDate }) => {
     const sessions = useMemo(() => {
         let currentSessionStart = null;
@@ -122,7 +127,6 @@ const UsageBar = ({ events, selectedDate }) => {
 
         const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
         
-        // Xác định phiên hoạt động đầu tiên có thể bắt đầu từ trước 00:00
         const firstEvent = sortedEvents[0];
         if (firstEvent && START_IDS.has(Number(firstEvent.eventId))) {
             const previousEventQuery = query(
@@ -132,11 +136,8 @@ const UsageBar = ({ events, selectedDate }) => {
                 orderBy('createdAt', 'desc'),
                 limit(1)
             );
-            // Đây là một ví dụ, trong thực tế bạn có thể cần fetch dữ liệu này
-            // For simplicity here, we assume session starts at dayStart if no prior stop event is found
             currentSessionStart = dayStart; 
         }
-
 
         for (const event of sortedEvents) {
             const eventId = Number(event.eventId);
@@ -295,7 +296,7 @@ function useGroupedMachineEvents(machineIds, selectedDate) {
         });
 
         return () => unsubscribe();
-    }, [machineIds.join(','), selectedDate]); // Tối ưu dependency array
+    }, [machineIds.join(','), selectedDate]);
 
     return { eventsByMachine, loading };
 }
@@ -310,7 +311,8 @@ const useGlobalClock = (intervalMs = 30000) => {
 };
 
 /* ===================== Machine Card ===================== */
-const MachineCard = ({ machine, events, isOnline, workingHours, clock, selectedDate }) => {
+// ✅ [BƯỚC 3.1] THÊM isStale VÀO ĐỊNH NGHĨA COMPONENT
+const MachineCard = ({ machine, events, isOnline, isStale, workingHours, clock, selectedDate }) => {
     const [openDetail, setOpenDetail] = useState(false);
 
     const totalSec = useMemo(() => {
@@ -364,7 +366,8 @@ const MachineCard = ({ machine, events, isOnline, workingHours, clock, selectedD
                     </Box>
                     <Box overflow="hidden">
                         <Typography variant="h6" fontWeight={700} noWrap title={machine.id}>{machine.id}</Typography>
-                        <StatusChip isOnline={isOnline} lastShutdownKind={machine.lastShutdownKind} />
+                        {/* ✅ [BƯỚC 3.2] TRUYỀN isStale VÀO StatusChip */}
+                        <StatusChip isOnline={isOnline} lastShutdownKind={machine.lastShutdownKind} isStale={isStale} />
                     </Box>
                 </Stack>
                 <IconButton size="small" onClick={() => setOpenDetail(v => !v)}>
@@ -485,18 +488,25 @@ export default function DeviceMonitoringDashboard() {
                         </Grid>
                     ))
                 ) : (
-                    filteredMachines.map((m) => (
-                        <Grid item xs={12} sm={6} md={4} lg={3} key={m.id}>
-                            <MachineCard
-                                machine={m}
-                                events={eventsByMachine[m.id] || []}
-                                isOnline={isMachineOnline(m, stalenessMin)}
-                                workingHours={workingHours}
-                                clock={clock}
-                                selectedDate={selectedDate}
-                            />
-                        </Grid>
-                    ))
+                    // ✅ [BƯỚC 2] THAY THẾ TOÀN BỘ VÒNG LẶP .map NÀY
+                    filteredMachines.map((m) => {
+                        const effectivelyOnline = isMachineOnline(m, stalenessMin);
+                        const isStale = m.isOnline === true && !effectivelyOnline;
+
+                        return (
+                            <Grid item xs={12} sm={6} md={4} lg={3} key={m.id}>
+                                <MachineCard
+                                    machine={m}
+                                    events={eventsByMachine[m.id] || []}
+                                    isOnline={effectivelyOnline}
+                                    isStale={isStale}
+                                    workingHours={workingHours}
+                                    clock={clock}
+                                    selectedDate={selectedDate}
+                                />
+                            </Grid>
+                        );
+                    })
                 )}
                 {!isLoading && filteredMachines.length === 0 && (
                     <Grid item xs={12}>
