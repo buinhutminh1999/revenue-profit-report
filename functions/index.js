@@ -1482,6 +1482,8 @@ exports.ingestEvent = onRequest({ secrets: [BK_INGEST_SECRET], cors: true }, asy
 
 // functions/index.js
 
+// functions/index.js
+
 // Thay thế toàn bộ hàm onEventWrite cũ bằng hàm này
 exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) => {
     const data = event.data?.data();
@@ -1521,7 +1523,8 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
     };
 
     const ONLINE_EVENTS = new Set([6005, 7001, 107, 4801, 506]);
-    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]);
+    // Thêm event 7002 (mất mạng) vào danh sách offline
+    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 4800, 507, 7000, 7002]);
 
     if (ONLINE_EVENTS.has(Number(eventId))) {
         update.isOnline = true;
@@ -1529,19 +1532,18 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
             update.lastBootAt = ts;
         }
     } else if (OFFLINE_EVENTS.has(Number(eventId))) {
-        // === LOGIC MỚI BẮT ĐẦU TỪ ĐÂY ===
-        // Nếu sự kiện là LOCK (4800), chúng ta sẽ không cập nhật trạng thái isOnline ngay
-        // mà chỉ ghi nhận loại sự kiện. Điều này cho phép sự kiện SLEEP (42) ngay sau đó
-        // có cơ hội ghi đè trạng thái cuối cùng.
+        // Chỉ không cập nhật isOnline = false ngay khi là sự kiện LOCK
         if (Number(eventId) !== 4800) {
             update.isOnline = false;
         }
 
         update.lastShutdownAt = ts;
+        // Thêm logic để xử lý cho sự kiện mất mạng
         update.lastShutdownKind =
             Number(eventId) === 6008 ? "unexpected" :
-            (Number(eventId) === 42 || Number(eventId) === 507) ? "sleep" :
-            Number(eventId) === 4800 ? "lock" : "user";
+                (Number(eventId) === 42 || Number(eventId) === 507) ? "sleep" :
+                    (Number(eventId) === 4800) ? "lock" :
+                        (Number(eventId) === 7002) ? "stale" : "user"; // Khi mất mạng, ghi nhận là "stale"
     }
 
     await ref.set(update, { merge: true });
