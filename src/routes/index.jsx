@@ -129,7 +129,7 @@ function AppRoutes() {
 
                         {/* === MODULE CHẤM CÔNG === */}
                         <Route path="attendance">
-                            <Route index element={<RequireEmailAccess pathKey="attendance/dashboard">{lazyLoad(AttendanceDashboard)}</RequireEmailAccess>} />
+                            <Route index element={<RequireEmailAccess pathKey="attendance">{lazyLoad(AttendanceDashboard)}</RequireEmailAccess>} />
                             
                         </Route>
                         <Route path="reports">

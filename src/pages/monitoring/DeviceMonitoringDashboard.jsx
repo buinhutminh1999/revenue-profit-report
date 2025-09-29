@@ -2,8 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box, Typography, Paper, TextField, InputAdornment,
   ToggleButtonGroup, ToggleButton, Grid, Skeleton, Stack, IconButton,
-  Collapse, LinearProgress,
-  Chip
+  Collapse, LinearProgress, Chip, Tooltip
 } from '@mui/material';
 
 // Timeline (MUI Lab)
@@ -43,18 +42,21 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 /* ===================== Constants ===================== */
-const START_IDS = new Set([6005, 107, 4801]);               // Start session: Boot, Resume, Unlock
-const STOP_IDS  = new Set([6006, 6008, 1074, 42, 4800]);    // Stop session: Shutdown, Crash, Logoff, Sleep, Lock
+// Laptop standby thêm: 506 (resume), 507 (sleep)
+const START_IDS = new Set([6005, 107, 4801, 506]);   // Boot, Resume, Unlock, Laptop Resume
+const STOP_IDS  = new Set([6006, 6008, 1074, 42, 4800, 507]); // Shutdown, Crash, Logoff, Sleep, Lock, Laptop Sleep
 
 const EVENT_LABEL = {
   6005: { text: 'Khởi động', color: 'success', icon: <PowerOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-  107:  { text: 'Thức dậy', color: 'info',    icon: <WbSunnyOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-  4801: { text: 'Mở khóa',  color: 'info',    icon: <LockOpenOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-  42:   { text: 'Ngủ',      color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-  4800: { text: 'Khóa máy', color: 'grey',    icon: <LockOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-  1074: { text: 'Tắt máy',  color: 'grey',    icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
-  6006: { text: 'Tắt máy',  color: 'grey',    icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
-  6008: { text: 'Crash',    color: 'error',   icon: <ReportProblemOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  107:  { text: 'Thức dậy',  color: 'info',    icon: <WbSunnyOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  4801: { text: 'Mở khóa',   color: 'info',    icon: <LockOpenOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  42:   { text: 'Ngủ',       color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  507:  { text: 'Ngủ (Laptop)', color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  4800: { text: 'Khóa máy',  color: 'grey',    icon: <LockOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  1074: { text: 'Tắt máy',   color: 'grey',    icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
+  6006: { text: 'Tắt máy',   color: 'grey',    icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
+  6008: { text: 'Crash',     color: 'error',   icon: <ReportProblemOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  506:  { text: 'Thức dậy (Laptop)', color: 'info', icon: <WbSunnyOutlinedIcon sx={{ fontSize: '1rem' }} /> },
 };
 
 /* ===================== Helpers ===================== */
@@ -76,7 +78,8 @@ const formatDuration = (seconds) => {
   if (minutes === 0) return `~ ${hours} giờ`;
   return `~ ${hours} giờ ${minutes} phút`;
 };
-// --- COMPONENT CHIP TRẠNG THÁI ---
+
+// CHIP trạng thái
 const StatusChip = ({ isOnline, lastSeenAt }) => {
   if (!lastSeenAt?.toDate) {
     return <Chip label="Unknown" color="default" size="small" />;
@@ -84,7 +87,7 @@ const StatusChip = ({ isOnline, lastSeenAt }) => {
 
   const now = new Date();
   const last = lastSeenAt.toDate();
-  const diffMin = (now - last) / 1000 / 60; // phút
+  const diffMin = (now - last) / 60000;
 
   if (!isOnline) {
     return <Chip label="Offline" color="error" size="small" />;
@@ -93,7 +96,9 @@ const StatusChip = ({ isOnline, lastSeenAt }) => {
   } else {
     return <Chip label="Online" color="success" size="small" />;
   }
-};/* ===================== Small Components ===================== */
+};
+
+/* ===================== Stats ===================== */
 const StatCard = ({ title, value, icon, color }) => (
   <Grid item xs={12} sm={6} md={4}>
     <Paper elevation={2} sx={{ p: 2.5, display: 'flex', alignItems: 'center', borderRadius: '16px' }}>
@@ -119,29 +124,23 @@ const DashboardStats = ({ machines, onlineCount }) => (
 /* ===================== Timeline ===================== */
 const EventTimeline = ({ events }) => {
   const processedEvents = useMemo(() => {
-  const validEvents = events.filter(e => EVENT_LABEL[e.eventId]);
-
-  // 🔑 Lọc bỏ sự kiện trùng (cùng loại hoặc khác loại nhưng cùng timestamp)
-  const deduped = [];
-  for (let i = 0; i < validEvents.length; i++) {
-    const curr = validEvents[i];
-    const prev = deduped[deduped.length - 1];
-    if (prev && Math.abs(curr.createdAt - prev.createdAt) < 2000) {
-      // Nếu cách nhau <2s thì bỏ bớt, ưu tiên chỉ giữ 1
-      continue;
+    const validEvents = events.filter(e => EVENT_LABEL[e.eventId]);
+    const deduped = [];
+    for (let i = 0; i < validEvents.length; i++) {
+      const curr = validEvents[i];
+      const prev = deduped[deduped.length - 1];
+      if (prev && Math.abs(curr.createdAt - prev.createdAt) < 2000) continue;
+      deduped.push(curr);
     }
-    deduped.push(curr);
-  }
 
-  return deduped.map((event, index) => {
-    const nextEvent = deduped[index + 1];
-    const durationSeconds = nextEvent
-      ? (nextEvent.createdAt.getTime() - event.createdAt.getTime()) / 1000
-      : null;
-    return { ...event, durationSeconds };
-  });
-}, [events]);
-
+    return deduped.map((event, index) => {
+      const nextEvent = deduped[index + 1];
+      const durationSeconds = nextEvent
+        ? (nextEvent.createdAt.getTime() - event.createdAt.getTime()) / 1000
+        : null;
+      return { ...event, durationSeconds };
+    });
+  }, [events]);
 
   if (processedEvents.length === 0) {
     return <Typography variant="caption" color="text.secondary" sx={{ pl: 2 }}>Không có sự kiện chi tiết nào trong ngày.</Typography>;
@@ -154,7 +153,11 @@ const EventTimeline = ({ events }) => {
         if (!meta) return null;
         return (
           <TimelineItem key={index} sx={{ minHeight: '50px' }}>
-            <TimelineOppositeContent sx={{ display: 'none' }} />
+            <TimelineOppositeContent sx={{ flex: 0.2 }}>
+              <Typography variant="caption" color="text.secondary">
+                {format(event.createdAt, 'HH:mm:ss')}
+              </Typography>
+            </TimelineOppositeContent>
             <TimelineSeparator>
               <TimelineDot variant="outlined" color={meta.color}>
                 {meta.icon}
@@ -163,7 +166,11 @@ const EventTimeline = ({ events }) => {
             </TimelineSeparator>
             <TimelineContent sx={{ py: '12px', px: 2 }}>
               <Typography variant="body2" component="span" fontWeight="bold">{meta.text}</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>lúc {format(event.createdAt, 'HH:mm')}</Typography>
+              <Tooltip title={format(event.createdAt, 'dd/MM/yyyy HH:mm:ss')} arrow>
+                <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                  lúc {format(event.createdAt, 'HH:mm')}
+                </Typography>
+              </Tooltip>
               {event.durationSeconds != null && (
                 <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
                   {formatDuration(event.durationSeconds)}
@@ -174,74 +181,6 @@ const EventTimeline = ({ events }) => {
         );
       })}
     </Timeline>
-  );
-};
-
-/* ===================== Machine Card ===================== */
-const MachineCard = ({ machine, usageInfo, isOnline, isSessionOpen }) => {
-  const [openDetail, setOpenDetail] = useState(false);
-  const { totalSec, isLoading, events } = usageInfo;
-
-  const usageHours = totalSec / 3600;
-  const progress = Math.min(100, (usageHours / 8) * 100);
-
-  const getProgressColor = () => {
-    if (usageHours > 9) return 'error';
-    if (usageHours > 6) return 'warning';
-    return 'success';
-  };
-
-  return (
-    <Paper elevation={2} sx={{ p: 2.5, borderRadius: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Stack direction="row" alignItems="center" spacing={1.5}>
-          <Box sx={{ position: 'relative' }}>
-            {isOnline ? <LaptopMacIcon color="success" sx={{ fontSize: 28 }} /> : <PowerSettingsNewIcon color="action" sx={{ fontSize: 28 }} />}
-            {isOnline && (
-              <Box
-                sx={{
-                  position: 'absolute', top: 0, right: 0, width: 8, height: 8, bgcolor: 'success.main', borderRadius: '50%',
-                  animation: 'pulse 1.5s infinite',
-                  '@keyframes pulse': {
-                    '0%': { boxShadow: '0 0 0 0 rgba(46, 204, 113, 0.7)' },
-                    '70%': { boxShadow: '0 0 0 10px rgba(46, 204, 113, 0)' },
-                    '100%': { boxShadow: '0 0 0 0 rgba(46, 204, 113, 0)' }
-                  }
-                }}
-              />
-            )}
-          </Box>
-          <Typography variant="h6" fontWeight="700" noWrap>{machine.id}</Typography>
-        </Stack>
-        <IconButton size="small" onClick={() => setOpenDetail(v => !v)}>
-          {openDetail ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-        </IconButton>
-      </Stack>
-
-      <Box sx={{ flexGrow: 1, mb: 2 }}>
-        <Typography variant="caption" color="text.secondary">
-          Thời gian sử dụng hôm nay
-          {isSessionOpen && <Typography component="span" variant="caption" color="success.main" fontWeight="bold"> (đang chạy)</Typography>}
-        </Typography>
-        {isLoading
-          ? <Typography sx={{ my: 1 }}>Đang tính...</Typography>
-          : <Typography variant="h5" fontWeight="600" sx={{ my: 0.5 }}>{formatDuration(totalSec)}</Typography>}
-        <LinearProgress variant="determinate" value={progress} color={getProgressColor()} sx={{ height: 8, borderRadius: 4 }} />
-      </Box>
-
-      <Collapse in={openDetail} timeout="auto" unmountOnExit>
-        <EventTimeline events={events} />
-      </Collapse>
-
-      <Stack spacing={1} sx={{ mt: 'auto' }}>
-        <Typography variant="caption" color="text.secondary">
-          Hoạt động cuối: {machine.lastSeenAt ? formatDistanceToNow(machine.lastSeenAt.toDate(), { addSuffix: true, locale: vi }) : 'Chưa rõ'}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          Khởi động: {machine.lastBootAt ? format(machine.lastBootAt.toDate(), 'HH:mm, dd/MM/yyyy', { locale: vi }) : 'Chưa rõ'}
-        </Typography>
-      </Stack>
-    </Paper>
   );
 };
 
@@ -301,37 +240,104 @@ function useMachineUsage(machineId, selectedDate) {
   return usageInfo;
 }
 
-const useLiveTime = (refreshInterval = 5000) => {
+const useGlobalClock = (intervalMs = 5000) => {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), refreshInterval);
+    const id = setInterval(() => setTime(new Date()), intervalMs);
     return () => clearInterval(id);
-  }, [refreshInterval]);
+  }, [intervalMs]);
   return time;
 };
 
+/* ===================== Machine Card ===================== */
+const MachineCard = ({ machine, usageInfo, isOnline, isSessionOpen, workingHours }) => {
+  const [openDetail, setOpenDetail] = useState(false);
+  const { totalSec, isLoading, events } = usageInfo;
+
+  const usageHours = totalSec / 3600;
+  const progress = Math.min(100, (usageHours / workingHours) * 100);
+
+  const getProgressColor = () => {
+    if (usageHours > workingHours + 1) return 'error';
+    if (usageHours > workingHours - 2) return 'warning';
+    return 'success';
+  };
+
+  return (
+    <Paper elevation={2} sx={{ p: 2.5, borderRadius: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <Box sx={{ position: 'relative' }}>
+            {isOnline ? <LaptopMacIcon color="success" sx={{ fontSize: 28 }} /> : <PowerSettingsNewIcon color="action" sx={{ fontSize: 28 }} />}
+            {isOnline && (
+              <Box
+                sx={{
+                  position: 'absolute', top: 0, right: 0, width: 8, height: 8, bgcolor: 'success.main', borderRadius: '50%',
+                  animation: 'pulse 1.5s infinite',
+                  '@keyframes pulse': {
+                    '0%': { boxShadow: '0 0 0 0 rgba(46, 204, 113, 0.7)' },
+                    '70%': { boxShadow: '0 0 0 10px rgba(46, 204, 113, 0)' },
+                    '100%': { boxShadow: '0 0 0 0 rgba(46, 204, 113, 0)' }
+                  }
+                }}
+              />
+            )}
+          </Box>
+          <Typography variant="h6" fontWeight="700" noWrap>{machine.id}</Typography>
+        </Stack>
+        <IconButton size="small" onClick={() => setOpenDetail(v => !v)}>
+          {openDetail ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+        </IconButton>
+      </Stack>
+
+      <Box sx={{ flexGrow: 1, mb: 2 }}>
+        <Typography variant="caption" color="text.secondary">
+          Thời gian sử dụng hôm nay
+          {isSessionOpen && <Typography component="span" variant="caption" color="success.main" fontWeight="bold"> (đang chạy)</Typography>}
+        </Typography>
+        {isLoading
+          ? <Typography sx={{ my: 1 }}>Đang tính...</Typography>
+          : <Typography variant="h5" fontWeight="600" sx={{ my: 0.5 }}>{formatDuration(totalSec)}</Typography>}
+        <LinearProgress variant="determinate" value={progress} color={getProgressColor()} sx={{ height: 8, borderRadius: 4 }} />
+      </Box>
+
+      <Collapse in={openDetail} timeout="auto" unmountOnExit>
+        <EventTimeline events={events} />
+      </Collapse>
+
+      <Stack spacing={1} sx={{ mt: 'auto' }}>
+        <Typography variant="caption" color="text.secondary">
+          Hoạt động cuối: {machine.lastSeenAt ? formatDistanceToNow(machine.lastSeenAt.toDate(), { addSuffix: true, locale: vi }) : 'Chưa rõ'}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          Khởi động: {machine.lastBootAt ? format(machine.lastBootAt.toDate(), 'HH:mm, dd/MM/yyyy', { locale: vi }) : 'Chưa rõ'}
+        </Typography>
+      </Stack>
+    </Paper>
+  );
+};
+
 /* ===================== Wrapper ===================== */
-const MachineWrapper = ({ machine, selectedDate, view, stalenessMin }) => {
+const MachineWrapper = ({ machine, selectedDate, view, stalenessMin, clock, workingHours }) => {
   const isOnline = isMachineOnline(machine, stalenessMin);
   const staticUsageInfo = useMachineUsage(machine.id, selectedDate);
-  const liveTime = useLiveTime();
 
   const derivedUsage = useMemo(() => {
     const { totalSec, openSessionStart, ...rest } = staticUsageInfo;
     let liveTotalSec = totalSec;
     if (isOnline && openSessionStart) {
-      const elapsed = (liveTime.getTime() - openSessionStart.getTime()) / 1000;
+      const elapsed = (clock.getTime() - openSessionStart.getTime()) / 1000;
       liveTotalSec += Math.max(0, elapsed);
     }
     return { ...rest, totalSec: liveTotalSec, openSessionStart };
-  }, [staticUsageInfo, isOnline, liveTime]);
+  }, [staticUsageInfo, isOnline, clock]);
 
   const isSessionOpen = isOnline && !!derivedUsage.openSessionStart;
 
   if (view === 'grid') {
     return (
       <Grid item xs={12} sm={6} md={4} lg={3}>
-        <MachineCard machine={machine} usageInfo={derivedUsage} isOnline={isOnline} isSessionOpen={isSessionOpen} />
+        <MachineCard machine={machine} usageInfo={derivedUsage} isOnline={isOnline} isSessionOpen={isSessionOpen} workingHours={workingHours} />
       </Grid>
     );
   }
@@ -353,21 +359,23 @@ export default function DeviceMonitoringDashboard() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState('grid');
 
-  // stalenessMin động: mặc định 12, override từ app_config/agent.heartbeatMinutes + 2
   const [stalenessMin, setStalenessMin] = useState(12);
+  const [workingHours, setWorkingHours] = useState(8);
 
-  // Subscribe config agent
+  const clock = useGlobalClock();
+
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'app_config', 'agent'), (snap) => {
       if (snap.exists()) {
         const hb = Number(snap.data()?.heartbeatMinutes);
         if (hb && hb > 0) setStalenessMin(hb + 2);
+        const wh = Number(snap.data()?.workingHours);
+        if (wh && wh > 0) setWorkingHours(wh);
       }
     });
     return () => unsub();
   }, []);
 
-  // Subscribe machineStatus
   useEffect(() => {
     const q = query(collection(db, 'machineStatus'), orderBy('lastSeenAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
@@ -466,6 +474,8 @@ export default function DeviceMonitoringDashboard() {
               selectedDate={selectedDate}
               view={view}
               stalenessMin={stalenessMin}
+              clock={clock}
+              workingHours={workingHours}
             />
           ))
         )}
@@ -473,6 +483,7 @@ export default function DeviceMonitoringDashboard() {
         {!loading && filteredMachines.length === 0 && (
           <Grid item xs={12}>
             <Paper sx={{ p: 10, textAlign: 'center', color: 'text.secondary', borderRadius: '16px' }}>
+              <ComputerIcon sx={{ fontSize: 64, opacity: 0.2, mb: 2 }} />
               <Typography>Không tìm thấy thiết bị nào.</Typography>
             </Paper>
           </Grid>
