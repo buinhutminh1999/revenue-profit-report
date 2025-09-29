@@ -89,8 +89,8 @@ const formatHMS = (seconds) => {
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 };
 
-// CHIP trạng thái (đồng bộ theo stalenessMin)
-const StatusChip = ({ isOnline, lastSeenAt, stalenessMin = 12 }) => {
+// === Status chip: bổ sung nhận biết "Ngủ" theo lastShutdownKind ===
+const StatusChip = ({ isOnline, lastSeenAt, lastShutdownKind, stalenessMin = 12 }) => {
   if (!lastSeenAt?.toDate) {
     return <Chip label="Unknown" color="default" size="small" />;
   }
@@ -100,6 +100,9 @@ const StatusChip = ({ isOnline, lastSeenAt, stalenessMin = 12 }) => {
   const diffMin = (now.getTime() - last.getTime()) / 60000;
 
   if (!isOnline) {
+    if (lastShutdownKind === 'sleep') {
+      return <Chip label="Ngủ" color="warning" size="small" />;
+    }
     return <Chip label="Offline" color="error" size="small" />;
   } else if (diffMin > stalenessMin) {
     return <Chip label="Trễ heartbeat" color="warning" size="small" />;
@@ -139,7 +142,8 @@ const DashboardStats = ({ machines, onlineCount }) => (
 const EventTimeline = ({ events }) => {
   const processedEvents = useMemo(() => {
     const validEvents = events.filter(e => EVENT_LABEL[e.eventId]);
-    // khử trùng sự kiện gần nhau < 2s
+
+    // Khử trùng sự kiện gần nhau < 2s
     const deduped = [];
     for (let i = 0; i < validEvents.length; i++) {
       const curr = validEvents[i];
@@ -148,8 +152,20 @@ const EventTimeline = ({ events }) => {
       deduped.push(curr);
     }
 
-    return deduped.map((event, index) => {
-      const nextEvent = deduped[index + 1];
+    // === Normalize: 6005 ngay sau STOP (42/507/4800) coi là resume (107) ===
+    const normalized = deduped.map((e, idx) => {
+      if (e.eventId === 6005 && idx > 0) {
+        const prev = deduped[idx - 1];
+        const gapMs = e.createdAt.getTime() - prev.createdAt.getTime();
+        if (STOP_IDS.has(prev.eventId) && gapMs >= 0 && gapMs <= 120000) {
+          return { ...e, eventId: 107 }; // hiển thị là "Thức dậy"
+        }
+      }
+      return e;
+    });
+
+    return normalized.map((event, index) => {
+      const nextEvent = normalized[index + 1];
       const durationSeconds = nextEvent
         ? (nextEvent.createdAt.getTime() - event.createdAt.getTime()) / 1000
         : null;
@@ -302,8 +318,19 @@ const MachineCard = ({ machine, usageInfo, isOnline, isSessionOpen, workingHours
               />
             )}
           </Box>
-          <Typography variant="h6" fontWeight={700} noWrap>{machine.id}</Typography>
+
+          <Stack spacing={0.5}>
+            <Typography variant="h6" fontWeight={700} noWrap>{machine.id}</Typography>
+            {/* === Thêm chip trạng thái ngay dưới tên máy === */}
+            <StatusChip
+              isOnline={machine.isOnline}
+              lastSeenAt={machine.lastSeenAt}
+              lastShutdownKind={machine.lastShutdownKind}
+              stalenessMin={12}
+            />
+          </Stack>
         </Stack>
+
         <IconButton size="small" onClick={() => setOpenDetail(v => !v)}>
           {openDetail ? <ExpandLessIcon /> : <ExpandMoreIcon />}
         </IconButton>
@@ -356,7 +383,13 @@ const MachineWrapper = ({ machine, selectedDate, view, stalenessMin, clock, work
   if (view === 'grid') {
     return (
       <Grid item xs={12} sm={6} md={4} lg={3}>
-        <MachineCard machine={machine} usageInfo={derivedUsage} isOnline={isOnline} isSessionOpen={isSessionOpen} workingHours={workingHours} />
+        <MachineCard
+          machine={machine}
+          usageInfo={derivedUsage}
+          isOnline={isOnline}
+          isSessionOpen={isSessionOpen}
+          workingHours={workingHours}
+        />
       </Grid>
     );
   }
