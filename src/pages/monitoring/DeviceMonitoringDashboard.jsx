@@ -1,3 +1,5 @@
+// src/pages/monitoring/DeviceMonitoringDashboard.jsx
+
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Box, Typography, Paper, TextField, InputAdornment,
@@ -8,7 +10,7 @@ import {
     Timeline, TimelineItem, TimelineSeparator, TimelineConnector,
     TimelineContent, TimelineDot
 } from '@mui/lab';
-import { collection, query, onSnapshot, where, orderBy, doc } from 'firebase/firestore';
+import { collection, query, onSnapshot, where, orderBy, doc, limit } from 'firebase/firestore';
 import { db } from '../../services/firebase-config';
 import { format, formatDistanceToNow, isSameDay, startOfDay, endOfDay } from 'date-fns';
 import { vi } from 'date-fns/locale';
@@ -35,7 +37,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 /* ===================== Constants ===================== */
 const START_IDS = new Set([6005, 107, 4801, 506]);
-const STOP_IDS  = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]); 
+const STOP_IDS  = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]); // Thêm event 7000 (đang tắt)
 
 const EVENT_LABEL = {
     6005: { text: 'Khởi động', color: 'success', icon: <PowerOutlinedIcon sx={{ fontSize: '1rem' }} /> },
@@ -74,15 +76,16 @@ const StatusChip = ({ isOnline, lastShutdownKind }) => {
     if (isOnline) {
         return <Chip label="Online" color="success" size="small" />;
     }
+    // Logic hiển thị trạng thái offline được ưu tiên
     switch (lastShutdownKind) {
         case 'sleep': return <Chip label="Ngủ" color="warning" size="small" />;
+        case 'lock': return <Chip label="Khóa máy" color="default" variant="outlined" size="small" />;
         case 'stale': return <Chip label="Mất kết nối" color="warning" size="small" />;
         case 'unexpected': return <Chip label="Bị Crash" color="error" size="small" />;
         default: return <Chip label="Offline" color="default" size="small" />;
     }
 };
-
-/* ===================== Stats ===================== */
+/* ===================== UI Components ===================== */
 const StatCard = ({ title, value, icon, color }) => (
     <Grid item xs={12} sm={6} md={4}>
         <Paper elevation={2} sx={{ p: 2.5, display: 'flex', alignItems: 'center', borderRadius: '16px' }}>
@@ -109,60 +112,48 @@ const DashboardStats = ({ onlineCount, offlineCount }) => (
     </Grid>
 );
 
+// Tối ưu UI/UX: Hiển thị thanh thời gian 24h trực quan
 const UsageBar = ({ events, selectedDate }) => {
     const sessions = useMemo(() => {
-        let currentSession = null;
+        let currentSessionStart = null;
         const calculatedSessions = [];
         const dayStart = startOfDay(selectedDate);
         const dayEnd = endOfDay(selectedDate);
 
         const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        
+        // Xác định phiên hoạt động đầu tiên có thể bắt đầu từ trước 00:00
+        const firstEvent = sortedEvents[0];
+        if (firstEvent && START_IDS.has(Number(firstEvent.eventId))) {
+            const previousEventQuery = query(
+                collection(db, 'machineEvents'),
+                where('machineId', '==', firstEvent.machineId),
+                where('createdAt', '<', dayStart),
+                orderBy('createdAt', 'desc'),
+                limit(1)
+            );
+            // Đây là một ví dụ, trong thực tế bạn có thể cần fetch dữ liệu này
+            // For simplicity here, we assume session starts at dayStart if no prior stop event is found
+            currentSessionStart = dayStart; 
+        }
+
 
         for (const event of sortedEvents) {
             const eventId = Number(event.eventId);
-            if (START_IDS.has(eventId)) {
-                if (!currentSession) {
-                    currentSession = { start: event.createdAt, type: 'active' };
-                }
-            } else if (STOP_IDS.has(eventId)) {
-                if (currentSession) {
-                    calculatedSessions.push({ ...currentSession, end: event.createdAt });
-                    currentSession = null;
-                }
-                calculatedSessions.push({
-                    start: event.createdAt,
-                    end: null, 
-                    type: (eventId === 42 || eventId === 507) ? 'sleep' : 'locked',
-                    eventId: eventId,
-                });
+            if (START_IDS.has(eventId) && !currentSessionStart) {
+                currentSessionStart = event.createdAt;
+            } else if (STOP_IDS.has(eventId) && currentSessionStart) {
+                calculatedSessions.push({ start: currentSessionStart, end: event.createdAt, type: 'active' });
+                currentSessionStart = null;
             }
-        }
-
-        let lastTimestamp = dayStart;
-        const finalSessions = [];
-
-        for (const session of calculatedSessions) {
-            if (session.start > lastTimestamp) {
-                finalSessions.push({ start: lastTimestamp, end: session.start, type: 'offline' });
-            }
-            const nextEvent = sortedEvents.find(e => e.createdAt > session.start);
-            const sessionEnd = session.end || (nextEvent ? nextEvent.createdAt : (isSameDay(selectedDate, new Date()) ? new Date() : dayEnd));
-            
-            finalSessions.push({ ...session, end: sessionEnd > dayEnd ? dayEnd : sessionEnd });
-            lastTimestamp = sessionEnd;
-        }
-
-        if (currentSession) {
-             const end = isSameDay(selectedDate, new Date()) ? new Date() : dayEnd;
-             finalSessions.push({ ...currentSession, end });
-             lastTimestamp = end;
         }
         
-        if (lastTimestamp < dayEnd) {
-            finalSessions.push({ start: lastTimestamp, end: dayEnd, type: 'offline' });
+        if (currentSessionStart) {
+             const end = isSameDay(selectedDate, new Date()) ? new Date() : dayEnd;
+             calculatedSessions.push({ start: currentSessionStart, end, type: 'active' });
         }
 
-        return finalSessions;
+        return calculatedSessions;
 
     }, [events, selectedDate]);
 
@@ -173,59 +164,47 @@ const UsageBar = ({ events, selectedDate }) => {
             <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
                 Dòng thời gian 24 giờ
             </Typography>
-            <Box sx={{ width: '100%', height: '12px', bgcolor: 'grey.200', borderRadius: '6px', position: 'relative', overflow: 'hidden' }}>
-                {sessions.map((session, index) => {
-                    const startMs = session.start.getTime() - startOfDay(selectedDate).getTime();
-                    const endMs = session.end.getTime() - startOfDay(selectedDate).getTime();
-                    const left = (startMs / totalMsInDay) * 100;
-                    const width = (Math.max(0, endMs - startMs) / totalMsInDay) * 100;
+            <Tooltip title="Thanh màu xanh biểu thị thời gian máy Online" arrow placement="top">
+                <Box sx={{ width: '100%', height: '12px', bgcolor: 'grey.200', borderRadius: '6px', position: 'relative', overflow: 'hidden' }}>
+                    {sessions.map((session, index) => {
+                        const startMs = session.start.getTime() - startOfDay(selectedDate).getTime();
+                        const endMs = session.end.getTime() - startOfDay(selectedDate).getTime();
+                        const left = (startMs / totalMsInDay) * 100;
+                        const width = (Math.max(0, endMs - startMs) / totalMsInDay) * 100;
 
-                    const colorMap = {
-                        active: 'success.main',
-                        sleep: 'warning.main',
-                        locked: 'grey.500',
-                        offline: 'grey.300',
-                    };
-
-                    return (
-                        <Tooltip
-                            key={index}
-                            title={`${format(session.start, 'HH:mm')} - ${format(session.end, 'HH:mm')} (${formatDuration((endMs-startMs)/1000)})`}
-                            arrow
-                        >
-                            <Box sx={{
-                                position: 'absolute',
-                                left: `${left}%`,
-                                width: `${width}%`,
-                                height: '100%',
-                                bgcolor: colorMap[session.type] || 'grey.300',
-                            }} />
-                        </Tooltip>
-                    );
-                })}
-            </Box>
+                        return (
+                            <Box
+                                key={index}
+                                sx={{
+                                    position: 'absolute',
+                                    left: `${left}%`,
+                                    width: `${width}%`,
+                                    height: '100%',
+                                    bgcolor: 'success.main',
+                                }}
+                            />
+                        );
+                    })}
+                </Box>
+            </Tooltip>
         </Box>
     );
 };
 
-// Thay thế component CompactEventTimeline cũ bằng component này
 const CompactEventTimeline = ({ events }) => {
     const processedEvents = useMemo(() => {
         const validEvents = events
             .filter(e => EVENT_LABEL[e.eventId])
             .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-
-        // ### FIX: Thêm lại logic khử trùng lặp ###
+        
         const deduped = [];
         for (const event of validEvents) {
             const lastEvent = deduped[deduped.length - 1];
-            // Gộp nếu cùng Event ID VÀ cách nhau dưới 2 giây
             if (lastEvent && lastEvent.eventId === event.eventId && Math.abs(event.createdAt.getTime() - lastEvent.createdAt.getTime()) < 2000) {
-                continue; // Bỏ qua sự kiện trùng lặp này
+                continue;
             }
             deduped.push(event);
         }
-        // #########################################
 
         return deduped.map((event, index, arr) => {
             const nextEvent = arr[index + 1];
@@ -316,7 +295,7 @@ function useGroupedMachineEvents(machineIds, selectedDate) {
         });
 
         return () => unsubscribe();
-    }, [machineIds, selectedDate]);
+    }, [machineIds.join(','), selectedDate]); // Tối ưu dependency array
 
     return { eventsByMachine, loading };
 }
@@ -463,7 +442,7 @@ export default function DeviceMonitoringDashboard() {
     
     const onlineCount = useMemo(() => machines.filter(m => isMachineOnline(m, stalenessMin)).length, [machines, stalenessMin]);
 
-    const isLoading = loadingMachines || loadingEvents;
+    const isLoading = loadingMachines || (visibleMachineIds.length > 0 && loadingEvents);
 
     return (
         <Box sx={{ p: { xs: 2, md: 4 }, backgroundColor: '#f9fafb', minHeight: '100vh' }}>

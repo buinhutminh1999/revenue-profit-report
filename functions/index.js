@@ -1480,6 +1480,8 @@ exports.ingestEvent = onRequest({ secrets: [BK_INGEST_SECRET], cors: true }, asy
     }
 });
 
+// functions/index.js
+
 // Thay thế toàn bộ hàm onEventWrite cũ bằng hàm này
 exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) => {
     const data = event.data?.data();
@@ -1492,15 +1494,11 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
     const prevSnap = await ref.get();
     const prev = prevSnap.exists ? prevSnap.data() : {};
 
-    // ### FIX: Thêm đoạn kiểm tra thời gian này ###
-    // Nếu sự kiện đang xử lý (created) cũ hơn sự kiện cuối cùng đã ghi nhận (lastEventAt)
-    // thì bỏ qua để tránh ghi đè dữ liệu mới bằng dữ liệu cũ.
     const prevLastEventAt = prev.lastEventAt?.toDate ? prev.lastEventAt.toDate() : null;
     if (prevLastEventAt && created < prevLastEventAt) {
         logger.log(`Skipping stale event eid=${eventId} for ${machineId}.`);
-        return; // Dừng xử lý
+        return;
     }
-    // ##############################################
 
     const DEDUP_WINDOW_MS = 2 * 1000;
     const isDuplicate =
@@ -1523,7 +1521,7 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
     };
 
     const ONLINE_EVENTS = new Set([6005, 7001, 107, 4801, 506]);
-    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]); // Thêm 7000
+    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]);
 
     if (ONLINE_EVENTS.has(Number(eventId))) {
         update.isOnline = true;
@@ -1531,7 +1529,14 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
             update.lastBootAt = ts;
         }
     } else if (OFFLINE_EVENTS.has(Number(eventId))) {
-        update.isOnline = false;
+        // === LOGIC MỚI BẮT ĐẦU TỪ ĐÂY ===
+        // Nếu sự kiện là LOCK (4800), chúng ta sẽ không cập nhật trạng thái isOnline ngay
+        // mà chỉ ghi nhận loại sự kiện. Điều này cho phép sự kiện SLEEP (42) ngay sau đó
+        // có cơ hội ghi đè trạng thái cuối cùng.
+        if (Number(eventId) !== 4800) {
+            update.isOnline = false;
+        }
+
         update.lastShutdownAt = ts;
         update.lastShutdownKind =
             Number(eventId) === 6008 ? "unexpected" :
@@ -1541,7 +1546,6 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
 
     await ref.set(update, { merge: true });
 });
-
 exports.getComputerUsageStats = onCall({ cors: true }, async (request) => {
     ensureSignedIn(request.auth);
     const { machineId, date } = request.data || {};
