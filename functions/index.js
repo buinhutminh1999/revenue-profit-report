@@ -1614,42 +1614,42 @@ exports.getComputerUsageStats = onCall({ cors: true }, async (request) => {
     return { totalUsageSeconds, firstStartAt, lastEndAt, isOnline: isOnlineNow };
 });
 
-
-// Máy được coi là stale nếu quá N phút không có heartbeat
-const ONLINE_STALENESS_MIN = 12;
-
-// Mỗi 5 phút, auto set offline các máy stale
 exports.cronMarkStaleOffline = onSchedule(
-    { schedule: "every 5 minutes", timeZone: "Asia/Ho_Chi_Minh" },
-    async () => {
-        const now = new Date();
-        const cutoff = new Date(now.getTime() - ONLINE_STALENESS_MIN * 60 * 1000);
+  { schedule: "every 5 minutes", timeZone: "Asia/Ho_Chi_Minh" },
+  async () => {
+    const now = new Date();
 
-        const snap = await db.collection("machineStatus")
-            .where("isOnline", "==", true)
-            .get();
+    // 🔹 Lấy cấu hình từ Firestore
+    const cfgSnap = await db.collection("app_config").doc("agent").get();
+    const hb = cfgSnap.exists ? Number(cfgSnap.data()?.heartbeatMinutes) : 10;
+    const stalenessMin = (hb > 0 ? hb : 10) + 2; // dự phòng +2
 
-        const batch = db.batch();
-        let count = 0;
+    const cutoff = new Date(now.getTime() - stalenessMin * 60 * 1000);
 
-        snap.forEach((doc) => {
-            const d = doc.data();
-            const lastSeen = d.lastSeenAt?.toDate?.();
-            if (!lastSeen || lastSeen < cutoff) {
-                batch.set(doc.ref, {
-                    isOnline: false,
-                    // coi như “mất kết nối” – lưu kiểu tắt đặc biệt
-                    lastShutdownAt: lastSeen || now,
-                    lastShutdownKind: "stale",
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                }, { merge: true });
-                count++;
-            }
-        });
+    const snap = await db.collection("machineStatus")
+      .where("isOnline", "==", true)
+      .get();
 
-        if (count > 0) await batch.commit();
-        logger.log(`[cronMarkStaleOffline] Marked ${count} machines offline (stale).`);
-    }
+    const batch = db.batch();
+    let count = 0;
+
+    snap.forEach((doc) => {
+      const d = doc.data();
+      const lastSeen = d.lastSeenAt?.toDate?.();
+      if (!lastSeen || lastSeen < cutoff) {
+        batch.set(doc.ref, {
+          isOnline: false,
+          lastShutdownAt: lastSeen || now,
+          lastShutdownKind: "stale",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        count++;
+      }
+    });
+
+    if (count > 0) await batch.commit();
+    logger.log(`[cronMarkStaleOffline] Marked ${count} machines offline (stale, cutoff ${stalenessMin} phút).`);
+  }
 );
 
 
