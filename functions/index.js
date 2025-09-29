@@ -1480,6 +1480,7 @@ exports.ingestEvent = onRequest({ secrets: [BK_INGEST_SECRET], cors: true }, asy
     }
 });
 
+// Thay thế toàn bộ hàm onEventWrite cũ bằng hàm này
 exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) => {
     const data = event.data?.data();
     if (!data) return;
@@ -1491,45 +1492,51 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
     const prevSnap = await ref.get();
     const prev = prevSnap.exists ? prevSnap.data() : {};
 
+    // ### FIX: Thêm đoạn kiểm tra thời gian này ###
+    // Nếu sự kiện đang xử lý (created) cũ hơn sự kiện cuối cùng đã ghi nhận (lastEventAt)
+    // thì bỏ qua để tránh ghi đè dữ liệu mới bằng dữ liệu cũ.
     const prevLastEventAt = prev.lastEventAt?.toDate ? prev.lastEventAt.toDate() : null;
-    const DEDUP_WINDOW_MS = 10 * 1000;
+    if (prevLastEventAt && created < prevLastEventAt) {
+        logger.log(`Skipping stale event eid=${eventId} for ${machineId}.`);
+        return; // Dừng xử lý
+    }
+    // ##############################################
+
+    const DEDUP_WINDOW_MS = 2 * 1000;
     const isDuplicate =
         prev.lastEventId === Number(eventId) &&
         prevLastEventAt &&
         Math.abs(created - prevLastEventAt) <= DEDUP_WINDOW_MS;
 
-    if (isDuplicate) return;
+    if (isDuplicate) {
+        logger.log(`Skipping duplicate event eid=${eventId} for ${machineId}.`);
+        return;
+    }
 
     const ts = admin.firestore.Timestamp.fromDate(created);
     const update = {
         lastEventId: Number(eventId),
-        lastEventAt: ts, // ✅ Timestamp
-        lastSeenAt: ts, // ✅ Timestamp
+        lastEventAt: ts,
+        lastSeenAt: ts,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         lastRecordId: recordId ?? prev.lastRecordId ?? null,
     };
 
-    // ✅ Thêm 506/507
-    const ONLINE_EVENTS = new Set([6005, 7001, 107, 4801, 506]); // resume/unlock + laptop resume
-    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 4800, 507]); // shutdown/sleep/lock + laptop sleep
+    const ONLINE_EVENTS = new Set([6005, 7001, 107, 4801, 506]);
+    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]); // Thêm 7000
 
     if (ONLINE_EVENTS.has(Number(eventId))) {
         update.isOnline = true;
         if (Number(eventId) === 6005) {
-            const prevShutdownAt = prev.lastShutdownAt?.toDate ? prev.lastShutdownAt.toDate() : null;
-            if (!prevShutdownAt || prevShutdownAt <= created) {
-                update.lastBootAt = ts; // ✅ Timestamp
-            }
+            update.lastBootAt = ts;
         }
     } else if (OFFLINE_EVENTS.has(Number(eventId))) {
         update.isOnline = false;
-        update.lastShutdownAt = ts; // ✅ Timestamp
+        update.lastShutdownAt = ts;
         update.lastShutdownKind =
             Number(eventId) === 6008 ? "unexpected" :
-                Number(eventId) === 6006 ? "clean" :
-                    Number(eventId) === 42 ? "sleep" :
-                        Number(eventId) === 507 ? "sleep" :
-                            Number(eventId) === 4800 ? "lock" : "user";
+            (Number(eventId) === 42 || Number(eventId) === 507) ? "sleep" :
+            Number(eventId) === 4800 ? "lock" : "user";
     }
 
     await ref.set(update, { merge: true });
