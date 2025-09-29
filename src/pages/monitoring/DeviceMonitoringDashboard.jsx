@@ -79,8 +79,18 @@ const formatDuration = (seconds) => {
   return `~ ${hours} giờ ${minutes} phút`;
 };
 
-// CHIP trạng thái
-const StatusChip = ({ isOnline, lastSeenAt }) => {
+// HH:mm:ss cho tooltip duration
+const formatHMS = (seconds) => {
+  if (seconds == null || seconds < 0) return '';
+  const s = Math.floor(seconds % 60);
+  const m = Math.floor((seconds / 60) % 60);
+  const h = Math.floor(seconds / 3600);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+};
+
+// CHIP trạng thái (đồng bộ theo stalenessMin)
+const StatusChip = ({ isOnline, lastSeenAt, stalenessMin = 12 }) => {
   if (!lastSeenAt?.toDate) {
     return <Chip label="Unknown" color="default" size="small" />;
   }
@@ -91,7 +101,7 @@ const StatusChip = ({ isOnline, lastSeenAt }) => {
 
   if (!isOnline) {
     return <Chip label="Offline" color="error" size="small" />;
-  } else if (diffMin > 7) {
+  } else if (diffMin > stalenessMin) {
     return <Chip label="Trễ heartbeat" color="warning" size="small" />;
   } else {
     return <Chip label="Online" color="success" size="small" />;
@@ -125,6 +135,7 @@ const DashboardStats = ({ machines, onlineCount }) => (
 const EventTimeline = ({ events }) => {
   const processedEvents = useMemo(() => {
     const validEvents = events.filter(e => EVENT_LABEL[e.eventId]);
+    // khử trùng sự kiện gần nhau < 2s
     const deduped = [];
     for (let i = 0; i < validEvents.length; i++) {
       const curr = validEvents[i];
@@ -172,9 +183,11 @@ const EventTimeline = ({ events }) => {
                 </Typography>
               </Tooltip>
               {event.durationSeconds != null && (
-                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
-                  {formatDuration(event.durationSeconds)}
-                </Typography>
+                <Tooltip title={`Khoảng: ${formatHMS(event.durationSeconds)}`} arrow>
+                  <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                    {formatDuration(event.durationSeconds)}
+                  </Typography>
+                </Tooltip>
               )}
             </TimelineContent>
           </TimelineItem>
