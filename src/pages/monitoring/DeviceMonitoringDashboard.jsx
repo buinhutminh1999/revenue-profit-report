@@ -47,15 +47,15 @@ const START_IDS = new Set([6005, 107, 4801, 506]);   // Boot, Resume, Unlock, La
 const STOP_IDS  = new Set([6006, 6008, 1074, 42, 4800, 507]); // Shutdown, Crash, Logoff, Sleep, Lock, Laptop Sleep
 
 const EVENT_LABEL = {
-  6005: { text: 'Khởi động', color: 'success', icon: <PowerOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-  107:  { text: 'Thức dậy',  color: 'info',    icon: <WbSunnyOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-  4801: { text: 'Mở khóa',   color: 'info',    icon: <LockOpenOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-  42:   { text: 'Ngủ',       color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  6005: { text: 'Khởi động', color: 'success',  icon: <PowerOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  107:  { text: 'Thức dậy',  color: 'info',     icon: <WbSunnyOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  4801: { text: 'Mở khóa',   color: 'info',     icon: <LockOpenOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  42:   { text: 'Ngủ',       color: 'warning',  icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
   507:  { text: 'Ngủ (Laptop)', color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-  4800: { text: 'Khóa máy',  color: 'grey',    icon: <LockOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-  1074: { text: 'Tắt máy',   color: 'grey',    icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
-  6006: { text: 'Tắt máy',   color: 'grey',    icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
-  6008: { text: 'Crash',     color: 'error',   icon: <ReportProblemOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  4800: { text: 'Khóa máy',  color: 'grey',     icon: <LockOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+  1074: { text: 'Tắt máy',   color: 'grey',     icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
+  6006: { text: 'Tắt máy',   color: 'grey',     icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
+  6008: { text: 'Crash',     color: 'error',    icon: <ReportProblemOutlinedIcon sx={{ fontSize: '1rem' }} /> },
   506:  { text: 'Thức dậy (Laptop)', color: 'info', icon: <WbSunnyOutlinedIcon sx={{ fontSize: '1rem' }} /> },
 };
 
@@ -97,7 +97,7 @@ const StatusChip = ({ isOnline, lastSeenAt, stalenessMin = 12 }) => {
 
   const now = new Date();
   const last = lastSeenAt.toDate();
-  const diffMin = (now - last) / 60000;
+  const diffMin = (now.getTime() - last.getTime()) / 60000;
 
   if (!isOnline) {
     return <Chip label="Offline" color="error" size="small" />;
@@ -112,11 +112,15 @@ const StatusChip = ({ isOnline, lastSeenAt, stalenessMin = 12 }) => {
 const StatCard = ({ title, value, icon, color }) => (
   <Grid item xs={12} sm={6} md={4}>
     <Paper elevation={2} sx={{ p: 2.5, display: 'flex', alignItems: 'center', borderRadius: '16px' }}>
-      <Box sx={{ bgcolor: `${color}.lighter`, color: `${color}.dark`, borderRadius: '50%', p: 2, mr: 2, display: 'flex' }}>
+      <Box sx={(theme) => ({
+        bgcolor: theme.palette?.[color]?.light,
+        color:   theme.palette?.[color]?.dark,
+        borderRadius: '50%', p: 2, mr: 2, display: 'flex'
+      })}>
         {icon}
       </Box>
       <div>
-        <Typography variant="h6" fontWeight="700">{value}</Typography>
+        <Typography variant="h6" fontWeight={700}>{value}</Typography>
         <Typography variant="body2" color="text.secondary">{title}</Typography>
       </div>
     </Paper>
@@ -140,7 +144,7 @@ const EventTimeline = ({ events }) => {
     for (let i = 0; i < validEvents.length; i++) {
       const curr = validEvents[i];
       const prev = deduped[deduped.length - 1];
-      if (prev && Math.abs(curr.createdAt - prev.createdAt) < 2000) continue;
+      if (prev && Math.abs(curr.createdAt.getTime() - prev.createdAt.getTime()) < 2000) continue;
       deduped.push(curr);
     }
 
@@ -222,16 +226,18 @@ function useMachineUsage(machineId, selectedDate) {
         createdAt: doc.data().createdAt.toDate()
       }));
 
+      // ---- FIX: chỉ mở phiên nếu đang đóng; không cộng trùng khi gặp START liên tiếp
       let total = 0;
       let curStart = null;
 
       for (const e of events) {
         if (START_IDS.has(e.eventId)) {
-          if (curStart) total += (e.createdAt - curStart) / 1000;
-          curStart = e.createdAt;
-        } else if (STOP_IDS.has(e.eventId) && curStart) {
-          total += (e.createdAt - curStart) / 1000;
-          curStart = null;
+          if (!curStart) curStart = e.createdAt; // mở phiên khi đang đóng
+        } else if (STOP_IDS.has(e.eventId)) {
+          if (curStart) {
+            total += (e.createdAt.getTime() - curStart.getTime()) / 1000;
+            curStart = null; // đóng phiên
+          }
         }
       }
 
@@ -239,7 +245,7 @@ function useMachineUsage(machineId, selectedDate) {
       if (curStart) {
         const isToday = isSameDay(selectedDate, new Date());
         if (isToday) finalOpenStart = curStart;
-        else total += (end - curStart) / 1000;
+        else total += (end.getTime() - curStart.getTime()) / 1000;
       }
 
       setUsageInfo({ totalSec: Math.round(total), isLoading: false, events, openSessionStart: finalOpenStart });
@@ -296,7 +302,7 @@ const MachineCard = ({ machine, usageInfo, isOnline, isSessionOpen, workingHours
               />
             )}
           </Box>
-          <Typography variant="h6" fontWeight="700" noWrap>{machine.id}</Typography>
+          <Typography variant="h6" fontWeight={700} noWrap>{machine.id}</Typography>
         </Stack>
         <IconButton size="small" onClick={() => setOpenDetail(v => !v)}>
           {openDetail ? <ExpandLessIcon /> : <ExpandMoreIcon />}

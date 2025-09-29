@@ -63,10 +63,7 @@ const CloseQuarterPage = lazy(() => import('../pages/CloseQuarterPage'));
 const WhitelistManager = lazy(() => import('../pages/WhitelistManager'));
 // --- LAZY-LOAD CÁC TRANG CỦA MODULE CHẤM CÔNG ---
 const AttendanceDashboard = lazy(() => import('../pages/attendance/AttendanceDashboard'));
-const AttendanceCheckIn = lazy(() => import('../pages/attendance/AttendanceCheckIn'));
-const AttendanceHistory = lazy(() => import('../pages/attendance/AttendanceHistory'));
-const AttendanceReports = lazy(() => import('../pages/attendance/AttendanceReports'));
-const AttendanceSettings = lazy(() => import('../pages/attendance/AttendanceSettings'));
+
 // --- LAZY-LOAD CÁC TRANG CỦA MODULE GIÁM SÁT THIẾT BỊ ---
 const DeviceMonitoringDashboard = lazy(() => import('../pages/monitoring/DeviceMonitoringDashboard'));
 // --- COMPONENT ĐỊNH TUYẾN CHÍNH ---
@@ -83,7 +80,13 @@ function AppRoutes() {
     const { isAuthenticated, loading } = useAuth();
     const location = useLocation();
     const backTo = location.state?.from?.pathname || '/';
-
+ // =========================================================
+    // THÊM ĐOẠN KIỂM TRA NÀY VÀO ĐẦU COMPONENT
+    // =========================================================
+    if (loading) {
+        return <LoadingScreen />; // Sử dụng component loading của bạn
+    }
+    // =========================================================
     return (
         <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname}>
