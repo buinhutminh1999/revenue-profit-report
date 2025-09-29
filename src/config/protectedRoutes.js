@@ -5,10 +5,7 @@
 export const PROTECTED_ROUTES = [
     // --- MODULES CHẤM CÔNG ---
     { path: 'attendance', name: 'Bảng điều khiển Chấm công', group: 'Chấm công' },
-    { path: 'attendance/check-in', name: 'Chấm công hàng ngày', group: 'Chấm công' },
-    { path: 'attendance/history', name: 'Lịch sử chấm công', group: 'Chấm công' },
-    { path: 'attendance/reports', name: 'Báo cáo Chấm công', group: 'Chấm công' },
-    { path: 'attendance/settings', name: 'Cài đặt Chấm công', group: 'Chấm công' },
+
 
     // --- MODULES CHÍNH & CẤU HÌNH ---
     { path: 'construction-plan', name: 'Kế Hoạch Thi Công', group: 'Modules chính' },

@@ -130,10 +130,7 @@ function AppRoutes() {
                         {/* === MODULE CHẤM CÔNG === */}
                         <Route path="attendance">
                             <Route index element={<RequireEmailAccess pathKey="attendance/dashboard">{lazyLoad(AttendanceDashboard)}</RequireEmailAccess>} />
-                            <Route path="check-in" element={<RequireEmailAccess pathKey="attendance/check-in">{lazyLoad(AttendanceCheckIn)}</RequireEmailAccess>} />
-                            <Route path="history" element={<RequireEmailAccess pathKey="attendance/history">{lazyLoad(AttendanceHistory)}</RequireEmailAccess>} />
-                            <Route path="reports" element={<RequireRole allowedRoles={["admin", "leader"]}><RequireEmailAccess pathKey="attendance/reports">{lazyLoad(AttendanceReports)}</RequireEmailAccess></RequireRole>} />
-                            <Route path="settings" element={<RequireRole allowedRoles={["admin"]}><RequireEmailAccess pathKey="attendance/settings">{lazyLoad(AttendanceSettings)}</RequireEmailAccess></RequireRole>} />
+                            
                         </Route>
                         <Route path="reports">
                             <Route path="profit-quarter" element={<RequireEmailAccess pathKey="reports/profit-quarter">{lazyLoad(ProfitReportQuarter)}</RequireEmailAccess>} />
