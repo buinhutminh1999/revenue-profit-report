@@ -10,7 +10,7 @@ import {
     Timeline, TimelineItem, TimelineSeparator, TimelineConnector,
     TimelineContent, TimelineDot
 } from '@mui/lab';
-import { collection, query, onSnapshot, where, orderBy, doc, limit } from 'firebase/firestore';
+import { collection, query, onSnapshot, where, orderBy, doc } from 'firebase/firestore';
 import { db } from '../../services/firebase-config';
 import { format, formatDistanceToNow, isSameDay, startOfDay, endOfDay } from 'date-fns';
 import { vi } from 'date-fns/locale';
@@ -37,29 +37,23 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 /* ===================== Constants ===================== */
 const START_IDS = new Set([6005, 107, 4801, 506]);
-const STOP_IDS  = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]);
+const STOP_IDS = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]);
 
 const EVENT_LABEL = {
     6005: { text: 'Khởi động', color: 'success', icon: <PowerOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-    107:  { text: 'Thức dậy',  color: 'info',    icon: <WbSunnyOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-    4801: { text: 'Mở khóa',   color: 'info',    icon: <LockOpenOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-    42:   { text: 'Ngủ',       color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-    507:  { text: 'Ngủ (Laptop)', color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-    4800: { text: 'Khóa máy',  color: 'grey',    icon: <LockOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-    1074: { text: 'Tắt máy',   color: 'grey',    icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
-    6006: { text: 'Tắt máy',   color: 'grey',    icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
-    6008: { text: 'Crash',     color: 'error',   icon: <ReportProblemOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-    506:  { text: 'Thức dậy (Laptop)', color: 'info', icon: <WbSunnyOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-    7000: { text: 'Đang tắt...', color: 'grey', icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
+    1074: { text: 'Tắt máy', color: 'grey', icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
+    6006: { text: 'Tắt máy', color: 'grey', icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
+    107:  { text: 'Thức dậy', color: 'info', icon: <WbSunnyOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+    4801: { text: 'Mở khóa', color: 'info', icon: <LockOpenOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+    42:   { text: 'Ngủ', color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+    4800: { text: 'Khóa máy', color: 'grey', icon: <LockOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+    6008: { text: 'Crash', color: 'error', icon: <ReportProblemOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+    // Thêm các event id khác nếu cần
 };
 
 /* ===================== Helpers ===================== */
-const isMachineOnline = (machine, stalenessMin) => {
-    if (machine?.isOnline !== true) return false;
-    const lastSeenAt = machine?.lastSeenAt?.toDate?.();
-    if (!lastSeenAt) return false;
-    return (Date.now() - lastSeenAt.getTime()) / 60000 <= stalenessMin;
-};
+// SỬA LẠI 1: Hàm isMachineOnline giờ đây đơn giản hơn, chỉ tin vào cờ isOnline từ database
+const isMachineOnline = (machine) => machine?.isOnline === true;
 
 const formatDuration = (seconds) => {
     if (seconds == null || seconds < 1) return '';
@@ -72,19 +66,15 @@ const formatDuration = (seconds) => {
     return `~ ${hours} giờ ${minutes} phút`;
 };
 
-// ✅ [BƯỚC 1] THAY THẾ TOÀN BỘ COMPONENT StatusChip
-const StatusChip = ({ isOnline, lastShutdownKind, isStale }) => {
+// SỬA LẠI 2: Cập nhật StatusChip để hiển thị "Tắt máy" và các trạng thái khác
+const StatusChip = ({ isOnline, lastShutdownKind }) => {
     if (isOnline) {
         return <Chip label="Online" color="success" size="small" />;
     }
 
-    if (isStale) {
-        return <Chip label="Mất kết nối" color="warning" size="small" />;
-    }
-
     switch (lastShutdownKind) {
+        case 'user': return <Chip label="Tắt máy" color="default" size="small" />;
         case 'sleep': return <Chip label="Ngủ" color="warning" size="small" />;
-        case 'lock': return <Chip label="Khóa máy" color="default" variant="outlined" size="small" />;
         case 'unexpected': return <Chip label="Bị Crash" color="error" size="small" />;
         case 'stale': return <Chip label="Mất kết nối" color="warning" size="small" />;
         default: return <Chip label="Offline" color="default" size="small" />;
@@ -110,32 +100,32 @@ const StatCard = ({ title, value, icon, color }) => (
     </Grid>
 );
 
-const DashboardStats = ({ onlineCount, offlineCount }) => (
+const DashboardStats = ({ onlineCount, offlineCount, totalCount }) => (
     <Grid container spacing={3} sx={{ mb: 4 }}>
         <StatCard title="Đang Online" value={onlineCount} color="success" icon={<CircleIcon />} />
         <StatCard title="Offline / Ngủ" value={offlineCount} color="warning" icon={<CircleIcon />} />
-        <StatCard title="Tổng số máy" value={onlineCount + offlineCount} color="info" icon={<ComputerIcon />} />
+        <StatCard title="Tổng số máy" value={totalCount} color="info" icon={<ComputerIcon />} />
     </Grid>
 );
 
-const UsageBar = ({ events, selectedDate }) => {
+const UsageBar = ({ events, selectedDate, isOnlineNow }) => {
     const sessions = useMemo(() => {
         let currentSessionStart = null;
         const calculatedSessions = [];
         const dayStart = startOfDay(selectedDate);
         const dayEnd = endOfDay(selectedDate);
 
+        if (!events || events.length === 0) {
+            if (isOnlineNow && isSameDay(selectedDate, new Date())) {
+                return [{ start: dayStart, end: new Date() }];
+            }
+            return [];
+        }
+
         const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
         
         const firstEvent = sortedEvents[0];
-        if (firstEvent && START_IDS.has(Number(firstEvent.eventId))) {
-            const previousEventQuery = query(
-                collection(db, 'machineEvents'),
-                where('machineId', '==', firstEvent.machineId),
-                where('createdAt', '<', dayStart),
-                orderBy('createdAt', 'desc'),
-                limit(1)
-            );
+        if (START_IDS.has(Number(firstEvent.eventId))) {
             currentSessionStart = dayStart; 
         }
 
@@ -144,19 +134,18 @@ const UsageBar = ({ events, selectedDate }) => {
             if (START_IDS.has(eventId) && !currentSessionStart) {
                 currentSessionStart = event.createdAt;
             } else if (STOP_IDS.has(eventId) && currentSessionStart) {
-                calculatedSessions.push({ start: currentSessionStart, end: event.createdAt, type: 'active' });
+                calculatedSessions.push({ start: currentSessionStart, end: event.createdAt });
                 currentSessionStart = null;
             }
         }
         
         if (currentSessionStart) {
-             const end = isSameDay(selectedDate, new Date()) ? new Date() : dayEnd;
-             calculatedSessions.push({ start: currentSessionStart, end, type: 'active' });
+             const end = isSameDay(selectedDate, new Date()) && isOnlineNow ? new Date() : dayEnd;
+             calculatedSessions.push({ start: currentSessionStart, end });
         }
 
         return calculatedSessions;
-
-    }, [events, selectedDate]);
+    }, [events, selectedDate, isOnlineNow]);
 
     const totalMsInDay = 24 * 60 * 60 * 1000;
 
@@ -168,22 +157,13 @@ const UsageBar = ({ events, selectedDate }) => {
             <Tooltip title="Thanh màu xanh biểu thị thời gian máy Online" arrow placement="top">
                 <Box sx={{ width: '100%', height: '12px', bgcolor: 'grey.200', borderRadius: '6px', position: 'relative', overflow: 'hidden' }}>
                     {sessions.map((session, index) => {
-                        const startMs = session.start.getTime() - startOfDay(selectedDate).getTime();
-                        const endMs = session.end.getTime() - startOfDay(selectedDate).getTime();
+                        const startMs = Math.max(0, session.start.getTime() - startOfDay(selectedDate).getTime());
+                        const endMs = Math.min(totalMsInDay, session.end.getTime() - startOfDay(selectedDate).getTime());
                         const left = (startMs / totalMsInDay) * 100;
                         const width = (Math.max(0, endMs - startMs) / totalMsInDay) * 100;
 
                         return (
-                            <Box
-                                key={index}
-                                sx={{
-                                    position: 'absolute',
-                                    left: `${left}%`,
-                                    width: `${width}%`,
-                                    height: '100%',
-                                    bgcolor: 'success.main',
-                                }}
-                            />
+                            <Box key={index} sx={{ position: 'absolute', left: `${left}%`, width: `${width}%`, height: '100%', bgcolor: 'success.main' }} />
                         );
                     })}
                 </Box>
@@ -194,6 +174,7 @@ const UsageBar = ({ events, selectedDate }) => {
 
 const CompactEventTimeline = ({ events }) => {
     const processedEvents = useMemo(() => {
+        if (!events) return [];
         const validEvents = events
             .filter(e => EVENT_LABEL[e.eventId])
             .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
@@ -220,18 +201,16 @@ const CompactEventTimeline = ({ events }) => {
 
     return (
         <Timeline sx={{ p: 0, my: 1, [`& .MuiTimelineItem-root:before`]: { flex: 0, p: 1 } }}>
-            {processedEvents.map((event) => {
+            {processedEvents.map((event, index) => {
                 const meta = EVENT_LABEL[event.eventId];
                 if (!meta) return null;
                 return (
-                    <TimelineItem key={event.recordId || event.createdAt.getTime()} sx={{ minHeight: '40px' }}>
+                    <TimelineItem key={event.id || index} sx={{ minHeight: '40px' }}>
                         <TimelineSeparator>
                             <Tooltip title={meta.text} arrow>
-                                <TimelineDot variant="outlined" color={meta.color} sx={{ p: 0.5 }}>
-                                    {meta.icon}
-                                </TimelineDot>
+                                <TimelineDot variant="outlined" color={meta.color} sx={{ p: 0.5 }}>{meta.icon}</TimelineDot>
                             </Tooltip>
-                            {processedEvents[processedEvents.length - 1] !== event && <TimelineConnector />}
+                            {index < processedEvents.length - 1 && <TimelineConnector />}
                         </TimelineSeparator>
                         <TimelineContent sx={{ py: '10px', px: 2 }}>
                             <Typography variant="body2" component="span">{meta.text}</Typography>
@@ -275,15 +254,10 @@ function useGroupedMachineEvents(machineIds, selectedDate) {
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const groupedEvents = {};
-            machineIds.forEach(id => { groupedEvents[id] = []; });
+            const groupedEvents = machineIds.reduce((acc, id) => ({ ...acc, [id]: [] }), {});
 
             snapshot.docs.forEach(doc => {
-                const event = {
-                    ...doc.data(),
-                    id: doc.id,
-                    createdAt: doc.data().createdAt.toDate()
-                };
+                const event = { ...doc.data(), id: doc.id, createdAt: doc.data().createdAt.toDate() };
                 if (groupedEvents[event.machineId]) {
                     groupedEvents[event.machineId].push(event);
                 }
@@ -296,54 +270,79 @@ function useGroupedMachineEvents(machineIds, selectedDate) {
         });
 
         return () => unsubscribe();
-    }, [machineIds.join(','), selectedDate]);
+    }, [machineIds.join(','), selectedDate.toISOString()]);
 
     return { eventsByMachine, loading };
 }
 
-const useGlobalClock = (intervalMs = 30000) => {
-    const [time, setTime] = useState(new Date());
-    useEffect(() => {
-        const id = setInterval(() => setTime(new Date()), intervalMs);
-        return () => clearInterval(id);
-    }, [intervalMs]);
-    return time;
-};
+// src/pages/monitoring/DeviceMonitoringDashboard.jsx
 
-/* ===================== Machine Card ===================== */
-// ✅ [BƯỚC 3.1] THÊM isStale VÀO ĐỊNH NGHĨA COMPONENT
-const MachineCard = ({ machine, events, isOnline, isStale, workingHours, clock, selectedDate }) => {
+// ===================== Machine Card ===================== //
+const MachineCard = ({ machine, events, isOnline, workingHours, selectedDate }) => {
     const [openDetail, setOpenDetail] = useState(false);
 
     const totalSec = useMemo(() => {
+        // Trường hợp không có sự kiện nào trong ngày được chọn
+        if (!events || events.length === 0) {
+            // Nếu máy đang online và ngày được chọn là hôm nay,
+            // tính thời gian từ lúc boot gần nhất đến hiện tại.
+            if (isOnline && isSameDay(selectedDate, new Date()) && machine.lastBootAt) {
+                const bootTime = machine.lastBootAt.toDate();
+                const dayStart = startOfDay(selectedDate);
+                
+                // Thời điểm bắt đầu tính là thời điểm boot hoặc đầu ngày, lấy cái nào muộn hơn.
+                const startTime = bootTime > dayStart ? bootTime : dayStart;
+                
+                return (new Date().getTime() - startTime.getTime()) / 1000;
+            }
+            // Nếu không thì thời gian sử dụng trong ngày là 0
+            return 0;
+        }
+
+        // Trường hợp có sự kiện
         let total = 0;
         let sessionStart = null;
-        
         const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        const dayStart = startOfDay(selectedDate);
+        const dayEnd = endOfDay(selectedDate);
 
+        // Kiểm tra xem máy có đang chạy từ trước ngày được chọn không
+        const firstEvent = sortedEvents[0];
+        const lastBootTime = machine.lastBootAt?.toDate();
+
+        if (lastBootTime && lastBootTime < dayStart && START_IDS.has(Number(firstEvent.eventId))) {
+            // Nếu máy boot từ hôm trước và sự kiện đầu tiên hôm nay là "start"
+            // -> coi như nó đã chạy từ đầu ngày
+            sessionStart = dayStart;
+        }
+
+        // Duyệt qua các sự kiện để tính các phiên làm việc
         for (const e of sortedEvents) {
             const eventId = Number(e.eventId);
-            if (START_IDS.has(eventId)) {
-                if (!sessionStart) sessionStart = e.createdAt;
-            } else if (STOP_IDS.has(eventId)) {
-                if (sessionStart) {
-                    total += (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
-                    sessionStart = null;
-                }
+            if (START_IDS.has(eventId) && !sessionStart) {
+                // Bắt đầu một phiên mới tại thời điểm sự kiện
+                sessionStart = e.createdAt;
+            } else if (STOP_IDS.has(eventId) && sessionStart) {
+                // Kết thúc phiên, cộng dồn thời gian
+                total += (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
+                sessionStart = null; // Reset phiên
             }
         }
 
-        if (sessionStart && isOnline && isSameDay(selectedDate, clock)) {
-            total += (clock.getTime() - sessionStart.getTime()) / 1000;
-        } else if (sessionStart) {
-            const endOfDayTime = endOfDay(selectedDate).getTime();
-            if(sessionStart.getTime() < endOfDayTime) {
-                total += (endOfDayTime - sessionStart.getTime()) / 1000;
-            }
+        // Nếu còn một phiên đang chạy (chưa có sự kiện stop)
+        if (sessionStart) {
+            // Điểm kết thúc là thời điểm hiện tại (nếu là hôm nay và máy đang online)
+            // hoặc là cuối ngày được chọn
+            const endPoint = isSameDay(selectedDate, new Date()) && isOnline 
+                ? new Date() 
+                : dayEnd;
+            
+            // Đảm bảo không tính vượt quá cuối ngày
+            total += (Math.min(endPoint.getTime(), dayEnd.getTime()) - sessionStart.getTime()) / 1000;
         }
 
         return Math.max(0, total);
-    }, [events, isOnline, clock, selectedDate]);
+    }, [events, isOnline, selectedDate, machine.lastBootAt, machine.lastSeenAt]);
 
     const usageHours = totalSec / 3600;
     const progress = Math.min(100, (usageHours / workingHours) * 100);
@@ -355,7 +354,7 @@ const MachineCard = ({ machine, events, isOnline, isStale, workingHours, clock, 
 
     return (
         <Paper elevation={2} sx={{ p: 2.5, borderRadius: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}> {/* Thêm margin bottom để tạo khoảng cách */}
                 <Stack direction="row" alignItems="center" spacing={1.5} overflow="hidden">
                     <Box sx={{ position: 'relative', flexShrink: 0 }}>
                         {isOnline ? <LaptopMacIcon color="success" sx={{ fontSize: 28 }} /> : <PowerSettingsNewIcon color="action" sx={{ fontSize: 28 }} />}
@@ -366,8 +365,7 @@ const MachineCard = ({ machine, events, isOnline, isStale, workingHours, clock, 
                     </Box>
                     <Box overflow="hidden">
                         <Typography variant="h6" fontWeight={700} noWrap title={machine.id}>{machine.id}</Typography>
-                        {/* ✅ [BƯỚC 3.2] TRUYỀN isStale VÀO StatusChip */}
-                        <StatusChip isOnline={isOnline} lastShutdownKind={machine.lastShutdownKind} isStale={isStale} />
+                        <StatusChip isOnline={isOnline} lastShutdownKind={machine.lastShutdownKind} />
                     </Box>
                 </Stack>
                 <IconButton size="small" onClick={() => setOpenDetail(v => !v)}>
@@ -375,7 +373,9 @@ const MachineCard = ({ machine, events, isOnline, isStale, workingHours, clock, 
                 </IconButton>
             </Stack>
 
-            <UsageBar events={events} selectedDate={selectedDate} />
+            {/* DÒNG NÀY ĐÃ BỊ XÓA
+            <UsageBar events={events} selectedDate={selectedDate} isOnlineNow={isOnline} /> 
+            */}
 
             <Box sx={{ flexGrow: 1, mb: 2 }}>
                 <Typography variant="h5" fontWeight="600" sx={{ my: 0.5 }}>{formatDuration(totalSec)}</Typography>
@@ -405,17 +405,12 @@ export default function DeviceMonitoringDashboard() {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [selectedDate, setSelectedDate] = useState(new Date());
-    
-    const [stalenessMin, setStalenessMin] = useState(12);
     const [workingHours, setWorkingHours] = useState(8);
-    const clock = useGlobalClock();
 
     useEffect(() => {
         const unsub = onSnapshot(doc(db, 'app_config', 'agent'), (snap) => {
             if (snap.exists()) {
                 const data = snap.data();
-                const hb = Number(data?.heartbeatMinutes);
-                if (hb > 0) setStalenessMin(hb + 2);
                 const wh = Number(data?.workingHours);
                 if (wh > 0) setWorkingHours(wh);
             }
@@ -426,7 +421,8 @@ export default function DeviceMonitoringDashboard() {
     useEffect(() => {
         const q = query(collection(db, 'machineStatus'), orderBy('lastSeenAt', 'desc'));
         const unsub = onSnapshot(q, (snap) => {
-            setMachines(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            const machineData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            setMachines(machineData);
             setLoadingMachines(false);
         });
         return () => unsub();
@@ -434,17 +430,14 @@ export default function DeviceMonitoringDashboard() {
 
     const filteredMachines = useMemo(() => {
         return machines.filter(m =>
-            (statusFilter === 'all' || isMachineOnline(m, stalenessMin) === (statusFilter === 'online')) &&
+            (statusFilter === 'all' || isMachineOnline(m) === (statusFilter === 'online')) &&
             (searchTerm === '' || m.id.toLowerCase().includes(searchTerm.toLowerCase()))
         );
-    }, [machines, statusFilter, searchTerm, stalenessMin]);
+    }, [machines, statusFilter, searchTerm]);
     
     const visibleMachineIds = useMemo(() => filteredMachines.map(m => m.id), [filteredMachines]);
-    
     const { eventsByMachine, loading: loadingEvents } = useGroupedMachineEvents(visibleMachineIds, selectedDate);
-    
-    const onlineCount = useMemo(() => machines.filter(m => isMachineOnline(m, stalenessMin)).length, [machines, stalenessMin]);
-
+    const onlineCount = useMemo(() => machines.filter(m => isMachineOnline(m)).length, [machines]);
     const isLoading = loadingMachines || (visibleMachineIds.length > 0 && loadingEvents);
 
     return (
@@ -454,7 +447,7 @@ export default function DeviceMonitoringDashboard() {
                 <Typography color="text.secondary">Tổng quan trạng thái và hiệu suất hoạt động của các thiết bị.</Typography>
             </Box>
 
-            {!loadingMachines && <DashboardStats onlineCount={onlineCount} offlineCount={machines.length - onlineCount} />}
+            {!loadingMachines && <DashboardStats onlineCount={onlineCount} offlineCount={machines.length - onlineCount} totalCount={machines.length} />}
 
             <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '12px', position: 'sticky', top: 0, zIndex: 10 }}>
                 <Grid container spacing={2} alignItems="center">
@@ -482,26 +475,21 @@ export default function DeviceMonitoringDashboard() {
 
             <Grid container spacing={3}>
                 {isLoading ? (
-                    Array.from(new Array(filteredMachines.length || 8)).map((_, i) => (
+                    Array.from(new Array(8)).map((_, i) => (
                         <Grid item xs={12} sm={6} md={4} lg={3} key={i}>
                             <Skeleton variant="rectangular" sx={{ borderRadius: '16px' }} height={280} />
                         </Grid>
                     ))
                 ) : (
-                    // ✅ [BƯỚC 2] THAY THẾ TOÀN BỘ VÒNG LẶP .map NÀY
                     filteredMachines.map((m) => {
-                        const effectivelyOnline = isMachineOnline(m, stalenessMin);
-                        const isStale = m.isOnline === true && !effectivelyOnline;
-
+                        const onlineStatus = isMachineOnline(m);
                         return (
                             <Grid item xs={12} sm={6} md={4} lg={3} key={m.id}>
                                 <MachineCard
                                     machine={m}
                                     events={eventsByMachine[m.id] || []}
-                                    isOnline={effectivelyOnline}
-                                    isStale={isStale}
+                                    isOnline={onlineStatus}
                                     workingHours={workingHours}
-                                    clock={clock}
                                     selectedDate={selectedDate}
                                 />
                             </Grid>

@@ -1433,11 +1433,10 @@ function validSignature(rawBody, header, secret) {
     const sigHex = header.slice("sha256=".length).trim().toLowerCase();
     const macHex = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
 
-    // so sánh an toàn với buffer dạng HEX, bắt buộc cùng độ dài
-    const sigBuf = Buffer.from(sigHex, "hex");
-    const macBuf = Buffer.from(macHex, "hex");
-    if (sigBuf.length !== macBuf.length) return false;
     try {
+        const sigBuf = Buffer.from(sigHex, "hex");
+        const macBuf = Buffer.from(macHex, "hex");
+        if (sigBuf.length !== macBuf.length) return false;
         return crypto.timingSafeEqual(sigBuf, macBuf);
     } catch {
         return false;
@@ -1446,103 +1445,62 @@ function validSignature(rawBody, header, secret) {
 
 exports.ingestEvent = onRequest({ secrets: [BK_INGEST_SECRET], cors: true }, async (req, res) => {
     try {
-        const secret = BK_INGEST_SECRET.value?.() || process.env.BK_INGEST_SECRET;
-        if (!secret) return res.status(500).send("server-secret-missing");
-
         if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-        if (!req.rawBody || !Buffer.isBuffer(req.rawBody)) return res.status(400).send("rawBody-missing");
-        if ((req.get("content-type") || "").indexOf("application/json") === -1) {
-            return res.status(415).send("unsupported-media-type");
+
+        const secret = BK_INGEST_SECRET.value();
+        if (!validSignature(req.rawBody, req.get("X-BK-Signature"), secret)) {
+            return res.status(401).send("invalid-signature");
         }
 
-        const sig = req.get("X-BK-Signature") || req.get("x-bk-signature");
-        const ok = validSignature(req.rawBody, sig, secret);
-        if (!ok) return res.status(401).send("invalid-signature");
-
-        const { machineId, eventId, recordId, createdAt } = req.body || {};
+        const { machineId, eventId, createdAt } = req.body || {};
         if (!machineId || !eventId || !createdAt) return res.status(400).send("bad-request");
-
-        const created = new Date(createdAt);
 
         await db.collection("machineEvents").add({
             machineId,
             eventId: Number(eventId),
-            recordId: recordId ?? null,
-            createdAt: admin.firestore.Timestamp.fromDate(created), // ✅ Timestamp
+            createdAt: admin.firestore.Timestamp.fromDate(new Date(createdAt)),
             receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-            src: "agent-powershell",
         });
 
         return res.status(200).send("ok");
     } catch (e) {
-        console.error(e);
+        logger.error(e);
         return res.status(500).send("error");
     }
 });
 
-// functions/index.js
-
-// Thay thế toàn bộ hàm onEventWrite cũ bằng hàm này
 exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) => {
     const data = event.data?.data();
     if (!data) return;
 
-    const { machineId, eventId, createdAt, recordId } = data;
-    const created = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+    const { machineId, eventId, createdAt } = data;
     const ref = db.collection("machineStatus").doc(machineId);
 
-    const prevSnap = await ref.get();
-    const prev = prevSnap.exists ? prevSnap.data() : {};
-
-    const prevLastEventAt = prev.lastEventAt?.toDate ? prev.lastEventAt.toDate() : null;
-    if (prevLastEventAt && created < prevLastEventAt) {
-        logger.log(`Skipping stale event eid=${eventId} for ${machineId}.`);
-        return;
-    }
-
-    const DEDUP_WINDOW_MS = 2 * 1000;
-    const isDuplicate =
-        prev.lastEventId === Number(eventId) &&
-        prevLastEventAt &&
-        Math.abs(created - prevLastEventAt) <= DEDUP_WINDOW_MS;
-
-    if (isDuplicate) {
-        logger.log(`Skipping duplicate event eid=${eventId} for ${machineId}.`);
-        return;
-    }
-
-    const ts = admin.firestore.Timestamp.fromDate(created);
     const update = {
         lastEventId: Number(eventId),
-        lastEventAt: ts,
-        lastSeenAt: ts, // Luôn cập nhật lastSeenAt cho mọi sự kiện hợp lệ
+        lastEventAt: createdAt,
+        lastSeenAt: createdAt,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastRecordId: recordId ?? prev.lastRecordId ?? null,
     };
 
     const eventNum = Number(eventId);
-    const ONLINE_EVENTS = new Set([6005, 7001, 107, 4801, 506]);
-    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 507, 7000, 7002]); // Loại bỏ 4800 khỏi đây
+    const ONLINE_EVENTS = new Set([6005, 107, 4801, 506]);
+    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 507, 7000, 7002]); // Đã bao gồm 1074
 
     if (ONLINE_EVENTS.has(eventNum)) {
         update.isOnline = true;
         if (eventNum === 6005) {
-            update.lastBootAt = ts;
+            update.lastBootAt = createdAt;
         }
     } else if (OFFLINE_EVENTS.has(eventNum)) {
-        // Đây là các sự kiện offline thực sự
         update.isOnline = false;
-        update.lastShutdownAt = ts;
+        update.lastShutdownAt = createdAt;
+        // ===== SỬA LẠI LOGIC NÀY =====
         update.lastShutdownKind =
-            eventNum === 6008 ? "unexpected" :
-            (eventNum === 42 || eventNum === 507) ? "sleep" :
-            eventNum === 7002 ? "stale" :
-            "user"; // Mặc định cho tắt máy (6006, 1074, 7000)
-    } else if (eventNum === 4800) {
-        // Xử lý riêng sự kiện Khóa máy (4800):
-        // Nó không làm máy offline và KHÔNG nên thay đổi `lastShutdownKind`.
-        // `isOnline` vẫn là true (hoặc giữ nguyên trạng thái trước đó).
-        // Chúng ta chỉ cập nhật `lastSeenAt` và `lastEventId` đã có ở trên.
+            (eventNum === 6006 || eventNum === 1074 || eventNum === 7000) ? "user" : // Shutdown/Restart do người dùng
+                eventNum === 6008 ? "unexpected" :
+                    (eventNum === 42 || eventNum === 507) ? "sleep" :
+                        "stale"; // Mặc định cho mất kết nối
     }
 
     await ref.set(update, { merge: true });
@@ -1631,42 +1589,38 @@ exports.getComputerUsageStats = onCall({ cors: true }, async (request) => {
     return { totalUsageSeconds, firstStartAt, lastEndAt, isOnline: isOnlineNow };
 });
 
+// ===== SỬA LẠI LỊCH CHẠY =====
 exports.cronMarkStaleOffline = onSchedule(
-    { schedule: "every 5 minutes", timeZone: "Asia/Ho_Chi_Minh" },
+    { schedule: "every 1 minutes", timeZone: "Asia/Ho_Chi_Minh" },
     async () => {
         const now = new Date();
-
-        // 🔹 Lấy cấu hình từ Firestore
         const cfgSnap = await db.collection("app_config").doc("agent").get();
-        const hb = cfgSnap.exists ? Number(cfgSnap.data()?.heartbeatMinutes) : 10;
-        const stalenessMin = (hb > 0 ? hb : 10) + 2; // dự phòng +2
-
+        const heartbeatMinutes = cfgSnap.exists ? Number(cfgSnap.data()?.heartbeatMinutes) : 1;
+        const stalenessMin = (heartbeatMinutes > 0 ? heartbeatMinutes : 1) + 2; // Dự phòng +2 phút
         const cutoff = new Date(now.getTime() - stalenessMin * 60 * 1000);
 
-        const snap = await db.collection("machineStatus")
+        const staleMachinesQuery = db.collection("machineStatus")
             .where("isOnline", "==", true)
-            .get();
+            .where("lastSeenAt", "<", cutoff);
+
+        const snap = await staleMachinesQuery.get();
+        if (snap.empty) {
+            logger.log("[cronMarkStaleOffline] No stale machines found.");
+            return;
+        }
 
         const batch = db.batch();
-        let count = 0;
-
         snap.forEach((doc) => {
-            const d = doc.data();
-            const lastSeen = d.lastSeenAt?.toDate?.();
-            if (!lastSeen || lastSeen < cutoff) {
-                batch.set(doc.ref, {
-                    isOnline: false,
-                    lastShutdownAt: lastSeen || now,
-                    lastShutdownKind: "stale",
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                }, { merge: true });
-                count++;
-            }
+            logger.log(`[cronMarkStaleOffline] Marking machine ${doc.id} as stale.`);
+            batch.set(doc.ref, {
+                isOnline: false,
+                lastShutdownAt: doc.data().lastSeenAt || now,
+                lastShutdownKind: "stale",
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
         });
 
-        if (count > 0) await batch.commit();
-        logger.log(`[cronMarkStaleOffline] Marked ${count} machines offline (stale, cutoff ${stalenessMin} phút).`);
+        await batch.commit();
+        logger.log(`[cronMarkStaleOffline] Marked ${snap.size} machines offline.`);
     }
 );
-
-
