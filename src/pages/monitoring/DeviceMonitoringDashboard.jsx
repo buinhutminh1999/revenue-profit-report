@@ -98,7 +98,7 @@ const StatCard = ({ title, value, icon, color }) => (<Grid item xs={12} sm={6} m
 const DashboardStats = ({ onlineCount, offlineCount, totalCount }) => (<Grid container spacing={3} sx={{ mb: 4 }}> <StatCard title="Đang Online" value={onlineCount} color="success" icon={<CircleIcon />} /> <StatCard title="Offline / Ngủ" value={offlineCount} color="warning" icon={<CircleIcon />} /> <StatCard title="Tổng số máy" value={totalCount} color="info" icon={<ComputerIcon />} /> </Grid>);
 const CompactEventTimeline = ({ events }) => { const processedEvents = React.useMemo(() => { if (!events) return []; const validEvents = events.filter(e => EVENT_LABEL[e.eventId]).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()); const deduped = []; for (const event of validEvents) { const lastEvent = deduped[deduped.length - 1]; if (lastEvent && lastEvent.eventId === event.eventId && Math.abs(event.createdAt.getTime() - lastEvent.createdAt.getTime()) < 2000) { continue; } deduped.push(event); } return deduped.map((event, index, arr) => { const nextEvent = arr[index + 1]; const durationSeconds = nextEvent ? (nextEvent.createdAt.getTime() - event.createdAt.getTime()) / 1000 : null; return { ...event, durationSeconds }; }); }, [events]); if (processedEvents.length === 0) { return <Typography variant="caption" color="text.secondary" sx={{ p: 2, display: 'block' }}>Không có sự kiện chi tiết.</Typography>; } return (<Timeline sx={{ p: 0, my: 1, [`& .MuiTimelineItem-root:before`]: { flex: 0, p: 1 } }}> {processedEvents.map((event, index) => { const meta = EVENT_LABEL[event.eventId]; if (!meta) return null; return (<TimelineItem key={event.id || index} sx={{ minHeight: '40px' }}> <TimelineSeparator> <Tooltip title={meta.text} arrow> <TimelineDot variant="outlined" color={meta.color} sx={{ p: 0.5 }}>{meta.icon}</TimelineDot> </Tooltip> {index < processedEvents.length - 1 && <TimelineConnector />} </TimelineSeparator> <TimelineContent sx={{ py: '10px', px: 2 }}> <Typography variant="body2" component="span">{meta.text}</Typography> <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}> lúc {format(event.createdAt, 'HH:mm:ss')} </Typography> {event.durationSeconds > 1 && (<Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}> {formatDuration(event.durationSeconds)} </Typography>)} </TimelineContent> </TimelineItem>); })} </Timeline>); };
 
-// ===================== Machine Card (PHIÊN BẢN HOÀN CHỈNH) ===================== //
+// ===================== Machine Card (PHIÊN BẢN ĐÃ SỬA LỖI) ===================== //
 const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
     // THAY ĐỔI: Lấy cả object status từ hook
     const status = useMachineStatus(machine.id);
@@ -158,15 +158,44 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
         return Math.max(0, total);
     }, [events, isOnline, lastKnownUptime, selectedDate, machine.lastBootAt, tick]);
 
-    // THAY ĐỔI: Cập nhật thời gian lên Realtime DB mỗi khi totalSec thay đổi (khi online)
+    // ##################################################################
+    // ####################### PHẦN ĐƯỢC CHỈNH SỬA #######################
+    // ##################################################################
+
+    // KHỐC CODE CŨ (BỊ LỖI)
+    // React.useEffect(() => {
+    //     if (isOnline) {
+    //         const statusRef = ref(rtdb, `status/${machine.id}/lastKnownUptime`);
+    //         if (typeof totalSec === 'number' && totalSec > 0) {
+    //             rtdbSet(statusRef, totalSec);
+    //         }
+    //     }
+    // }, [isOnline, totalSec, machine.id]);
+
+    // KHỐC CODE MỚI (ĐÃ SỬA)
+    // Sử dụng cleanup function để đảm bảo giá trị cuối cùng được ghi lại
     React.useEffect(() => {
-        if (isOnline) {
-            const statusRef = ref(rtdb, `status/${machine.id}/lastKnownUptime`);
-            // Chỉ ghi khi totalSec là một con số hợp lệ và lớn hơn 0
-            if (typeof totalSec === 'number' && totalSec > 0) {
-                rtdbSet(statusRef, totalSec);
+        // Hàm helper để ghi giá trị lên Realtime DB
+        const writeUptimeToRtdb = (value) => {
+            // Chỉ ghi khi giá trị là một con số hợp lệ
+            if (typeof value === 'number' && value >= 0) {
+                const statusRef = ref(rtdb, `status/${machine.id}/lastKnownUptime`);
+                rtdbSet(statusRef, value);
             }
+        };
+
+        // Nếu máy đang online, cập nhật thời gian
+        if (isOnline) {
+            writeUptimeToRtdb(totalSec);
         }
+
+        // Cleanup function: Sẽ chạy khi `isOnline` thay đổi từ true -> false
+        // Nó sẽ ghi lại giá trị `totalSec` cuối cùng của phiên online.
+        return () => {
+            if (isOnline) { 
+                writeUptimeToRtdb(totalSec);
+            }
+        };
     }, [isOnline, totalSec, machine.id]);
 
 
@@ -207,7 +236,6 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
                     sx={{
                         height: 8,
                         borderRadius: 4,
-                        // THÊM VÀO ĐÂY
                         '& .MuiLinearProgress-bar': {
                             transition: 'transform 60s linear',
                         },
@@ -229,7 +257,7 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
             </Stack>
         </Paper>
     );
-};
+}; 
 
 /* ===================== Main Component ===================== */
 export default function DeviceMonitoringDashboard() {
