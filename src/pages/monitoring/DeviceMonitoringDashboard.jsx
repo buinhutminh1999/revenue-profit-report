@@ -1,4 +1,4 @@
-// src/pages/monitoring/DeviceMonitoringDashboard.jsx (PHIÊN BẢN HOÀN CHỈNH CUỐI CÙNG)
+// src/pages/monitoring/DeviceMonitoringDashboard.jsx
 
 import React from 'react';
 import {
@@ -11,8 +11,8 @@ import {
     TimelineContent, TimelineDot
 } from '@mui/lab';
 import { collection, query, onSnapshot, where, orderBy, doc } from 'firebase/firestore';
-import { ref, onValue, set as rtdbSet } from 'firebase/database'; // THÊM MỚI: import 'set'
-import { db, rtdb } from '../../services/firebase-config';
+import { ref, onValue } from 'firebase/database'; // THÊM MỚI: Import cho Realtime DB
+import { db, rtdb } from '../../services/firebase-config'; // THÊM MỚI: Import rtdb
 import { format, formatDistanceToNow, isSameDay, startOfDay, endOfDay } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
@@ -39,38 +39,49 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 /* ===================== Custom Hooks ===================== */
 
 /**
- * Hook lắng nghe toàn bộ object status từ Realtime Database.
+ * Hook lắng nghe trạng thái online/offline real-time từ Realtime Database cho một máy cụ thể.
  */
 function useMachineStatus(machineId) {
-    const [status, setStatus] = React.useState({ isOnline: false, lastKnownUptime: 0 });
+    const [isOnline, setIsOnline] = React.useState(false);
 
     React.useEffect(() => {
         if (!machineId) return;
         const statusRef = ref(rtdb, `status/${machineId}`);
         const unsubscribe = onValue(statusRef, (snapshot) => {
-            const statusData = snapshot.val() || { isOnline: false, lastKnownUptime: 0 };
-            setStatus(statusData);
+            const status = snapshot.val();
+            setIsOnline(status?.isOnline === true);
         });
         return () => unsubscribe();
     }, [machineId]);
 
-    return status;
+    return isOnline;
 }
 
 /**
- * Hook lấy và nhóm các sự kiện từ Firestore.
+ * Hook lấy và nhóm các sự kiện từ Firestore cho các máy đang hiển thị.
  */
 function useGroupedMachineEvents(machineIds, selectedDate) {
     const [eventsByMachine, setEventsByMachine] = React.useState({});
     const [loading, setLoading] = React.useState(true);
+
     React.useEffect(() => {
         if (!machineIds || machineIds.length === 0) {
-            setEventsByMachine({}); setLoading(false); return;
+            setEventsByMachine({});
+            setLoading(false);
+            return;
         }
+
         setLoading(true);
         const start = startOfDay(selectedDate);
         const end = endOfDay(selectedDate);
-        const q = query(collection(db, 'machineEvents'), where('machineId', 'in', machineIds), where('createdAt', '>=', start), where('createdAt', '<=', end));
+
+        const q = query(
+            collection(db, 'machineEvents'),
+            where('machineId', 'in', machineIds),
+            where('createdAt', '>=', start),
+            where('createdAt', '<=', end)
+        );
+
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const groupedEvents = machineIds.reduce((acc, id) => ({ ...acc, [id]: [] }), {});
             snapshot.docs.forEach(doc => {
@@ -81,28 +92,149 @@ function useGroupedMachineEvents(machineIds, selectedDate) {
             });
             setEventsByMachine(groupedEvents);
             setLoading(false);
-        }, (error) => { console.error("Error fetching grouped events:", error); setLoading(false); });
+        }, (error) => {
+            console.error("Error fetching grouped events:", error);
+            setLoading(false);
+        });
+
         return () => unsubscribe();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [machineIds.join(','), selectedDate.toISOString()]);
+
     return { eventsByMachine, loading };
 }
 
-/* ===================== Constants, Helpers, UI Components ===================== */
+
+/* ===================== Constants ===================== */
 const START_IDS = new Set([6005, 107, 4801, 506]);
 const STOP_IDS = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]);
-const EVENT_LABEL = { 6005: { text: 'Khởi động', color: 'success', icon: <PowerOutlinedIcon sx={{ fontSize: '1rem' }} /> }, 1074: { text: 'Tắt máy', color: 'grey', icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> }, 6006: { text: 'Tắt máy', color: 'grey', icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> }, 107: { text: 'Thức dậy', color: 'info', icon: <WbSunnyOutlinedIcon sx={{ fontSize: '1rem' }} /> }, 4801: { text: 'Mở khóa', color: 'info', icon: <LockOpenOutlinedIcon sx={{ fontSize: '1rem' }} /> }, 42: { text: 'Ngủ', color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> }, 4800: { text: 'Khóa máy', color: 'grey', icon: <LockOutlinedIcon sx={{ fontSize: '1rem' }} /> }, 6008: { text: 'Crash', color: 'error', icon: <ReportProblemOutlinedIcon sx={{ fontSize: '1rem' }} /> }, };
-const formatDuration = (seconds) => { if (seconds == null || seconds < 1) return '~ 0 phút'; if (seconds < 60) return `~ ${Math.floor(seconds)} giây`; const totalMinutes = Math.floor(seconds / 60); if (totalMinutes < 60) return `~ ${totalMinutes} phút`; const hours = Math.floor(totalMinutes / 60); const minutes = totalMinutes % 60; if (minutes === 0) return `~ ${hours} giờ`; return `~ ${hours} giờ ${minutes} phút`; };
-const StatusChip = ({ isOnline, lastShutdownKind }) => { if (isOnline) { return <Chip label="Online" color="success" size="small" />; } switch (lastShutdownKind) { case 'user': return <Chip label="Tắt máy" color="default" size="small" />; case 'sleep': return <Chip label="Ngủ" color="warning" size="small" />; case 'unexpected': return <Chip label="Bị Crash" color="error" size="small" />; case 'stale': return <Chip label="Mất kết nối" color="warning" size="small" />; default: return <Chip label="Offline" color="default" size="small" />; } };
-const StatCard = ({ title, value, icon, color }) => (<Grid item xs={12} sm={6} md={4}> <Paper elevation={2} sx={{ p: 2.5, display: 'flex', alignItems: 'center', borderRadius: '16px' }}> <Box sx={(theme) => ({ bgcolor: theme.palette[color]?.light || theme.palette.grey[200], color: theme.palette[color]?.dark || theme.palette.grey[800], borderRadius: '50%', p: 2, mr: 2, display: 'flex' })}> {icon} </Box> <div> <Typography variant="h6" fontWeight={700}>{value}</Typography> <Typography variant="body2" color="text.secondary">{title}</Typography> </div> </Paper> </Grid>);
-const DashboardStats = ({ onlineCount, offlineCount, totalCount }) => (<Grid container spacing={3} sx={{ mb: 4 }}> <StatCard title="Đang Online" value={onlineCount} color="success" icon={<CircleIcon />} /> <StatCard title="Offline / Ngủ" value={offlineCount} color="warning" icon={<CircleIcon />} /> <StatCard title="Tổng số máy" value={totalCount} color="info" icon={<ComputerIcon />} /> </Grid>);
-const CompactEventTimeline = ({ events }) => { const processedEvents = React.useMemo(() => { if (!events) return []; const validEvents = events.filter(e => EVENT_LABEL[e.eventId]).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()); const deduped = []; for (const event of validEvents) { const lastEvent = deduped[deduped.length - 1]; if (lastEvent && lastEvent.eventId === event.eventId && Math.abs(event.createdAt.getTime() - lastEvent.createdAt.getTime()) < 2000) { continue; } deduped.push(event); } return deduped.map((event, index, arr) => { const nextEvent = arr[index + 1]; const durationSeconds = nextEvent ? (nextEvent.createdAt.getTime() - event.createdAt.getTime()) / 1000 : null; return { ...event, durationSeconds }; }); }, [events]); if (processedEvents.length === 0) { return <Typography variant="caption" color="text.secondary" sx={{ p: 2, display: 'block' }}>Không có sự kiện chi tiết.</Typography>; } return (<Timeline sx={{ p: 0, my: 1, [`& .MuiTimelineItem-root:before`]: { flex: 0, p: 1 } }}> {processedEvents.map((event, index) => { const meta = EVENT_LABEL[event.eventId]; if (!meta) return null; return (<TimelineItem key={event.id || index} sx={{ minHeight: '40px' }}> <TimelineSeparator> <Tooltip title={meta.text} arrow> <TimelineDot variant="outlined" color={meta.color} sx={{ p: 0.5 }}>{meta.icon}</TimelineDot> </Tooltip> {index < processedEvents.length - 1 && <TimelineConnector />} </TimelineSeparator> <TimelineContent sx={{ py: '10px', px: 2 }}> <Typography variant="body2" component="span">{meta.text}</Typography> <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}> lúc {format(event.createdAt, 'HH:mm:ss')} </Typography> {event.durationSeconds > 1 && (<Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}> {formatDuration(event.durationSeconds)} </Typography>)} </TimelineContent> </TimelineItem>); })} </Timeline>); };
 
-// ===================== Machine Card (PHIÊN BẢN ĐÃ SỬA LỖI) ===================== //
+const EVENT_LABEL = {
+    6005: { text: 'Khởi động', color: 'success', icon: <PowerOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+    1074: { text: 'Tắt máy', color: 'grey', icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
+    6006: { text: 'Tắt máy', color: 'grey', icon: <PowerSettingsNewIcon sx={{ fontSize: '1rem' }} /> },
+    107: { text: 'Thức dậy', color: 'info', icon: <WbSunnyOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+    4801: { text: 'Mở khóa', color: 'info', icon: <LockOpenOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+    42: { text: 'Ngủ', color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+    4800: { text: 'Khóa máy', color: 'grey', icon: <LockOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+    6008: { text: 'Crash', color: 'error', icon: <ReportProblemOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+};
+
+/* ===================== Helpers ===================== */
+const formatDuration = (seconds) => {
+    if (seconds == null || seconds < 1) return '~ 0 phút';
+    if (seconds < 60) return `~ ${Math.floor(seconds)} giây`;
+    const totalMinutes = Math.floor(seconds / 60);
+    if (totalMinutes < 60) return `~ ${totalMinutes} phút`;
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (minutes === 0) return `~ ${hours} giờ`;
+    return `~ ${hours} giờ ${minutes} phút`;
+};
+
+const StatusChip = ({ isOnline, lastShutdownKind }) => {
+    if (isOnline) {
+        return <Chip label="Online" color="success" size="small" />;
+    }
+    switch (lastShutdownKind) {
+        case 'user': return <Chip label="Tắt máy" color="default" size="small" />;
+        case 'sleep': return <Chip label="Ngủ" color="warning" size="small" />;
+        case 'unexpected': return <Chip label="Bị Crash" color="error" size="small" />;
+        case 'stale': return <Chip label="Mất kết nối" color="warning" size="small" />;
+        default: return <Chip label="Offline" color="default" size="small" />;
+    }
+};
+
+/* ===================== UI Components ===================== */
+const StatCard = ({ title, value, icon, color }) => (
+    <Grid item xs={12} sm={6} md={4}>
+        <Paper elevation={2} sx={{ p: 2.5, display: 'flex', alignItems: 'center', borderRadius: '16px' }}>
+            <Box sx={(theme) => ({
+                bgcolor: theme.palette[color]?.light || theme.palette.grey[200],
+                color: theme.palette[color]?.dark || theme.palette.grey[800],
+                borderRadius: '50%', p: 2, mr: 2, display: 'flex'
+            })}>
+                {icon}
+            </Box>
+            <div>
+                <Typography variant="h6" fontWeight={700}>{value}</Typography>
+                <Typography variant="body2" color="text.secondary">{title}</Typography>
+            </div>
+        </Paper>
+    </Grid>
+);
+
+const DashboardStats = ({ onlineCount, offlineCount, totalCount }) => (
+    <Grid container spacing={3} sx={{ mb: 4 }}>
+        <StatCard title="Đang Online" value={onlineCount} color="success" icon={<CircleIcon />} />
+        <StatCard title="Offline / Ngủ" value={offlineCount} color="warning" icon={<CircleIcon />} />
+        <StatCard title="Tổng số máy" value={totalCount} color="info" icon={<ComputerIcon />} />
+    </Grid>
+);
+
+const CompactEventTimeline = ({ events }) => {
+    const processedEvents = React.useMemo(() => {
+        if (!events) return [];
+        const validEvents = events
+            .filter(e => EVENT_LABEL[e.eventId])
+            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+        const deduped = [];
+        for (const event of validEvents) {
+            const lastEvent = deduped[deduped.length - 1];
+            if (lastEvent && lastEvent.eventId === event.eventId && Math.abs(event.createdAt.getTime() - lastEvent.createdAt.getTime()) < 2000) {
+                continue;
+            }
+            deduped.push(event);
+        }
+
+        return deduped.map((event, index, arr) => {
+            const nextEvent = arr[index + 1];
+            const durationSeconds = nextEvent ? (nextEvent.createdAt.getTime() - event.createdAt.getTime()) / 1000 : null;
+            return { ...event, durationSeconds };
+        });
+    }, [events]);
+
+    if (processedEvents.length === 0) {
+        return <Typography variant="caption" color="text.secondary" sx={{ p: 2, display: 'block' }}>Không có sự kiện chi tiết.</Typography>;
+    }
+
+    return (
+        <Timeline sx={{ p: 0, my: 1, [`& .MuiTimelineItem-root:before`]: { flex: 0, p: 1 } }}>
+            {processedEvents.map((event, index) => {
+                const meta = EVENT_LABEL[event.eventId];
+                if (!meta) return null;
+                return (
+                    <TimelineItem key={event.id || index} sx={{ minHeight: '40px' }}>
+                        <TimelineSeparator>
+                            <Tooltip title={meta.text} arrow>
+                                <TimelineDot variant="outlined" color={meta.color} sx={{ p: 0.5 }}>{meta.icon}</TimelineDot>
+                            </Tooltip>
+                            {index < processedEvents.length - 1 && <TimelineConnector />}
+                        </TimelineSeparator>
+                        <TimelineContent sx={{ py: '10px', px: 2 }}>
+                            <Typography variant="body2" component="span">{meta.text}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                                lúc {format(event.createdAt, 'HH:mm:ss')}
+                            </Typography>
+                            {event.durationSeconds > 1 && (
+                                <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                                    {formatDuration(event.durationSeconds)}
+                                </Typography>
+                            )}
+                        </TimelineContent>
+                    </TimelineItem>
+                );
+            })}
+        </Timeline>
+    );
+};
+
+
+// ===================== Machine Card ===================== //
 const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
-    // THAY ĐỔI: Lấy cả object status từ hook
-    const status = useMachineStatus(machine.id);
-    const { isOnline, lastKnownUptime } = status;
+    // THAY ĐỔI: isOnline giờ được lấy real-time từ hook này
+    const isOnline = useMachineStatus(machine.id);
 
     const [openDetail, setOpenDetail] = React.useState(false);
     const [tick, setTick] = React.useState(0);
@@ -112,29 +244,32 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
         if (isOnline) {
             const intervalId = setInterval(() => {
                 setTick(prevTick => prevTick + 1);
-            }, 60000); // 1 phút
+            }, 60000);
             return () => clearInterval(intervalId);
         }
     }, [isOnline]);
 
     const totalSec = React.useMemo(() => {
-        // NẾU OFFLINE: Chỉ hiển thị thời gian cuối cùng được ghi nhận
-        if (!isOnline) {
-            return lastKnownUptime || 0;
+        if (!events || events.length === 0) {
+            if (isOnline && isSameDay(selectedDate, new Date()) && machine.lastBootAt) {
+                const bootTime = machine.lastBootAt.toDate();
+                const dayStart = startOfDay(selectedDate);
+                const startTime = bootTime > dayStart ? bootTime : dayStart;
+                return (new Date().getTime() - startTime.getTime()) / 1000;
+            }
+            return 0;
         }
 
-        // NẾU ONLINE: Tính toán như bình thường
-        const sortedEvents = (events || []).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-        const dayStart = startOfDay(selectedDate);
-        const dayEnd = endOfDay(selectedDate);
         let total = 0;
         let sessionStart = null;
+        const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        const dayStart = startOfDay(selectedDate);
+        const dayEnd = endOfDay(selectedDate);
 
+        const firstEvent = sortedEvents[0];
         const lastBootTime = machine.lastBootAt?.toDate();
-        const firstStartEvent = sortedEvents.find(e => START_IDS.has(Number(e.eventId)));
-        const hasShutdownBeforeFirstStart = firstStartEvent ? sortedEvents.some(e => STOP_IDS.has(Number(e.eventId)) && e.createdAt < firstStartEvent.createdAt) : false;
 
-        if (lastBootTime && lastBootTime < dayStart && !hasShutdownBeforeFirstStart) {
+        if (lastBootTime && lastBootTime < dayStart && START_IDS.has(Number(firstEvent.eventId))) {
             sessionStart = dayStart;
         }
 
@@ -143,61 +278,20 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
             if (START_IDS.has(eventId) && !sessionStart) {
                 sessionStart = e.createdAt;
             } else if (STOP_IDS.has(eventId) && sessionStart) {
-                const effectiveStart = sessionStart < dayStart ? dayStart : sessionStart;
-                total += (e.createdAt.getTime() - effectiveStart.getTime()) / 1000;
+                total += (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
                 sessionStart = null;
             }
         }
 
         if (sessionStart) {
-            let sessionEnd = isSameDay(selectedDate, new Date()) ? new Date() : dayEnd;
-            const effectiveStart = sessionStart < dayStart ? dayStart : sessionStart;
-            total += (sessionEnd.getTime() - effectiveStart.getTime()) / 1000;
+            const endPoint = isSameDay(selectedDate, new Date()) && isOnline
+                ? new Date()
+                : dayEnd;
+            total += (Math.min(endPoint.getTime(), dayEnd.getTime()) - sessionStart.getTime()) / 1000;
         }
 
         return Math.max(0, total);
-    }, [events, isOnline, lastKnownUptime, selectedDate, machine.lastBootAt, tick]);
-
-    // ##################################################################
-    // ####################### PHẦN ĐƯỢC CHỈNH SỬA #######################
-    // ##################################################################
-
-    // KHỐC CODE CŨ (BỊ LỖI)
-    // React.useEffect(() => {
-    //     if (isOnline) {
-    //         const statusRef = ref(rtdb, `status/${machine.id}/lastKnownUptime`);
-    //         if (typeof totalSec === 'number' && totalSec > 0) {
-    //             rtdbSet(statusRef, totalSec);
-    //         }
-    //     }
-    // }, [isOnline, totalSec, machine.id]);
-
-    // KHỐC CODE MỚI (ĐÃ SỬA)
-    // Sử dụng cleanup function để đảm bảo giá trị cuối cùng được ghi lại
-    React.useEffect(() => {
-        // Hàm helper để ghi giá trị lên Realtime DB
-        const writeUptimeToRtdb = (value) => {
-            // Chỉ ghi khi giá trị là một con số hợp lệ
-            if (typeof value === 'number' && value >= 0) {
-                const statusRef = ref(rtdb, `status/${machine.id}/lastKnownUptime`);
-                rtdbSet(statusRef, value);
-            }
-        };
-
-        // Nếu máy đang online, cập nhật thời gian
-        if (isOnline) {
-            writeUptimeToRtdb(totalSec);
-        }
-
-        // Cleanup function: Sẽ chạy khi `isOnline` thay đổi từ true -> false
-        // Nó sẽ ghi lại giá trị `totalSec` cuối cùng của phiên online.
-        return () => {
-            if (isOnline) { 
-                writeUptimeToRtdb(totalSec);
-            }
-        };
-    }, [isOnline, totalSec, machine.id]);
-
+    }, [events, isOnline, selectedDate, machine.lastBootAt, machine.lastSeenAt, tick]);
 
     const usageHours = totalSec / 3600;
     const progress = Math.min(100, (usageHours / workingHours) * 100);
@@ -236,6 +330,7 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
                     sx={{
                         height: 8,
                         borderRadius: 4,
+                        // THÊM VÀO ĐÂY
                         '& .MuiLinearProgress-bar': {
                             transition: 'transform 60s linear',
                         },
@@ -257,21 +352,50 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
             </Stack>
         </Paper>
     );
-}; 
+};
 
 /* ===================== Main Component ===================== */
 export default function DeviceMonitoringDashboard() {
-    // ... (phần code này giữ nguyên)
     const [machines, setMachines] = React.useState([]);
     const [loadingMachines, setLoadingMachines] = React.useState(true);
     const [searchTerm, setSearchTerm] = React.useState('');
     const [statusFilter, setStatusFilter] = React.useState('all');
     const [selectedDate, setSelectedDate] = React.useState(new Date());
     const [workingHours, setWorkingHours] = React.useState(8);
+
+    // THÊM MỚI: State để giữ trạng thái online/offline của tất cả các máy cho việc lọc
     const [onlineStatusMap, setOnlineStatusMap] = React.useState({});
-    React.useEffect(() => { const q = query(collection(db, 'machineStatus'), orderBy('lastSeenAt', 'desc')); const unsub = onSnapshot(q, (snap) => { const machineData = snap.docs.map((d) => ({ id: d.id, ...d.data() })); setMachines(machineData); setLoadingMachines(false); }); return () => unsub(); }, []);
-    React.useEffect(() => { const statusRef = ref(rtdb, 'status'); const unsubscribe = onValue(statusRef, (snapshot) => { const data = snapshot.val() || {}; setOnlineStatusMap(data); }); return () => unsubscribe(); }, []);
-    const filteredMachines = React.useMemo(() => { return machines.filter(m => { const isOnline = onlineStatusMap[m.id]?.isOnline === true; const statusMatch = statusFilter === 'all' || isOnline === (statusFilter === 'online'); const searchMatch = searchTerm === '' || m.id.toLowerCase().includes(searchTerm.toLowerCase()); return statusMatch && searchMatch; }); }, [machines, statusFilter, searchTerm, onlineStatusMap]);
+
+    // Lắng nghe dữ liệu cơ bản của các máy từ Firestore
+    React.useEffect(() => {
+        const q = query(collection(db, 'machineStatus'), orderBy('lastSeenAt', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            const machineData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            setMachines(machineData);
+            setLoadingMachines(false);
+        });
+        return () => unsub();
+    }, []);
+
+    // THÊM MỚI: Lắng nghe trạng thái real-time của TẤT CẢ các máy từ Realtime DB
+    React.useEffect(() => {
+        const statusRef = ref(rtdb, 'status');
+        const unsubscribe = onValue(statusRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            setOnlineStatusMap(data);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const filteredMachines = React.useMemo(() => {
+        return machines.filter(m => {
+            const isOnline = onlineStatusMap[m.id]?.isOnline === true;
+            const statusMatch = statusFilter === 'all' || isOnline === (statusFilter === 'online');
+            const searchMatch = searchTerm === '' || m.id.toLowerCase().includes(searchTerm.toLowerCase());
+            return statusMatch && searchMatch;
+        });
+    }, [machines, statusFilter, searchTerm, onlineStatusMap]);
+
     const visibleMachineIds = React.useMemo(() => filteredMachines.map(m => m.id), [filteredMachines]);
     const { eventsByMachine, loading: loadingEvents } = useGroupedMachineEvents(visibleMachineIds, selectedDate);
     const onlineCount = React.useMemo(() => Object.values(onlineStatusMap).filter(v => v?.isOnline).length, [onlineStatusMap]);
