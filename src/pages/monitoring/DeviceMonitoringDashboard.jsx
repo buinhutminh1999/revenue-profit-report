@@ -230,16 +230,12 @@ const CompactEventTimeline = ({ events }) => {
     );
 };
 
-
-// ===================== Machine Card ===================== //
+// ===================== Machine Card (PHIÊN BẢN SỬA LỖI CUỐI CÙNG) ===================== //
 const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
-    // THAY ĐỔI: isOnline giờ được lấy real-time từ hook này
     const isOnline = useMachineStatus(machine.id);
-    
     const [openDetail, setOpenDetail] = React.useState(false);
     const [tick, setTick] = React.useState(0);
 
-    // Bộ đếm thời gian tự động cập nhật mỗi phút khi online
     React.useEffect(() => {
         if (isOnline) {
             const intervalId = setInterval(() => {
@@ -250,46 +246,49 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
     }, [isOnline]);
 
     const totalSec = React.useMemo(() => {
-        if (!events || events.length === 0) {
-            if (isOnline && isSameDay(selectedDate, new Date()) && machine.lastBootAt) {
-                const bootTime = machine.lastBootAt.toDate();
-                const dayStart = startOfDay(selectedDate);
-                const startTime = bootTime > dayStart ? bootTime : dayStart;
-                return (new Date().getTime() - startTime.getTime()) / 1000;
-            }
-            return 0;
-        }
-
-        let total = 0;
-        let sessionStart = null;
-        const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        const sortedEvents = (events || []).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
         const dayStart = startOfDay(selectedDate);
         const dayEnd = endOfDay(selectedDate);
-
-        const firstEvent = sortedEvents[0];
+        let total = 0;
+        let sessionStart = null;
+        
+        // LOGIC MỚI: Kiểm tra xem có nên bắt đầu phiên từ đầu ngày không
         const lastBootTime = machine.lastBootAt?.toDate();
+        // Chỉ bắt đầu từ 00:00 nếu máy boot từ hôm trước VÀ không có sự kiện tắt máy nào trước sự kiện khởi động đầu tiên của hôm nay
+        const firstStartEvent = sortedEvents.find(e => START_IDS.has(Number(e.eventId)));
+        const hasShutdownBeforeFirstStart = firstStartEvent ? sortedEvents.some(e => STOP_IDS.has(Number(e.eventId)) && e.createdAt < firstStartEvent.createdAt) : false;
 
-        if (lastBootTime && lastBootTime < dayStart && START_IDS.has(Number(firstEvent.eventId))) {
+        if (lastBootTime && lastBootTime < dayStart && !hasShutdownBeforeFirstStart) {
             sessionStart = dayStart;
         }
 
+        // Tính tổng các phiên trong ngày
         for (const e of sortedEvents) {
             const eventId = Number(e.eventId);
             if (START_IDS.has(eventId) && !sessionStart) {
                 sessionStart = e.createdAt;
             } else if (STOP_IDS.has(eventId) && sessionStart) {
-                total += (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
+                // Giới hạn điểm bắt đầu không sớm hơn đầu ngày
+                const effectiveStart = sessionStart < dayStart ? dayStart : sessionStart;
+                total += (e.createdAt.getTime() - effectiveStart.getTime()) / 1000;
                 sessionStart = null;
             }
         }
 
+        // Xử lý phiên cuối cùng còn đang mở
         if (sessionStart) {
-            const endPoint = isSameDay(selectedDate, new Date()) && isOnline 
-                ? new Date() 
-                : dayEnd;
-            total += (Math.min(endPoint.getTime(), dayEnd.getTime()) - sessionStart.getTime()) / 1000;
+            let sessionEnd;
+            if (isOnline && isSameDay(selectedDate, new Date())) {
+                // Nếu đang online, kết thúc là bây giờ
+                sessionEnd = new Date();
+            } else {
+                // Nếu offline, kết thúc là thời điểm cuối cùng nhìn thấy hoặc cuối ngày
+                sessionEnd = machine.lastSeenAt?.toDate() || dayEnd;
+            }
+            const effectiveStart = sessionStart < dayStart ? dayStart : sessionStart;
+            total += (Math.min(sessionEnd.getTime(), dayEnd.getTime()) - effectiveStart.getTime()) / 1000;
         }
-
+        
         return Math.max(0, total);
     }, [events, isOnline, selectedDate, machine.lastBootAt, machine.lastSeenAt, tick]);
 
@@ -303,6 +302,7 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
 
     return (
         <Paper elevation={2} sx={{ p: 2.5, borderRadius: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {/* PHẦN GIAO DIỆN GIỮ NGUYÊN NHƯ CŨ */}
             <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Stack direction="row" alignItems="center" spacing={1.5} overflow="hidden">
                     <Box sx={{ position: 'relative', flexShrink: 0 }}>
