@@ -1,6 +1,6 @@
 // src/pages/monitoring/DeviceMonitoringDashboard.jsx
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React from 'react';
 import {
     Box, Typography, Paper, TextField, InputAdornment,
     ToggleButtonGroup, ToggleButton, Grid, Skeleton, Stack, IconButton,
@@ -11,7 +11,8 @@ import {
     TimelineContent, TimelineDot
 } from '@mui/lab';
 import { collection, query, onSnapshot, where, orderBy, doc } from 'firebase/firestore';
-import { db } from '../../services/firebase-config';
+import { ref, onValue } from 'firebase/database'; // THÊM MỚI: Import cho Realtime DB
+import { db, rtdb } from '../../services/firebase-config'; // THÊM MỚI: Import rtdb
 import { format, formatDistanceToNow, isSameDay, startOfDay, endOfDay } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
@@ -35,6 +36,75 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
+/* ===================== Custom Hooks ===================== */
+
+/**
+ * Hook lắng nghe trạng thái online/offline real-time từ Realtime Database cho một máy cụ thể.
+ */
+function useMachineStatus(machineId) {
+  const [isOnline, setIsOnline] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!machineId) return;
+    const statusRef = ref(rtdb, `status/${machineId}`);
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      const status = snapshot.val();
+      setIsOnline(status?.isOnline === true);
+    });
+    return () => unsubscribe();
+  }, [machineId]);
+
+  return isOnline;
+}
+
+/**
+ * Hook lấy và nhóm các sự kiện từ Firestore cho các máy đang hiển thị.
+ */
+function useGroupedMachineEvents(machineIds, selectedDate) {
+    const [eventsByMachine, setEventsByMachine] = React.useState({});
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        if (!machineIds || machineIds.length === 0) {
+            setEventsByMachine({});
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        const start = startOfDay(selectedDate);
+        const end = endOfDay(selectedDate);
+
+        const q = query(
+            collection(db, 'machineEvents'),
+            where('machineId', 'in', machineIds),
+            where('createdAt', '>=', start),
+            where('createdAt', '<=', end)
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const groupedEvents = machineIds.reduce((acc, id) => ({ ...acc, [id]: [] }), {});
+            snapshot.docs.forEach(doc => {
+                const event = { ...doc.data(), id: doc.id, createdAt: doc.data().createdAt.toDate() };
+                if (groupedEvents[event.machineId]) {
+                    groupedEvents[event.machineId].push(event);
+                }
+            });
+            setEventsByMachine(groupedEvents);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching grouped events:", error);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [machineIds.join(','), selectedDate.toISOString()]);
+
+    return { eventsByMachine, loading };
+}
+
+
 /* ===================== Constants ===================== */
 const START_IDS = new Set([6005, 107, 4801, 506]);
 const STOP_IDS = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]);
@@ -48,15 +118,11 @@ const EVENT_LABEL = {
     42:   { text: 'Ngủ', color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
     4800: { text: 'Khóa máy', color: 'grey', icon: <LockOutlinedIcon sx={{ fontSize: '1rem' }} /> },
     6008: { text: 'Crash', color: 'error', icon: <ReportProblemOutlinedIcon sx={{ fontSize: '1rem' }} /> },
-    // Thêm các event id khác nếu cần
 };
 
 /* ===================== Helpers ===================== */
-// SỬA LẠI 1: Hàm isMachineOnline giờ đây đơn giản hơn, chỉ tin vào cờ isOnline từ database
-const isMachineOnline = (machine) => machine?.isOnline === true;
-
 const formatDuration = (seconds) => {
-    if (seconds == null || seconds < 1) return '';
+    if (seconds == null || seconds < 1) return '~ 0 phút';
     if (seconds < 60) return `~ ${Math.floor(seconds)} giây`;
     const totalMinutes = Math.floor(seconds / 60);
     if (totalMinutes < 60) return `~ ${totalMinutes} phút`;
@@ -66,12 +132,10 @@ const formatDuration = (seconds) => {
     return `~ ${hours} giờ ${minutes} phút`;
 };
 
-// SỬA LẠI 2: Cập nhật StatusChip để hiển thị "Tắt máy" và các trạng thái khác
 const StatusChip = ({ isOnline, lastShutdownKind }) => {
     if (isOnline) {
         return <Chip label="Online" color="success" size="small" />;
     }
-
     switch (lastShutdownKind) {
         case 'user': return <Chip label="Tắt máy" color="default" size="small" />;
         case 'sleep': return <Chip label="Ngủ" color="warning" size="small" />;
@@ -108,72 +172,8 @@ const DashboardStats = ({ onlineCount, offlineCount, totalCount }) => (
     </Grid>
 );
 
-const UsageBar = ({ events, selectedDate, isOnlineNow }) => {
-    const sessions = useMemo(() => {
-        let currentSessionStart = null;
-        const calculatedSessions = [];
-        const dayStart = startOfDay(selectedDate);
-        const dayEnd = endOfDay(selectedDate);
-
-        if (!events || events.length === 0) {
-            if (isOnlineNow && isSameDay(selectedDate, new Date())) {
-                return [{ start: dayStart, end: new Date() }];
-            }
-            return [];
-        }
-
-        const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-        
-        const firstEvent = sortedEvents[0];
-        if (START_IDS.has(Number(firstEvent.eventId))) {
-            currentSessionStart = dayStart; 
-        }
-
-        for (const event of sortedEvents) {
-            const eventId = Number(event.eventId);
-            if (START_IDS.has(eventId) && !currentSessionStart) {
-                currentSessionStart = event.createdAt;
-            } else if (STOP_IDS.has(eventId) && currentSessionStart) {
-                calculatedSessions.push({ start: currentSessionStart, end: event.createdAt });
-                currentSessionStart = null;
-            }
-        }
-        
-        if (currentSessionStart) {
-             const end = isSameDay(selectedDate, new Date()) && isOnlineNow ? new Date() : dayEnd;
-             calculatedSessions.push({ start: currentSessionStart, end });
-        }
-
-        return calculatedSessions;
-    }, [events, selectedDate, isOnlineNow]);
-
-    const totalMsInDay = 24 * 60 * 60 * 1000;
-
-    return (
-        <Box sx={{ mt: 1, mb: 2 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                Dòng thời gian 24 giờ
-            </Typography>
-            <Tooltip title="Thanh màu xanh biểu thị thời gian máy Online" arrow placement="top">
-                <Box sx={{ width: '100%', height: '12px', bgcolor: 'grey.200', borderRadius: '6px', position: 'relative', overflow: 'hidden' }}>
-                    {sessions.map((session, index) => {
-                        const startMs = Math.max(0, session.start.getTime() - startOfDay(selectedDate).getTime());
-                        const endMs = Math.min(totalMsInDay, session.end.getTime() - startOfDay(selectedDate).getTime());
-                        const left = (startMs / totalMsInDay) * 100;
-                        const width = (Math.max(0, endMs - startMs) / totalMsInDay) * 100;
-
-                        return (
-                            <Box key={index} sx={{ position: 'absolute', left: `${left}%`, width: `${width}%`, height: '100%', bgcolor: 'success.main' }} />
-                        );
-                    })}
-                </Box>
-            </Tooltip>
-        </Box>
-    );
-};
-
 const CompactEventTimeline = ({ events }) => {
-    const processedEvents = useMemo(() => {
+    const processedEvents = React.useMemo(() => {
         if (!events) return [];
         const validEvents = events
             .filter(e => EVENT_LABEL[e.eventId])
@@ -230,119 +230,68 @@ const CompactEventTimeline = ({ events }) => {
     );
 };
 
-/* ===================== Hooks ===================== */
-function useGroupedMachineEvents(machineIds, selectedDate) {
-    const [eventsByMachine, setEventsByMachine] = useState({});
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        if (!machineIds || machineIds.length === 0) {
-            setEventsByMachine({});
-            setLoading(false);
-            return;
-        }
-
-        setLoading(true);
-        const start = startOfDay(selectedDate);
-        const end = endOfDay(selectedDate);
-
-        const q = query(
-            collection(db, 'machineEvents'),
-            where('machineId', 'in', machineIds),
-            where('createdAt', '>=', start),
-            where('createdAt', '<=', end)
-        );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const groupedEvents = machineIds.reduce((acc, id) => ({ ...acc, [id]: [] }), {});
-
-            snapshot.docs.forEach(doc => {
-                const event = { ...doc.data(), id: doc.id, createdAt: doc.data().createdAt.toDate() };
-                if (groupedEvents[event.machineId]) {
-                    groupedEvents[event.machineId].push(event);
-                }
-            });
-            setEventsByMachine(groupedEvents);
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching grouped events:", error);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [machineIds.join(','), selectedDate.toISOString()]);
-
-    return { eventsByMachine, loading };
-}
-
-// src/pages/monitoring/DeviceMonitoringDashboard.jsx
 
 // ===================== Machine Card ===================== //
-const MachineCard = ({ machine, events, isOnline, workingHours, selectedDate }) => {
-    const [openDetail, setOpenDetail] = useState(false);
+const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
+    // THAY ĐỔI: isOnline giờ được lấy real-time từ hook này
+    const isOnline = useMachineStatus(machine.id);
+    
+    const [openDetail, setOpenDetail] = React.useState(false);
+    const [tick, setTick] = React.useState(0);
 
-    const totalSec = useMemo(() => {
-        // Trường hợp không có sự kiện nào trong ngày được chọn
+    // Bộ đếm thời gian tự động cập nhật mỗi phút khi online
+    React.useEffect(() => {
+        if (isOnline) {
+            const intervalId = setInterval(() => {
+                setTick(prevTick => prevTick + 1);
+            }, 60000);
+            return () => clearInterval(intervalId);
+        }
+    }, [isOnline]);
+
+    const totalSec = React.useMemo(() => {
         if (!events || events.length === 0) {
-            // Nếu máy đang online và ngày được chọn là hôm nay,
-            // tính thời gian từ lúc boot gần nhất đến hiện tại.
             if (isOnline && isSameDay(selectedDate, new Date()) && machine.lastBootAt) {
                 const bootTime = machine.lastBootAt.toDate();
                 const dayStart = startOfDay(selectedDate);
-                
-                // Thời điểm bắt đầu tính là thời điểm boot hoặc đầu ngày, lấy cái nào muộn hơn.
                 const startTime = bootTime > dayStart ? bootTime : dayStart;
-                
                 return (new Date().getTime() - startTime.getTime()) / 1000;
             }
-            // Nếu không thì thời gian sử dụng trong ngày là 0
             return 0;
         }
 
-        // Trường hợp có sự kiện
         let total = 0;
         let sessionStart = null;
         const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
         const dayStart = startOfDay(selectedDate);
         const dayEnd = endOfDay(selectedDate);
 
-        // Kiểm tra xem máy có đang chạy từ trước ngày được chọn không
         const firstEvent = sortedEvents[0];
         const lastBootTime = machine.lastBootAt?.toDate();
 
         if (lastBootTime && lastBootTime < dayStart && START_IDS.has(Number(firstEvent.eventId))) {
-            // Nếu máy boot từ hôm trước và sự kiện đầu tiên hôm nay là "start"
-            // -> coi như nó đã chạy từ đầu ngày
             sessionStart = dayStart;
         }
 
-        // Duyệt qua các sự kiện để tính các phiên làm việc
         for (const e of sortedEvents) {
             const eventId = Number(e.eventId);
             if (START_IDS.has(eventId) && !sessionStart) {
-                // Bắt đầu một phiên mới tại thời điểm sự kiện
                 sessionStart = e.createdAt;
             } else if (STOP_IDS.has(eventId) && sessionStart) {
-                // Kết thúc phiên, cộng dồn thời gian
                 total += (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
-                sessionStart = null; // Reset phiên
+                sessionStart = null;
             }
         }
 
-        // Nếu còn một phiên đang chạy (chưa có sự kiện stop)
         if (sessionStart) {
-            // Điểm kết thúc là thời điểm hiện tại (nếu là hôm nay và máy đang online)
-            // hoặc là cuối ngày được chọn
             const endPoint = isSameDay(selectedDate, new Date()) && isOnline 
                 ? new Date() 
                 : dayEnd;
-            
-            // Đảm bảo không tính vượt quá cuối ngày
             total += (Math.min(endPoint.getTime(), dayEnd.getTime()) - sessionStart.getTime()) / 1000;
         }
 
         return Math.max(0, total);
-    }, [events, isOnline, selectedDate, machine.lastBootAt, machine.lastSeenAt]);
+    }, [events, isOnline, selectedDate, machine.lastBootAt, machine.lastSeenAt, tick]);
 
     const usageHours = totalSec / 3600;
     const progress = Math.min(100, (usageHours / workingHours) * 100);
@@ -354,7 +303,7 @@ const MachineCard = ({ machine, events, isOnline, workingHours, selectedDate }) 
 
     return (
         <Paper elevation={2} sx={{ p: 2.5, borderRadius: '16px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}> {/* Thêm margin bottom để tạo khoảng cách */}
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Stack direction="row" alignItems="center" spacing={1.5} overflow="hidden">
                     <Box sx={{ position: 'relative', flexShrink: 0 }}>
                         {isOnline ? <LaptopMacIcon color="success" sx={{ fontSize: 28 }} /> : <PowerSettingsNewIcon color="action" sx={{ fontSize: 28 }} />}
@@ -373,11 +322,7 @@ const MachineCard = ({ machine, events, isOnline, workingHours, selectedDate }) 
                 </IconButton>
             </Stack>
 
-            {/* DÒNG NÀY ĐÃ BỊ XÓA
-            <UsageBar events={events} selectedDate={selectedDate} isOnlineNow={isOnline} /> 
-            */}
-
-            <Box sx={{ flexGrow: 1, mb: 2 }}>
+            <Box sx={{ flexGrow: 1, my: 2 }}>
                 <Typography variant="h5" fontWeight="600" sx={{ my: 0.5 }}>{formatDuration(totalSec)}</Typography>
                 <LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 4 }} />
             </Box>
@@ -398,27 +343,20 @@ const MachineCard = ({ machine, events, isOnline, workingHours, selectedDate }) 
     );
 };
 
-/* ===================== Main ===================== */
+/* ===================== Main Component ===================== */
 export default function DeviceMonitoringDashboard() {
-    const [machines, setMachines] = useState([]);
-    const [loadingMachines, setLoadingMachines] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [selectedDate, setSelectedDate] = useState(new Date());
-    const [workingHours, setWorkingHours] = useState(8);
+    const [machines, setMachines] = React.useState([]);
+    const [loadingMachines, setLoadingMachines] = React.useState(true);
+    const [searchTerm, setSearchTerm] = React.useState('');
+    const [statusFilter, setStatusFilter] = React.useState('all');
+    const [selectedDate, setSelectedDate] = React.useState(new Date());
+    const [workingHours, setWorkingHours] = React.useState(8);
 
-    useEffect(() => {
-        const unsub = onSnapshot(doc(db, 'app_config', 'agent'), (snap) => {
-            if (snap.exists()) {
-                const data = snap.data();
-                const wh = Number(data?.workingHours);
-                if (wh > 0) setWorkingHours(wh);
-            }
-        });
-        return () => unsub();
-    }, []);
-
-    useEffect(() => {
+    // THÊM MỚI: State để giữ trạng thái online/offline của tất cả các máy cho việc lọc
+    const [onlineStatusMap, setOnlineStatusMap] = React.useState({});
+    
+    // Lắng nghe dữ liệu cơ bản của các máy từ Firestore
+    React.useEffect(() => {
         const q = query(collection(db, 'machineStatus'), orderBy('lastSeenAt', 'desc'));
         const unsub = onSnapshot(q, (snap) => {
             const machineData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -428,16 +366,28 @@ export default function DeviceMonitoringDashboard() {
         return () => unsub();
     }, []);
 
-    const filteredMachines = useMemo(() => {
-        return machines.filter(m =>
-            (statusFilter === 'all' || isMachineOnline(m) === (statusFilter === 'online')) &&
-            (searchTerm === '' || m.id.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
-    }, [machines, statusFilter, searchTerm]);
+    // THÊM MỚI: Lắng nghe trạng thái real-time của TẤT CẢ các máy từ Realtime DB
+    React.useEffect(() => {
+        const statusRef = ref(rtdb, 'status');
+        const unsubscribe = onValue(statusRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            setOnlineStatusMap(data);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const filteredMachines = React.useMemo(() => {
+        return machines.filter(m => {
+            const isOnline = onlineStatusMap[m.id]?.isOnline === true;
+            const statusMatch = statusFilter === 'all' || isOnline === (statusFilter === 'online');
+            const searchMatch = searchTerm === '' || m.id.toLowerCase().includes(searchTerm.toLowerCase());
+            return statusMatch && searchMatch;
+        });
+    }, [machines, statusFilter, searchTerm, onlineStatusMap]);
     
-    const visibleMachineIds = useMemo(() => filteredMachines.map(m => m.id), [filteredMachines]);
+    const visibleMachineIds = React.useMemo(() => filteredMachines.map(m => m.id), [filteredMachines]);
     const { eventsByMachine, loading: loadingEvents } = useGroupedMachineEvents(visibleMachineIds, selectedDate);
-    const onlineCount = useMemo(() => machines.filter(m => isMachineOnline(m)).length, [machines]);
+    const onlineCount = React.useMemo(() => Object.values(onlineStatusMap).filter(v => v?.isOnline).length, [onlineStatusMap]);
     const isLoading = loadingMachines || (visibleMachineIds.length > 0 && loadingEvents);
 
     return (
@@ -481,20 +431,16 @@ export default function DeviceMonitoringDashboard() {
                         </Grid>
                     ))
                 ) : (
-                    filteredMachines.map((m) => {
-                        const onlineStatus = isMachineOnline(m);
-                        return (
-                            <Grid item xs={12} sm={6} md={4} lg={3} key={m.id}>
-                                <MachineCard
-                                    machine={m}
-                                    events={eventsByMachine[m.id] || []}
-                                    isOnline={onlineStatus}
-                                    workingHours={workingHours}
-                                    selectedDate={selectedDate}
-                                />
-                            </Grid>
-                        );
-                    })
+                    filteredMachines.map((m) => (
+                        <Grid item xs={12} sm={6} md={4} lg={3} key={m.id}>
+                            <MachineCard
+                                machine={m}
+                                events={eventsByMachine[m.id] || []}
+                                workingHours={workingHours}
+                                selectedDate={selectedDate}
+                            />
+                        </Grid>
+                    ))
                 )}
                 {!isLoading && filteredMachines.length === 0 && (
                     <Grid item xs={12}>
