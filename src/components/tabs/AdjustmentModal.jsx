@@ -4,11 +4,12 @@ import {
     RadioGroup, FormControlLabel, Radio, FormControl, FormLabel, Box, CircularProgress
 } from "@mui/material";
 import { collection, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
-import { db } from "../../services/firebase-config"; // Đảm bảo đường dẫn này chính xác
+import { db } from "../../services/firebase-config"; 
 import toast from "react-hot-toast";
 import { NumericFormat } from "react-number-format";
 
-export default function AdjustmentModal({ open, onClose, projectId, planningItem, adjustmentToEdit, onSaveSuccess }) {
+// THAY ĐỔI: Thêm prop `isStandaloneItem` để biết đây có phải nhóm tự tạo hay không
+export default function AdjustmentModal({ open, onClose, projectId, planningItem, adjustmentToEdit, onSaveSuccess, isStandaloneItem }) {
     const [reason, setReason] = useState("");
     const [amount, setAmount] = useState(0);
     const [type, setType] = useState("increase");
@@ -22,7 +23,6 @@ export default function AdjustmentModal({ open, onClose, projectId, planningItem
             setAmount(adjustmentToEdit.amount);
             setType(adjustmentToEdit.type);
         } else {
-            // Reset form khi mở để thêm mới
             setReason("");
             setAmount(0);
             setType("increase");
@@ -32,23 +32,20 @@ export default function AdjustmentModal({ open, onClose, projectId, planningItem
 
     const handleSubmit = async () => {
         if (!reason || !amount) {
-            toast.error("Vui lòng nhập đầy đủ lý do và số tiền.");
+            toast.error("Vui lòng nhập đầy đủ thông tin.");
             return;
         }
         setLoading(true);
         try {
             if (isEditing) {
-                // Logic cập nhật
-                // *** SỬA LỖI TẠI ĐÂY: Dùng originalDocId thay vì id ***
                 const adjRef = doc(db, "projects", projectId, "planningItems", planningItem.id, "adjustments", adjustmentToEdit.originalDocId);
                 await updateDoc(adjRef, {
                     reason,
                     amount: Number(amount),
                     type,
                 });
-                toast.success("Cập nhật phát sinh thành công!");
+                toast.success("Cập nhật chi tiết thành công!");
             } else {
-                // Logic thêm mới (không đổi)
                 const adjustmentsRef = collection(db, "projects", projectId, "planningItems", planningItem.id, "adjustments");
                 await addDoc(adjustmentsRef, {
                     reason,
@@ -56,27 +53,34 @@ export default function AdjustmentModal({ open, onClose, projectId, planningItem
                     type,
                     createdAt: serverTimestamp(),
                 });
-                toast.success("Thêm phát sinh thành công!");
+                toast.success("Thêm chi tiết thành công!");
             }
-            onSaveSuccess(); // Gọi callback để đóng modal và reset
+            onSaveSuccess();
         } catch (error) {
-            console.error("Lỗi khi lưu phát sinh:", error);
+            console.error("Lỗi khi lưu chi tiết:", error);
             toast.error("Đã có lỗi xảy ra.");
         } finally {
             setLoading(false);
         }
     };
 
+    // THAY ĐỔI: Tùy chỉnh tiêu đề và nhãn của ô nhập liệu
+    const modalTitle = isEditing 
+        ? "Chỉnh sửa Chi tiết" 
+        : `Thêm Chi tiết cho: ${planningItem?.description}`;
+    
+    const reasonLabel = isStandaloneItem 
+        ? "Tên Khoản mục / Diễn giải"
+        : "Lý do phát sinh";
+
     return (
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-            <DialogTitle>
-                {isEditing ? "Chỉnh sửa Chi tiết Phát sinh" : "Thêm Chi tiết Phát sinh"} cho: <b>{planningItem?.description}</b>
-            </DialogTitle>
+            <DialogTitle>{modalTitle}</DialogTitle>
             <DialogContent>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 2 }}>
                     <TextField
                         autoFocus
-                        label="Lý do phát sinh"
+                        label={reasonLabel} // <== SỬ DỤNG NHÃN ĐỘNG
                         fullWidth
                         variant="outlined"
                         value={reason}
@@ -89,11 +93,12 @@ export default function AdjustmentModal({ open, onClose, projectId, planningItem
                         variant="outlined"
                         thousandSeparator="."
                         decimalSeparator=","
+                        suffix=" ₫"
                         value={amount}
                         onValueChange={({ floatValue }) => setAmount(floatValue || 0)}
                     />
                     <FormControl>
-                        <FormLabel>Loại phát sinh</FormLabel>
+                        <FormLabel>Loại</FormLabel>
                         <RadioGroup row value={type} onChange={(e) => setType(e.target.value)}>
                             <FormControlLabel value="increase" control={<Radio />} label="Phát sinh Tăng" />
                             <FormControlLabel value="decrease" control={<Radio />} label="Phát sinh Giảm" />

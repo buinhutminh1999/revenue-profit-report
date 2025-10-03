@@ -1469,7 +1469,6 @@ exports.ingestEvent = onRequest({ secrets: [BK_INGEST_SECRET], cors: true }, asy
     }
 });
 
-
 exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) => {
     const data = event.data?.data();
     if (!data) return;
@@ -1477,7 +1476,7 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
     const { machineId, eventId, createdAt } = data;
     const firestoreRef = db.collection("machineStatus").doc(machineId);
 
-    // THÊM MỚI: Lấy tham chiếu đến Realtime Database
+    // Lấy tham chiếu đến Realtime Database (RTDB)
     const rtdbRef = admin.database().ref(`/status/${machineId}`);
 
     const update = {
@@ -1489,7 +1488,7 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
 
     const eventNum = Number(eventId);
     const ONLINE_EVENTS = new Set([6005, 107, 4801, 506]);
-    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 507, 7000, 7002]);
+    const OFFLINE_EVENTS = new Set([6006, 6008, 1074, 42, 4800, 507, 7000, 7002]);
 
     if (ONLINE_EVENTS.has(eventNum)) {
         update.isOnline = true;
@@ -1502,21 +1501,29 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
         update.lastShutdownKind =
             (eventNum === 6006 || eventNum === 1074 || eventNum === 7000 || eventNum === 7002) ? "user" :
                 eventNum === 6008 ? "unexpected" :
-                    (eventNum === 42 || eventNum === 507) ? "sleep" :
+                    (eventNum === 42 || eventNum === 4800 || eventNum === 507) ? "sleep" : // Gộp 4800 (Khóa máy) vào nhóm sleep
                         "stale";
     }
 
-    // Luôn cập nhật trạng thái vào Firestore
+    // Luôn cập nhật trạng thái lịch sử vào Firestore
     await firestoreRef.set(update, { merge: true });
 
-    // THÊM MỚI: Nếu là sự kiện Sleep (42), cập nhật cả Realtime Database
-    if (eventNum === 42) {
-        console.log(`Sleep event detected for ${machineId}. Forcing offline status in RTDB.`);
+    // --- SỬA ĐỔI BẮT ĐẦU ---
+    // Chủ động cập nhật trạng thái real-time trên RTDB để giao diện phản hồi ngay lập tức
+    if (ONLINE_EVENTS.has(eventNum)) {
+        logger.log(`Online event ${eventNum} detected for ${machineId}. Forcing ONLINE status in RTDB.`);
+        await rtdbRef.set({
+            isOnline: true,
+            lastSeenAt: admin.database.ServerValue.TIMESTAMP
+        });
+    } else if (OFFLINE_EVENTS.has(eventNum)) {
+        logger.log(`Offline event ${eventNum} detected for ${machineId}. Forcing OFFLINE status in RTDB.`);
         await rtdbRef.set({
             isOnline: false,
             lastSeenAt: admin.database.ServerValue.TIMESTAMP
         });
     }
+    // --- SỬA ĐỔI KẾT THÚC ---
 });
 
 exports.getComputerUsageStats = onCall({ cors: true }, async (request) => {

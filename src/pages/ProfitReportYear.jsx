@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
     Box,
     Typography,
@@ -14,12 +14,67 @@ import {
     TextField,
     Button,
     MenuItem,
+    Tooltip,
+    Menu,
+    Checkbox,
+    ListItemText,
 } from "@mui/material";
 import { collection, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 import { toNum, formatNumber } from "../utils/numberUtils";
 import { FileDown, Save } from "lucide-react";
 import ProfitSummaryTable from "../reports/ProfitSummaryTable";
+// ✅ BƯỚC 1: IMPORT THƯ VIỆN VÀ CSS
+import { Resizable } from 'react-resizable';
+import 'react-resizable/css/styles.css';
+// ✅ THAY THẾ COMPONENT RESIZABLEHEADER CŨ BẰNG COMPONENT NÀY
+import { ViewColumn as ViewColumnIcon } from '@mui/icons-material'; // ✅ Thêm import icon
+
+const ResizableHeader = ({ onResize, width, children, ...restProps }) => {
+    if (!width) {
+        return <th {...restProps}>{children}</th>;
+    }
+
+    // Tạo một component riêng cho nút kéo
+    const CustomHandle = React.forwardRef((props, ref) => (
+        <span
+            ref={ref}
+            {...props}
+            style={{
+                position: 'absolute',
+                width: '10px',
+                height: '100%',
+                bottom: 0,
+                right: '-5px',
+                cursor: 'col-resize',
+                zIndex: 1,
+            }}
+        >
+            {/* Đây là đường kẻ dọc */}
+            <span style={{
+                position: 'absolute',
+                right: '5px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                height: '50%',
+                width: '2px',
+                backgroundColor: 'rgba(255, 255, 255, 0.5)',
+            }} />
+        </span>
+    ));
+
+    return (
+        <Resizable
+            width={width}
+            height={0}
+            handle={<CustomHandle />} // ✅ Sử dụng component nút kéo tùy chỉnh
+            onResize={onResize}
+            draggableOpts={{ enableUserSelectHack: false }}
+        >
+            <th {...restProps}>{children}</th>
+        </Resizable>
+    );
+};
 
 const useProfitReportData = (selectedYear) => {
     const [rows, setRows] = useState([]);
@@ -1421,6 +1476,8 @@ const useProfitReportData = (selectedYear) => {
 export default function ProfitReportYear() {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [tvMode, setTvMode] = useState(true);
+    // ✅ BƯỚC 1: THÊM CÁC STATE VÀ REF CẦN THIẾT
+    const [congTrinhColWidth, setCongTrinhColWidth] = useState(350); // Độ rộng ban đầu
 
     // ✅ SỬA LẠI PHẦN NÀY: LẤY `initialSummaryTargets` từ hook
     const {
@@ -1432,9 +1489,40 @@ export default function ProfitReportYear() {
         saveEditableData,
         editableRowNames,
     } = useProfitReportData(selectedYear);
-    const [summaryTargets, setSummaryTargets] = useState({});
+    // ✅ 1. THAY THẾ STATE CŨ BẰNG STATE MỚI NÀY
+    const [groupVisibility, setGroupVisibility] = useState({
+        revenue: true,  // Cho nhóm Doanh thu (gồm Q1-Q4 và cột Tổng)
+        cost: true,     // Cho nhóm Chi phí (gồm Q1-Q4 và cột Tổng)
+        profit: true,   // Cho nhóm Lợi nhuận (gồm Q1-Q4 và cột Tổng)
+        special: true,  // Cho các cột đặc biệt cuối cùng
+    });
 
-    // ✅ DÙNG useEffect ĐỂ CẬP NHẬT STATE KHI DỮ LIỆU TỪ HOOK THAY ĐỔI
+    // State cho Menu
+    const [anchorEl, setAnchorEl] = useState(null);
+    const open = Boolean(anchorEl);
+
+    // ✅ 2. (Tùy chọn) TẠO MAP ĐỂ HIỂN THỊ TÊN CỘT THÂN THIỆN
+    const columnLabels = {
+        revenue: 'Doanh Thu (Theo Quý & Tổng)',
+        cost: 'Chi Phí (Theo Quý & Tổng)',
+        profit: 'Lợi Nhuận (Theo Quý & Tổng)',
+        special: 'Các Cột Đặc Biệt (Vượt Lũy Kế,...)',
+    };
+
+    // Các hàm xử lý menu (chỉnh sửa tên biến cho nhất quán)
+    const handleColumnMenuClick = (event) => setAnchorEl(event.currentTarget);
+    const handleColumnMenuClose = () => setAnchorEl(null);
+    const handleToggleGroup = (groupKey) => {
+        setGroupVisibility((prev) => ({
+            ...prev,
+            [groupKey]: !prev[groupKey],
+        }));
+    };
+    const [summaryTargets, setSummaryTargets] = useState({});
+    // ✅ BƯỚC 4: TẠO HÀM CALLBACK MỚI CHO THƯ VIỆN
+    const handleColumnResize = useCallback((event, { size }) => {
+        setCongTrinhColWidth(size.width);
+    }, []);
     useEffect(() => {
         // Kiểm tra để đảm bảo initialSummaryTargets có dữ liệu
         if (Object.keys(initialSummaryTargets).length > 0) {
@@ -1607,7 +1695,9 @@ export default function ProfitReportYear() {
     };
 
     return (
+
         <Box sx={{ p: 3, bgcolor: "#f7faff", minHeight: "100vh" }}>
+
             {loading && (
                 <CircularProgress
                     sx={{
@@ -1663,6 +1753,21 @@ export default function ProfitReportYear() {
                         >
                             Xuất Excel
                         </Button>
+                        {/* ✅ 3. THÊM NÚT VÀ MENU TẠI ĐÂY */}
+                        <Tooltip title="Ẩn/Hiện cột">
+                            <Button variant="outlined" onClick={handleColumnMenuClick} startIcon={<ViewColumnIcon />}>
+                                Các cột
+                            </Button>
+                        </Tooltip>
+                        <Menu anchorEl={anchorEl} open={open} onClose={handleColumnMenuClose}>
+                            {/* ✅ 3. CẬP NHẬT MENU ĐỂ HIỂN THỊ ĐÚNG TÊN NHÓM CỘT */}
+                            {Object.keys(groupVisibility).map((key) => (
+                                <MenuItem key={key} onClick={() => handleToggleGroup(key)}>
+                                    <Checkbox checked={groupVisibility[key]} />
+                                    <ListItemText primary={columnLabels[key] || key.toUpperCase()} />
+                                </MenuItem>
+                            ))}
+                        </Menu>
                     </Stack>
                 </Box>
                 <ProfitSummaryTable
@@ -1679,271 +1784,106 @@ export default function ProfitReportYear() {
                         borderRadius: 2,
                     }}
                 >
-                    <Table stickyHeader size="small" sx={{ minWidth: 3800 }}>
+                 <Table stickyHeader size="small" sx={{ minWidth: 3800, tableLayout: 'fixed' }}>
                         <TableHead>
-                            <TableRow
-                                sx={{
-                                    "& th": {
-                                        backgroundColor: "#1565c0",
-                                        color: "#fff",
-                                        fontWeight: 700,
-                                        border: "1px solid #004c8f",
-                                    },
-                                }}
-                            >
-                                <TableCell
-                                    rowSpan={2}
-                                    align="center"
-                                    sx={{
-                                        ...cellStyle,
-                                        minWidth: 350,
-                                        position: "sticky",
-                                        left: 0,
-                                        zIndex: 110,
-                                        backgroundColor: "#1565c0",
-                                    }}
-                                >
+                            <TableRow sx={{ "& th": { backgroundColor: "#1565c0", color: "#fff", fontWeight: 700, border: "1px solid #004c8f" } }}>
+                                <ResizableHeader width={congTrinhColWidth} onResize={handleColumnResize} style={{ ...cellStyle, width: congTrinhColWidth, position: "sticky", left: 0, zIndex: 110, backgroundColor: "#1565c0", textAlign: 'center' }} rowSpan={2}>
                                     CÔNG TRÌNH
-                                </TableCell>
-                                <TableCell colSpan={4} align="center">
-                                    DOANH THU
-                                </TableCell>
-                                <TableCell rowSpan={2} align="center">
-                                    TỔNG DT NĂM
-                                </TableCell>
-                                <TableCell colSpan={4} align="center">
-                                    CHI PHÍ
-                                </TableCell>
-                                <TableCell rowSpan={2} align="center">
-                                    TỔNG CP NĂM
-                                </TableCell>
-                                <TableCell colSpan={4} align="center">
-                                    LỢI NHUẬN
-                                </TableCell>
-                                <TableCell rowSpan={2} align="center">
-                                    TỔNG LN NĂM
-                                </TableCell>
-                                <TableCell
-                                    rowSpan={2}
-                                    align="center"
-                                    sx={{ minWidth: 150 }}
-                                >
-                                    CP VƯỢT LŨY KẾ
-                                </TableCell>
-                                <TableCell
-                                    rowSpan={2}
-                                    align="center"
-                                    sx={{ minWidth: 150 }}
-                                >
-                                    CP CỘNG VÀO LN
-                                </TableCell>
-                                <TableCell
-                                    rowSpan={2}
-                                    align="center"
-                                    sx={{ minWidth: 200 }}
-                                >
-                                    GHI CHÚ
-                                </TableCell>
+                                </ResizableHeader>
+                                {groupVisibility.revenue && <TableCell colSpan={5} align="center">DOANH THU</TableCell>}
+                                {groupVisibility.cost && <TableCell colSpan={5} align="center">CHI PHÍ</TableCell>}
+                                {groupVisibility.profit && <TableCell colSpan={5} align="center">LỢI NHUẬN</TableCell>}
+                                {groupVisibility.special && (
+                                    <>
+                                        <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>CP VƯỢT LŨY KẾ</TableCell>
+                                        <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>CP CỘNG VÀO LN</TableCell>
+                                        <TableCell rowSpan={2} align="center" sx={{ minWidth: 200 }}>GHI CHÚ</TableCell>
+                                    </>
+                                )}
                             </TableRow>
-                            <TableRow
-                                sx={{
-                                    "& th": {
-                                        backgroundColor: "#1565c0",
-                                        color: "#fff",
-                                        fontWeight: 600,
-                                        border: "1px solid #004c8f",
-                                    },
-                                }}
-                            >
-                                <TableCell align="center">QUÝ 1</TableCell>
-                                <TableCell align="center">QUÝ 2</TableCell>
-                                <TableCell align="center">QUÝ 3</TableCell>
-                                <TableCell align="center">QUÝ 4</TableCell>
-                                <TableCell align="center">CP Q1</TableCell>
-                                <TableCell align="center">CP Q2</TableCell>
-                                <TableCell align="center">CP Q3</TableCell>
-                                <TableCell align="center">CP Q4</TableCell>
-                                <TableCell align="center">LN Q1</TableCell>
-                                <TableCell align="center">LN Q2</TableCell>
-                                <TableCell align="center">LN Q3</TableCell>
-                                <TableCell align="center">LN Q4</TableCell>
+                            <TableRow sx={{ "& th": { backgroundColor: "#1565c0", color: "#fff", fontWeight: 600, border: "1px solid #004c8f" } }}>
+                                {groupVisibility.revenue && (
+                                    <>
+                                        <TableCell align="center">QUÝ 1</TableCell>
+                                        <TableCell align="center">QUÝ 2</TableCell>
+                                        <TableCell align="center">QUÝ 3</TableCell>
+                                        <TableCell align="center">QUÝ 4</TableCell>
+                                        <TableCell align="center">TỔNG DT NĂM</TableCell>
+                                    </>
+                                )}
+                                {groupVisibility.cost && (
+                                    <>
+                                        <TableCell align="center">CP Q1</TableCell>
+                                        <TableCell align="center">CP Q2</TableCell>
+                                        <TableCell align="center">CP Q3</TableCell>
+                                        <TableCell align="center">CP Q4</TableCell>
+                                        <TableCell align="center">TỔNG CP NĂM</TableCell>
+                                    </>
+                                )}
+                                {groupVisibility.profit && (
+                                    <>
+                                        <TableCell align="center">LN Q1</TableCell>
+                                        <TableCell align="center">LN Q2</TableCell>
+                                        <TableCell align="center">LN Q3</TableCell>
+                                        <TableCell align="center">LN Q4</TableCell>
+                                        <TableCell align="center">TỔNG LN NĂM</TableCell>
+                                    </>
+                                )}
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {rows
-                                .filter((r) => {
-                                    const isSpecialHeaderRow =
-                                        r.name?.match(/^[IVX]+\./) ||
-                                        r.name
-                                            ?.toUpperCase()
-                                            .includes("LỢI NHUẬN") ||
-                                        r.name?.toUpperCase().includes("=>");
-                                    if (isSpecialHeaderRow) return true;
-                                    if (r.projectId) {
-                                        const hasFinancialData =
-                                            toNum(r.revenue) !== 0 ||
-                                            toNum(r.cost) !== 0 ||
-                                            toNum(r.costOverCumulative) !== 0 ||
-                                            toNum(r.costAddedToProfit) !== 0;
-                                        return hasFinancialData;
-                                    } else {
-                                        return true;
-                                    }
-                                })
-                                .map((r, idx) => (
-                                    <TableRow
-                                        key={`${r.name}-${idx}`}
-                                        sx={{
-                                            backgroundColor:
-                                                r.name === "IV. TỔNG"
-                                                    ? "#e8f5e9"
-                                                    : r.name?.match(/^[IVX]+\./)
-                                                        ? "#fff9c4"
-                                                        : isEditableRow(r.name)
-                                                            ? "#f3e5f5"
-                                                            : idx % 2 === 0
-                                                                ? "#ffffff"
-                                                                : "#f9f9f9",
-                                            "&:hover": { bgcolor: "#f0f4ff" },
-                                        }}
-                                    >
-                                        <TableCell
-                                            sx={{
-                                                ...cellStyle,
-                                                fontWeight:
-                                                    r.name?.match(
-                                                        /^[IVX]+\./
-                                                    ) ||
-                                                        r.name?.includes(
-                                                            "LỢI NHUẬN"
-                                                        )
-                                                        ? 700
-                                                        : 400,
-                                                minWidth: 350,
-                                                backgroundColor: "inherit",
-                                                position: "sticky",
-                                                left: 0,
-                                                zIndex: 99,
-                                                borderRight: "2px solid #ccc",
-                                            }}
-                                        >
-                                            {r.name}
-                                        </TableCell>
-                                        <TableCell align="right" sx={cellStyle}>
-                                            {format(r.revenueQ1)}
-                                        </TableCell>
-                                        <TableCell align="right" sx={cellStyle}>
-                                            {format(r.revenueQ2)}
-                                        </TableCell>
-                                        <TableCell align="right" sx={cellStyle}>
-                                            {format(r.revenueQ3)}
-                                        </TableCell>
-                                        <TableCell align="right" sx={cellStyle}>
-                                            {format(r.revenueQ4)}
-                                        </TableCell>
-                                        <TableCell
-                                            align="right"
-                                            sx={{
-                                                ...cellStyle,
-                                                fontWeight: "bold",
-                                                backgroundColor: "#e3f2fd",
-                                            }}
-                                        >
-                                            {format(r.revenue)}
-                                        </TableCell>
-                                        <TableCell align="right" sx={cellStyle}>
-                                            {format(r.costQ1)}
-                                        </TableCell>
-                                        <TableCell align="right" sx={cellStyle}>
-                                            {format(r.costQ2)}
-                                        </TableCell>
-                                        <TableCell align="right" sx={cellStyle}>
-                                            {format(r.costQ3)}
-                                        </TableCell>
-                                        <TableCell align="right" sx={cellStyle}>
-                                            {format(r.costQ4)}
-                                        </TableCell>
-                                        <TableCell
-                                            align="right"
-                                            sx={{
-                                                ...cellStyle,
-                                                fontWeight: "bold",
-                                                backgroundColor: "#e3f2fd",
-                                            }}
-                                        >
-                                            {format(r.cost)}
-                                        </TableCell>
-                                        <TableCell
-                                            align="right"
-                                            sx={{
-                                                ...cellStyle,
-                                                fontWeight: "bold",
-                                            }}
-                                        >
-                                            {format(r.profitQ1)}
-                                        </TableCell>
-                                        <TableCell
-                                            align="right"
-                                            sx={{
-                                                ...cellStyle,
-                                                fontWeight: "bold",
-                                            }}
-                                        >
-                                            {format(r.profitQ2)}
-                                        </TableCell>
-                                        <TableCell
-                                            align="right"
-                                            sx={{
-                                                ...cellStyle,
-                                                fontWeight: "bold",
-                                            }}
-                                        >
-                                            {format(r.profitQ3)}
-                                        </TableCell>
-                                        <TableCell
-                                            align="right"
-                                            sx={{
-                                                ...cellStyle,
-                                                fontWeight: "bold",
-                                            }}
-                                        >
-                                            {format(r.profitQ4)}
-                                        </TableCell>
-                                        <TableCell
-                                            align="right"
-                                            sx={{
-                                                ...cellStyle,
-                                                fontWeight: "bold",
-                                                backgroundColor: "#d1c4e9",
-                                                padding: "4px 8px",
-                                            }}
-                                        >
-                                            {isEditableRow(r.name) ? (
-                                                <ClickableEditCell
-                                                    rowName={r.name}
-                                                    field="profit"
-                                                    value={
-                                                        editableRows[r.name]
-                                                            ?.profit ||
-                                                        r.profit ||
-                                                        0
-                                                    }
-                                                />
-                                            ) : (
-                                                format(r.profit)
-                                            )}
-                                        </TableCell>
-                                        <TableCell align="right" sx={cellStyle}>
-                                            {format(r.costOverCumulative)}
-                                        </TableCell>
-                                        <TableCell align="right" sx={cellStyle}>
-                                            {format(r.costAddedToProfit)}
-                                        </TableCell>
-                                        <TableCell align="left" sx={cellStyle}>
-                                            {format(r.note)}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                            {rows.filter(r => {
+                                const isSpecialHeaderRow = r.name?.match(/^[IVX]+\./) || r.name?.toUpperCase().includes("LỢI NHUẬN") || r.name?.toUpperCase().includes("=>");
+                                if (isSpecialHeaderRow) return true;
+                                if (r.projectId) {
+                                    const hasFinancialData = toNum(r.revenue) !== 0 || toNum(r.cost) !== 0 || toNum(r.costOverCumulative) !== 0 || toNum(r.costAddedToProfit) !== 0;
+                                    return hasFinancialData;
+                                } else {
+                                    return true;
+                                }
+                            }).map((r, idx) => (
+                                <TableRow key={`${r.name}-${idx}`} sx={{ backgroundColor: r.name === "IV. TỔNG" ? "#e8f5e9" : r.name?.match(/^[IVX]+\./) ? "#fff9c4" : isEditableRow(r.name) ? "#f3e5f5" : idx % 2 === 0 ? "#ffffff" : "#f9f9f9", "&:hover": { bgcolor: "#f0f4ff" } }}>
+                                    <TableCell sx={{ ...cellStyle, fontWeight: r.name?.match(/^[IVX]+\./) || r.name?.includes("LỢI NHUẬN") ? 700 : 400, width: congTrinhColWidth, minWidth: congTrinhColWidth, backgroundColor: "inherit", position: "sticky", left: 0, zIndex: 99, borderRight: "2px solid #ccc", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {r.name}
+                                    </TableCell>
+                                    {groupVisibility.revenue && (
+                                        <>
+                                            <TableCell align="right" sx={cellStyle}>{format(r.revenueQ1)}</TableCell>
+                                            <TableCell align="right" sx={cellStyle}>{format(r.revenueQ2)}</TableCell>
+                                            <TableCell align="right" sx={cellStyle}>{format(r.revenueQ3)}</TableCell>
+                                            <TableCell align="right" sx={cellStyle}>{format(r.revenueQ4)}</TableCell>
+                                            <TableCell align="right" sx={{...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd"}}>{format(r.revenue)}</TableCell>
+                                        </>
+                                    )}
+                                    {groupVisibility.cost && (
+                                        <>
+                                            <TableCell align="right" sx={cellStyle}>{format(r.costQ1)}</TableCell>
+                                            <TableCell align="right" sx={cellStyle}>{format(r.costQ2)}</TableCell>
+                                            <TableCell align="right" sx={cellStyle}>{format(r.costQ3)}</TableCell>
+                                            <TableCell align="right" sx={cellStyle}>{format(r.costQ4)}</TableCell>
+                                            <TableCell align="right" sx={{...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd"}}>{format(r.cost)}</TableCell>
+                                        </>
+                                    )}
+                                    {groupVisibility.profit && (
+                                        <>
+                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ1)}</TableCell>
+                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ2)}</TableCell>
+                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ3)}</TableCell>
+                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ4)}</TableCell>
+                                            <TableCell align="right" sx={{...cellStyle, fontWeight: "bold", backgroundColor: "#d1c4e9", padding: "4px 8px"}}>
+                                                {isEditableRow(r.name) ? <ClickableEditCell rowName={r.name} field="profit" value={editableRows[r.name]?.profit || r.profit || 0} /> : format(r.profit)}
+                                            </TableCell>
+                                        </>
+                                    )}
+                                    {groupVisibility.special && (
+                                        <>
+                                            <TableCell align="right" sx={cellStyle}>{format(r.costOverCumulative)}</TableCell>
+                                            <TableCell align="right" sx={cellStyle}>{format(r.costAddedToProfit)}</TableCell>
+                                            <TableCell align="left" sx={cellStyle}>{format(r.note)}</TableCell>
+                                        </>
+                                    )}
+                                </TableRow>
+                            ))}
                         </TableBody>
                     </Table>
                 </TableContainer>

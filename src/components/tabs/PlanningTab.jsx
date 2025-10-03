@@ -101,11 +101,11 @@ const StatCard = ({ title, value, icon, color }) => {
                                 theme.palette.text.primary,
                             background: `linear-gradient(135deg, ${alpha(
                                 theme.palette[color]?.light ||
-                                    theme.palette.grey[300],
+                                theme.palette.grey[300],
                                 0.25
                             )} 0%, ${alpha(
                                 theme.palette[color]?.main ||
-                                    theme.palette.grey[500],
+                                theme.palette.grey[500],
                                 0.25
                             )} 100%)`,
                         }}
@@ -268,10 +268,10 @@ const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
                                         // HIỂN THỊ THAY ĐỔI RÕ RÀNG
                                         row.status === "update"
                                             ? `Cập nhật từ ${row.oldAmount.toLocaleString(
-                                                  "vi-VN"
-                                              )} ₫  ->  ${row.amount.toLocaleString(
-                                                  "vi-VN"
-                                              )} ₫`
+                                                "vi-VN"
+                                            )} ₫  ->  ${row.amount.toLocaleString(
+                                                "vi-VN"
+                                            )} ₫`
                                             : row.reason
                                     }
                                     secondaryTypographyProps={{
@@ -318,7 +318,7 @@ const PreviewSection = ({ previewRows, onConfirm, onCancel, isLoading }) => {
                     {isLoading
                         ? "Đang cập nhật..."
                         : // NỘI DUNG NÚT MỚI
-                          `Xác nhận & Cập nhật ${updateCount} mục`}
+                        `Xác nhận & Cập nhật ${updateCount} mục`}
                 </Button>
             </Stack>
         </Box>
@@ -447,11 +447,13 @@ export default function PlanningTab({ projectId }) {
     const [expandedRows, setExpandedRows] = useState(new Set());
     const initialSetupDone = useRef(false);
     const adjustmentUnsubscribes = useRef(new Map());
-  const suggestedPrefix = useMemo(() => {
+    const suggestedPrefix = useMemo(() => {
         const highestChar = getHighestPrefix(planningItems);
         return getNextPrefix(highestChar);
     }, [planningItems]); // Chỉ tính lại khi planningItems thay đổi
     // --- LOGIC FUNCTIONS (useCallback) ---
+    const [isStandaloneItem, setIsStandaloneItem] = useState(false);
+
     const populateInitialPlanningItems = useCallback(
         async (projectId, categoriesToPopulate) => {
             if (
@@ -495,91 +497,91 @@ export default function PlanningTab({ projectId }) {
         },
         []
     );
-const handleAddNewGroup = useCallback(async () => {
-    if (!newGroup.name || !newGroup.amount) {
-        toast.error("Vui lòng nhập đầy đủ Tên nhóm và Số tiền.");
-        return;
-    }
-
-    setIsAdding(true);
-    const batch = writeBatch(db);
-    const planningItemsRef = collection(db, "projects", projectId, "planningItems");
-
-    try {
-        const trimmedGroupName = newGroup.name.trim();
-        const match = trimmedGroupName.match(/^[A-Z](?=\.)/);
-
-        // =======================================================
-        // ==> LOGIC HOÀN CHỈNH <==
-        if (match) {
-            const newPrefix = match[0];
-            const oldDefaultGroupName = `${newPrefix}. Chi phí Khác`;
-
-            const itemsToRename = planningItems.filter(
-                (item) => item.itemGroup === oldDefaultGroupName && !item.isCustom
-            );
-
-            if (itemsToRename.length > 0) {
-                // Tự tính toán tiền tố mới ngay tại đây, không phụ thuộc vào `suggestedPrefix` nữa
-                
-                // 1. Tạo một danh sách các tiền tố đã tồn tại, BAO GỒM cả tiền tố của nhóm sắp thêm
-                const existingPrefixes = planningItems.map(item => item.itemGroup?.match(/^[A-Z](?=\.)/))
-                                                      .filter(Boolean)
-                                                      .map(m => m[0]);
-                
-                const allPrefixes = [...new Set([...existingPrefixes, newPrefix])].sort();
-                
-                // 2. Tìm tiền tố cao nhất trong danh sách mới này
-                const highestPrefix = allPrefixes[allPrefixes.length - 1];
-
-                // 3. Tạo ra tiền tố tiếp theo (ví dụ: nếu cao nhất là 'C', nó sẽ là 'D.')
-                const nextNewPrefix = getNextPrefix(highestPrefix); // Dùng lại helper function
-                
-                // 4. Tạo tên nhóm mới hoàn chỉnh
-                const newDefaultGroupName = `${nextNewPrefix.trim()} Chi phí Khác`;
-                
-toast(`Nhóm "${oldDefaultGroupName}" sẽ được đổi tên thành "${newDefaultGroupName}".`);
-
-                itemsToRename.forEach(itemToRename => {
-                    const itemRef = doc(planningItemsRef, itemToRename.id);
-                    batch.update(itemRef, {
-                        itemGroup: newDefaultGroupName,
-                    });
-                });
-            }
+    const handleAddNewGroup = useCallback(async () => {
+        if (!newGroup.name || !newGroup.amount) {
+            toast.error("Vui lòng nhập đầy đủ Tên nhóm và Số tiền.");
+            return;
         }
-        // =======================================================
 
-        const lastOrder =
-            planningItems.length > 0
-                ? Math.max(...planningItems.map((item) => item.order || 0))
-                : 0;
+        setIsAdding(true);
+        const batch = writeBatch(db);
+        const planningItemsRef = collection(db, "projects", projectId, "planningItems");
 
-        const newItemRef = doc(planningItemsRef);
-        batch.set(newItemRef, {
-            description: trimmedGroupName,
-            itemGroup: trimmedGroupName,
-            amount: Number(newGroup.amount),
-            order: lastOrder + 1,
-            createdAt: new Date(),
-            isCustom: true,
-        });
+        try {
+            const trimmedGroupName = newGroup.name.trim();
+            const match = trimmedGroupName.match(/^[A-Z](?=\.)/);
 
-        await batch.commit();
+            // =======================================================
+            // ==> LOGIC HOÀN CHỈNH <==
+            if (match) {
+                const newPrefix = match[0];
+                const oldDefaultGroupName = `${newPrefix}. Chi phí Khác`;
 
-        toast.success(`Đã thêm thành công nhóm "${trimmedGroupName}"`);
-        setNewGroup({ name: "", amount: "" });
+                const itemsToRename = planningItems.filter(
+                    (item) => item.itemGroup === oldDefaultGroupName && !item.isCustom
+                );
 
-    } catch (error) {
-        console.error("Error adding new group with renaming: ", error);
-        // Lỗi này có thể là do trùng tên nhóm (ví dụ: đã có 'D. ABC' và bạn lại thêm 'D. XYZ')
-        // Hoặc do lỗi bảo mật của Firestore.
-        toast.error("Thao tác thất bại. Có thể do trùng tên hoặc lỗi hệ thống.");
-    } finally {
-        setIsAdding(false);
-    }
-    // Bỏ `suggestedPrefix` ra khỏi dependencies
-}, [projectId, newGroup, planningItems]);
+                if (itemsToRename.length > 0) {
+                    // Tự tính toán tiền tố mới ngay tại đây, không phụ thuộc vào `suggestedPrefix` nữa
+
+                    // 1. Tạo một danh sách các tiền tố đã tồn tại, BAO GỒM cả tiền tố của nhóm sắp thêm
+                    const existingPrefixes = planningItems.map(item => item.itemGroup?.match(/^[A-Z](?=\.)/))
+                        .filter(Boolean)
+                        .map(m => m[0]);
+
+                    const allPrefixes = [...new Set([...existingPrefixes, newPrefix])].sort();
+
+                    // 2. Tìm tiền tố cao nhất trong danh sách mới này
+                    const highestPrefix = allPrefixes[allPrefixes.length - 1];
+
+                    // 3. Tạo ra tiền tố tiếp theo (ví dụ: nếu cao nhất là 'C', nó sẽ là 'D.')
+                    const nextNewPrefix = getNextPrefix(highestPrefix); // Dùng lại helper function
+
+                    // 4. Tạo tên nhóm mới hoàn chỉnh
+                    const newDefaultGroupName = `${nextNewPrefix.trim()} Chi phí Khác`;
+
+                    toast(`Nhóm "${oldDefaultGroupName}" sẽ được đổi tên thành "${newDefaultGroupName}".`);
+
+                    itemsToRename.forEach(itemToRename => {
+                        const itemRef = doc(planningItemsRef, itemToRename.id);
+                        batch.update(itemRef, {
+                            itemGroup: newDefaultGroupName,
+                        });
+                    });
+                }
+            }
+            // =======================================================
+
+            const lastOrder =
+                planningItems.length > 0
+                    ? Math.max(...planningItems.map((item) => item.order || 0))
+                    : 0;
+
+            const newItemRef = doc(planningItemsRef);
+            batch.set(newItemRef, {
+                description: trimmedGroupName,
+                itemGroup: trimmedGroupName,
+                amount: Number(newGroup.amount),
+                order: lastOrder + 1,
+                createdAt: new Date(),
+                isCustom: true,
+            });
+
+            await batch.commit();
+
+            toast.success(`Đã thêm thành công nhóm "${trimmedGroupName}"`);
+            setNewGroup({ name: "", amount: "" });
+
+        } catch (error) {
+            console.error("Error adding new group with renaming: ", error);
+            // Lỗi này có thể là do trùng tên nhóm (ví dụ: đã có 'D. ABC' và bạn lại thêm 'D. XYZ')
+            // Hoặc do lỗi bảo mật của Firestore.
+            toast.error("Thao tác thất bại. Có thể do trùng tên hoặc lỗi hệ thống.");
+        } finally {
+            setIsAdding(false);
+        }
+        // Bỏ `suggestedPrefix` ra khỏi dependencies
+    }, [projectId, newGroup, planningItems]);
     const handleToggleGroup = useCallback(
         (groupName) => {
             const newExpanded = new Set(expandedGroups);
@@ -609,6 +611,8 @@ toast(`Nhóm "${oldDefaultGroupName}" sẽ được đổi tên thành "${newDef
 
     const handleOpenModalForAdd = (item) => {
         setCurrentItemForModal(item);
+        // THAY ĐỔI: Kiểm tra xem item có phải là nhóm tự tạo (standalone) không
+        setIsStandaloneItem(item.isTopLevel || false);
         setAdjustmentToEdit(null);
         setIsModalOpen(true);
     };
@@ -623,6 +627,7 @@ toast(`Nhóm "${oldDefaultGroupName}" sẽ được đổi tên thành "${newDef
         setIsModalOpen(false);
         setCurrentItemForModal(null);
         setAdjustmentToEdit(null);
+        setIsStandaloneItem(false); // Reset lại state khi đóng
     };
 
     const handleDeleteAdjustment = async (parentItemId, adjId) => {
@@ -733,77 +738,119 @@ toast(`Nhóm "${oldDefaultGroupName}" sẽ được đổi tên thành "${newDef
             }
             groups.get(groupName).push(item);
         });
+
         const flatRows = [];
         const sortedGroupKeys = Array.from(groups.keys()).sort((a, b) =>
             a.localeCompare(b)
         );
+
         sortedGroupKeys.forEach((groupName) => {
             const children = groups.get(groupName);
-            const isGroupExpanded = expandedGroups.has(groupName);
             const isStandaloneGroup =
                 children.length === 1 && children[0].isCustom;
-            let totalIncreaseForGroup = 0;
-            let totalDecreaseForGroup = 0;
-            children.forEach((child) => {
-                const adjs = adjustmentsData[child.id] || [];
-                totalIncreaseForGroup += adjs
+
+            // ======================= LOGIC MỚI ĐÃ THAY ĐỔI =======================
+            if (isStandaloneGroup) {
+                // NẾU LÀ NHÓM TỰ TẠO (chỉ có 1 mình nó), thì render nó như một HẠNG MỤC CHA
+                const theItem = children[0];
+                const itemAdjustments = adjustmentsData[theItem.id] || [];
+                const totalIncrease = itemAdjustments
                     .filter((a) => a.type === "increase")
                     .reduce((sum, a) => sum + a.amount, 0);
-                totalDecreaseForGroup += adjs
+                const totalDecrease = itemAdjustments
                     .filter((a) => a.type === "decrease")
                     .reduce((sum, a) => sum + a.amount, 0);
-            });
-            flatRows.push({
-                id: groupName,
-                rowType: "groupHeader",
-                description: groupName,
-                amount: children.reduce(
-                    (sum, item) => sum + (item.amount || 0),
-                    0
-                ),
-                isExpanded: isGroupExpanded,
-                childrenCount: children.length,
-                isStandalone: isStandaloneGroup,
-                increaseAmount: totalIncreaseForGroup,
-                decreaseAmount: totalDecreaseForGroup,
-            });
-            if (!isStandaloneGroup && isGroupExpanded) {
-                children.forEach((childItem) => {
-                    const itemAdjustments = adjustmentsData[childItem.id] || [];
-                    const totalIncrease = itemAdjustments
-                        .filter((a) => a.type === "increase")
-                        .reduce((sum, a) => sum + a.amount, 0);
-                    const totalDecrease = itemAdjustments
-                        .filter((a) => a.type === "decrease")
-                        .reduce((sum, a) => sum + a.amount, 0);
-                    flatRows.push({
-                        ...childItem,
-                        id: childItem.id,
-                        rowType: "parent",
-                        increaseAmount: totalIncrease,
-                        decreaseAmount: totalDecrease,
-                    });
-                    if (expandedRows.has(childItem.id)) {
-                        if (loadingAdjustments.has(childItem.id)) {
-                        } else if (itemAdjustments.length > 0) {
-                            itemAdjustments.forEach((adj) => {
-                                flatRows.push({
-                                    ...adj,
-                                    id: `${childItem.id}-${adj.id}`,
-                                    originalDocId: adj.id,
-                                    parentId: childItem.id,
-                                    rowType: "adjustment",
-                                });
-                            });
-                        } else {
-                            flatRows.push({
-                                id: `empty-${childItem.id}`,
-                                parentId: childItem.id,
-                                rowType: "empty",
-                            });
-                        }
-                    }
+
+                // Thêm trực tiếp vào flatRows với rowType là 'parent'
+                flatRows.push({
+                    ...theItem,
+                    id: theItem.id,
+                    rowType: "parent", // QUAN TRỌNG: Đổi thành 'parent' để có thể tương tác
+                    increaseAmount: totalIncrease,
+                    decreaseAmount: totalDecrease,
+                    isTopLevel: true, // Thêm cờ để xử lý thụt lề cho đúng
                 });
+
+                // Logic hiển thị chi tiết phát sinh (nếu hàng được mở rộng)
+                if (expandedRows.has(theItem.id)) {
+                    if (loadingAdjustments.has(theItem.id)) {
+                        // (Giữ nguyên logic loading)
+                    } else if (itemAdjustments.length > 0) {
+                        itemAdjustments.forEach((adj) => {
+                            flatRows.push({
+                                ...adj,
+                                id: `${theItem.id}-${adj.id}`,
+                                originalDocId: adj.id,
+                                parentId: theItem.id,
+                                rowType: "adjustment",
+                            });
+                        });
+                    } else {
+                        flatRows.push({
+                            id: `empty-${theItem.id}`,
+                            parentId: theItem.id,
+                            rowType: "empty",
+                        });
+                    }
+                }
+            } else {
+                // NẾU LÀ NHÓM BÌNH THƯỜNG (có nhiều hạng mục con), giữ nguyên logic cũ
+                const isGroupExpanded = expandedGroups.has(groupName);
+                let totalIncreaseForGroup = 0;
+                let totalDecreaseForGroup = 0;
+                children.forEach((child) => {
+                    const adjs = adjustmentsData[child.id] || [];
+                    totalIncreaseForGroup += adjs.filter(a => a.type === 'increase').reduce((sum, a) => sum + a.amount, 0);
+                    totalDecreaseForGroup += adjs.filter(a => a.type === 'decrease').reduce((sum, a) => sum + a.amount, 0);
+                });
+
+                flatRows.push({
+                    id: groupName,
+                    rowType: "groupHeader",
+                    description: groupName,
+                    amount: children.reduce((sum, item) => sum + (item.amount || 0), 0),
+                    isExpanded: isGroupExpanded,
+                    childrenCount: children.length,
+                    isStandalone: false, // Sửa lại cờ này
+                    increaseAmount: totalIncreaseForGroup,
+                    decreaseAmount: totalDecreaseForGroup,
+                });
+
+                if (isGroupExpanded) {
+                    children.forEach((childItem) => {
+                        const itemAdjustments = adjustmentsData[childItem.id] || [];
+                        const totalIncrease = itemAdjustments.filter(a => a.type === 'increase').reduce((sum, a) => sum + a.amount, 0);
+                        const totalDecrease = itemAdjustments.filter(a => a.type === 'decrease').reduce((sum, a) => sum + a.amount, 0);
+
+                        flatRows.push({
+                            ...childItem,
+                            id: childItem.id,
+                            rowType: 'parent',
+                            increaseAmount: totalIncrease,
+                            decreaseAmount: totalDecrease
+                        });
+
+                        if (expandedRows.has(childItem.id)) {
+                            if (itemAdjustments.length > 0) {
+                                itemAdjustments.forEach((adj) => {
+                                    flatRows.push({
+                                        ...adj,
+                                        id: `${childItem.id}-${adj.id}`,
+                                        originalDocId: adj.id,
+                                        parentId: childItem.id,
+                                        rowType: "adjustment",
+                                    });
+                                });
+                            } else {
+                                flatRows.push({
+                                    id: `empty-${childItem.id}`,
+                                    parentId: childItem.id,
+                                    rowType: "empty",
+                                });
+                            }
+                        }
+                    });
+                }
             }
         });
         return flatRows;
@@ -816,328 +863,226 @@ toast(`Nhóm "${oldDefaultGroupName}" sẽ được đổi tên thành "${newDef
     ]);
 
     const columns = useMemo(
-        () => [
-            {
-                field: "description",
-                headerName: "Nhóm / Diễn Giải",
-                flex: 1,
-                minWidth: 450,
-                renderCell: (params) => {
-                    if (params.row.rowType === "groupHeader") {
-                        const isStandalone = params.row.isStandalone;
-                        return (
-                            <Stack
-                                direction="row"
-                                alignItems="center"
-                                spacing={1}
-                                sx={{ pl: 1, height: "100%" }}
-                            >
-                                {!isStandalone ? (
-                                    <IconButton
-                                        size="small"
-                                        onClick={() =>
-                                            handleToggleGroup(params.row.id)
-                                        }
-                                        sx={{ p: 0.5 }}
-                                    >
-                                        {params.row.isExpanded ? (
-                                            <ExpandMoreIcon />
-                                        ) : (
-                                            <ChevronRightIcon />
-                                        )}
-                                    </IconButton>
-                                ) : (
-                                    <Box sx={{ width: 32, height: 32 }} />
-                                )}
-                                <Typography fontWeight="bold">
-                                    {params.row.description}
-                                    {!isStandalone &&
-                                        ` (${params.row.childrenCount} mục)`}
-                                </Typography>
-                            </Stack>
-                        );
-                    }
-                    if (params.row.rowType === "parent") {
-                        const isItemExpanded = expandedRows.has(params.row.id);
-                        const isLoadingAdjustments = loadingAdjustments.has(
-                            params.row.id
-                        );
-                        const adjustmentsCount =
-                            adjustmentsData[params.row.id]?.length || 0;
-                        return (
-                            <Stack
-                                direction="row"
-                                alignItems="center"
-                                spacing={1}
-                                sx={{ pl: 5, height: "100%" }}
-                            >
-                                <IconButton
-                                    size="small"
-                                    onClick={() =>
-                                        handleToggleRow(params.row.id)
-                                    }
-                                    sx={{ p: 0.5 }}
-                                >
-                                    {isLoadingAdjustments ? (
-                                        <CircularProgress size={18} />
-                                    ) : isItemExpanded ? (
-                                        <ExpandMoreIcon />
-                                    ) : (
-                                        <ChevronRightIcon />
-                                    )}
-                                </IconButton>
-                                <Typography variant="body2">
-                                    {params.row.description}
-                                </Typography>
-                                {adjustmentsCount > 0 && (
-                                    <Chip
-                                        label={`${adjustmentsCount} chi tiết`}
-                                        size="small"
-                                        sx={{ height: 20, fontSize: "0.75rem" }}
-                                    />
-                                )}
-                            </Stack>
-                        );
-                    }
-                    if (params.row.rowType === "adjustment") {
-                        const isIncrease = params.row.type === "increase";
-                        return (
-                            <Stack
-                                direction="row"
-                                alignItems="center"
-                                sx={{ pl: 10, height: "100%" }}
-                            >
-                                <Typography
-                                    sx={{
-                                        mr: 1,
-                                        fontFamily: "monospace",
-                                        color: "text.secondary",
-                                    }}
-                                >
-                                    └─
-                                </Typography>
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        fontStyle: "italic",
-                                        color: "text.secondary",
-                                    }}
-                                >
-                                    ({isIncrease ? "Tăng" : "Giảm"}){" "}
-                                    {params.row.reason}
-                                </Typography>
-                            </Stack>
-                        );
-                    }
-                    if (params.row.rowType === "empty") {
-                        return (
-                            <Stack
-                                direction="row"
-                                alignItems="center"
-                                sx={{ pl: 10, height: "100%" }}
-                            >
-                                <Typography
-                                    sx={{
-                                        mr: 1,
-                                        fontFamily: "monospace",
-                                        color: "text.secondary",
-                                    }}
-                                >
-                                    └─
-                                </Typography>
-                                <InfoOutlinedIcon
-                                    fontSize="small"
-                                    sx={{ mr: 1, color: "text.secondary" }}
-                                />
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        fontStyle: "italic",
-                                        color: "text.secondary",
-                                    }}
-                                >
-                                    Chưa có phát sinh chi tiết
-                                </Typography>
-                            </Stack>
-                        );
-                    }
-                    return null;
-                },
-            },
-            {
-                field: "amount",
-                headerName: "Kế hoạch",
-                width: 150,
-                type: "number",
-                align: "right",
-                headerAlign: "right",
-                renderCell: (params) => {
-                    if (
-                        params.row.rowType === "groupHeader" ||
-                        params.row.rowType === "parent"
-                    ) {
-                        return (
-                            <Typography
-                                variant="body2"
-                                sx={{
-                                    fontFamily: "monospace",
-                                    fontWeight:
-                                        params.row.rowType === "groupHeader"
-                                            ? 700
-                                            : 400,
-                                }}
-                            >
-                                {Number(params.value || 0).toLocaleString(
-                                    "vi-VN"
-                                )}
+    () => [
+        {
+            field: "description",
+            headerName: "Nhóm / Diễn Giải",
+            flex: 1,
+            minWidth: 450,
+            renderCell: (params) => {
+                if (params.row.rowType === "groupHeader") {
+                    return (
+                        <Stack direction="row" alignItems="center" spacing={1} sx={{ pl: 1, height: "100%" }}>
+                            <IconButton size="small" onClick={() => handleToggleGroup(params.row.id)} sx={{ p: 0.5 }}>
+                                {params.row.isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+                            </IconButton>
+                            <Typography fontWeight="bold">
+                                {params.row.description} ({params.row.childrenCount} mục)
                             </Typography>
-                        );
-                    }
-                    return "";
-                },
+                        </Stack>
+                    );
+                }
+                if (params.row.rowType === "parent") {
+                    const isItemExpanded = expandedRows.has(params.row.id);
+                    const isLoadingAdjustments = loadingAdjustments.has(params.row.id);
+                    const adjustmentsCount = adjustmentsData[params.row.id]?.length || 0;
+                    return (
+                        <Stack
+                            direction="row"
+                            alignItems="center"
+                            spacing={1}
+                            sx={{ pl: params.row.isTopLevel ? 1 : 5, height: "100%" }}
+                        >
+                            <IconButton size="small" onClick={() => handleToggleRow(params.row.id)} sx={{ p: 0.5 }}>
+                                {isLoadingAdjustments ? ( <CircularProgress size={18} /> ) : isItemExpanded ? ( <ExpandMoreIcon /> ) : ( <ChevronRightIcon /> )}
+                            </IconButton>
+                            <Typography variant="body2" fontWeight={params.row.isTopLevel ? 'bold' : 'normal'}>
+                                {params.row.description}
+                            </Typography>
+                            {adjustmentsCount > 0 && (
+                                <Chip label={`${adjustmentsCount} chi tiết`} size="small" sx={{ height: 20, fontSize: "0.75rem" }}/>
+                            )}
+                        </Stack>
+                    );
+                }
+                if (params.row.rowType === "adjustment") {
+                    const isIncrease = params.row.type === "increase";
+                    // Tìm parent của adjustment này để xem nó có phải isTopLevel không
+                    const parentItem = processedRows.find(row => row.id === params.row.parentId);
+                    const paddingLeft = parentItem?.isTopLevel ? 6 : 10;
+                    return (
+                        <Stack direction="row" alignItems="center" sx={{ pl: paddingLeft, height: "100%" }}>
+                            <Typography sx={{ mr: 1, fontFamily: "monospace", color: "text.secondary" }}>└─</Typography>
+                            <Typography variant="body2" sx={{ fontStyle: "italic", color: "text.secondary" }}>
+                                ({isIncrease ? "Tăng" : "Giảm"}) {params.row.reason}
+                            </Typography>
+                        </Stack>
+                    );
+                }
+                if (params.row.rowType === "empty") {
+                    const parentItem = processedRows.find(row => row.id === params.row.parentId);
+                    const paddingLeft = parentItem?.isTopLevel ? 6 : 10;
+                     return (
+                        <Stack direction="row" alignItems="center" sx={{ pl: paddingLeft, height: "100%" }}>
+                             <Typography sx={{mr: 1, fontFamily: "monospace", color: "text.secondary" }}>└─</Typography>
+                             <InfoOutlinedIcon fontSize="small" sx={{ mr: 1, color: "text.secondary" }} />
+                             <Typography variant="body2" sx={{ fontStyle: "italic", color: "text.secondary" }}>
+                                 Chưa có chi tiết
+                             </Typography>
+                         </Stack>
+                     );
+                }
+                return null;
             },
-            {
-                field: "adjustmentAmount",
-                headerName: "Phát sinh",
-                width: 150,
-                type: "number",
-                align: "right",
-                headerAlign: "right",
-                valueGetter: (v, row) =>
-                    row.rowType === "adjustment"
-                        ? row.type === "increase"
-                            ? row.amount
-                            : -row.amount
-                        : null,
-                renderCell: (params) => {
-                    if (params.value === null) return "";
-                    const isIncrease = params.value >= 0;
+        },
+        {
+            field: "amount",
+            headerName: "Kế hoạch",
+            width: 150,
+            type: "number",
+            align: "right",
+            headerAlign: "right",
+            renderCell: (params) => {
+                if (
+                    params.row.rowType === "groupHeader" ||
+                    params.row.rowType === "parent"
+                ) {
                     return (
                         <Typography
                             variant="body2"
                             sx={{
                                 fontFamily: "monospace",
-                                color: isIncrease
-                                    ? "success.dark"
-                                    : "error.dark",
-                                fontWeight: 500,
+                                fontWeight:
+                                    params.row.rowType === "groupHeader" || params.row.isTopLevel
+                                        ? 700
+                                        : 400,
                             }}
                         >
-                            {`${isIncrease ? "+" : ""}${Number(
-                                params.value
-                            ).toLocaleString("vi-VN")}`}
+                            {Number(params.value || 0).toLocaleString("vi-VN")}
                         </Typography>
                     );
-                },
+                }
+                return "";
             },
-            {
-                field: "total",
-                headerName: "Thành tiền",
-                width: 160,
-                type: "number",
-                align: "right",
-                headerAlign: "right",
-                valueGetter: (v, row) =>
-                    row.rowType === "groupHeader" || row.rowType === "parent"
-                        ? (row.amount || 0) +
-                          (row.increaseAmount || 0) -
-                          (row.decreaseAmount || 0)
-                        : null,
-                renderCell: (params) => {
-                    if (params.value === null) return "";
+        },
+        {
+            field: "adjustmentAmount",
+            headerName: "Phát sinh",
+            width: 150,
+            type: "number",
+            align: "right",
+            headerAlign: "right",
+            valueGetter: (v, row) =>
+                row.rowType === "adjustment"
+                    ? row.type === "increase"
+                        ? row.amount
+                        : -row.amount
+                    : null,
+            renderCell: (params) => {
+                if (params.value === null) return "";
+                const isIncrease = params.value >= 0;
+                return (
+                    <Typography
+                        variant="body2"
+                        sx={{
+                            fontFamily: "monospace",
+                            color: isIncrease ? "success.dark" : "error.dark",
+                            fontWeight: 500,
+                        }}
+                    >
+                        {`${isIncrease ? "+" : ""}${Number(
+                            params.value
+                        ).toLocaleString("vi-VN")}`}
+                    </Typography>
+                );
+            },
+        },
+        {
+            field: "total",
+            headerName: "Thành tiền",
+            width: 160,
+            type: "number",
+            align: "right",
+            headerAlign: "right",
+            valueGetter: (v, row) =>
+                row.rowType === "groupHeader" || row.rowType === "parent"
+                    ? (row.amount || 0) +
+                      (row.increaseAmount || 0) -
+                      (row.decreaseAmount || 0)
+                    : null,
+            renderCell: (params) => {
+                if (params.value === null) return "";
+                return (
+                    <Typography
+                        variant="body2"
+                        sx={{
+                            fontFamily: "monospace",
+                            fontWeight: 700,
+                            color: "primary.main",
+                        }}
+                    >
+                        {Number(params.value).toLocaleString("vi-VN")}
+                    </Typography>
+                );
+            },
+        },
+        {
+            field: "actions",
+            headerName: "Thao tác",
+            width: 150,
+            align: "center",
+            headerAlign: "center",
+            renderCell: (params) => {
+                if (params.row.rowType === "parent") {
+                    const buttonText = params.row.isTopLevel ? "Thêm Chi tiết" : "Phát sinh";
                     return (
-                        <Typography
-                            variant="body2"
-                            sx={{
-                                fontFamily: "monospace",
-                                fontWeight: 700,
-                                color: "primary.main",
-                            }}
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<AddIcon />}
+                            onClick={() => handleOpenModalForAdd(params.row)}
                         >
-                            {Number(params.value).toLocaleString("vi-VN")}
-                        </Typography>
+                            {buttonText}
+                        </Button>
                     );
-                },
+                }
+                if (params.row.rowType === "adjustment") {
+                    const parentItem = planningItems.find(
+                        (p) => p.id === params.row.parentId
+                    );
+                    return (
+                        <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
+                            <Tooltip title="Chỉnh sửa">
+                                <IconButton size="small" onClick={() => handleOpenModalForEdit( parentItem, params.row )}>
+                                    <EditIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Xóa">
+                                <IconButton size="small" onClick={() => handleDeleteAdjustment( params.row.parentId, params.row.originalDocId )} color="error">
+                                    <DeleteIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                        </Stack>
+                    );
+                }
+                return null;
             },
-            {
-                field: "actions",
-                headerName: "Thao tác",
-                width: 150,
-                align: "center",
-                headerAlign: "center",
-                renderCell: (params) => {
-                    if (params.row.rowType === "parent") {
-                        return (
-                            <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={<AddIcon />}
-                                onClick={() =>
-                                    handleOpenModalForAdd(params.row)
-                                }
-                            >
-                                Thêm
-                            </Button>
-                        );
-                    }
-                    if (params.row.rowType === "adjustment") {
-                        const parentItem = planningItems.find(
-                            (p) => p.id === params.row.parentId
-                        );
-                        return (
-                            <Stack
-                                direction="row"
-                                spacing={1}
-                                alignItems="center"
-                                justifyContent="center"
-                            >
-                                <Tooltip title="Chỉnh sửa">
-                                    <IconButton
-                                        size="small"
-                                        onClick={() =>
-                                            handleOpenModalForEdit(
-                                                parentItem,
-                                                params.row
-                                            )
-                                        }
-                                    >
-                                        <EditIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Xóa">
-                                    <IconButton
-                                        size="small"
-                                        onClick={() =>
-                                            handleDeleteAdjustment(
-                                                params.row.parentId,
-                                                params.row.originalDocId
-                                            )
-                                        }
-                                        color="error"
-                                    >
-                                        <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
-                            </Stack>
-                        );
-                    }
-                    return null;
-                },
-            },
-        ],
-        [
-            expandedGroups,
-            expandedRows,
-            loadingAdjustments,
-            adjustmentsData,
-            planningItems,
-            handleToggleGroup,
-            handleToggleRow,
-            handleOpenModalForAdd,
-            handleDeleteAdjustment,
-            handleOpenModalForEdit,
-        ]
-    );
+        },
+    ],
+    [
+        expandedGroups,
+        expandedRows,
+        loadingAdjustments,
+        adjustmentsData,
+        planningItems, // Thêm planningItems để có thể tìm parentItem
+        processedRows, // Thêm processedRows để tìm parent cho việc tính padding
+        handleToggleGroup,
+        handleToggleRow,
+        handleOpenModalForAdd,
+        handleDeleteAdjustment,
+        handleOpenModalForEdit,
+    ]
+);
 
     const { totalPlannedAmount, totalFinalAmount, totalIncurredAmount } =
         useMemo(() => {
@@ -1171,17 +1116,17 @@ toast(`Nhóm "${oldDefaultGroupName}" sẽ được đổi tên thành "${newDef
         }, [planningItems, adjustmentsData]);
 
     const estimatedProfit = contractValue - totalFinalAmount;
-// ==> THÊM ĐOẠN NÀY VÀO
-// ==> THAY ĐỔI ĐOẠN CODE NÀY
-const estimatedProfitMargin = useMemo(() => {
-    // Tránh chia cho 0 nếu hợp đồng chưa có giá trị
-    if (!contractValue || contractValue === 0) {
-        return 0;
-    }
-    // Thay đổi duy nhất ở dòng return này
-    return (estimatedProfit / contractValue) * 100;
-}, [estimatedProfit, contractValue]);
- // ==> THÊM HOOK MỚI NÀY VÀO
+    // ==> THÊM ĐOẠN NÀY VÀO
+    // ==> THAY ĐỔI ĐOẠN CODE NÀY
+    const estimatedProfitMargin = useMemo(() => {
+        // Tránh chia cho 0 nếu hợp đồng chưa có giá trị
+        if (!contractValue || contractValue === 0) {
+            return 0;
+        }
+        // Thay đổi duy nhất ở dòng return này
+        return (estimatedProfit / contractValue) * 100;
+    }, [estimatedProfit, contractValue]);
+    // ==> THÊM HOOK MỚI NÀY VÀO
     useEffect(() => {
         // Chỉ chạy khi có projectId và projectData đã được tải
         if (!projectId || !projectData) return;
@@ -1198,7 +1143,7 @@ const estimatedProfitMargin = useMemo(() => {
                     estimatedProfit: estimatedProfit, // Lợi nhuận dự kiến
                     estimatedProfitMargin: estimatedProfitMargin // Tỷ suất lợi nhuận
                 });
-                 console.log("Project stats updated successfully!");
+                console.log("Project stats updated successfully!");
             } catch (error) {
                 console.error("Failed to update project stats:", error);
                 // Bạn có thể thêm một toast.error nhỏ ở đây nếu muốn
@@ -1211,9 +1156,9 @@ const estimatedProfitMargin = useMemo(() => {
             clearTimeout(handler);
         };
 
-    // Phụ thuộc vào các giá trị đã tính toán và projectId
+        // Phụ thuộc vào các giá trị đã tính toán và projectId
     }, [projectId, projectData, totalPlannedAmount, totalFinalAmount, estimatedProfit, estimatedProfitMargin]);
-useEffect(() => {
+    useEffect(() => {
         if (!projectId) {
             setLoading(false);
             return;
@@ -1230,7 +1175,7 @@ useEffect(() => {
                 id: d.id,
                 ...d.data(),
             }));
-            
+
             setPlanningItems(newItems);
             setLoading(false);
 
@@ -1260,7 +1205,7 @@ useEffect(() => {
             setLoading(false);
             toast.error("Lỗi khi tải dữ liệu kế hoạch.");
         });
-        
+
         // 3. Lấy thông tin chính của dự án (chỉ một lần)
         const fetchProjectData = async () => {
             const projectRef = doc(db, "projects", projectId);
@@ -1386,7 +1331,7 @@ useEffect(() => {
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                         <TextField
                             label="Tên Nhóm Chi Phí"
-                    placeholder={`Gợi ý: ${suggestedPrefix}Tên nhóm`}
+                            placeholder={`Gợi ý: ${suggestedPrefix}Tên nhóm`}
                             value={newGroup.name}
                             onChange={(e) =>
                                 setNewGroup({
@@ -1500,21 +1445,21 @@ useEffect(() => {
 
                 <Box>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h5" fontWeight={700}>
-            Danh sách Kế hoạch & Chi tiết Phát sinh
-        </Typography>
+                        <Typography variant="h5" fontWeight={700}>
+                            Danh sách Kế hoạch & Chi tiết Phát sinh
+                        </Typography>
 
-        {/* ==> THÊM NÚT BẤM NÀY VÀO <== */}
-        <Button
-            variant="outlined"
-            startIcon={<SyncAltIcon />}
-            onClick={() => syncPlanningItems(projectId, projectData.type)}
-            // Vô hiệu hóa nút khi chưa có dữ liệu dự án để tránh lỗi
-            disabled={!projectData} 
-        >
-            Đồng bộ danh mục
-        </Button>
-    </Stack>
+                        {/* ==> THÊM NÚT BẤM NÀY VÀO <== */}
+                        <Button
+                            variant="outlined"
+                            startIcon={<SyncAltIcon />}
+                            onClick={() => syncPlanningItems(projectId, projectData.type)}
+                            // Vô hiệu hóa nút khi chưa có dữ liệu dự án để tránh lỗi
+                            disabled={!projectData}
+                        >
+                            Đồng bộ danh mục
+                        </Button>
+                    </Stack>
                     <Paper
                         sx={{
                             height: "70vh",
@@ -1569,6 +1514,8 @@ useEffect(() => {
                     planningItem={currentItemForModal}
                     adjustmentToEdit={adjustmentToEdit}
                     onSaveSuccess={handleCloseModal}
+                    // THÊM DÒNG NÀY
+                    isStandaloneItem={isStandaloneItem}
                 />
             )}
         </Box>
