@@ -535,55 +535,55 @@ export default function ActualCostsTab({ projectId }) {
     );
 
     useEffect(() => {
-  if (!id || !year || !quarter) return;
+        if (!id || !year || !quarter) return;
 
-  const docRef = doc(db, "projects", id, "years", year, "quarters", quarter);
+        const docRef = doc(db, "projects", id, "years", year, "quarters", quarter);
 
-  const unsubscribe = onSnapshot(
-    docRef,
-    (docSnap) => {
-      try {
-        // Lấy overallRevenue từ server doc để dùng ngay (state setOverallRevenue sẽ tới chậm hơn 1 tick)
-        const orvFromDoc = parseNumber(
-          docSnap.exists() ? (docSnap.data().overallRevenue ?? 0) : 0
+        const unsubscribe = onSnapshot(
+            docRef,
+            (docSnap) => {
+                try {
+                    // Lấy overallRevenue từ server doc để dùng ngay (state setOverallRevenue sẽ tới chậm hơn 1 tick)
+                    const orvFromDoc = parseNumber(
+                        docSnap.exists() ? (docSnap.data().overallRevenue ?? 0) : 0
+                    );
+                    setOverallRevenue(orvFromDoc);
+
+                    const rawItems = (docSnap.exists() ? (docSnap.data().items || []) : []).map((item) => ({
+                        ...item,
+                        id: item.id || generateUniqueId(),
+                        project: (item.project || "").trim().toUpperCase(),
+                        description: (item.description || "").trim(),
+                    }));
+
+                    // 👉 Quan trọng: tính lại tất cả các cột công thức NGAY khi nhận realtime
+                    const recalculated = rawItems.map((row) => {
+                        const r = { ...row };
+                        calcAllFields(r, {
+                            overallRevenue: orvFromDoc,              // dùng giá trị mới ngay
+                            projectTotalAmount,                      // có thể là state hiện tại
+                            projectType: projectData?.type,          // nếu chưa có, effect khác của bạn sẽ tính lại sau
+                            isUserEditingNoPhaiTraCK: false,
+                        });
+                        return r;
+                    });
+
+                    setCostItems(recalculated);
+                } catch (err) {
+                    setError("Lỗi khi xử lý dữ liệu thời gian thực: " + err.message);
+                } finally {
+                    setInitialDbLoadComplete(true);
+                    setLoading(false);
+                }
+            },
+            (err) => {
+                setError("Lỗi lắng nghe dữ liệu: " + err.message);
+                setLoading(false);
+            }
         );
-        setOverallRevenue(orvFromDoc);
 
-        const rawItems = (docSnap.exists() ? (docSnap.data().items || []) : []).map((item) => ({
-          ...item,
-          id: item.id || generateUniqueId(),
-          project: (item.project || "").trim().toUpperCase(),
-          description: (item.description || "").trim(),
-        }));
-
-        // 👉 Quan trọng: tính lại tất cả các cột công thức NGAY khi nhận realtime
-        const recalculated = rawItems.map((row) => {
-          const r = { ...row };
-          calcAllFields(r, {
-            overallRevenue: orvFromDoc,              // dùng giá trị mới ngay
-            projectTotalAmount,                      // có thể là state hiện tại
-            projectType: projectData?.type,          // nếu chưa có, effect khác của bạn sẽ tính lại sau
-            isUserEditingNoPhaiTraCK: false,
-          });
-          return r;
-        });
-
-        setCostItems(recalculated);
-      } catch (err) {
-        setError("Lỗi khi xử lý dữ liệu thời gian thực: " + err.message);
-      } finally {
-        setInitialDbLoadComplete(true);
-        setLoading(false);
-      }
-    },
-    (err) => {
-      setError("Lỗi lắng nghe dữ liệu: " + err.message);
-      setLoading(false);
-    }
-  );
-
-  return () => unsubscribe();
-}, [id, year, quarter, projectData, projectTotalAmount]);
+        return () => unsubscribe();
+    }, [id, year, quarter, projectData, projectTotalAmount]);
 
 
     useEffect(() => {
@@ -784,6 +784,30 @@ export default function ActualCostsTab({ projectId }) {
             })
         );
     }, [overallRevenue, projectTotalAmount, projectData]);
+    const handleFinalizeProject = useCallback(() => {
+        const isConfirmed = window.confirm(
+            "❓ BẠN CÓ CHẮC MUỐN QUYẾT TOÁN CÔNG TRÌNH NÀY KHÔNG?\n\nHành động này sẽ:\n1. Cập nhật 'Nợ Phải Trả CK' = 'Nợ Phải Trả CK' - 'Cuối Kỳ'\n2. Đặt tất cả giá trị cột 'Cuối Kỳ' về 0."
+        );
+
+        if (!isConfirmed) {
+            return;
+        }
+
+        setCostItems((prevItems) =>
+            prevItems.map((row) => {
+                const currentNoPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
+                const currentCarryoverEnd = parseNumber(row.carryoverEnd || "0");
+
+                const newNoPhaiTraCK = currentNoPhaiTraCK - currentCarryoverEnd;
+
+                return {
+                    ...row,
+                    noPhaiTraCK: String(newNoPhaiTraCK),
+                    carryoverEnd: "0",
+                };
+            })
+        );
+    }, []); // Không có dependencies vì nó chỉ làm việc với state hiện tại
     const handleSave = async () => {
         if (!validateData(costItems)) {
             setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
@@ -958,6 +982,8 @@ export default function ActualCostsTab({ projectId }) {
                 onExport={() => exportToExcel(costItems, displayedColumns, projectData, year, quarter)}
                 onSave={handleSave}
                 onSaveNextQuarter={handleSaveNextQuarter}
+                onFinalizeProject={handleFinalizeProject} // <-- 4. TRUYỀN HÀM XUỐNG
+
                 onToggleColumns={handleOpenColumnsDialog}
                 onResetAllRevenue={handleResetAllRevenue}
 

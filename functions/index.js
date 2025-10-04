@@ -1610,14 +1610,17 @@ exports.getComputerUsageStats = onCall({ cors: true }, async (request) => {
     return { totalUsageSeconds, firstStartAt, lastEndAt, isOnline: isOnlineNow };
 });
 
-// ===== SỬA LẠI LỊCH CHẠY =====
+// ===== SỬA LẠI TOÀN BỘ HÀM NÀY =====
 exports.cronMarkStaleOffline = onSchedule(
     { schedule: "every 1 minutes", timeZone: "Asia/Ho_Chi_Minh" },
     async () => {
         const now = new Date();
         const cfgSnap = await db.collection("app_config").doc("agent").get();
-        const heartbeatMinutes = cfgSnap.exists ? Number(cfgSnap.data()?.heartbeatMinutes) : 1;
-        const stalenessMin = (heartbeatMinutes > 0 ? heartbeatMinutes : 1) + 2; // Dự phòng +2 phút
+        // Mặc định là 3 phút nếu không có cấu hình
+        const heartbeatMinutes = cfgSnap.exists ? Number(cfgSnap.data()?.heartbeatMinutes) : 3;
+
+        // Cắt giảm thời gian chờ, +1 phút dự phòng là đủ
+        const stalenessMin = (heartbeatMinutes > 0 ? heartbeatMinutes : 3) + 1;
         const cutoff = new Date(now.getTime() - stalenessMin * 60 * 1000);
 
         const staleMachinesQuery = db.collection("machineStatus")
@@ -1631,17 +1634,38 @@ exports.cronMarkStaleOffline = onSchedule(
         }
 
         const batch = db.batch();
+        // Mảng để thực hiện các lệnh ghi vào RTDB
+        const rtdbPromises = [];
+
+        const offlinePayload = {
+            isOnline: false,
+            lastSeenAt: admin.database.ServerValue.TIMESTAMP
+        };
+
         snap.forEach((doc) => {
-            logger.log(`[cronMarkStaleOffline] Marking machine ${doc.id} as stale.`);
+            const machineId = doc.id;
+            logger.log(`[cronMarkStaleOffline] Marking machine ${machineId} as stale.`);
+
+            // 1. Chuẩn bị lệnh ghi vào Firestore
             batch.set(doc.ref, {
                 isOnline: false,
                 lastShutdownAt: doc.data().lastSeenAt || now,
                 lastShutdownKind: "stale",
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             }, { merge: true });
+
+            // 2. THÊM MỚI: Chuẩn bị lệnh ghi vào Realtime Database
+            const rtdbRef = admin.database().ref(`/status/${machineId}`);
+            rtdbPromises.push(rtdbRef.set(offlinePayload));
         });
 
-        await batch.commit();
-        logger.log(`[cronMarkStaleOffline] Marked ${snap.size} machines offline.`);
+        // Thực thi đồng thời tất cả các lệnh ghi
+        await Promise.all([
+            batch.commit(),
+            ...rtdbPromises
+        ]);
+
+        logger.log(`[cronMarkStaleOffline] Marked ${snap.size} machines offline in both Firestore and RTDB.`);
     }
 );
+

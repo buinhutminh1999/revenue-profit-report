@@ -12,6 +12,7 @@ import {
   Add, FileDownload, Save, ArrowBack, ViewColumn,
   SkipNext, Layers, DeleteSweep, CloudUpload, InsertDriveFile,
   Functions as FunctionsIcon, CheckCircle, Warning, Info, Description,
+  TaskAlt,
 } from "@mui/icons-material";
 import * as XLSX from "xlsx";
 
@@ -55,10 +56,11 @@ const ActionButton = ({ icon, label, onClick, color = "primary", tooltip, varian
 };
 
 export default function EnhancedActionBar({
-  onAddRow, onFileUpload, onExport, onSave, onSaveNextQuarter,
-  onToggleColumns, onBack, onResetAllRevenue,
-  costItems, saving = false, sx = { mb: 2 },
-  onShowFormulas,
+  onAddRow, onFileUpload, onExport, onSave, onSaveNextQuarter,
+  onToggleColumns, onBack, onResetAllRevenue,
+  costItems, saving = false, sx = { mb: 2 },
+  onShowFormulas,
+  onFinalizeProject, // <-- 2. THÊM PROP MỚI
 }) {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down("md"));
@@ -227,7 +229,15 @@ export default function EnhancedActionBar({
             <ActionButton icon={<Description />} label="Reset DT" onClick={onResetAllRevenue} tooltip="Reset doanh thu (Shift + R)" variant="text" color="warning" />
 
             <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-
+<ActionButton
+              icon={<TaskAlt />}
+              label="Quyết toán"
+              color="secondary"
+              onClick={onFinalizeProject}
+              disabled={saving}
+              tooltip="Chốt sổ Nợ phải trả và đưa Cuối kỳ về 0"
+              variant="contained"
+            />
             <ActionButton
               icon={saving ? <CircularProgress size={20} color="inherit" /> : <Save />}
               label="Lưu"

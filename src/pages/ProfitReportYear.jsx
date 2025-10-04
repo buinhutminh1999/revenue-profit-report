@@ -784,6 +784,8 @@ const useProfitReportData = (selectedYear) => {
                         percent: totalRevenue
                             ? ((totalRevenue - totalCost) / totalRevenue) * 100
                             : null,
+                        plannedProfitMargin: data.estimatedProfitMargin || null,
+
                     };
                 })
             );
@@ -1784,7 +1786,7 @@ export default function ProfitReportYear() {
                         borderRadius: 2,
                     }}
                 >
-                 <Table stickyHeader size="small" sx={{ minWidth: 3800, tableLayout: 'fixed' }}>
+                    <Table stickyHeader size="small" sx={{ minWidth: 3800, tableLayout: 'fixed' }}>
                         <TableHead>
                             <TableRow sx={{ "& th": { backgroundColor: "#1565c0", color: "#fff", fontWeight: 700, border: "1px solid #004c8f" } }}>
                                 <ResizableHeader width={congTrinhColWidth} onResize={handleColumnResize} style={{ ...cellStyle, width: congTrinhColWidth, position: "sticky", left: 0, zIndex: 110, backgroundColor: "#1565c0", textAlign: 'center' }} rowSpan={2}>
@@ -1795,6 +1797,8 @@ export default function ProfitReportYear() {
                                 {groupVisibility.profit && <TableCell colSpan={5} align="center">LỢI NHUẬN</TableCell>}
                                 {groupVisibility.special && (
                                     <>
+                                        <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>% LN THEO KH</TableCell>
+                                        <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>% LN THỰC TẾ</TableCell>
                                         <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>CP VƯỢT LŨY KẾ</TableCell>
                                         <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>CP CỘNG VÀO LN</TableCell>
                                         <TableCell rowSpan={2} align="center" sx={{ minWidth: 200 }}>GHI CHÚ</TableCell>
@@ -1852,7 +1856,7 @@ export default function ProfitReportYear() {
                                             <TableCell align="right" sx={cellStyle}>{format(r.revenueQ2)}</TableCell>
                                             <TableCell align="right" sx={cellStyle}>{format(r.revenueQ3)}</TableCell>
                                             <TableCell align="right" sx={cellStyle}>{format(r.revenueQ4)}</TableCell>
-                                            <TableCell align="right" sx={{...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd"}}>{format(r.revenue)}</TableCell>
+                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd" }}>{format(r.revenue)}</TableCell>
                                         </>
                                     )}
                                     {groupVisibility.cost && (
@@ -1861,7 +1865,7 @@ export default function ProfitReportYear() {
                                             <TableCell align="right" sx={cellStyle}>{format(r.costQ2)}</TableCell>
                                             <TableCell align="right" sx={cellStyle}>{format(r.costQ3)}</TableCell>
                                             <TableCell align="right" sx={cellStyle}>{format(r.costQ4)}</TableCell>
-                                            <TableCell align="right" sx={{...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd"}}>{format(r.cost)}</TableCell>
+                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd" }}>{format(r.cost)}</TableCell>
                                         </>
                                     )}
                                     {groupVisibility.profit && (
@@ -1870,13 +1874,18 @@ export default function ProfitReportYear() {
                                             <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ2)}</TableCell>
                                             <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ3)}</TableCell>
                                             <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ4)}</TableCell>
-                                            <TableCell align="right" sx={{...cellStyle, fontWeight: "bold", backgroundColor: "#d1c4e9", padding: "4px 8px"}}>
+                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#d1c4e9", padding: "4px 8px" }}>
                                                 {isEditableRow(r.name) ? <ClickableEditCell rowName={r.name} field="profit" value={editableRows[r.name]?.profit || r.profit || 0} /> : format(r.profit)}
                                             </TableCell>
                                         </>
                                     )}
                                     {groupVisibility.special && (
                                         <>
+                                            <TableCell align="center" sx={cellStyle}>{format(r.plannedProfitMargin, "percent")}</TableCell>
+                                            {/* DÁN ĐOẠN CODE NÀY VÀO */}
+    <TableCell align="center" sx={cellStyle}>
+        {r.projectId && r.revenue ? format((r.profit / r.revenue) * 100, "percent") : ''}
+    </TableCell>
                                             <TableCell align="right" sx={cellStyle}>{format(r.costOverCumulative)}</TableCell>
                                             <TableCell align="right" sx={cellStyle}>{format(r.costAddedToProfit)}</TableCell>
                                             <TableCell align="left" sx={cellStyle}>{format(r.note)}</TableCell>
