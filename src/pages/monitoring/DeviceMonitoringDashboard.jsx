@@ -238,102 +238,80 @@ const CompactEventTimeline = ({ events }) => {
     );
 };
 
-// ===================== Machine Card ===================== //
+// ===================== THAY THẾ TOÀN BỘ COMPONENT NÀY ===================== //
 const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
-    if (machine.id === 'MINH') { // <-- Thay bằng TÊN CHÍNH XÁC của máy đang hiển thị sai
-        console.log(`[DEBUG] Dữ liệu sự kiện cho máy ${machine.id}:`, events);
-    }
-        const isOnline = useMachineStatus(machine.id); // <--- THÊM dòng này
-
+    const isOnline = useMachineStatus(machine.id);
     const [openDetail, setOpenDetail] = React.useState(false);
     const [tick, setTick] = React.useState(0);
 
+    // Sử dụng useEffect để tạo một "tick" cập nhật mỗi phút KHI máy đang online
+    // Điều này giúp thời gian sử dụng được cập nhật liên tục mà không cần người dùng tương tác
     React.useEffect(() => {
         if (isOnline) {
             const intervalId = setInterval(() => {
                 setTick(prevTick => prevTick + 1);
-            }, 60000);
+            }, 60000); // 60000ms = 1 phút
             return () => clearInterval(intervalId);
         }
     }, [isOnline]);
 
-    // Thay thế toàn bộ khối useMemo này
+    // ✅ KHỐI useMemo VỚI LOGIC TÍNH TOÁN ĐÃ ĐƯỢC SỬA LẠI HOÀN TOÀN
     const totalSec = React.useMemo(() => {
-        // ================= BẮT ĐẦU DEBUG =================
-        if (machine.id === 'MINH') { // Chỉ log cho máy MINH để đỡ rối
-            console.log('%c--- [DEBUG] Bắt đầu tính toán cho máy MINH ---', 'color: blue; font-weight: bold;');
-            console.log('Sự kiện nhận được:', events);
-            console.log('Trạng thái Online:', isOnline);
-            console.log('Ngày được chọn:', selectedDate);
-            console.log('lastBootAt từ DB:', machine.lastBootAt?.toDate());
-        }
+        // Chỉ bắt đầu tính toán khi đã có trạng thái online/offline rõ ràng (không phải null)
         if (isOnline === null) {
-        return 0;
-    }
-        // ================================================
-
-        const dayStart = startOfDay(selectedDate);
-        const dayEnd = endOfDay(selectedDate);
-
-        if (!events || events.length === 0) {
-            if (isOnline && isSameDay(selectedDate, new Date()) && machine.lastBootAt && machine.lastBootAt.toDate() < dayStart) {
-                const total = (new Date().getTime() - dayStart.getTime()) / 1000;
-                if (machine.id === 'MINH') console.log('[DEBUG] Không có sự kiện, tính từ đầu ngày:', total);
-                return total;
-            }
-            if (machine.id === 'MINH') console.log('[DEBUG] Không có sự kiện, trả về 0');
             return 0;
         }
 
+        const dayStart = startOfDay(selectedDate);
+        const isToday = isSameDay(selectedDate, new Date());
+        
+        // Sắp xếp các sự kiện theo thứ tự thời gian để đảm bảo logic đúng
+        const sortedEvents = [...(events || [])].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        
         let total = 0;
         let sessionStart = null;
-        const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
+        // Xử lý trường hợp đặc biệt: Máy đã chạy từ trước nửa đêm
         const firstEvent = sortedEvents[0];
-        if (STOP_IDS.has(Number(firstEvent.eventId))) {
+        // Nếu sự kiện đầu tiên trong ngày là một sự kiện Dừng (STOP),
+        // có nghĩa là máy đã chạy từ đầu ngày (00:00:00) cho đến thời điểm đó.
+        if (firstEvent && STOP_IDS.has(Number(firstEvent.eventId))) {
             sessionStart = dayStart;
-            if (machine.id === 'MINH') console.log('[DEBUG] Sự kiện đầu tiên là STOP, gán sessionStart = đầu ngày:', sessionStart);
         }
 
+        // Lặp qua các sự kiện để tính các phiên làm việc (khoảng thời gian giữa START và STOP)
         for (const e of sortedEvents) {
             const eventId = Number(e.eventId);
+            const eventTime = e.createdAt;
+
             if (START_IDS.has(eventId) && !sessionStart) {
-                sessionStart = e.createdAt;
-                if (machine.id === 'MINH') console.log(`[DEBUG] Gặp sự kiện START (${e.eventId}), gán sessionStart:`, sessionStart);
-            }
-            else if (STOP_IDS.has(eventId) && sessionStart) {
-                const duration = (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
+                // Nếu gặp sự kiện Bắt đầu (START) và chưa có phiên nào đang chạy, hãy bắt đầu một phiên mới.
+                sessionStart = eventTime;
+            } else if (STOP_IDS.has(eventId) && sessionStart) {
+                // Nếu gặp sự kiện Dừng (STOP) và đang có một phiên chạy, hãy kết thúc phiên đó.
+                const duration = (eventTime.getTime() - sessionStart.getTime()) / 1000;
                 total += duration;
-                if (machine.id === 'MINH') console.log(`[DEBUG] Gặp sự kiện STOP (${e.eventId}), cộng thêm ${duration} giây. Tổng hiện tại: ${total}`);
-                sessionStart = null;
+                sessionStart = null; // Đóng phiên làm việc lại.
             }
         }
 
-        if (sessionStart) {
-            const endPoint = isSameDay(selectedDate, new Date()) && isOnline ? new Date() : dayEnd;
-            const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
-
-            // ================= BẮT ĐẦU DEBUG =================
-            if (machine.id === 'MINH') {
-                console.log('[DEBUG] Phiên đang chạy, chưa kết thúc.');
-                console.log('Điểm bắt đầu phiên:', sessionStart);
-                console.log('Điểm kết thúc tính toán:', endPoint);
-                console.log('Thời gian (giây) sẽ cộng thêm:', durationToAdd);
-            }
-            // ================================================
-
+        // Xử lý phiên làm việc cuối cùng nếu nó chưa được đóng lại
+        // (xảy ra khi máy vẫn đang online vào thời điểm xem báo cáo)
+        if (sessionStart && isOnline && isToday) {
+            // Chỉ tính thêm thời gian đến hiện tại nếu:
+            // 1. Có một phiên đang chạy (sessionStart không null)
+            // 2. Máy đang thực sự online (isOnline là true)
+            // 3. Ngày xem là ngày hôm nay
+            const durationToAdd = (new Date().getTime() - sessionStart.getTime()) / 1000;
             total += durationToAdd;
         }
-
-        // ================= BẮT ĐẦU DEBUG =================
-        if (machine.id === 'MINH') {
-            console.log(`%c===> [DEBUG] TỔNG SỐ GIÂY TÍNH ĐƯỢC: ${total}`, 'color: red; font-size: 14px; font-weight: bold;');
-            console.log('%c--- [DEBUG] Kết thúc tính toán ---', 'color: blue; font-weight: bold;');
-        }
-        // ================================================
+        // Nếu máy offline, phiên cuối cùng sẽ không được tính, do đó không cộng thêm thời gian thừa.
 
         return Math.max(0, total);
-    }, [events, isOnline, selectedDate, tick, machine.lastBootAt]);
+        
+    // Phụ thuộc của useMemo, `tick` được thêm vào để cập nhật mỗi phút nếu máy online
+    }, [events, isOnline, selectedDate, machine.lastBootAt, tick]);
+
 
     const usageHours = totalSec / 3600;
     const progress = Math.min(100, (usageHours / workingHours) * 100);
@@ -394,6 +372,10 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
         </Paper>
     );
 };
+// ======================================================================== //
+
+
+// ... (Component DeviceMonitoringDashboard và các phần khác giữ nguyên)
 
 /* ===================== Main Component ===================== */
 export default function DeviceMonitoringDashboard() {
