@@ -36,25 +36,33 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
-/* ===================== Custom Hooks ===================== */
+// src/pages/monitoring/DeviceMonitoringDashboard.jsx
 
-/**
- * Hook lắng nghe trạng thái online/offline real-time từ Realtime Database cho một máy cụ thể.
- */
 function useMachineStatus(machineId) {
-    const [isOnline, setIsOnline] = React.useState(false);
+    // Giá trị ban đầu là null để biểu thị trạng thái "đang tải"
+    const [isOnline, setIsOnline] = React.useState(null);
 
     React.useEffect(() => {
-        if (!machineId) return;
+        if (!machineId) {
+            setIsOnline(false); // Nếu không có ID, coi như offline
+            return;
+        }
+        
         const statusRef = ref(rtdb, `status/${machineId}`);
+        
         const unsubscribe = onValue(statusRef, (snapshot) => {
             const status = snapshot.val();
+            // Khi có dữ liệu, cập nhật thành true hoặc false
             setIsOnline(status?.isOnline === true);
+        }, (error) => {
+            console.error(`Lỗi khi lấy trạng thái máy ${machineId}:`, error);
+            setIsOnline(false); // Nếu có lỗi, coi như offline
         });
+
         return () => unsubscribe();
     }, [machineId]);
 
-    return isOnline;
+    return isOnline; // Sẽ trả về null, sau đó là true hoặc false
 }
 
 /**
@@ -230,16 +238,16 @@ const CompactEventTimeline = ({ events }) => {
     );
 };
 
-
 // ===================== Machine Card ===================== //
 const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
-    // THAY ĐỔI: isOnline giờ được lấy real-time từ hook này
-    const isOnline = useMachineStatus(machine.id);
+    if (machine.id === 'MINH') { // <-- Thay bằng TÊN CHÍNH XÁC của máy đang hiển thị sai
+        console.log(`[DEBUG] Dữ liệu sự kiện cho máy ${machine.id}:`, events);
+    }
+        const isOnline = useMachineStatus(machine.id); // <--- THÊM dòng này
 
     const [openDetail, setOpenDetail] = React.useState(false);
     const [tick, setTick] = React.useState(0);
 
-    // Bộ đếm thời gian tự động cập nhật mỗi phút khi online
     React.useEffect(() => {
         if (isOnline) {
             const intervalId = setInterval(() => {
@@ -249,49 +257,83 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
         }
     }, [isOnline]);
 
+    // Thay thế toàn bộ khối useMemo này
     const totalSec = React.useMemo(() => {
+        // ================= BẮT ĐẦU DEBUG =================
+        if (machine.id === 'MINH') { // Chỉ log cho máy MINH để đỡ rối
+            console.log('%c--- [DEBUG] Bắt đầu tính toán cho máy MINH ---', 'color: blue; font-weight: bold;');
+            console.log('Sự kiện nhận được:', events);
+            console.log('Trạng thái Online:', isOnline);
+            console.log('Ngày được chọn:', selectedDate);
+            console.log('lastBootAt từ DB:', machine.lastBootAt?.toDate());
+        }
+        if (isOnline === null) {
+        return 0;
+    }
+        // ================================================
+
+        const dayStart = startOfDay(selectedDate);
+        const dayEnd = endOfDay(selectedDate);
+
         if (!events || events.length === 0) {
-            if (isOnline && isSameDay(selectedDate, new Date()) && machine.lastBootAt) {
-                const bootTime = machine.lastBootAt.toDate();
-                const dayStart = startOfDay(selectedDate);
-                const startTime = bootTime > dayStart ? bootTime : dayStart;
-                return (new Date().getTime() - startTime.getTime()) / 1000;
+            if (isOnline && isSameDay(selectedDate, new Date()) && machine.lastBootAt && machine.lastBootAt.toDate() < dayStart) {
+                const total = (new Date().getTime() - dayStart.getTime()) / 1000;
+                if (machine.id === 'MINH') console.log('[DEBUG] Không có sự kiện, tính từ đầu ngày:', total);
+                return total;
             }
+            if (machine.id === 'MINH') console.log('[DEBUG] Không có sự kiện, trả về 0');
             return 0;
         }
 
         let total = 0;
         let sessionStart = null;
         const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-        const dayStart = startOfDay(selectedDate);
-        const dayEnd = endOfDay(selectedDate);
 
         const firstEvent = sortedEvents[0];
-        const lastBootTime = machine.lastBootAt?.toDate();
-
-        if (lastBootTime && lastBootTime < dayStart && START_IDS.has(Number(firstEvent.eventId))) {
+        if (STOP_IDS.has(Number(firstEvent.eventId))) {
             sessionStart = dayStart;
+            if (machine.id === 'MINH') console.log('[DEBUG] Sự kiện đầu tiên là STOP, gán sessionStart = đầu ngày:', sessionStart);
         }
 
         for (const e of sortedEvents) {
             const eventId = Number(e.eventId);
             if (START_IDS.has(eventId) && !sessionStart) {
                 sessionStart = e.createdAt;
-            } else if (STOP_IDS.has(eventId) && sessionStart) {
-                total += (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
+                if (machine.id === 'MINH') console.log(`[DEBUG] Gặp sự kiện START (${e.eventId}), gán sessionStart:`, sessionStart);
+            }
+            else if (STOP_IDS.has(eventId) && sessionStart) {
+                const duration = (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
+                total += duration;
+                if (machine.id === 'MINH') console.log(`[DEBUG] Gặp sự kiện STOP (${e.eventId}), cộng thêm ${duration} giây. Tổng hiện tại: ${total}`);
                 sessionStart = null;
             }
         }
 
         if (sessionStart) {
-            const endPoint = isSameDay(selectedDate, new Date()) && isOnline
-                ? new Date()
-                : dayEnd;
-            total += (Math.min(endPoint.getTime(), dayEnd.getTime()) - sessionStart.getTime()) / 1000;
+            const endPoint = isSameDay(selectedDate, new Date()) && isOnline ? new Date() : dayEnd;
+            const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
+
+            // ================= BẮT ĐẦU DEBUG =================
+            if (machine.id === 'MINH') {
+                console.log('[DEBUG] Phiên đang chạy, chưa kết thúc.');
+                console.log('Điểm bắt đầu phiên:', sessionStart);
+                console.log('Điểm kết thúc tính toán:', endPoint);
+                console.log('Thời gian (giây) sẽ cộng thêm:', durationToAdd);
+            }
+            // ================================================
+
+            total += durationToAdd;
         }
 
+        // ================= BẮT ĐẦU DEBUG =================
+        if (machine.id === 'MINH') {
+            console.log(`%c===> [DEBUG] TỔNG SỐ GIÂY TÍNH ĐƯỢC: ${total}`, 'color: red; font-size: 14px; font-weight: bold;');
+            console.log('%c--- [DEBUG] Kết thúc tính toán ---', 'color: blue; font-weight: bold;');
+        }
+        // ================================================
+
         return Math.max(0, total);
-    }, [events, isOnline, selectedDate, machine.lastBootAt, machine.lastSeenAt, tick]);
+    }, [events, isOnline, selectedDate, tick, machine.lastBootAt]);
 
     const usageHours = totalSec / 3600;
     const progress = Math.min(100, (usageHours / workingHours) * 100);
@@ -330,9 +372,8 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
                     sx={{
                         height: 8,
                         borderRadius: 4,
-                        // THÊM VÀO ĐÂY
                         '& .MuiLinearProgress-bar': {
-                            transition: 'transform 60s linear',
+                            transition: 'transform 0.5s linear',
                         },
                     }}
                 />
@@ -442,16 +483,18 @@ export default function DeviceMonitoringDashboard() {
                         </Grid>
                     ))
                 ) : (
+                    // ... code
                     filteredMachines.map((m) => (
-                        <Grid item xs={12} sm={6} md={4} lg={3} key={m.id}>
-                            <MachineCard
-                                machine={m}
-                                events={eventsByMachine[m.id] || []}
-                                workingHours={workingHours}
-                                selectedDate={selectedDate}
-                            />
-                        </Grid>
-                    ))
+    <Grid item xs={12} sm={6} md={4} lg={3} key={m.id}>
+        <MachineCard
+            machine={m}
+            events={eventsByMachine[m.id] || []}
+            workingHours={workingHours}
+            selectedDate={selectedDate}
+        />
+    </Grid>
+))
+                    // ... code
                 )}
                 {!isLoading && filteredMachines.length === 0 && (
                     <Grid item xs={12}>

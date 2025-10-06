@@ -804,6 +804,7 @@ export default function ActualCostsTab({ projectId }) {
                     ...row,
                     noPhaiTraCK: String(newNoPhaiTraCK),
                     carryoverEnd: "0",
+                    isFinalized: true, // <-- QUAN TRỌNG: Phải có dòng này
                 };
             })
         );

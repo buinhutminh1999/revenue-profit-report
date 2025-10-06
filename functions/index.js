@@ -1473,7 +1473,8 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
     const data = event.data?.data();
     if (!data) return;
 
-    const { machineId, eventId, createdAt } = data;
+    // THAY ĐỔI 1: Lấy thêm trường "receivedAt" từ dữ liệu
+    const { machineId, eventId, createdAt, receivedAt } = data;
     const firestoreRef = db.collection("machineStatus").doc(machineId);
 
     // Lấy tham chiếu đến Realtime Database (RTDB)
@@ -1482,7 +1483,9 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
     const update = {
         lastEventId: Number(eventId),
         lastEventAt: createdAt,
-        lastSeenAt: createdAt,
+        // THAY ĐỔI 2: Dùng "receivedAt" để đảm bảo "lastSeenAt" luôn là thời điểm mới nhất
+        // Dùng `|| createdAt` để dự phòng nếu `receivedAt` vì lý do nào đó không tồn tại
+        lastSeenAt: receivedAt || createdAt,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
@@ -1500,15 +1503,14 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
         update.lastShutdownAt = createdAt;
         update.lastShutdownKind =
             (eventNum === 6006 || eventNum === 1074 || eventNum === 7000 || eventNum === 7002) ? "user" :
-                eventNum === 6008 ? "unexpected" :
-                    (eventNum === 42 || eventNum === 4800 || eventNum === 507) ? "sleep" : // Gộp 4800 (Khóa máy) vào nhóm sleep
-                        "stale";
+            eventNum === 6008 ? "unexpected" :
+            (eventNum === 42 || eventNum === 4800 || eventNum === 507) ? "sleep" :
+            "stale";
     }
 
     // Luôn cập nhật trạng thái lịch sử vào Firestore
     await firestoreRef.set(update, { merge: true });
 
-    // --- SỬA ĐỔI BẮT ĐẦU ---
     // Chủ động cập nhật trạng thái real-time trên RTDB để giao diện phản hồi ngay lập tức
     if (ONLINE_EVENTS.has(eventNum)) {
         logger.log(`Online event ${eventNum} detected for ${machineId}. Forcing ONLINE status in RTDB.`);
@@ -1523,7 +1525,6 @@ exports.onEventWrite = onDocumentCreated("machineEvents/{docId}", async (event) 
             lastSeenAt: admin.database.ServerValue.TIMESTAMP
         });
     }
-    // --- SỬA ĐỔI KẾT THÚC ---
 });
 
 exports.getComputerUsageStats = onCall({ cors: true }, async (request) => {

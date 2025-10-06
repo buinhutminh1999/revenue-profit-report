@@ -125,7 +125,7 @@ export const calcAllFields = (
         isUserEditingNoPhaiTraCK = false,
         overallRevenue = "0",
         projectTotalAmount = "0",
-        projectType = "", // Biến này đã có sẵn
+        projectType = "",
     } = {}
 ) => {
     if (!row.project) return;
@@ -148,38 +148,37 @@ export const calcAllFields = (
     row.totalCost = calcTotalCost(row);
     const project = row.project || "";
     if (project.includes("-VT") || project.includes("-NC")) {
-        row.cpVuot = "0"; // Nếu là dòng -VT hoặc -NC, gán CP Vượt = 0
+        row.cpVuot = "0";
     } else {
-        row.cpVuot = calcCpVuot(row); // Ngược lại, tính toán bình thường
-    }
-    row.carryoverEnd = calcCarryoverEnd(row, projectType);
-
-    if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP")) {
-        row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
+        row.cpVuot = calcCpVuot(row);
     }
 
-    // ---------- BẮT ĐẦU PHẦN CẬP NHẬT ----------
-    
-    // Lấy tất cả các giá trị cần thiết cho công thức bạn vừa cung cấp
-    const directCost = parseNumber(row.directCost || "0");         // Chi Phí Trực Tiếp
-    const allocated = parseNumber(row.allocated || "0");            // Phân Bổ
-    const noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");        // Nợ Phải Trả CK
-    const carryoverEnd = parseNumber(row.carryoverEnd || "0");      // Cuối Kỳ
-    const debt = parseNumber(row.debt || "0");                      // Nợ Phải Trả ĐK
-    const inventory = parseNumber(row.inventory || "0");            // Tồn ĐK
+    // ⭐ BẢO VỆ CÁC GIÁ TRỊ ĐÃ QUYẾT TOÁN ⭐
+    // Chỉ tính toán lại các cột này nếu dòng CHƯA được quyết toán
+    if (!row.isFinalized) {
+        row.carryoverEnd = calcCarryoverEnd(row, projectType);
 
-    // Áp dụng công thức mới:
-    // CP Trực Tiếp + Phân Bổ + Nợ Phải Trả CK - Cuối Kỳ - Nợ Phải Trả ĐK - Tồn ĐK
+        if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP")) {
+            row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
+        }
+    }
+
+    // Phần tính toán `cpSauQuyetToan` vẫn giữ nguyên
+    const directCost = parseNumber(row.directCost || "0");
+    const allocated = parseNumber(row.allocated || "0");
+    const noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
+    const carryoverEnd = parseNumber(row.carryoverEnd || "0");
+    const debt = parseNumber(row.debt || "0");
+    const inventory = parseNumber(row.inventory || "0");
+
     row.cpSauQuyetToan = String(
-        directCost + 
-        allocated + 
-        noPhaiTraCK - 
-        carryoverEnd - 
-        debt - 
+        directCost +
+        allocated +
+        noPhaiTraCK -
+        carryoverEnd -
+        debt -
         inventory
     );
-
-    // ---------- KẾT THÚC PHẦN CẬP NHẬT ----------
 };
 // ---------- Hidden Columns Helper (cho -VT, -NC) ----------
 export const getHiddenColumnsForProject = (project) =>
