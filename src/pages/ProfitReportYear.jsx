@@ -1491,33 +1491,64 @@ export default function ProfitReportYear() {
         saveEditableData,
         editableRowNames,
     } = useProfitReportData(selectedYear);
-    // ✅ 1. THAY THẾ STATE CŨ BẰNG STATE MỚI NÀY
-    const [groupVisibility, setGroupVisibility] = useState({
-        revenue: true,  // Cho nhóm Doanh thu (gồm Q1-Q4 và cột Tổng)
-        cost: true,     // Cho nhóm Chi phí (gồm Q1-Q4 và cột Tổng)
-        profit: true,   // Cho nhóm Lợi nhuận (gồm Q1-Q4 và cột Tổng)
-        special: true,  // Cho các cột đặc biệt cuối cùng
+    // ✅ 1. SỬ DỤNG LẠI STATE CHI TIẾT NÀY
+    const [columnVisibility, setColumnVisibility] = useState({
+        revenueQ1: true,
+        revenueQ2: true,
+        revenueQ3: true,
+        revenueQ4: true,
+        totalRevenue: true, // Thêm cột tổng
+        costQ1: true,
+        costQ2: true,
+        costQ3: true,
+        costQ4: true,
+        totalCost: true,   // Thêm cột tổng
+        profitQ1: true,
+        profitQ2: true,
+        profitQ3: true,
+        profitQ4: true,
+        totalProfit: true, // Thêm cột tổng
+        plannedProfitMargin: true,
+        actualProfitMargin: true,
+        costOverCumulative: true,
+        costAddedToProfit: true,
+        note: true,
     });
 
-    // State cho Menu
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
 
-    // ✅ 2. (Tùy chọn) TẠO MAP ĐỂ HIỂN THỊ TÊN CỘT THÂN THIỆN
+    // ✅ 2. CẬP NHẬT LẠI MAP TÊN CỘT
     const columnLabels = {
-        revenue: 'Doanh Thu (Theo Quý & Tổng)',
-        cost: 'Chi Phí (Theo Quý & Tổng)',
-        profit: 'Lợi Nhuận (Theo Quý & Tổng)',
-        special: 'Các Cột Đặc Biệt (Vượt Lũy Kế,...)',
+        revenueQ1: 'DT Quý 1',
+        revenueQ2: 'DT Quý 2',
+        revenueQ3: 'DT Quý 3',
+        revenueQ4: 'DT Quý 4',
+        totalRevenue: 'Tổng DT Năm',
+        costQ1: 'CP Quý 1',
+        costQ2: 'CP Quý 2',
+        costQ3: 'CP Quý 3',
+        costQ4: 'CP Quý 4',
+        totalCost: 'Tổng CP Năm',
+        profitQ1: 'LN Quý 1',
+        profitQ2: 'LN Quý 2',
+        profitQ3: 'LN Quý 3',
+        profitQ4: 'LN Quý 4',
+        totalProfit: 'Tổng LN Năm',
+        plannedProfitMargin: '% LN Theo KH',
+        actualProfitMargin: '% LN Thực Tế',
+        costOverCumulative: 'CP Vượt Lũy Kế',
+        costAddedToProfit: 'CP Cộng Vào LN',
+        note: 'Ghi Chú',
     };
 
-    // Các hàm xử lý menu (chỉnh sửa tên biến cho nhất quán)
+    // ✅ 3. CẬP NHẬT HÀM TOGGLE
     const handleColumnMenuClick = (event) => setAnchorEl(event.currentTarget);
     const handleColumnMenuClose = () => setAnchorEl(null);
-    const handleToggleGroup = (groupKey) => {
-        setGroupVisibility((prev) => ({
+    const handleToggleColumn = (columnKey) => {
+        setColumnVisibility((prev) => ({
             ...prev,
-            [groupKey]: !prev[groupKey],
+            [columnKey]: !prev[columnKey],
         }));
     };
     const [summaryTargets, setSummaryTargets] = useState({});
@@ -1695,7 +1726,11 @@ export default function ProfitReportYear() {
             </Box>
         );
     };
+    // ... trước câu lệnh return
 
+    const visibleRevenueCols = Object.keys(columnVisibility).filter(k => k.startsWith('revenueQ') && columnVisibility[k]).length;
+    const visibleCostCols = Object.keys(columnVisibility).filter(k => k.startsWith('costQ') && columnVisibility[k]).length;
+    const visibleProfitCols = Object.keys(columnVisibility).filter(k => k.startsWith('profitQ') && columnVisibility[k]).length;
     return (
 
         <Box sx={{ p: 3, bgcolor: "#f7faff", minHeight: "100vh" }}>
@@ -1762,10 +1797,9 @@ export default function ProfitReportYear() {
                             </Button>
                         </Tooltip>
                         <Menu anchorEl={anchorEl} open={open} onClose={handleColumnMenuClose}>
-                            {/* ✅ 3. CẬP NHẬT MENU ĐỂ HIỂN THỊ ĐÚNG TÊN NHÓM CỘT */}
-                            {Object.keys(groupVisibility).map((key) => (
-                                <MenuItem key={key} onClick={() => handleToggleGroup(key)}>
-                                    <Checkbox checked={groupVisibility[key]} />
+                            {Object.keys(columnVisibility).map((key) => (
+                                <MenuItem key={key} onClick={() => handleToggleColumn(key)}>
+                                    <Checkbox checked={columnVisibility[key]} />
                                     <ListItemText primary={columnLabels[key] || key.toUpperCase()} />
                                 </MenuItem>
                             ))}
@@ -1789,50 +1823,49 @@ export default function ProfitReportYear() {
                     <Table stickyHeader size="small" sx={{ minWidth: 3800, tableLayout: 'fixed' }}>
                         <TableHead>
                             <TableRow sx={{ "& th": { backgroundColor: "#1565c0", color: "#fff", fontWeight: 700, border: "1px solid #004c8f" } }}>
-                                <ResizableHeader width={congTrinhColWidth} onResize={handleColumnResize} style={{ ...cellStyle, width: congTrinhColWidth, position: "sticky", left: 0, zIndex: 110, backgroundColor: "#1565c0", textAlign: 'center' }} rowSpan={2}>
+                                {/* CỘT CÔNG TRÌNH (Luôn hiển thị) */}
+                                <ResizableHeader
+                                    width={congTrinhColWidth}
+                                    onResize={handleColumnResize}
+                                    style={{ ...cellStyle, width: congTrinhColWidth, position: "sticky", left: 0, zIndex: 110, backgroundColor: "#1565c0", textAlign: 'center' }}
+                                    rowSpan={2}
+                                >
                                     CÔNG TRÌNH
                                 </ResizableHeader>
-                                {groupVisibility.revenue && <TableCell colSpan={5} align="center">DOANH THU</TableCell>}
-                                {groupVisibility.cost && <TableCell colSpan={5} align="center">CHI PHÍ</TableCell>}
-                                {groupVisibility.profit && <TableCell colSpan={5} align="center">LỢI NHUẬN</TableCell>}
-                                {groupVisibility.special && (
-                                    <>
-                                        <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>% LN THEO KH</TableCell>
-                                        <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>% LN THỰC TẾ</TableCell>
-                                        <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>CP VƯỢT LŨY KẾ</TableCell>
-                                        <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>CP CỘNG VÀO LN</TableCell>
-                                        <TableCell rowSpan={2} align="center" sx={{ minWidth: 200 }}>GHI CHÚ</TableCell>
-                                    </>
-                                )}
+
+                                {/* TIÊU ĐỀ CHA */}
+                                {visibleRevenueCols > 0 && <TableCell colSpan={visibleRevenueCols} align="center">DOANH THU</TableCell>}
+                                {columnVisibility.totalRevenue && <TableCell rowSpan={2} align="center">TỔNG DT NĂM</TableCell>}
+
+                                {visibleCostCols > 0 && <TableCell colSpan={visibleCostCols} align="center">CHI PHÍ</TableCell>}
+                                {columnVisibility.totalCost && <TableCell rowSpan={2} align="center">TỔNG CP NĂM</TableCell>}
+
+                                {visibleProfitCols > 0 && <TableCell colSpan={visibleProfitCols} align="center">LỢI NHUẬN</TableCell>}
+                                {columnVisibility.totalProfit && <TableCell rowSpan={2} align="center">TỔNG LN NĂM</TableCell>}
+
+                                {columnVisibility.plannedProfitMargin && <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>% LN THEO KH</TableCell>}
+                                {columnVisibility.actualProfitMargin && <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>% LN THỰC TẾ</TableCell>}
+                                {columnVisibility.costOverCumulative && <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>CP VƯỢT LŨY KẾ</TableCell>}
+                                {columnVisibility.costAddedToProfit && <TableCell rowSpan={2} align="center" sx={{ minWidth: 150 }}>CP CỘNG VÀO LN</TableCell>}
+                                {columnVisibility.note && <TableCell rowSpan={2} align="center" sx={{ minWidth: 200 }}>GHI CHÚ</TableCell>}
                             </TableRow>
+
                             <TableRow sx={{ "& th": { backgroundColor: "#1565c0", color: "#fff", fontWeight: 600, border: "1px solid #004c8f" } }}>
-                                {groupVisibility.revenue && (
-                                    <>
-                                        <TableCell align="center">QUÝ 1</TableCell>
-                                        <TableCell align="center">QUÝ 2</TableCell>
-                                        <TableCell align="center">QUÝ 3</TableCell>
-                                        <TableCell align="center">QUÝ 4</TableCell>
-                                        <TableCell align="center">TỔNG DT NĂM</TableCell>
-                                    </>
-                                )}
-                                {groupVisibility.cost && (
-                                    <>
-                                        <TableCell align="center">CP Q1</TableCell>
-                                        <TableCell align="center">CP Q2</TableCell>
-                                        <TableCell align="center">CP Q3</TableCell>
-                                        <TableCell align="center">CP Q4</TableCell>
-                                        <TableCell align="center">TỔNG CP NĂM</TableCell>
-                                    </>
-                                )}
-                                {groupVisibility.profit && (
-                                    <>
-                                        <TableCell align="center">LN Q1</TableCell>
-                                        <TableCell align="center">LN Q2</TableCell>
-                                        <TableCell align="center">LN Q3</TableCell>
-                                        <TableCell align="center">LN Q4</TableCell>
-                                        <TableCell align="center">TỔNG LN NĂM</TableCell>
-                                    </>
-                                )}
+                                {/* TIÊU ĐỀ PHỤ (THEO QUÝ) */}
+                                {columnVisibility.revenueQ1 && <TableCell align="center">QUÝ 1</TableCell>}
+                                {columnVisibility.revenueQ2 && <TableCell align="center">QUÝ 2</TableCell>}
+                                {columnVisibility.revenueQ3 && <TableCell align="center">QUÝ 3</TableCell>}
+                                {columnVisibility.revenueQ4 && <TableCell align="center">QUÝ 4</TableCell>}
+
+                                {columnVisibility.costQ1 && <TableCell align="center">CP Q1</TableCell>}
+                                {columnVisibility.costQ2 && <TableCell align="center">CP Q2</TableCell>}
+                                {columnVisibility.costQ3 && <TableCell align="center">CP Q3</TableCell>}
+                                {columnVisibility.costQ4 && <TableCell align="center">CP Q4</TableCell>}
+
+                                {columnVisibility.profitQ1 && <TableCell align="center">LN Q1</TableCell>}
+                                {columnVisibility.profitQ2 && <TableCell align="center">LN Q2</TableCell>}
+                                {columnVisibility.profitQ3 && <TableCell align="center">LN Q3</TableCell>}
+                                {columnVisibility.profitQ4 && <TableCell align="center">LN Q4</TableCell>}
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -1850,47 +1883,33 @@ export default function ProfitReportYear() {
                                     <TableCell sx={{ ...cellStyle, fontWeight: r.name?.match(/^[IVX]+\./) || r.name?.includes("LỢI NHUẬN") ? 700 : 400, width: congTrinhColWidth, minWidth: congTrinhColWidth, backgroundColor: "inherit", position: "sticky", left: 0, zIndex: 99, borderRight: "2px solid #ccc", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                         {r.name}
                                     </TableCell>
-                                    {groupVisibility.revenue && (
-                                        <>
-                                            <TableCell align="right" sx={cellStyle}>{format(r.revenueQ1)}</TableCell>
-                                            <TableCell align="right" sx={cellStyle}>{format(r.revenueQ2)}</TableCell>
-                                            <TableCell align="right" sx={cellStyle}>{format(r.revenueQ3)}</TableCell>
-                                            <TableCell align="right" sx={cellStyle}>{format(r.revenueQ4)}</TableCell>
-                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd" }}>{format(r.revenue)}</TableCell>
-                                        </>
-                                    )}
-                                    {groupVisibility.cost && (
-                                        <>
-                                            <TableCell align="right" sx={cellStyle}>{format(r.costQ1)}</TableCell>
-                                            <TableCell align="right" sx={cellStyle}>{format(r.costQ2)}</TableCell>
-                                            <TableCell align="right" sx={cellStyle}>{format(r.costQ3)}</TableCell>
-                                            <TableCell align="right" sx={cellStyle}>{format(r.costQ4)}</TableCell>
-                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd" }}>{format(r.cost)}</TableCell>
-                                        </>
-                                    )}
-                                    {groupVisibility.profit && (
-                                        <>
-                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ1)}</TableCell>
-                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ2)}</TableCell>
-                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ3)}</TableCell>
-                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ4)}</TableCell>
-                                            <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#d1c4e9", padding: "4px 8px" }}>
-                                                {isEditableRow(r.name) ? <ClickableEditCell rowName={r.name} field="profit" value={editableRows[r.name]?.profit || r.profit || 0} /> : format(r.profit)}
-                                            </TableCell>
-                                        </>
-                                    )}
-                                    {groupVisibility.special && (
-                                        <>
-                                            <TableCell align="center" sx={cellStyle}>{format(r.plannedProfitMargin, "percent")}</TableCell>
-                                            {/* DÁN ĐOẠN CODE NÀY VÀO */}
-    <TableCell align="center" sx={cellStyle}>
-        {r.projectId && r.revenue ? format((r.profit / r.revenue) * 100, "percent") : ''}
-    </TableCell>
-                                            <TableCell align="right" sx={cellStyle}>{format(r.costOverCumulative)}</TableCell>
-                                            <TableCell align="right" sx={cellStyle}>{format(r.costAddedToProfit)}</TableCell>
-                                            <TableCell align="left" sx={cellStyle}>{format(r.note)}</TableCell>
-                                        </>
-                                    )}
+                                    {/* DỮ LIỆU DOANH THU */}
+                                    {columnVisibility.revenueQ1 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ1)}</TableCell>}
+                                    {columnVisibility.revenueQ2 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ2)}</TableCell>}
+                                    {columnVisibility.revenueQ3 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ3)}</TableCell>}
+                                    {columnVisibility.revenueQ4 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ4)}</TableCell>}
+                                    {columnVisibility.totalRevenue && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd" }}>{format(r.revenue)}</TableCell>}
+
+                                    {/* DỮ LIỆU CHI PHÍ */}
+                                    {columnVisibility.costQ1 && <TableCell align="right" sx={cellStyle}>{format(r.costQ1)}</TableCell>}
+                                    {columnVisibility.costQ2 && <TableCell align="right" sx={cellStyle}>{format(r.costQ2)}</TableCell>}
+                                    {columnVisibility.costQ3 && <TableCell align="right" sx={cellStyle}>{format(r.costQ3)}</TableCell>}
+                                    {columnVisibility.costQ4 && <TableCell align="right" sx={cellStyle}>{format(r.costQ4)}</TableCell>}
+                                    {columnVisibility.totalCost && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd" }}>{format(r.cost)}</TableCell>}
+
+                                    {/* DỮ LIỆU LỢI NHUẬN */}
+                                    {columnVisibility.profitQ1 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ1)}</TableCell>}
+                                    {columnVisibility.profitQ2 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ2)}</TableCell>}
+                                    {columnVisibility.profitQ3 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ3)}</TableCell>}
+                                    {columnVisibility.profitQ4 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ4)}</TableCell>}
+                                    {columnVisibility.totalProfit && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#d1c4e9", padding: "4px 8px" }}>{isEditableRow(r.name) ? <ClickableEditCell rowName={r.name} field="profit" value={editableRows[r.name]?.profit || r.profit || 0} /> : format(r.profit)}</TableCell>}
+
+                                    {/* DỮ LIỆU CÁC CỘT ĐẶC BIỆT */}
+                                    {columnVisibility.plannedProfitMargin && <TableCell align="center" sx={cellStyle}>{format(r.plannedProfitMargin, "percent")}</TableCell>}
+                                    {columnVisibility.actualProfitMargin && <TableCell align="center" sx={cellStyle}>{r.projectId && r.revenue ? format((r.profit / r.revenue) * 100, "percent") : ''}</TableCell>}
+                                    {columnVisibility.costOverCumulative && <TableCell align="right" sx={cellStyle}>{format(r.costOverCumulative)}</TableCell>}
+                                    {columnVisibility.costAddedToProfit && <TableCell align="right" sx={cellStyle}>{format(r.costAddedToProfit)}</TableCell>}
+                                    {columnVisibility.note && <TableCell align="left" sx={cellStyle}>{format(r.note)}</TableCell>}
                                 </TableRow>
                             ))}
                         </TableBody>
