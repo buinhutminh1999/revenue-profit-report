@@ -238,89 +238,102 @@ const CompactEventTimeline = ({ events }) => {
     );
 };
 
-// ===================== THAY THẾ TOÀN BỘ COMPONENT NÀY ===================== //
+// ===================== Machine Card ===================== //
 const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
-    const isOnline = useMachineStatus(machine.id);
+    if (machine.id === 'MINH') { // <-- Thay bằng TÊN CHÍNH XÁC của máy đang hiển thị sai
+        console.log(`[DEBUG] Dữ liệu sự kiện cho máy ${machine.id}:`, events);
+    }
+        const isOnline = useMachineStatus(machine.id); // <--- THÊM dòng này
+
     const [openDetail, setOpenDetail] = React.useState(false);
     const [tick, setTick] = React.useState(0);
 
-    // Cập nhật thời gian mỗi phút khi máy đang online để giao diện người dùng luôn "live"
     React.useEffect(() => {
         if (isOnline) {
             const intervalId = setInterval(() => {
                 setTick(prevTick => prevTick + 1);
-            }, 60000); // 1 phút
+            }, 60000);
             return () => clearInterval(intervalId);
         }
     }, [isOnline]);
 
-    // ✅ KHỐI useMemo VỚI LOGIC TÍNH TOÁN ĐÃ ĐƯỢC SỬA LẠI HOÀN TOÀN
+    // Thay thế toàn bộ khối useMemo này
     const totalSec = React.useMemo(() => {
-        // Trả về 0 nếu trạng thái online chưa được xác định
+        // ================= BẮT ĐẦU DEBUG =================
+        if (machine.id === 'MINH') { // Chỉ log cho máy MINH để đỡ rối
+            console.log('%c--- [DEBUG] Bắt đầu tính toán cho máy MINH ---', 'color: blue; font-weight: bold;');
+            console.log('Sự kiện nhận được:', events);
+            console.log('Trạng thái Online:', isOnline);
+            console.log('Ngày được chọn:', selectedDate);
+            console.log('lastBootAt từ DB:', machine.lastBootAt?.toDate());
+        }
         if (isOnline === null) {
+        return 0;
+    }
+        // ================================================
+
+        const dayStart = startOfDay(selectedDate);
+        const dayEnd = endOfDay(selectedDate);
+
+        if (!events || events.length === 0) {
+            if (isOnline && isSameDay(selectedDate, new Date()) && machine.lastBootAt && machine.lastBootAt.toDate() < dayStart) {
+                const total = (new Date().getTime() - dayStart.getTime()) / 1000;
+                if (machine.id === 'MINH') console.log('[DEBUG] Không có sự kiện, tính từ đầu ngày:', total);
+                return total;
+            }
+            if (machine.id === 'MINH') console.log('[DEBUG] Không có sự kiện, trả về 0');
             return 0;
         }
 
-        const dayStart = startOfDay(selectedDate);
-        const dayEnd = endOfDay(selectedDate); // Dùng để giới hạn thời gian tính toán trong ngày
-        const isToday = isSameDay(selectedDate, new Date());
-        
-        // Sắp xếp sự kiện theo thời gian để đảm bảo tính toán chính xác
-        const sortedEvents = [...(events || [])].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-        
         let total = 0;
         let sessionStart = null;
+        const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-        // Xử lý trường hợp máy đã chạy từ trước nửa đêm của ngày được chọn
         const firstEvent = sortedEvents[0];
-        if (firstEvent && STOP_IDS.has(Number(firstEvent.eventId))) {
+        if (STOP_IDS.has(Number(firstEvent.eventId))) {
             sessionStart = dayStart;
+            if (machine.id === 'MINH') console.log('[DEBUG] Sự kiện đầu tiên là STOP, gán sessionStart = đầu ngày:', sessionStart);
         }
 
-        // Lặp qua các sự kiện để tính tổng thời gian của các phiên đã hoàn tất (START -> STOP)
         for (const e of sortedEvents) {
             const eventId = Number(e.eventId);
-            const eventTime = e.createdAt;
-
             if (START_IDS.has(eventId) && !sessionStart) {
-                sessionStart = eventTime;
-            } else if (STOP_IDS.has(eventId) && sessionStart) {
-                // Đảm bảo thời gian kết thúc không vượt ra ngoài ngày đang xem
-                const sessionEnd = eventTime.getTime() > dayEnd.getTime() ? dayEnd : eventTime;
-                const duration = (sessionEnd.getTime() - sessionStart.getTime()) / 1000;
+                sessionStart = e.createdAt;
+                if (machine.id === 'MINH') console.log(`[DEBUG] Gặp sự kiện START (${e.eventId}), gán sessionStart:`, sessionStart);
+            }
+            else if (STOP_IDS.has(eventId) && sessionStart) {
+                const duration = (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
                 total += duration;
-                sessionStart = null; // Đóng phiên lại
+                if (machine.id === 'MINH') console.log(`[DEBUG] Gặp sự kiện STOP (${e.eventId}), cộng thêm ${duration} giây. Tổng hiện tại: ${total}`);
+                sessionStart = null;
             }
         }
 
-        // XỬ LÝ PHIÊN CUỐI CÙNG (QUAN TRỌNG NHẤT)
-        // Nếu vẫn còn một `sessionStart` (tức là có START mà chưa có STOP)
         if (sessionStart) {
-            if (isOnline && isToday) {
-                // TRƯỜNG HỢP 1: MÁY ĐANG ONLINE VÀ XEM NGÀY HÔM NAY
-                // Tính thời gian từ lúc START cuối cùng cho đến thời điểm hiện tại
-                const now = new Date();
-                const sessionEnd = now.getTime() > dayEnd.getTime() ? dayEnd : now;
-                const durationToAdd = (sessionEnd.getTime() - sessionStart.getTime()) / 1000;
-                total += durationToAdd;
-            } else {
-                // TRƯỜNG HỢP 2: MÁY ĐÃ OFFLINE (hoặc đang xem một ngày trong quá khứ)
-                // Tính thời gian từ lúc START cuối cùng cho đến lúc máy hoạt động cuối cùng (`lastSeenAt`)
-                const lastSeenTime = machine.lastSeenAt?.toDate();
-                
-                if (lastSeenTime && lastSeenTime.getTime() > sessionStart.getTime()) {
-                    const sessionEnd = lastSeenTime.getTime() > dayEnd.getTime() ? dayEnd : lastSeenTime;
-                    const durationToAdd = (sessionEnd.getTime() - sessionStart.getTime()) / 1000;
-                    total += durationToAdd;
-                }
+            const endPoint = isSameDay(selectedDate, new Date()) && isOnline ? new Date() : dayEnd;
+            const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
+
+            // ================= BẮT ĐẦU DEBUG =================
+            if (machine.id === 'MINH') {
+                console.log('[DEBUG] Phiên đang chạy, chưa kết thúc.');
+                console.log('Điểm bắt đầu phiên:', sessionStart);
+                console.log('Điểm kết thúc tính toán:', endPoint);
+                console.log('Thời gian (giây) sẽ cộng thêm:', durationToAdd);
             }
+            // ================================================
+
+            total += durationToAdd;
         }
+
+        // ================= BẮT ĐẦU DEBUG =================
+        if (machine.id === 'MINH') {
+            console.log(`%c===> [DEBUG] TỔNG SỐ GIÂY TÍNH ĐƯỢC: ${total}`, 'color: red; font-size: 14px; font-weight: bold;');
+            console.log('%c--- [DEBUG] Kết thúc tính toán ---', 'color: blue; font-weight: bold;');
+        }
+        // ================================================
 
         return Math.max(0, total);
-        
-    // Phụ thuộc của useMemo, `machine.lastSeenAt` rất quan trọng để tính toán lại khi máy offline
-    }, [events, isOnline, selectedDate, machine.lastSeenAt, tick]);
-
+    }, [events, isOnline, selectedDate, tick, machine.lastBootAt]);
 
     const usageHours = totalSec / 3600;
     const progress = Math.min(100, (usageHours / workingHours) * 100);
@@ -381,11 +394,6 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
         </Paper>
     );
 };
-// ======================================================================== //
-// ======================================================================== //
-
-
-// ... (Component DeviceMonitoringDashboard và các phần khác giữ nguyên)
 
 /* ===================== Main Component ===================== */
 export default function DeviceMonitoringDashboard() {
