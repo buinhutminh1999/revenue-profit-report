@@ -30,7 +30,7 @@ import {
     FormControlLabel,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
-import { collection, getDocs, setDoc, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, setDoc, doc, getDoc, collectionGroup, onSnapshot } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 import { toNum, formatNumber } from "../utils/numberUtils";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
@@ -679,51 +679,19 @@ export default function ProfitReportQuarter() {
 
         return rows;
     };
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
+  // DÁN TOÀN BỘ CODE NÀY VÀO VỊ TRÍ useEffect CŨ
+useEffect(() => {
+    // Hàm này chứa toàn bộ logic lấy và xử lý dữ liệu của bạn
+    const processData = async () => {
+        console.log("Realtime update triggered! Reprocessing data...");
+        setLoading(true);
 
-            const getCostOverQuarter = async (fieldName) => {
-                try {
-                    const snap = await getDoc(
-                        doc(
-                            db,
-                            "costAllocationsQuarter",
-                            `${selectedYear}_${selectedQuarter}`
-                        )
-                    );
-                    if (snap.exists()) return toNum(snap.data()[fieldName]);
-                } catch { }
-                return 0;
+        const getCostOverQuarter = async (fieldName) => {
             };
 
             // Lấy cpVuot từ công trình cụ thể cho II. SẢN XUẤT
             // Lấy cpVuot từ công trình cụ thể cho II. SẢN XUẤT
             const getCpVuotSanXuat = async () => {
-                try {
-                    const docRef = doc(db, `projects/HKZyMDRhyXJzJiOauzVe/years/${selectedYear}/quarters/${selectedQuarter}`);
-                    const docSnap = await getDoc(docRef);
-
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-
-                        // Kiểm tra nếu có items và cộng dồn cpVuot của từng item
-                        if (Array.isArray(data.items) && data.items.length > 0) {
-                            const totalCpVuot = data.items.reduce((sum, item) => {
-                                return sum + toNum(item.cpVuot || 0);
-                            }, 0);
-                            return totalCpVuot;
-                        }
-
-                        // Nếu không có items hoặc items rỗng, lấy cpVuot ở cấp document
-                        if (data.cpVuot !== undefined) {
-                            return toNum(data.cpVuot);
-                        }
-                    }
-                } catch (error) {
-                    console.error("Lỗi khi lấy cpVuot cho Sản xuất:", error);
-                }
-                return 0;
             };
 
             const [
@@ -1408,16 +1376,44 @@ export default function ProfitReportQuarter() {
                         return true;
                     }
                     return false;
-                }
+                      }
                 return true;
             });
 
             setRows(filteredRows);
             setLoading(false);
-        };
-        fetchData();
-        // eslint-disable-next-line
-    }, [selectedYear, selectedQuarter]);
+    };
+
+    // Gọi hàm xử lý lần đầu tiên
+    processData();
+
+    // Mảng chứa các hàm để hủy listener
+    const unsubscribes = [];
+
+    // Listener 1: Lắng nghe thay đổi trên collection `projects` (thêm/xóa dự án)
+    const projectsQuery = collection(db, "projects");
+    const unsubProjects = onSnapshot(projectsQuery, () => {
+        console.log("Change detected in 'projects' collection.");
+        processData();
+    });
+    unsubscribes.push(unsubProjects);
+
+    // Listener 2: Lắng nghe thay đổi trên TẤT CẢ các collection con `quarters`
+    // Đây là listener quan trọng nhất cho dữ liệu tài chính
+    const quartersQuery = collectionGroup(db, 'quarters');
+    const unsubQuarters = onSnapshot(quartersQuery, () => {
+        console.log("Change detected in a 'quarters' sub-collection.");
+        processData();
+    });
+    unsubscribes.push(unsubQuarters);
+    
+    // Hàm dọn dẹp: sẽ chạy khi component unmount hoặc khi year/quarter thay đổi
+    return () => {
+        console.log("Cleaning up all listeners.");
+        unsubscribes.forEach(unsub => unsub());
+    };
+
+}, [selectedYear, selectedQuarter]);
 
     const handleSave = async (rowsToSave) => {
         const rowsData = Array.isArray(rowsToSave) ? rowsToSave : rows;
