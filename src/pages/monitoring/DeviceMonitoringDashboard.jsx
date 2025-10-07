@@ -47,9 +47,9 @@ function useMachineStatus(machineId) {
             setIsOnline(false); // Nếu không có ID, coi như offline
             return;
         }
-        
+
         const statusRef = ref(rtdb, `status/${machineId}`);
-        
+
         const unsubscribe = onValue(statusRef, (snapshot) => {
             const status = snapshot.val();
             // Khi có dữ liệu, cập nhật thành true hoặc false
@@ -243,7 +243,7 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
     if (machine.id === 'MINH') { // <-- Thay bằng TÊN CHÍNH XÁC của máy đang hiển thị sai
         console.log(`[DEBUG] Dữ liệu sự kiện cho máy ${machine.id}:`, events);
     }
-        const isOnline = useMachineStatus(machine.id); // <--- THÊM dòng này
+    const isOnline = useMachineStatus(machine.id); // <--- THÊM dòng này
 
     const [openDetail, setOpenDetail] = React.useState(false);
     const [tick, setTick] = React.useState(0);
@@ -268,8 +268,8 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
             console.log('lastBootAt từ DB:', machine.lastBootAt?.toDate());
         }
         if (isOnline === null) {
-        return 0;
-    }
+            return 0;
+        }
         // ================================================
 
         const dayStart = startOfDay(selectedDate);
@@ -310,19 +310,27 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
         }
 
         if (sessionStart) {
-            const endPoint = isSameDay(selectedDate, new Date()) && isOnline ? new Date() : dayEnd;
+            let endPoint;
+
+            // TRƯỜNG HỢP 1: Máy đang online và xem ngày hôm nay -> tính đến hiện tại
+            if (isSameDay(selectedDate, new Date()) && isOnline) {
+                endPoint = new Date();
+            }
+            // TRƯỜNG HỢP 2: Máy offline hoặc xem ngày cũ -> tính đến hoạt động cuối cùng
+            else {
+                // Lấy thời gian hoạt động cuối cùng được ghi nhận
+                const lastSeen = machine.lastSeenAt ? machine.lastSeenAt.toDate() : sessionStart;
+
+                // Đảm bảo điểm kết thúc không vượt qua thời gian bắt đầu
+                endPoint = lastSeen > sessionStart ? lastSeen : sessionStart;
+            }
+
             const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
 
-            // ================= BẮT ĐẦU DEBUG =================
-            if (machine.id === 'MINH') {
-                console.log('[DEBUG] Phiên đang chạy, chưa kết thúc.');
-                console.log('Điểm bắt đầu phiên:', sessionStart);
-                console.log('Điểm kết thúc tính toán:', endPoint);
-                console.log('Thời gian (giây) sẽ cộng thêm:', durationToAdd);
+            // Chỉ cộng vào nếu thời gian lớn hơn 0
+            if (durationToAdd > 0) {
+                total += durationToAdd;
             }
-            // ================================================
-
-            total += durationToAdd;
         }
 
         // ================= BẮT ĐẦU DEBUG =================
@@ -485,15 +493,15 @@ export default function DeviceMonitoringDashboard() {
                 ) : (
                     // ... code
                     filteredMachines.map((m) => (
-    <Grid item xs={12} sm={6} md={4} lg={3} key={m.id}>
-        <MachineCard
-            machine={m}
-            events={eventsByMachine[m.id] || []}
-            workingHours={workingHours}
-            selectedDate={selectedDate}
-        />
-    </Grid>
-))
+                        <Grid item xs={12} sm={6} md={4} lg={3} key={m.id}>
+                            <MachineCard
+                                machine={m}
+                                events={eventsByMachine[m.id] || []}
+                                workingHours={workingHours}
+                                selectedDate={selectedDate}
+                            />
+                        </Grid>
+                    ))
                     // ... code
                 )}
                 {!isLoading && filteredMachines.length === 0 && (
