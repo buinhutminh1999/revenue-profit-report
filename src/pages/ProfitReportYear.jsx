@@ -1313,9 +1313,79 @@ const useProfitReportData = (selectedYear) => {
             // ✅ KẾT THÚC: LOGIC MỚI CHO III. ĐẦU TƯ
             // ======================================================================// ======================================================================
             // ======================================================================
-// ✅ BẮT ĐẦU: LOGIC MỚI CHO I.3. CÔNG TRÌNH CÔNG TY CĐT
+            // ✅ BẮT ĐẦU: LOGIC MỚI CHO I.3. CÔNG TRÌNH CÔNG TY CĐT
+            // ======================================================================
+            const cdtProjects = []; // Mảng chứa các dự án CĐT
+
+            // Vòng lặp qua 4 quý để lấy dữ liệu từ profitReports
+            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+                try {
+                    const docId = `${selectedYear}_${quarter}`;
+                    const profitReportSnap = await getDoc(
+                        doc(db, "profitReports", docId)
+                    );
+
+                    if (profitReportSnap.exists()) {
+                        const reportData = profitReportSnap.data();
+                        if (Array.isArray(reportData.rows)) {
+                            // Lọc ra các dự án có type = "CĐT" trong báo cáo quý
+                            const cdtRows = reportData.rows.filter(
+                                (row) => row.type === "CĐT"
+                            );
+
+                            // Xử lý và tổng hợp dữ liệu cho từng dự án tìm thấy
+                            cdtRows.forEach((projectRow) => {
+                                let existingProject = cdtProjects.find(
+                                    (p) => p.name === projectRow.name
+                                );
+
+                                if (!existingProject) {
+                                    // Nếu dự án chưa có trong danh sách, tạo mới
+                                    existingProject = {
+                                        name: projectRow.name, type: "CĐT",
+                                        revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
+                                        cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
+                                        profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
+                                    };
+                                    cdtProjects.push(existingProject);
+                                }
+                                // Cập nhật dữ liệu cho quý tương ứng
+                                existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
+                                existingProject[`cost${quarter}`] = toNum(projectRow.cost);
+                                existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error(
+                        `Lỗi khi lấy dữ liệu CĐT cho ${quarter}/${selectedYear}:`,
+                        error
+                    );
+                }
+            }
+
+            // Tính tổng cả năm cho từng dự án CĐT
+            cdtProjects.forEach((project) => {
+                project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`revenue${q}`] || 0), 0);
+                project.cost = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`cost${q}`] || 0), 0);
+                project.profit = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`profit${q}`] || 0), 0);
+            });
+
+            // Chèn các dự án CĐT đã xử lý vào bảng kết quả (rowTemplate)
+            const cdtHeaderIndex = rowTemplate.findIndex((r) => r.name === "I.3. CÔNG TRÌNH CÔNG TY CĐT");
+            if (cdtHeaderIndex !== -1) {
+                // Chèn các dự án chi tiết ngay sau header I.3
+                cdtProjects.forEach((project, index) => {
+                    rowTemplate.splice(cdtHeaderIndex + 1 + index, 0, project);
+                });
+            }
+            // ======================================================================
+            // ✅ KẾT THÚC: LOGIC MỚI CHO I.3. CÔNG TRÌNH CÔNG TY CĐT
+            // ======================================================================
+            // ======================================================================
+// ✅ BẮT ĐẦU: LOGIC MỚI CHO I.1 & I.2 (DÂN DỤNG + KÈ)
 // ======================================================================
-const cdtProjects = []; // Mảng chứa các dự án CĐT
+const thiCongProjects = []; // Mảng chứa tất cả dự án có type 'Thi công'
 
 // Vòng lặp qua 4 quý để lấy dữ liệu từ profitReports
 for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
@@ -1328,26 +1398,26 @@ for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
         if (profitReportSnap.exists()) {
             const reportData = profitReportSnap.data();
             if (Array.isArray(reportData.rows)) {
-                // Lọc ra các dự án có type = "CĐT" trong báo cáo quý
-                const cdtRows = reportData.rows.filter(
-                    (row) => row.type === "CĐT"
+                // Lọc ra các dự án có type = "Thi công" trong báo cáo quý
+                const thiCongRows = reportData.rows.filter(
+                    (row) => row.type === "Thi công"
                 );
 
-                // Xử lý và tổng hợp dữ liệu cho từng dự án tìm thấy
-                cdtRows.forEach((projectRow) => {
-                    let existingProject = cdtProjects.find(
+                // Xử lý và tổng hợp dữ liệu cho từng dự án
+                thiCongRows.forEach((projectRow) => {
+                    let existingProject = thiCongProjects.find(
                         (p) => p.name === projectRow.name
                     );
 
                     if (!existingProject) {
                         // Nếu dự án chưa có trong danh sách, tạo mới
                         existingProject = {
-                            name: projectRow.name, type: "CĐT",
+                            name: projectRow.name, type: "Thi công",
                             revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
                             cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
                             profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
                         };
-                        cdtProjects.push(existingProject);
+                        thiCongProjects.push(existingProject);
                     }
                     // Cập nhật dữ liệu cho quý tương ứng
                     existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
@@ -1358,65 +1428,53 @@ for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
         }
     } catch (error) {
         console.error(
-            `Lỗi khi lấy dữ liệu CĐT cho ${quarter}/${selectedYear}:`,
+            `Lỗi khi lấy dữ liệu 'Thi công' cho ${quarter}/${selectedYear}:`,
             error
         );
     }
 }
 
-// Tính tổng cả năm cho từng dự án CĐT
-cdtProjects.forEach((project) => {
+// Tính tổng cả năm cho từng dự án
+thiCongProjects.forEach((project) => {
     project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`revenue${q}`] || 0), 0);
     project.cost = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`cost${q}`] || 0), 0);
     project.profit = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`profit${q}`] || 0), 0);
 });
 
-// Chèn các dự án CĐT đã xử lý vào bảng kết quả (rowTemplate)
-const cdtHeaderIndex = rowTemplate.findIndex((r) => r.name === "I.3. CÔNG TRÌNH CÔNG TY CĐT");
-if (cdtHeaderIndex !== -1) {
-    // Chèn các dự án chi tiết ngay sau header I.3
-    cdtProjects.forEach((project, index) => {
-        rowTemplate.splice(cdtHeaderIndex + 1 + index, 0, project);
+// Tách danh sách thành 2 nhóm: "Dân Dụng" và "KÈ"
+const danDungProjects = thiCongProjects.filter(p => !(p.name || "").toUpperCase().includes("KÈ"));
+const keProjects = thiCongProjects.filter(p => (p.name || "").toUpperCase().includes("KÈ"));
+
+// Chèn nhóm "Dân Dụng + Giao Thông" vào bảng
+const danDungHeaderIndex = rowTemplate.findIndex((r) => r.name === "I.1. Dân Dụng + Giao Thông");
+if (danDungHeaderIndex !== -1) {
+    // Xóa các dự án cũ nếu có để tránh lặp lại
+    let i = danDungHeaderIndex + 1;
+    while (i < rowTemplate.length && !rowTemplate[i].name.match(/^[IVX]+\./) && rowTemplate[i].type === 'Thi công') {
+        rowTemplate.splice(i, 1);
+    }
+    // Chèn các dự án mới
+    danDungProjects.forEach((project, index) => {
+        rowTemplate.splice(danDungHeaderIndex + 1 + index, 0, project);
+    });
+}
+
+// Chèn nhóm "KÈ" vào bảng
+const keHeaderIndex = rowTemplate.findIndex((r) => r.name === "I.2. KÈ");
+if (keHeaderIndex !== -1) {
+     // Xóa các dự án cũ nếu có để tránh lặp lại
+    let i = keHeaderIndex + 1;
+    while (i < rowTemplate.length && !rowTemplate[i].name.match(/^[IVX]+\./) && rowTemplate[i].type === 'Thi công') {
+        rowTemplate.splice(i, 1);
+    }
+    // Chèn các dự án mới
+    keProjects.forEach((project, index) => {
+        rowTemplate.splice(keHeaderIndex + 1 + index, 0, project);
     });
 }
 // ======================================================================
-// ✅ KẾT THÚC: LOGIC MỚI CHO I.3. CÔNG TRÌNH CÔNG TY CĐT
+// ✅ KẾT THÚC: LOGIC MỚI CHO I.1 & I.2
 // ======================================================================
-            projects.forEach((p) => {
-                const index = rowTemplate.findIndex((r) => r.name === p.name);
-                if (index > -1) {
-                    rowTemplate[index] = { ...rowTemplate[index], ...p };
-                } else {
-                    let insertIndex = -1;
-
-                    if (p.type === "Thi công") {
-                        if ((p.name || "").toUpperCase().includes("KÈ")) {
-                            insertIndex = rowTemplate.findIndex(
-                                (r) => r.name === `I.3. CÔNG TRÌNH CÔNG TY CĐT`
-                            );
-                        } else {
-                            insertIndex = rowTemplate.findIndex(
-                                (r) => r.name === `I.2. KÈ`
-                            );
-                        }
-                    }
-                    // COMMENT HOẶC XÓA PHẦN NÀY vì đã lấy từ báo cáo quý
-                    // else if (p.type.toLowerCase().includes("nhà máy")) {
-                    //     insertIndex = rowTemplate.findIndex(
-                    //         (r) => r.name === `II.2. DT + LN ĐƯỢC CHIA TỪ LDX`
-                    //     );
-                    // }
-                    // else if (p.type === "KH-ĐT") {
-                    //     insertIndex = rowTemplate.findIndex(
-                    //         (r) => r.name === "IV. TỔNG"
-                    //     );
-                    // }
-
-                    if (insertIndex > -1) {
-                        rowTemplate.splice(insertIndex, 0, p);
-                    }
-                }
-            });
             // Cập nhật dữ liệu cho các hàng có thể chỉnh sửa và tính toán
             const finalRows = runAllCalculations(
                 rowTemplate,
