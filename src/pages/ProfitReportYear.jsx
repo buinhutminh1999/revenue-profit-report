@@ -1312,6 +1312,76 @@ const useProfitReportData = (selectedYear) => {
             // ======================================================================
             // ✅ KẾT THÚC: LOGIC MỚI CHO III. ĐẦU TƯ
             // ======================================================================// ======================================================================
+            // ======================================================================
+// ✅ BẮT ĐẦU: LOGIC MỚI CHO I.3. CÔNG TRÌNH CÔNG TY CĐT
+// ======================================================================
+const cdtProjects = []; // Mảng chứa các dự án CĐT
+
+// Vòng lặp qua 4 quý để lấy dữ liệu từ profitReports
+for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+    try {
+        const docId = `${selectedYear}_${quarter}`;
+        const profitReportSnap = await getDoc(
+            doc(db, "profitReports", docId)
+        );
+
+        if (profitReportSnap.exists()) {
+            const reportData = profitReportSnap.data();
+            if (Array.isArray(reportData.rows)) {
+                // Lọc ra các dự án có type = "CĐT" trong báo cáo quý
+                const cdtRows = reportData.rows.filter(
+                    (row) => row.type === "CĐT"
+                );
+
+                // Xử lý và tổng hợp dữ liệu cho từng dự án tìm thấy
+                cdtRows.forEach((projectRow) => {
+                    let existingProject = cdtProjects.find(
+                        (p) => p.name === projectRow.name
+                    );
+
+                    if (!existingProject) {
+                        // Nếu dự án chưa có trong danh sách, tạo mới
+                        existingProject = {
+                            name: projectRow.name, type: "CĐT",
+                            revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
+                            cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
+                            profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
+                        };
+                        cdtProjects.push(existingProject);
+                    }
+                    // Cập nhật dữ liệu cho quý tương ứng
+                    existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
+                    existingProject[`cost${quarter}`] = toNum(projectRow.cost);
+                    existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                });
+            }
+        }
+    } catch (error) {
+        console.error(
+            `Lỗi khi lấy dữ liệu CĐT cho ${quarter}/${selectedYear}:`,
+            error
+        );
+    }
+}
+
+// Tính tổng cả năm cho từng dự án CĐT
+cdtProjects.forEach((project) => {
+    project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`revenue${q}`] || 0), 0);
+    project.cost = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`cost${q}`] || 0), 0);
+    project.profit = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`profit${q}`] || 0), 0);
+});
+
+// Chèn các dự án CĐT đã xử lý vào bảng kết quả (rowTemplate)
+const cdtHeaderIndex = rowTemplate.findIndex((r) => r.name === "I.3. CÔNG TRÌNH CÔNG TY CĐT");
+if (cdtHeaderIndex !== -1) {
+    // Chèn các dự án chi tiết ngay sau header I.3
+    cdtProjects.forEach((project, index) => {
+        rowTemplate.splice(cdtHeaderIndex + 1 + index, 0, project);
+    });
+}
+// ======================================================================
+// ✅ KẾT THÚC: LOGIC MỚI CHO I.3. CÔNG TRÌNH CÔNG TY CĐT
+// ======================================================================
             projects.forEach((p) => {
                 const index = rowTemplate.findIndex((r) => r.name === p.name);
                 if (index > -1) {
