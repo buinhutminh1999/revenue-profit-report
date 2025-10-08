@@ -784,6 +784,35 @@ export default function ActualCostsTab({ projectId }) {
             })
         );
     }, [overallRevenue, projectTotalAmount, projectData]);
+     // =================================================================
+    // MỚI: HÀM XỬ LÝ HỦY QUYẾT TOÁN
+    // =================================================================
+    const handleUndoFinalize = useCallback(() => {
+        const isConfirmed = window.confirm(
+            "❓ Bạn có chắc muốn hủy quyết toán không?\n\nTất cả các dòng sẽ được tính toán lại theo công thức tự động."
+        );
+
+        if (!isConfirmed) {
+            return;
+        }
+
+        setCostItems((prevItems) =>
+            prevItems.map((row) => {
+                // 1. Tạo một bản sao của dòng và gỡ bỏ cờ 'isFinalized'
+                const newRow = { ...row, isFinalized: false };
+
+                // 2. TÍNH TOÁN LẠI NGAY LẬP TỨC với trạng thái đã "mở khóa"
+                calcAllFields(newRow, {
+                    overallRevenue,
+                    projectTotalAmount,
+                    projectType: projectData?.type,
+                });
+                
+                // 3. Trả về dòng đã được tính toán lại
+                return newRow;
+            })
+        );
+    }, [overallRevenue, projectTotalAmount, projectData]); // <-- Phải có dependencies này
     const handleFinalizeProject = useCallback(() => {
         const isConfirmed = window.confirm(
             "❓ BẠN CÓ CHẮC MUỐN QUYẾT TOÁN CÔNG TRÌNH NÀY KHÔNG?\n\nHành động này sẽ:\n1. Cập nhật 'Nợ Phải Trả CK' = 'Nợ Phải Trả CK' - 'Cuối Kỳ'\n2. Đặt tất cả giá trị cột 'Cuối Kỳ' về 0."
@@ -983,6 +1012,7 @@ export default function ActualCostsTab({ projectId }) {
                 onExport={() => exportToExcel(costItems, displayedColumns, projectData, year, quarter)}
                 onSave={handleSave}
                 onSaveNextQuarter={handleSaveNextQuarter}
+                 onUndoFinalize={handleUndoFinalize} // <-- TRUYỀN HÀM MỚI XUỐNG
                 onFinalizeProject={handleFinalizeProject} // <-- 4. TRUYỀN HÀM XUỐNG
 
                 onToggleColumns={handleOpenColumnsDialog}

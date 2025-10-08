@@ -338,29 +338,43 @@ export default function ProfitReportQuarter() {
     };
 
     const updateGroupI3 = (rows) => {
-        const idxI3 = rows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "I.3. CÔNG TRÌNH CÔNG TY CĐT"
-        );
-        if (idxI3 === -1) return rows;
-        let i = idxI3 + 1;
-        const childRows = [];
-        while (
-            i < rows.length &&
-            !(rows[i].name && rows[i].name.match(/^[IVX]+\./))
-        ) {
-            childRows.push(rows[i]);
-            i++;
+    const idxI3 = rows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            "I.3. CÔNG TRÌNH CÔNG TY CĐT"
+    );
+    if (idxI3 === -1) return rows;
+    let i = idxI3 + 1;
+    const childRows = [];
+    while (
+        i < rows.length &&
+        !(rows[i].name && rows[i].name.match(/^[IVX]+\./))
+    ) {
+        childRows.push(rows[i]);
+        i++;
+    }
+
+    // Vẫn tính tổng Doanh thu và Chi phí để hiển thị trên dòng tổng hợp
+    const revenue = childRows.reduce((s, r) => s + toNum(r.revenue), 0);
+    const cost = childRows.reduce((s, r) => s + toNum(r.cost), 0);
+
+    // ✅ THAY ĐỔI THEO YÊU CẦU MỚI
+    // Công thức: Lợi nhuận = LN(hàng con 1) - LN(hàng con 2) - LN(hàng con 3) ...
+    const profit = childRows.reduce((acc, currentRow, index) => {
+        const currentProfit = toNum(currentRow.profit);
+        // Nếu là phần tử đầu tiên, lấy nó làm giá trị khởi tạo
+        if (index === 0) {
+            return currentProfit;
         }
-        const revenue = childRows.reduce((s, r) => s + toNum(r.revenue), 0);
-        const cost = childRows.reduce((s, r) => s + toNum(r.cost), 0);
-        const profit = revenue - cost;
-        const percent = revenue ? (profit / revenue) * 100 : null;
-        const newRows = [...rows];
-        newRows[idxI3] = { ...newRows[idxI3], revenue, cost, profit, percent };
-        return newRows;
-    };
+        // Các phần tử sau đó sẽ được trừ đi từ giá trị đã có
+        return acc - currentProfit;
+    }, 0); // Khởi tạo với 0
+
+    const percent = revenue ? (profit / revenue) * 100 : null;
+    const newRows = [...rows];
+    newRows[idxI3] = { ...newRows[idxI3], revenue, cost, profit, percent };
+    return newRows;
+};
 
     // DÁN TOÀN BỘ HÀM MỚI NÀY VÀO
     // ----------------------------------------------------------------
