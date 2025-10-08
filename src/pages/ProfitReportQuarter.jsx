@@ -411,32 +411,37 @@ export default function ProfitReportQuarter() {
     // ----------------------------------------------------------------
 
     const updateXayDungRow = (inputRows) => {
-        const rows = [...inputRows];
-        const idxI = rows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
-        );
-        if (idxI === -1) return rows;
+    const rows = [...inputRows];
+    const idxI = rows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+    );
+    if (idxI === -1) return rows;
 
-        const idxI1 = rows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "I.1. DÂN DỤNG + GIAO THÔNG"
-        );
-        const idxI2 = rows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
-        );
+    const idxI1 = rows.findIndex(
+        (r) =>
+            (r.name || "").trim().toUpperCase() ===
+            "I.1. DÂN DỤNG + GIAO THÔNG"
+    );
+    const idxI2 = rows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
+    );
+    // ✅ THÊM DÒNG NÀY
+    const idxI3 = rows.findIndex(
+        (r) => (r.name || "").trim().toUpperCase() === "I.3. CÔNG TRÌNH CÔNG TY CĐT"
+    );
 
-        const revenue =
-            toNum(rows[idxI1]?.revenue) + toNum(rows[idxI2]?.revenue);
-        const cost = toNum(rows[idxI1]?.cost) + toNum(rows[idxI2]?.cost);
-        const profit = revenue - cost;
 
-        const target = toNum(rows[idxI].target);
-        const percent = target !== 0 ? (profit / target) * 100 : null;
+    const revenue =
+        toNum(rows[idxI1]?.revenue) + toNum(rows[idxI2]?.revenue) + toNum(rows[idxI3]?.revenue); // ✅ THÊM DOANH THU CỦA I.3
+    const cost = toNum(rows[idxI1]?.cost) + toNum(rows[idxI2]?.cost) + toNum(rows[idxI3]?.cost); // ✅ THÊM CHI PHÍ CỦA I.3
+    const profit = revenue - cost;
 
-        rows[idxI] = { ...rows[idxI], revenue, cost, profit, percent };
-        return rows;
-    };
+    const target = toNum(rows[idxI].target);
+    const percent = target !== 0 ? (profit / target) * 100 : null;
+
+    rows[idxI] = { ...rows[idxI], revenue, cost, profit, percent };
+    return rows;
+};
 
     const updateSanXuatRow = (inputRows) => {
         const rows = [...inputRows];
@@ -2327,7 +2332,7 @@ export default function ProfitReportQuarter() {
                                 if (
                                     addProject.group === "I.4. Xí nghiệp XD II"
                                 ) {
-                                    projectType = "XNII";
+                                    projectType = "xnxd2";
                                 } else if (
                                     addProject.group === "II.1. SẢN XUẤT"
                                 ) {

@@ -683,9 +683,16 @@ const useProfitReportData = (selectedYear) => {
             // ✅ SAO CHÉP VÀ THAY THẾ TOÀN BỘ KHỐI CODE BÊN DƯỚI
             // =================================================================
 
+            // =================================================================
+            // ✅ SAO CHÉP VÀ THAY THẾ TOÀN BỘ KHỐI CODE BÊN DƯỚI
+            // =================================================================
+
             const projects = await Promise.all(
                 projectsSnapshot.docs.map(async (d) => {
                     const data = d.data();
+                    const projectName = data.name;
+
+                    // BƯỚC 1: Luôn lấy dữ liệu của cả 4 quý từ Firestore trước
                     const quarterlyData = {
                         revenues: {},
                         costs: {},
@@ -704,16 +711,10 @@ const useProfitReportData = (selectedYear) => {
                             if (qSnap.exists()) {
                                 const qData = qSnap.data();
                                 const revenue = toNum(qData.overallRevenue);
-                                let cost = 0; // Khởi tạo chi phí cho quý này
-
-                                // ==========================================================
-                                // ✅ LOGIC TÍNH CHI PHÍ MỚI ĐƯỢC ÁP DỤNG TẠI ĐÂY
-                                // ==========================================================
+                                let cost = 0;
                                 const projectType = (data.type || "").toLowerCase();
 
                                 if (projectType.includes("nhà máy")) {
-                                    // TRƯỜNG HỢP 1: NẾU LÀ CÔNG TRÌNH SẢN XUẤT (NHÀ MÁY)
-                                    // -> Luôn tính chi phí bằng tổng của `totalCost`
                                     if (Array.isArray(qData.items) && qData.items.length > 0) {
                                         cost = qData.items.reduce(
                                             (sum, item) => sum + toNum(item.totalCost || 0),
@@ -721,8 +722,6 @@ const useProfitReportData = (selectedYear) => {
                                         );
                                     }
                                 } else {
-                                    // TRƯỜNG HỢP 2: CÁC LOẠI CÔNG TRÌNH CÒN LẠI
-                                    // -> Áp dụng logic tính toán phức tạp
                                     if (Array.isArray(qData.items) && qData.items.length > 0) {
                                         const totalItemsRevenue = qData.items.reduce(
                                             (sum, item) => sum + toNum(item.revenue || 0),
@@ -748,9 +747,6 @@ const useProfitReportData = (selectedYear) => {
                                         cost = 0;
                                     }
                                 }
-                                // ==========================================================
-                                // ✅ KẾT THÚC LOGIC TÍNH CHI PHÍ MỚI
-                                // ==========================================================
 
                                 quarterlyData.revenues[quarter] = revenue;
                                 quarterlyData.costs[quarter] = cost;
@@ -761,6 +757,29 @@ const useProfitReportData = (selectedYear) => {
                         }
                     }
 
+                    // ======================================================================
+                    // ✅ BƯỚC 2: KIỂM TRA VÀ GHI ĐÈ DỮ LIỆU QUÝ 3 NẾU ĐÚNG CÔNG TRÌNH
+                    // ======================================================================
+                    if (projectName === "MAT TRAN TO QUOC") {
+                        console.log("🔥 Ghi đè dữ liệu Quý 3 cho công trình: MAT TRAN TO QUOC");
+
+                        // ✅ CHỮA CHÁY: NHẬP SỐ LIỆU QUÝ 3 MỚI TẠI ĐÂY
+                        // 👇👇👇 THAY SỐ TIỀN CỦA BẠN VÀO ĐÂY 👇👇👇
+                        const revenueQ3_override = 0; // Thay bằng Doanh thu Q3 thực tế
+                        const costQ3_override = 17200000
+;    // Thay bằng Chi phí Q3 thực tế
+
+                        // Ghi đè dữ liệu Q3 trong object đã lấy được ở trên
+                        quarterlyData.revenues['Q3'] = revenueQ3_override;
+                        quarterlyData.costs['Q3'] = costQ3_override;
+                        quarterlyData.profits['Q3'] = revenueQ3_override - costQ3_override;
+                    }
+                    // ======================================================================
+                    // ✅ KẾT THÚC LOGIC GHI ĐÈ
+                    // ======================================================================
+
+
+                    // BƯỚC 3: TÍNH TOÁN TỔNG NĂM TỪ DỮ LIỆU ĐÃ CÓ (Q3 ĐÃ ĐƯỢC CẬP NHẬT)
                     const totalRevenue = Object.values(quarterlyData.revenues).reduce((s, v) => s + v, 0);
                     const totalCost = Object.values(quarterlyData.costs).reduce((s, v) => s + v, 0);
 
@@ -785,10 +804,14 @@ const useProfitReportData = (selectedYear) => {
                             ? ((totalRevenue - totalCost) / totalRevenue) * 100
                             : null,
                         plannedProfitMargin: data.estimatedProfitMargin || null,
-
                     };
                 })
             );
+
+
+            // =================================================================
+            // ✅ KẾT THÚC KHỐI CODE THAY THẾ
+            // =================================================================
 
             // =================================================================
             // ✅ KẾT THÚC KHỐI CODE THAY THẾ
@@ -1382,99 +1405,41 @@ const useProfitReportData = (selectedYear) => {
             // ======================================================================
             // ✅ KẾT THÚC: LOGIC MỚI CHO I.3. CÔNG TRÌNH CÔNG TY CĐT
             // ======================================================================
-            // ======================================================================
-// ✅ BẮT ĐẦU: LOGIC MỚI CHO I.1 & I.2 (DÂN DỤNG + KÈ)
-// ======================================================================
-const thiCongProjects = []; // Mảng chứa tất cả dự án có type 'Thi công'
+            projects.forEach((p) => {
+                const index = rowTemplate.findIndex((r) => r.name === p.name);
+                if (index > -1) {
+                    rowTemplate[index] = { ...rowTemplate[index], ...p };
+                } else {
+                    let insertIndex = -1;
 
-// Vòng lặp qua 4 quý để lấy dữ liệu từ profitReports
-for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-    try {
-        const docId = `${selectedYear}_${quarter}`;
-        const profitReportSnap = await getDoc(
-            doc(db, "profitReports", docId)
-        );
-
-        if (profitReportSnap.exists()) {
-            const reportData = profitReportSnap.data();
-            if (Array.isArray(reportData.rows)) {
-                // Lọc ra các dự án có type = "Thi công" trong báo cáo quý
-                const thiCongRows = reportData.rows.filter(
-                    (row) => row.type === "Thi công"
-                );
-
-                // Xử lý và tổng hợp dữ liệu cho từng dự án
-                thiCongRows.forEach((projectRow) => {
-                    let existingProject = thiCongProjects.find(
-                        (p) => p.name === projectRow.name
-                    );
-
-                    if (!existingProject) {
-                        // Nếu dự án chưa có trong danh sách, tạo mới
-                        existingProject = {
-                            name: projectRow.name, type: "Thi công",
-                            revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
-                            cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
-                            profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
-                        };
-                        thiCongProjects.push(existingProject);
+                    if (p.type === "Thi công") {
+                        if ((p.name || "").toUpperCase().includes("KÈ")) {
+                            insertIndex = rowTemplate.findIndex(
+                                (r) => r.name === `I.3. CÔNG TRÌNH CÔNG TY CĐT`
+                            );
+                        } else {
+                            insertIndex = rowTemplate.findIndex(
+                                (r) => r.name === `I.2. KÈ`
+                            );
+                        }
                     }
-                    // Cập nhật dữ liệu cho quý tương ứng
-                    existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
-                    existingProject[`cost${quarter}`] = toNum(projectRow.cost);
-                    existingProject[`profit${quarter}`] = toNum(projectRow.profit);
-                });
-            }
-        }
-    } catch (error) {
-        console.error(
-            `Lỗi khi lấy dữ liệu 'Thi công' cho ${quarter}/${selectedYear}:`,
-            error
-        );
-    }
-}
+                    // COMMENT HOẶC XÓA PHẦN NÀY vì đã lấy từ báo cáo quý
+                    // else if (p.type.toLowerCase().includes("nhà máy")) {
+                    //     insertIndex = rowTemplate.findIndex(
+                    //         (r) => r.name === `II.2. DT + LN ĐƯỢC CHIA TỪ LDX`
+                    //     );
+                    // }
+                    // else if (p.type === "KH-ĐT") {
+                    //     insertIndex = rowTemplate.findIndex(
+                    //         (r) => r.name === "IV. TỔNG"
+                    //     );
+                    // }
 
-// Tính tổng cả năm cho từng dự án
-thiCongProjects.forEach((project) => {
-    project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`revenue${q}`] || 0), 0);
-    project.cost = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`cost${q}`] || 0), 0);
-    project.profit = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`profit${q}`] || 0), 0);
-});
-
-// Tách danh sách thành 2 nhóm: "Dân Dụng" và "KÈ"
-const danDungProjects = thiCongProjects.filter(p => !(p.name || "").toUpperCase().includes("KÈ"));
-const keProjects = thiCongProjects.filter(p => (p.name || "").toUpperCase().includes("KÈ"));
-
-// Chèn nhóm "Dân Dụng + Giao Thông" vào bảng
-const danDungHeaderIndex = rowTemplate.findIndex((r) => r.name === "I.1. Dân Dụng + Giao Thông");
-if (danDungHeaderIndex !== -1) {
-    // Xóa các dự án cũ nếu có để tránh lặp lại
-    let i = danDungHeaderIndex + 1;
-    while (i < rowTemplate.length && !rowTemplate[i].name.match(/^[IVX]+\./) && rowTemplate[i].type === 'Thi công') {
-        rowTemplate.splice(i, 1);
-    }
-    // Chèn các dự án mới
-    danDungProjects.forEach((project, index) => {
-        rowTemplate.splice(danDungHeaderIndex + 1 + index, 0, project);
-    });
-}
-
-// Chèn nhóm "KÈ" vào bảng
-const keHeaderIndex = rowTemplate.findIndex((r) => r.name === "I.2. KÈ");
-if (keHeaderIndex !== -1) {
-     // Xóa các dự án cũ nếu có để tránh lặp lại
-    let i = keHeaderIndex + 1;
-    while (i < rowTemplate.length && !rowTemplate[i].name.match(/^[IVX]+\./) && rowTemplate[i].type === 'Thi công') {
-        rowTemplate.splice(i, 1);
-    }
-    // Chèn các dự án mới
-    keProjects.forEach((project, index) => {
-        rowTemplate.splice(keHeaderIndex + 1 + index, 0, project);
-    });
-}
-// ======================================================================
-// ✅ KẾT THÚC: LOGIC MỚI CHO I.1 & I.2
-// ======================================================================
+                    if (insertIndex > -1) {
+                        rowTemplate.splice(insertIndex, 0, p);
+                    }
+                }
+            });
             // Cập nhật dữ liệu cho các hàng có thể chỉnh sửa và tính toán
             const finalRows = runAllCalculations(
                 rowTemplate,
