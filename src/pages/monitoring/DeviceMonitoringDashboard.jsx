@@ -1,20 +1,25 @@
 // src/pages/monitoring/DeviceMonitoringDashboard.jsx
 
-import React from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, TextField, InputAdornment,
     ToggleButtonGroup, ToggleButton, Grid, Skeleton, Stack, IconButton,
-    Collapse, LinearProgress, Chip, Tooltip, keyframes
+    Collapse, LinearProgress, Chip, Tooltip, keyframes,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel
 } from '@mui/material';
 import {
     Timeline, TimelineItem, TimelineSeparator, TimelineConnector,
     TimelineContent, TimelineDot
 } from '@mui/lab';
-import { collection, query, onSnapshot, where, orderBy, doc } from 'firebase/firestore';
-import { ref, onValue } from 'firebase/database'; // THÊM MỚI: Import cho Realtime DB
-import { db, rtdb } from '../../services/firebase-config'; // THÊM MỚI: Import rtdb
+import { visuallyHidden } from '@mui/utils';
+import { collection, query, onSnapshot, where, orderBy } from 'firebase/firestore';
+import { ref, onValue } from 'firebase/database';
+import { db, rtdb } from '../../services/firebase-config';
 import { format, formatDistanceToNow, isSameDay, startOfDay, endOfDay } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 // Icons
 import SearchIcon from '@mui/icons-material/Search';
@@ -32,86 +37,8 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import WbSunnyOutlinedIcon from '@mui/icons-material/WbSunnyOutlined';
 import NightsStayOutlinedIcon from '@mui/icons-material/NightsStayOutlined';
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-
-// src/pages/monitoring/DeviceMonitoringDashboard.jsx
-
-function useMachineStatus(machineId) {
-    // Giá trị ban đầu là null để biểu thị trạng thái "đang tải"
-    const [isOnline, setIsOnline] = React.useState(null);
-
-    React.useEffect(() => {
-        if (!machineId) {
-            setIsOnline(false); // Nếu không có ID, coi như offline
-            return;
-        }
-
-        const statusRef = ref(rtdb, `status/${machineId}`);
-
-        const unsubscribe = onValue(statusRef, (snapshot) => {
-            const status = snapshot.val();
-            // Khi có dữ liệu, cập nhật thành true hoặc false
-            setIsOnline(status?.isOnline === true);
-        }, (error) => {
-            console.error(`Lỗi khi lấy trạng thái máy ${machineId}:`, error);
-            setIsOnline(false); // Nếu có lỗi, coi như offline
-        });
-
-        return () => unsubscribe();
-    }, [machineId]);
-
-    return isOnline; // Sẽ trả về null, sau đó là true hoặc false
-}
-
-/**
- * Hook lấy và nhóm các sự kiện từ Firestore cho các máy đang hiển thị.
- */
-function useGroupedMachineEvents(machineIds, selectedDate) {
-    const [eventsByMachine, setEventsByMachine] = React.useState({});
-    const [loading, setLoading] = React.useState(true);
-
-    React.useEffect(() => {
-        if (!machineIds || machineIds.length === 0) {
-            setEventsByMachine({});
-            setLoading(false);
-            return;
-        }
-
-        setLoading(true);
-        const start = startOfDay(selectedDate);
-        const end = endOfDay(selectedDate);
-
-        const q = query(
-            collection(db, 'machineEvents'),
-            where('machineId', 'in', machineIds),
-            where('createdAt', '>=', start),
-            where('createdAt', '<=', end)
-        );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const groupedEvents = machineIds.reduce((acc, id) => ({ ...acc, [id]: [] }), {});
-            snapshot.docs.forEach(doc => {
-                const event = { ...doc.data(), id: doc.id, createdAt: doc.data().createdAt.toDate() };
-                if (groupedEvents[event.machineId]) {
-                    groupedEvents[event.machineId].push(event);
-                }
-            });
-            setEventsByMachine(groupedEvents);
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching grouped events:", error);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [machineIds.join(','), selectedDate.toISOString()]);
-
-    return { eventsByMachine, loading };
-}
-
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import AllInclusiveIcon from '@mui/icons-material/AllInclusive';
 
 /* ===================== Constants ===================== */
 const START_IDS = new Set([6005, 107, 4801, 506]);
@@ -128,7 +55,7 @@ const EVENT_LABEL = {
     6008: { text: 'Crash', color: 'error', icon: <ReportProblemOutlinedIcon sx={{ fontSize: '1rem' }} /> },
 };
 
-/* ===================== Helpers ===================== */
+/* ===================== Helper Functions ===================== */
 const formatDuration = (seconds) => {
     if (seconds == null || seconds < 1) return '~ 0 phút';
     if (seconds < 60) return `~ ${Math.floor(seconds)} giây`;
@@ -140,10 +67,91 @@ const formatDuration = (seconds) => {
     return `~ ${hours} giờ ${minutes} phút`;
 };
 
-const StatusChip = ({ isOnline, lastShutdownKind }) => {
-    if (isOnline) {
-        return <Chip label="Online" color="success" size="small" />;
+const getSecondsInWorkingHours = (sessionStart, sessionEnd, selectedDate) => {
+    const morningStart = new Date(selectedDate.getTime());
+    morningStart.setHours(7, 15, 0, 0);
+    const morningEnd = new Date(selectedDate.getTime());
+    morningEnd.setHours(11, 15, 0, 0);
+    const afternoonStart = new Date(selectedDate.getTime());
+    afternoonStart.setHours(13, 0, 0, 0);
+    const afternoonEnd = new Date(selectedDate.getTime());
+    afternoonEnd.setHours(17, 0, 0, 0);
+    const workingIntervals = [
+        { start: morningStart, end: morningEnd },
+        { start: afternoonStart, end: afternoonEnd }
+    ];
+    let totalOverlap = 0;
+    for (const interval of workingIntervals) {
+        const overlapStart = Math.max(sessionStart.getTime(), interval.start.getTime());
+        const overlapEnd = Math.min(sessionEnd.getTime(), interval.end.getTime());
+        if (overlapEnd > overlapStart) {
+            totalOverlap += (overlapEnd - overlapStart) / 1000;
+        }
     }
+    return totalOverlap;
+};
+
+/* ===================== Hooks ===================== */
+function useMachineStatus(machineId) {
+    const [isOnline, setIsOnline] = useState(null);
+    useEffect(() => {
+        if (!machineId) {
+            setIsOnline(false);
+            return;
+        }
+        const statusRef = ref(rtdb, `status/${machineId}`);
+        const unsubscribe = onValue(statusRef, (snapshot) => {
+            setIsOnline(snapshot.val()?.isOnline === true);
+        }, (error) => {
+            console.error(`Error fetching status for ${machineId}:`, error);
+            setIsOnline(false);
+        });
+        return () => unsubscribe();
+    }, [machineId]);
+    return isOnline;
+}
+
+function useGroupedMachineEvents(machineIds, selectedDate) {
+    const [eventsByMachine, setEventsByMachine] = useState({});
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+        if (!machineIds || machineIds.length === 0) {
+            setEventsByMachine({});
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        const start = startOfDay(selectedDate);
+        const end = endOfDay(selectedDate);
+        const q = query(
+            collection(db, 'machineEvents'),
+            where('machineId', 'in', machineIds),
+            where('createdAt', '>=', start),
+            where('createdAt', '<=', end)
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const groupedEvents = machineIds.reduce((acc, id) => ({ ...acc, [id]: [] }), {});
+            snapshot.docs.forEach(doc => {
+                const event = { ...doc.data(), id: doc.id, createdAt: doc.data().createdAt.toDate() };
+                if (groupedEvents[event.machineId]) {
+                    groupedEvents[event.machineId].push(event);
+                }
+            });
+            setEventsByMachine(groupedEvents);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching grouped events:", error);
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, [machineIds.join(','), selectedDate.toISOString()]);
+    return { eventsByMachine, loading };
+}
+
+/* ===================== UI Sub-Components ===================== */
+
+const StatusChip = ({ isOnline, lastShutdownKind }) => {
+    if (isOnline) return <Chip label="Online" color="success" size="small" />;
     switch (lastShutdownKind) {
         case 'user': return <Chip label="Tắt máy" color="default" size="small" />;
         case 'sleep': return <Chip label="Ngủ" color="warning" size="small" />;
@@ -152,33 +160,6 @@ const StatusChip = ({ isOnline, lastShutdownKind }) => {
         default: return <Chip label="Offline" color="default" size="small" />;
     }
 };
-
-/* ===================== UI Components ===================== */
-const StatCard = ({ title, value, icon, color }) => (
-    <Grid item xs={12} sm={6} md={4}>
-        <Paper elevation={2} sx={{ p: 2.5, display: 'flex', alignItems: 'center', borderRadius: '16px' }}>
-            <Box sx={(theme) => ({
-                bgcolor: theme.palette[color]?.light || theme.palette.grey[200],
-                color: theme.palette[color]?.dark || theme.palette.grey[800],
-                borderRadius: '50%', p: 2, mr: 2, display: 'flex'
-            })}>
-                {icon}
-            </Box>
-            <div>
-                <Typography variant="h6" fontWeight={700}>{value}</Typography>
-                <Typography variant="body2" color="text.secondary">{title}</Typography>
-            </div>
-        </Paper>
-    </Grid>
-);
-
-const DashboardStats = ({ onlineCount, offlineCount, totalCount }) => (
-    <Grid container spacing={3} sx={{ mb: 4 }}>
-        <StatCard title="Đang Online" value={onlineCount} color="success" icon={<CircleIcon />} />
-        <StatCard title="Offline / Ngủ" value={offlineCount} color="warning" icon={<CircleIcon />} />
-        <StatCard title="Tổng số máy" value={totalCount} color="info" icon={<ComputerIcon />} />
-    </Grid>
-);
 
 const CompactEventTimeline = ({ events }) => {
     const processedEvents = React.useMemo(() => {
@@ -238,113 +219,16 @@ const CompactEventTimeline = ({ events }) => {
     );
 };
 
-// ===================== Machine Card ===================== //
-const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
-    if (machine.id === 'MINH') { // <-- Thay bằng TÊN CHÍNH XÁC của máy đang hiển thị sai
-        console.log(`[DEBUG] Dữ liệu sự kiện cho máy ${machine.id}:`, events);
-    }
-    const isOnline = useMachineStatus(machine.id); // <--- THÊM dòng này
+const MachineCard = ({ machineData, events, timeFilter, workingHours }) => {
+    const { id, isOnline, lastShutdownKind, lastSeenAt, lastBootAt, usageData } = machineData;
+    const [openDetail, setOpenDetail] = useState(false);
 
-    const [openDetail, setOpenDetail] = React.useState(false);
-    const [tick, setTick] = React.useState(0);
+    const isWorkingHoursView = timeFilter === 'workingHours';
+    const primaryUsageSec = isWorkingHoursView ? usageData.workingHoursSec : usageData.totalSec;
+    const secondaryUsageSec = isWorkingHoursView ? usageData.totalSec : usageData.workingHoursSec;
+    const secondaryLabel = isWorkingHoursView ? "Tổng cộng" : "Trong giờ làm";
+    const progress = Math.min(100, (usageData.workingHoursSec / (workingHours * 3600)) * 100);
 
-    React.useEffect(() => {
-        if (isOnline) {
-            const intervalId = setInterval(() => {
-                setTick(prevTick => prevTick + 1);
-            }, 60000);
-            return () => clearInterval(intervalId);
-        }
-    }, [isOnline]);
-
-    // Thay thế toàn bộ khối useMemo này
-    const totalSec = React.useMemo(() => {
-        // ================= BẮT ĐẦU DEBUG =================
-        if (machine.id === 'MINH') { // Chỉ log cho máy MINH để đỡ rối
-            console.log('%c--- [DEBUG] Bắt đầu tính toán cho máy MINH ---', 'color: blue; font-weight: bold;');
-            console.log('Sự kiện nhận được:', events);
-            console.log('Trạng thái Online:', isOnline);
-            console.log('Ngày được chọn:', selectedDate);
-            console.log('lastBootAt từ DB:', machine.lastBootAt?.toDate());
-        }
-        if (isOnline === null) {
-            return 0;
-        }
-        // ================================================
-
-        const dayStart = startOfDay(selectedDate);
-        const dayEnd = endOfDay(selectedDate);
-
-        if (!events || events.length === 0) {
-            if (isOnline && isSameDay(selectedDate, new Date()) && machine.lastBootAt && machine.lastBootAt.toDate() < dayStart) {
-                const total = (new Date().getTime() - dayStart.getTime()) / 1000;
-                if (machine.id === 'MINH') console.log('[DEBUG] Không có sự kiện, tính từ đầu ngày:', total);
-                return total;
-            }
-            if (machine.id === 'MINH') console.log('[DEBUG] Không có sự kiện, trả về 0');
-            return 0;
-        }
-
-        let total = 0;
-        let sessionStart = null;
-        const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-
-        const firstEvent = sortedEvents[0];
-        if (STOP_IDS.has(Number(firstEvent.eventId))) {
-            sessionStart = dayStart;
-            if (machine.id === 'MINH') console.log('[DEBUG] Sự kiện đầu tiên là STOP, gán sessionStart = đầu ngày:', sessionStart);
-        }
-
-        for (const e of sortedEvents) {
-            const eventId = Number(e.eventId);
-            if (START_IDS.has(eventId) && !sessionStart) {
-                sessionStart = e.createdAt;
-                if (machine.id === 'MINH') console.log(`[DEBUG] Gặp sự kiện START (${e.eventId}), gán sessionStart:`, sessionStart);
-            }
-            else if (STOP_IDS.has(eventId) && sessionStart) {
-                const duration = (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
-                total += duration;
-                if (machine.id === 'MINH') console.log(`[DEBUG] Gặp sự kiện STOP (${e.eventId}), cộng thêm ${duration} giây. Tổng hiện tại: ${total}`);
-                sessionStart = null;
-            }
-        }
-
-        if (sessionStart) {
-            let endPoint;
-
-            // TRƯỜNG HỢP 1: Máy đang online và xem ngày hôm nay -> tính đến hiện tại
-            if (isSameDay(selectedDate, new Date()) && isOnline) {
-                endPoint = new Date();
-            }
-            // TRƯỜNG HỢP 2: Máy offline hoặc xem ngày cũ -> tính đến hoạt động cuối cùng
-            else {
-                // Lấy thời gian hoạt động cuối cùng được ghi nhận
-                const lastSeen = machine.lastSeenAt ? machine.lastSeenAt.toDate() : sessionStart;
-
-                // Đảm bảo điểm kết thúc không vượt qua thời gian bắt đầu
-                endPoint = lastSeen > sessionStart ? lastSeen : sessionStart;
-            }
-
-            const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
-
-            // Chỉ cộng vào nếu thời gian lớn hơn 0
-            if (durationToAdd > 0) {
-                total += durationToAdd;
-            }
-        }
-
-        // ================= BẮT ĐẦU DEBUG =================
-        if (machine.id === 'MINH') {
-            console.log(`%c===> [DEBUG] TỔNG SỐ GIÂY TÍNH ĐƯỢC: ${total}`, 'color: red; font-size: 14px; font-weight: bold;');
-            console.log('%c--- [DEBUG] Kết thúc tính toán ---', 'color: blue; font-weight: bold;');
-        }
-        // ================================================
-
-        return Math.max(0, total);
-    }, [events, isOnline, selectedDate, tick, machine.lastBootAt]);
-
-    const usageHours = totalSec / 3600;
-    const progress = Math.min(100, (usageHours / workingHours) * 100);
     const pulseKeyframe = keyframes`
       0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
       70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); }
@@ -357,14 +241,11 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
                 <Stack direction="row" alignItems="center" spacing={1.5} overflow="hidden">
                     <Box sx={{ position: 'relative', flexShrink: 0 }}>
                         {isOnline ? <LaptopMacIcon color="success" sx={{ fontSize: 28 }} /> : <PowerSettingsNewIcon color="action" sx={{ fontSize: 28 }} />}
-                        {isOnline && <Box sx={{
-                            position: 'absolute', top: 0, right: 0, width: 8, height: 8, bgcolor: 'success.main', borderRadius: '50%',
-                            animation: `${pulseKeyframe} 1.5s infinite`,
-                        }} />}
+                        {isOnline && <Box sx={{ position: 'absolute', top: 0, right: 0, width: 8, height: 8, bgcolor: 'success.main', borderRadius: '50%', animation: `${pulseKeyframe} 1.5s infinite` }} />}
                     </Box>
                     <Box overflow="hidden">
-                        <Typography variant="h6" fontWeight={700} noWrap title={machine.id}>{machine.id}</Typography>
-                        <StatusChip isOnline={isOnline} lastShutdownKind={machine.lastShutdownKind} />
+                        <Typography variant="h6" fontWeight={700} noWrap title={id}>{id}</Typography>
+                        <StatusChip isOnline={isOnline} lastShutdownKind={lastShutdownKind} />
                     </Box>
                 </Stack>
                 <IconButton size="small" onClick={() => setOpenDetail(v => !v)}>
@@ -373,18 +254,9 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
             </Stack>
 
             <Box sx={{ flexGrow: 1, my: 2 }}>
-                <Typography variant="h5" fontWeight="600" sx={{ my: 0.5 }}>{formatDuration(totalSec)}</Typography>
-                <LinearProgress
-                    variant="determinate"
-                    value={progress}
-                    sx={{
-                        height: 8,
-                        borderRadius: 4,
-                        '& .MuiLinearProgress-bar': {
-                            transition: 'transform 0.5s linear',
-                        },
-                    }}
-                />
+                <Typography variant="h5" fontWeight="600" sx={{ my: 0.5 }}>{formatDuration(primaryUsageSec)}</Typography>
+                <Typography variant="caption" color="text.secondary">{secondaryLabel}: {formatDuration(secondaryUsageSec)}</Typography>
+                <LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 4, mt: 1, '& .MuiLinearProgress-bar': { transition: 'transform 0.5s linear' } }} />
             </Box>
 
             <Collapse in={openDetail} timeout="auto" unmountOnExit>
@@ -393,50 +265,121 @@ const MachineCard = ({ machine, events, workingHours, selectedDate }) => {
 
             <Stack spacing={0.5} sx={{ mt: 'auto' }}>
                 <Typography variant="caption" color="text.secondary">
-                    Hoạt động cuối: {machine.lastSeenAt ? formatDistanceToNow(machine.lastSeenAt.toDate(), { addSuffix: true, locale: vi }) : 'Chưa rõ'}
+                    Hoạt động cuối: {lastSeenAt ? formatDistanceToNow(lastSeenAt, { addSuffix: true, locale: vi }) : 'Chưa rõ'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                    Khởi động gần nhất: {machine.lastBootAt ? format(machine.lastBootAt.toDate(), 'HH:mm, dd/MM/yyyy', { locale: vi }) : 'Chưa rõ'}
+                    Khởi động gần nhất: {lastBootAt ? format(lastBootAt, 'HH:mm, dd/MM/yyyy', { locale: vi }) : 'Chưa rõ'}
                 </Typography>
             </Stack>
         </Paper>
     );
 };
 
-/* ===================== Main Component ===================== */
+const MachineTable = ({ data }) => {
+    const [order, setOrder] = useState('desc');
+    const [orderBy, setOrderBy] = useState('workingHoursSec');
+
+    const handleRequestSort = (property) => {
+        const isAsc = orderBy === property && order === 'asc';
+        setOrder(isAsc ? 'desc' : 'asc');
+        setOrderBy(property);
+    };
+
+    const sortedData = useMemo(() => {
+        const comparator = (a, b) => {
+            const valA = a[orderBy] || 0;
+            const valB = b[orderBy] || 0;
+            if (valB < valA) return -1;
+            if (valB > valA) return 1;
+            return 0;
+        };
+        const sorted = [...data].sort(comparator);
+        return order === 'desc' ? sorted : sorted.reverse();
+    }, [data, order, orderBy]);
+
+    const headCells = [
+        { id: 'id', numeric: false, label: 'Tên máy' },
+        { id: 'isOnline', numeric: false, label: 'Trạng thái' },
+        { id: 'workingHoursSec', numeric: true, label: 'Trong giờ làm' },
+        { id: 'totalSec', numeric: true, label: 'Tổng sử dụng' },
+        { id: 'lastSeenAt', numeric: false, label: 'Hoạt động cuối' },
+    ];
+
+    return (
+        <Paper sx={{ width: '100%', borderRadius: '16px', overflow: 'hidden' }}>
+            <TableContainer>
+                <Table>
+                    <TableHead>
+                        <TableRow sx={{ '& .MuiTableCell-head': { fontWeight: 'bold', backgroundColor: 'grey.100' } }}>
+                            {headCells.map((cell) => (
+                                <TableCell key={cell.id} align={cell.numeric ? 'right' : 'left'} sortDirection={orderBy === cell.id ? order : false}>
+                                    <TableSortLabel active={orderBy === cell.id} direction={orderBy === cell.id ? order : 'asc'} onClick={() => handleRequestSort(cell.id)}>
+                                        {cell.label}
+                                        {orderBy === cell.id ? <Box component="span" sx={visuallyHidden}>{order === 'desc' ? 'sorted descending' : 'sorted ascending'}</Box> : null}
+                                    </TableSortLabel>
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {sortedData.map((row) => (
+                            <TableRow hover key={row.id}>
+                                <TableCell>
+                                    <Stack direction="row" alignItems="center" spacing={1.5}>
+                                        {row.isOnline ? <LaptopMacIcon color="success" sx={{ fontSize: 22 }} /> : <PowerSettingsNewIcon color="action" sx={{ fontSize: 22 }} />}
+                                        <Typography variant="body2" fontWeight="500">{row.id}</Typography>
+                                    </Stack>
+                                </TableCell>
+                                <TableCell><StatusChip isOnline={row.isOnline} lastShutdownKind={row.lastShutdownKind} /></TableCell>
+                                <TableCell align="right"><Typography variant="body2" fontWeight="bold">{formatDuration(row.usageData.workingHoursSec)}</Typography></TableCell>
+                                <TableCell align="right"><Typography variant="body2" color="text.secondary">{formatDuration(row.usageData.totalSec)}</Typography></TableCell>
+                                <TableCell>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {row.lastSeenAt ? format(row.lastSeenAt, 'HH:mm, dd/MM/yyyy', { locale: vi }) : 'Chưa rõ'}
+                                    </Typography>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+        </Paper>
+    );
+};
+
+/* ===================== Main Dashboard Component ===================== */
 export default function DeviceMonitoringDashboard() {
-    const [machines, setMachines] = React.useState([]);
-    const [loadingMachines, setLoadingMachines] = React.useState(true);
-    const [searchTerm, setSearchTerm] = React.useState('');
-    const [statusFilter, setStatusFilter] = React.useState('all');
-    const [selectedDate, setSelectedDate] = React.useState(new Date());
-    const [workingHours, setWorkingHours] = React.useState(8);
+    const [machines, setMachines] = useState([]);
+    const [loadingMachines, setLoadingMachines] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [workingHours] = useState(8);
+    const [onlineStatusMap, setOnlineStatusMap] = useState({});
+    
+    // New states for UI controls
+    const [timeFilter, setTimeFilter] = useState('workingHours');
+    const [viewMode, setViewMode] = useState('grid');
 
-    // THÊM MỚI: State để giữ trạng thái online/offline của tất cả các máy cho việc lọc
-    const [onlineStatusMap, setOnlineStatusMap] = React.useState({});
-
-    // Lắng nghe dữ liệu cơ bản của các máy từ Firestore
-    React.useEffect(() => {
+    // Fetch machine base data
+    useEffect(() => {
         const q = query(collection(db, 'machineStatus'), orderBy('lastSeenAt', 'desc'));
         const unsub = onSnapshot(q, (snap) => {
-            const machineData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setMachines(machineData);
+            setMachines(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
             setLoadingMachines(false);
         });
         return () => unsub();
     }, []);
 
-    // THÊM MỚI: Lắng nghe trạng thái real-time của TẤT CẢ các máy từ Realtime DB
-    React.useEffect(() => {
+    // Fetch real-time online status
+    useEffect(() => {
         const statusRef = ref(rtdb, 'status');
-        const unsubscribe = onValue(statusRef, (snapshot) => {
-            const data = snapshot.val() || {};
-            setOnlineStatusMap(data);
-        });
-        return () => unsubscribe();
+        const unsub = onValue(statusRef, (snapshot) => setOnlineStatusMap(snapshot.val() || {}));
+        return () => unsub();
     }, []);
 
-    const filteredMachines = React.useMemo(() => {
+    // Filter machines based on UI controls
+    const filteredMachines = useMemo(() => {
         return machines.filter(m => {
             const isOnline = onlineStatusMap[m.id]?.isOnline === true;
             const statusMatch = statusFilter === 'all' || isOnline === (statusFilter === 'online');
@@ -445,10 +388,64 @@ export default function DeviceMonitoringDashboard() {
         });
     }, [machines, statusFilter, searchTerm, onlineStatusMap]);
 
-    const visibleMachineIds = React.useMemo(() => filteredMachines.map(m => m.id), [filteredMachines]);
+    const visibleMachineIds = useMemo(() => filteredMachines.map(m => m.id), [filteredMachines]);
     const { eventsByMachine, loading: loadingEvents } = useGroupedMachineEvents(visibleMachineIds, selectedDate);
-    const onlineCount = React.useMemo(() => Object.values(onlineStatusMap).filter(v => v?.isOnline).length, [onlineStatusMap]);
+    const onlineCount = useMemo(() => Object.values(onlineStatusMap).filter(v => v?.isOnline).length, [onlineStatusMap]);
     const isLoading = loadingMachines || (visibleMachineIds.length > 0 && loadingEvents);
+
+    // Centralized data processing for both Grid and List views
+    const processedMachineData = useMemo(() => {
+        return filteredMachines.map(machine => {
+            const events = eventsByMachine[machine.id] || [];
+            const isOnline = onlineStatusMap[machine.id]?.isOnline === true;
+            
+            let totalSec = 0;
+            let workingHoursSec = 0;
+            let sessionStart = null;
+            
+            if (events && events.length > 0) {
+                const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+                const dayStart = startOfDay(selectedDate);
+                if (STOP_IDS.has(Number(sortedEvents[0].eventId))) {
+                    sessionStart = dayStart;
+                }
+                for (const e of sortedEvents) {
+                    const eventId = Number(e.eventId);
+                    if (START_IDS.has(eventId) && !sessionStart) {
+                        sessionStart = e.createdAt;
+                    } else if (STOP_IDS.has(eventId) && sessionStart) {
+                        const duration = (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
+                        if (duration > 0) {
+                            totalSec += duration;
+                            workingHoursSec += getSecondsInWorkingHours(sessionStart, e.createdAt, selectedDate);
+                        }
+                        sessionStart = null;
+                    }
+                }
+            }
+
+            if (sessionStart) {
+                const endPoint = (isSameDay(selectedDate, new Date()) && isOnline) ? new Date() : (machine.lastSeenAt ? machine.lastSeenAt.toDate() : sessionStart);
+                const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
+                if (durationToAdd > 0) {
+                    totalSec += durationToAdd;
+                    workingHoursSec += getSecondsInWorkingHours(sessionStart, endPoint, selectedDate);
+                }
+            }
+            
+            return {
+                ...machine,
+                id: machine.id,
+                isOnline,
+                lastSeenAt: machine.lastSeenAt ? machine.lastSeenAt.toDate() : null,
+                lastBootAt: machine.lastBootAt ? machine.lastBootAt.toDate() : null,
+                usageData: {
+                    totalSec: Math.max(0, totalSec),
+                    workingHoursSec: Math.max(0, workingHoursSec)
+                }
+            };
+        });
+    }, [filteredMachines, eventsByMachine, onlineStatusMap, selectedDate]);
 
     return (
         <Box sx={{ p: { xs: 2, md: 4 }, backgroundColor: '#f9fafb', minHeight: '100vh' }}>
@@ -457,62 +454,57 @@ export default function DeviceMonitoringDashboard() {
                 <Typography color="text.secondary">Tổng quan trạng thái và hiệu suất hoạt động của các thiết bị.</Typography>
             </Box>
 
-            {!loadingMachines && <DashboardStats onlineCount={onlineCount} offlineCount={machines.length - onlineCount} totalCount={machines.length} />}
-
-            <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '12px', position: 'sticky', top: 0, zIndex: 10 }}>
+            <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '12px', position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(8px)', backgroundColor: 'rgba(255,255,255,0.8)' }}>
                 <Grid container spacing={2} alignItems="center">
                     <Grid item xs={12} md={4}><TextField fullWidth size="small" placeholder="Tìm kiếm theo tên máy…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon /></InputAdornment>) }} /></Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
-                            <DatePicker label="Chọn ngày" value={selectedDate} onChange={(d) => d && setSelectedDate(d)} slotProps={{ textField: { size: 'small', fullWidth: true } }} format="dd/MM/yyyy" />
-                        </LocalizationProvider>
-                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}><LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}><DatePicker label="Chọn ngày" value={selectedDate} onChange={(d) => d && setSelectedDate(d)} slotProps={{ textField: { size: 'small', fullWidth: true } }} format="dd/MM/yyyy" /></LocalizationProvider></Grid>
                     <Grid item xs={12} sm={6} md={5}>
-                        <Stack direction="row" spacing={2} justifyContent="flex-end">
+                        <Stack direction="row" spacing={2} justifyContent="flex-end" flexWrap="wrap">
+                            <ToggleButtonGroup size="small" value={timeFilter} exclusive onChange={(e, v) => v && setTimeFilter(v)}>
+                                <ToggleButton value="allDay"><AllInclusiveIcon sx={{ mr: 0.5, fontSize: '1rem' }} /> Cả ngày</ToggleButton>
+                                <ToggleButton value="workingHours"><AccessTimeIcon sx={{ mr: 0.5, fontSize: '1rem' }} /> Giờ làm việc</ToggleButton>
+                            </ToggleButtonGroup>
                             <ToggleButtonGroup size="small" value={statusFilter} exclusive onChange={(e, v) => v && setStatusFilter(v)}>
                                 <ToggleButton value="all">Tất cả</ToggleButton>
                                 <ToggleButton value="online">Online</ToggleButton>
                                 <ToggleButton value="offline">Offline</ToggleButton>
                             </ToggleButtonGroup>
-                            <ToggleButtonGroup size="small" value="grid" exclusive>
+                            <ToggleButtonGroup size="small" value={viewMode} exclusive onChange={(e, v) => v && setViewMode(v)}>
                                 <ToggleButton value="grid"><ViewModuleIcon /></ToggleButton>
-                                <ToggleButton value="list" disabled><ViewListIcon /></ToggleButton>
+                                <ToggleButton value="list"><ViewListIcon /></ToggleButton>
                             </ToggleButtonGroup>
                         </Stack>
                     </Grid>
                 </Grid>
             </Paper>
 
-            <Grid container spacing={3}>
-                {isLoading ? (
-                    Array.from(new Array(8)).map((_, i) => (
-                        <Grid item xs={12} sm={6} md={4} lg={3} key={i}>
-                            <Skeleton variant="rectangular" sx={{ borderRadius: '16px' }} height={280} />
-                        </Grid>
-                    ))
-                ) : (
-                    // ... code
-                    filteredMachines.map((m) => (
-                        <Grid item xs={12} sm={6} md={4} lg={3} key={m.id}>
+            {isLoading ? (
+                <Grid container spacing={3}>
+                    {Array.from(new Array(8)).map((_, i) => (
+                        <Grid item xs={12} sm={6} md={4} lg={3} key={i}><Skeleton variant="rectangular" sx={{ borderRadius: '16px' }} height={280} /></Grid>
+                    ))}
+                </Grid>
+            ) : processedMachineData.length === 0 ? (
+                <Paper sx={{ p: 10, textAlign: 'center', color: 'text.secondary', borderRadius: '16px' }}>
+                    <ComputerIcon sx={{ fontSize: 64, opacity: 0.2, mb: 2 }} />
+                    <Typography>Không tìm thấy thiết bị nào khớp với bộ lọc.</Typography>
+                </Paper>
+            ) : viewMode === 'grid' ? (
+                <Grid container spacing={3}>
+                    {processedMachineData.map((data) => (
+                        <Grid item xs={12} sm={6} md={4} lg={3} key={data.id}>
                             <MachineCard
-                                machine={m}
-                                events={eventsByMachine[m.id] || []}
+                                machineData={data}
+                                events={eventsByMachine[data.id] || []}
+                                timeFilter={timeFilter}
                                 workingHours={workingHours}
-                                selectedDate={selectedDate}
                             />
                         </Grid>
-                    ))
-                    // ... code
-                )}
-                {!isLoading && filteredMachines.length === 0 && (
-                    <Grid item xs={12}>
-                        <Paper sx={{ p: 10, textAlign: 'center', color: 'text.secondary', borderRadius: '16px' }}>
-                            <ComputerIcon sx={{ fontSize: 64, opacity: 0.2, mb: 2 }} />
-                            <Typography>Không tìm thấy thiết bị nào khớp với bộ lọc.</Typography>
-                        </Paper>
-                    </Grid>
-                )}
-            </Grid>
+                    ))}
+                </Grid>
+            ) : (
+                <MachineTable data={processedMachineData} />
+            )}
         </Box>
     );
 }
