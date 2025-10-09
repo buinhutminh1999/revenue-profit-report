@@ -634,11 +634,20 @@ export default function CostAllocationQuarter() {
                 Object.keys(projectDebtFromPrevQuarter).length > 0;
 
             let totalUsedInPeriod = 0;
+             // Lấy thông tin quý trước một lần bên ngoài vòng lặp để tối ưu
+           const { year: prevY, quarter: prevQ } = getPrevQuarter(year, quarter);
+           const prevQuarterKey = `${prevY}-${prevQ}`;
             visibleProjects.forEach((p) => {
-                const oldDebt = projectDebtFromPrevQuarter[p.id] || 0;
-                let finalValue =
-                    (finalAllocation[p.id] || 0) +
-                    (shouldRepayOldDebt ? oldDebt : 0);
+                const isProjectActiveInPrevQ = p.allocationPeriods?.[prevQuarterKey];
+
+               // Chỉ lấy nợ cũ NẾU công trình hoạt động ở quý trước
+               const oldDebt = isProjectActiveInPrevQ
+                   ? (projectDebtFromPrevQuarter[p.id] || 0)
+                   : 0;
+
+               let finalValue =
+                   (finalAllocation[p.id] || 0) +
+                   (shouldRepayOldDebt ? oldDebt : 0);
                 const rd2 = cellRoundingRules[draftRow.id]?.[p.id];
                 if (typeof rd2 === "number")
                     finalValue = excelRound(finalValue, rd2);
@@ -679,6 +688,8 @@ export default function CostAllocationQuarter() {
             prevOverMapById,
             manualLimits,
             cellRoundingRules,
+            year,      // <-- THÊM DÒNG NÀY
+            quarter,   // <-- THÊM DÒNG NÀY
         ]
     );
     const processRowUpdate = useCallback(
@@ -1165,7 +1176,7 @@ export default function CostAllocationQuarter() {
         }));
         const other = [
             {
-                field: "usedRaw",
+                field: "used",
                 headerName: `Sử dụng ${quarter}`,
                 flex: 1,
                 minWidth: 130,
