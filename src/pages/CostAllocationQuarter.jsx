@@ -658,7 +658,7 @@ export default function CostAllocationQuarter() {
             draftRow.used = totalUsedInPeriod;
             draftRow.carryOver = carryOverValue;
             draftRow.cumQuarterOnly = Math.min(
-                draftRow.usedRaw - totalAllocatedForPeriod,
+                draftRow.used - totalAllocatedForPeriod,
                 0
             );
             const totalNeedAfterLimits = Object.values(finalAllocation).reduce(
@@ -670,7 +670,7 @@ export default function CostAllocationQuarter() {
             // Thặng dư lũy kế = Math.max(Sử dụng - Phân bổ + Vượt kỳ trước, 0)
             // Nếu giá trị > 0 thì đó là thặng dư
             const cumValue =
-                draftRow.usedRaw - totalAllocatedForPeriod + carryOverValue;
+                draftRow.used - totalAllocatedForPeriod + carryOverValue;
 
             // Thặng dư lũy kế (chỉ lấy giá trị dương)
             draftRow.surplusCumCurrent = Math.max(cumValue, 0);
