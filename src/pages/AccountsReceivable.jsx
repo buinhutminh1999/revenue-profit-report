@@ -4,7 +4,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import {
     Box, Typography, Paper, FormControl, InputLabel, Select, MenuItem, Stack, Grid, Skeleton,
     Chip, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, TextField
 } from "@mui/material";
 import {
     ArchiveOutlined, TrendingUp, TrendingDown, AttachMoney, ErrorOutline,
@@ -12,8 +12,109 @@ import {
 } from "@mui/icons-material";
 import { NumericFormat } from "react-number-format";
 import { db } from "../services/firebase-config";
-import { collection, onSnapshot, query, addDoc, deleteDoc, writeBatch, where, getDocs, doc, setDoc } from "firebase/firestore";
+import {
+    collection, onSnapshot, query, addDoc, deleteDoc, writeBatch, where, getDocs, doc, setDoc, updateDoc
+} from "firebase/firestore";
 import { toNum } from "../utils/numberUtils";
+
+// =================================================================
+// START: INLINE EDITABLE CELL COMPONENT (PHIÊN BẢN SỬA LỖI CĂN LỀ)
+// =================================================================
+const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel }) => {
+    const [currentValue, setCurrentValue] = useState(value);
+    const inputRef = useRef(null);
+
+    useEffect(() => {
+        if (inputRef.current) {
+            // Dùng setTimeout để đảm bảo input đã được render hoàn toàn trước khi focus
+            setTimeout(() => inputRef.current.focus(), 0);
+        }
+    }, []);
+    
+    const handleBlur = () => {
+        const originalValue = type === 'number' ? toNum(value) : value;
+        const updatedValue = type === 'number' ? toNum(currentValue) : currentValue;
+
+        if (originalValue !== updatedValue) {
+            onUpdate(rowId, field, updatedValue);
+        } else {
+            onCancel();
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.target.blur();
+        } else if (e.key === 'Escape') {
+            onCancel();
+        }
+    };
+    
+    // ✅ SỬA LỖI CĂN LỀ:
+    // 1. Thêm `sx` để component chiếm toàn bộ chiều cao/rộng của TableCell.
+    // 2. Target vào class nội bộ `.MuiInputBase-root` để nó cũng chiếm 100% chiều cao.
+    // 3. Đặt padding vào bên trong `.MuiInputBase-input` để căn lề chữ.
+    const commonSx = {
+        width: '100%',
+        height: '100%',
+        '& .MuiInputBase-root': {
+            height: '100%',
+            boxSizing: 'border-box',
+        },
+    };
+    
+    if (type === 'number') {
+        return (
+            <NumericFormat
+                value={currentValue === null || currentValue === undefined ? '' : currentValue}
+                customInput={TextField}
+                variant="standard"
+                thousandSeparator
+                onValueChange={(values) => setCurrentValue(values.floatValue)}
+                onBlur={handleBlur}
+                onKeyDown={handleKeyDown}
+                fullWidth
+                inputRef={inputRef}
+                sx={commonSx} // Áp dụng style chung
+                InputProps={{
+                    disableUnderline: true,
+                    sx: {
+                        // Style cho thẻ input bên trong
+                        '& input': {
+                            textAlign: 'right',
+                            padding: '6px 16px', // Bù lại padding của TableCell
+                        }
+                    }
+                }}
+            />
+        );
+    }
+
+    return (
+        <TextField
+            value={currentValue}
+            variant="standard"
+            onChange={(e) => setCurrentValue(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            fullWidth
+            inputRef={inputRef}
+            sx={commonSx} // Áp dụng style chung
+            InputProps={{
+                disableUnderline: true,
+                sx: {
+                    // Style cho thẻ input bên trong
+                    '& input': {
+                        padding: '6px 16px', // Bù lại padding của TableCell
+                    }
+                }
+            }}
+        />
+    );
+};
+// =================================================================
+// END: INLINE EDITABLE CELL COMPONENT
+// =================================================================
 
 // DATA & CONFIG
 const categories = [
@@ -79,7 +180,7 @@ export default function AccountsReceivable() {
     const [rows, setRows] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const tableContainerRef = useRef(null);
-    const [activeCell, setActiveCell] = useState(null);
+    const [editingCell, setEditingCell] = useState(null);
 
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
@@ -109,27 +210,41 @@ export default function AccountsReceivable() {
         }
     };
 
+    const handleUpdateCell = async (rowId, field, newValue) => {
+        setEditingCell(null);
+        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
+        const docRef = doc(db, collectionPath, rowId);
+        
+        const promise = updateDoc(docRef, { [field]: newValue });
+        
+        toast.promise(promise, {
+            loading: 'Đang cập nhật...',
+            success: 'Cập nhật thành công!',
+            error: 'Lỗi khi cập nhật.',
+        });
+    };
+
     const confirmPaste = async () => {
-        if (!pasteContext || !activeCell) return;
+        if (!pasteContext || !editingCell) return;
         setPasteDialogOpen(false);
-        const { text } = pasteContext;
+        const { text, category } = pasteContext;
         const parsedRows = text.split('\n').filter(row => row.trim() !== '').map(row => row.split('\t'));
         if (parsedRows.length === 0) return;
 
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
         const promise = new Promise(async (resolve, reject) => {
             try {
-                const startColumnIndex = tableColumns.findIndex(col => col.field === activeCell.field);
+                const startColumnIndex = tableColumns.findIndex(col => col.field === editingCell.field);
                 if (startColumnIndex === -1) return reject("Vui lòng chọn một ô dữ liệu hợp lệ để dán.");
 
                 const batch = writeBatch(db);
                 const collectionRef = collection(db, collectionPath);
-                const q = query(collectionRef, where("category", "==", activeCell.category));
+                const q = query(collectionRef, where("category", "==", category));
                 const existingDocsSnapshot = await getDocs(q);
                 existingDocsSnapshot.forEach(doc => batch.delete(doc.ref));
 
                 parsedRows.forEach(rowData => {
-                    const newRowData = { category: activeCell.category };
+                    const newRowData = { category: category };
                     tableColumns.forEach(col => newRowData[col.field] = col.type === 'number' ? 0 : '');
                     rowData.forEach((cellValue, cellIndex) => {
                         const targetColumnIndex = startColumnIndex + cellIndex;
@@ -149,58 +264,52 @@ export default function AccountsReceivable() {
         setPasteContext(null);
     };
 
-// ✅ HÀM MỚI: TÍNH TOÁN VÀ LƯU SỐ TỔNG (PHIÊN BẢN SỬA LỖI ĐƯỜNG DẪN)
-const updateAndSaveTotals = useCallback(async (currentRows, year, quarter) => {
-    const summaryData = {};
-    const numericFields = tableColumns.filter(c => c.type === 'number').map(c => c.field);
-    const zeroSummary = numericFields.reduce((acc, field) => ({ ...acc, [field]: 0 }), {});
+    const updateAndSaveTotals = useCallback(async (currentRows, year, quarter) => {
+        const summaryData = {};
+        const numericFields = tableColumns.filter(c => c.type === 'number').map(c => c.field);
+        const zeroSummary = numericFields.reduce((acc, field) => ({ ...acc, [field]: 0 }), {});
 
-    const calculateSummary = (filteredRows) => {
-        return filteredRows.reduce((acc, row) => {
-            numericFields.forEach(key => acc[key] += toNum(row[key]));
-            return acc;
-        }, { ...zeroSummary });
-    };
-    
-    categories.forEach(category => {
-        if (category.children && category.children.length > 0) {
-            const parentTotal = { ...zeroSummary };
-            category.children.forEach(child => {
-                const childRows = currentRows.filter(row => row.category === child.id);
-                const childSummary = calculateSummary(childRows);
-                summaryData[child.id] = childSummary;
-                numericFields.forEach(key => parentTotal[key] += childSummary[key]);
-            });
-            summaryData[category.id] = parentTotal;
-        } else {
-            const categoryRows = currentRows.filter(row => row.category === category.id);
-            summaryData[category.id] = calculateSummary(categoryRows);
-        }
-    });
-
-    const grandTotal = { ...zeroSummary };
-    categories.forEach(category => {
-        const categoryTotal = summaryData[category.id];
-        if (categoryTotal) {
-            numericFields.forEach(key => {
-                grandTotal[key] += categoryTotal[key];
-            });
-        }
-    });
-    summaryData['grand_total'] = grandTotal;
-
-    try {
-        // ✅ DÒNG SỬA LỖI: Đường dẫn đến document của quý, không phải document con
-        const summaryDocRef = doc(db, `accountsReceivable/${year}/quarters`, `Q${quarter}`);
+        const calculateSummary = (filteredRows) => {
+            return filteredRows.reduce((acc, row) => {
+                numericFields.forEach(key => acc[key] += toNum(row[key]));
+                return acc;
+            }, { ...zeroSummary });
+        };
         
-        // Dùng { merge: true } để không ghi đè các trường khác nếu có
-        await setDoc(summaryDocRef, summaryData, { merge: true });
-    } catch (error) {
-        console.error("Lỗi khi lưu số tổng:", error);
-        toast.error("Không thể lưu số liệu tổng hợp.");
-    }
-}, []);
-    // Firebase Data Fetching
+        categories.forEach(category => {
+            if (category.children && category.children.length > 0) {
+                const parentTotal = { ...zeroSummary };
+                category.children.forEach(child => {
+                    const childRows = currentRows.filter(row => row.category === child.id);
+                    const childSummary = calculateSummary(childRows);
+                    summaryData[child.id] = childSummary;
+                    numericFields.forEach(key => parentTotal[key] += childSummary[key]);
+                });
+                summaryData[category.id] = parentTotal;
+            } else {
+                const categoryRows = currentRows.filter(row => row.category === category.id);
+                summaryData[category.id] = calculateSummary(categoryRows);
+            }
+        });
+
+        const grandTotal = { ...zeroSummary };
+        categories.forEach(category => {
+            const categoryTotal = summaryData[category.id];
+            if (categoryTotal) {
+                numericFields.forEach(key => grandTotal[key] += categoryTotal[key]);
+            }
+        });
+        summaryData['grand_total'] = grandTotal;
+
+        try {
+            const summaryDocRef = doc(db, `accountsReceivable/${year}/quarters`, `Q${quarter}`);
+            await setDoc(summaryDocRef, summaryData, { merge: true });
+        } catch (error) {
+            console.error("Lỗi khi lưu số tổng:", error);
+            toast.error("Không thể lưu số liệu tổng hợp.");
+        }
+    }, []);
+    
     useEffect(() => {
         setIsLoading(true);
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
@@ -209,10 +318,7 @@ const updateAndSaveTotals = useCallback(async (currentRows, year, quarter) => {
             const fetchedRows = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), type: 'data' }));
             setRows(fetchedRows);
             setIsLoading(false);
-            
-            // ✅ GỌI HÀM LƯU SỐ TỔNG MỖI KHI DỮ LIỆU THAY ĐỔI
             updateAndSaveTotals(fetchedRows, selectedYear, selectedQuarter);
-
         }, (error) => {
             setIsLoading(false);
             toast.error("Không thể tải dữ liệu từ máy chủ.");
@@ -220,21 +326,6 @@ const updateAndSaveTotals = useCallback(async (currentRows, year, quarter) => {
         return () => unsubscribe();
     }, [selectedYear, selectedQuarter, updateAndSaveTotals]);
     
-    // Paste Event Listener
-    useEffect(() => {
-        const handlePaste = (event) => {
-            if (!activeCell || !activeCell.category) return toast.error("Vui lòng chọn một ô trong bảng trước khi dán.");
-            event.preventDefault();
-            const text = event.clipboardData.getData('text/plain');
-            setPasteContext({ text });
-            setPasteDialogOpen(true);
-        };
-        const container = tableContainerRef.current;
-        if (container) container.addEventListener('paste', handlePaste);
-        return () => { if (container) container.removeEventListener('paste', handlePaste); };
-    }, [activeCell]);
-
-    // Data Transformation for Display
     const displayRows = useMemo(() => {
         if (isLoading) return [];
         let dataRowIndex = 0;
@@ -279,17 +370,28 @@ const updateAndSaveTotals = useCallback(async (currentRows, year, quarter) => {
         return result;
     }, [rows, isLoading]);
 
+    useEffect(() => {
+        const handlePaste = (event) => {
+            if (!editingCell) return toast.error("Vui lòng chọn một ô trong bảng trước khi dán.");
+            
+            const activeRow = displayRows.find(r => r.id === editingCell.rowId);
+            if (!activeRow) return;
+
+            const categoryToPaste = activeRow.category;
+            if (!categoryToPaste) return toast.error("Không thể dán vào dòng này.");
+
+            event.preventDefault();
+            const text = event.clipboardData.getData('text/plain');
+            setPasteContext({ text, category: categoryToPaste });
+            setPasteDialogOpen(true);
+        };
+        const container = tableContainerRef.current;
+        if (container) container.addEventListener('paste', handlePaste);
+        return () => { if (container) container.removeEventListener('paste', handlePaste); };
+    }, [editingCell, displayRows]);
+
     const summaryData = useMemo(() => displayRows.find(row => row.type === 'grand-total') || {}, [displayRows]);
     
-    const handleCellClick = (row, field) => {
-        if (row.type === 'data' || row.type === 'group-header' || row.type === 'parent-header') {
-            setActiveCell({ id: row.id, field: field, category: row.categoryId || row.category });
-        } else {
-            setActiveCell(null);
-        }
-    };
-
-    // UI RENDERING
     const pageVariants = { initial: { opacity: 0, y: 20 }, in: { opacity: 1, y: 0 }, out: { opacity: 0, y: -20 } };
 
     return (
@@ -321,21 +423,19 @@ const updateAndSaveTotals = useCallback(async (currentRows, year, quarter) => {
                         <Table stickyHeader size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell>Diễn giải</TableCell>
-                                    <TableCell align="right" sx={{ minWidth: 140 }}>Phải Thu ĐK</TableCell>
-                                    <TableCell align="right" sx={{ minWidth: 140 }}>Khách hàng / 
-                                        <br />
-                                        CĐT ứng trước</TableCell>
-                                    <TableCell align="right" sx={{ minWidth: 150 }}>Phát Sinh Tăng</TableCell>
-                                    <TableCell align="right" sx={{ minWidth: 150 }}>Phát Sinh Giảm</TableCell>
-                                    <TableCell align="right" sx={{ minWidth: 140 }}>Phải Thu CK</TableCell>
-                                    <TableCell align="right" sx={{ minWidth: 140 }}>Trả Trước CK</TableCell>
+                                    {tableColumns.map(col => (
+                                        <TableCell key={col.field} align={col.type === 'number' ? 'right' : 'left'} sx={{minWidth: 140}}>
+                                            {col.headerName.split('/ ').map((line, index) => (
+                                                <React.Fragment key={index}>{line}{index < col.headerName.split('/ ').length - 1 && <br />}</React.Fragment>
+                                            ))}
+                                        </TableCell>
+                                    ))}
                                     <TableCell align="center">Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {isLoading ? (
-                                    <TableRow><TableCell colSpan={8} align="center"><Typography sx={{ p: 4 }}>Đang tải dữ liệu...</Typography></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={tableColumns.length + 1} align="center"><Typography sx={{ p: 4 }}>Đang tải dữ liệu...</Typography></TableCell></TableRow>
                                 ) : displayRows.length > 1 ? (
                                     displayRows.map((row) => {
                                         const isDataRow = row.type === 'data';
@@ -350,19 +450,43 @@ const updateAndSaveTotals = useCallback(async (currentRows, year, quarter) => {
 
                                         return (
                                             <TableRow key={row.id} sx={getRowSx()}>
-                                                {tableColumns.map((col) => (
-                                                    <TableCell key={col.field} align={col.type === 'number' ? 'right' : 'left'} onClick={() => handleCellClick(row, col.field)}>
-                                                        {col.field === 'project' ? row.project : 
-                                                            (row[col.field] != null) && (
-                                                                (col.field === 'debitIncrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]}/>} color="warning" size="small"/> :
-                                                                (col.field === 'creditDecrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]}/>} color="success" size="small"/> :
-                                                                <Typography variant="body2" sx={{fontWeight: (col.field.includes('closing')) && isDataRow ? 'bold' : 'inherit'}}>
-                                                                    <CurrencyDisplay value={row[col.field]} />
-                                                                </Typography>
-                                                            )
-                                                        }
-                                                    </TableCell>
-                                                ))}
+                                                {tableColumns.map((col) => {
+                                                    const isEditing = editingCell?.rowId === row.id && editingCell?.field === col.field;
+                                                    const isEditable = isDataRow;
+
+                                                    return (
+                                                        <TableCell
+                                                            key={col.field}
+                                                            align={col.type === 'number' ? 'right' : 'left'}
+                                                            onClick={() => isEditable && setEditingCell({ rowId: row.id, field: col.field })}
+                                                            // ✅ SỬA LỖI CĂN LỀ: Xóa padding của ô cha khi đang sửa
+                                                            sx={{
+                                                                cursor: isEditable ? 'pointer' : 'default',
+                                                                padding: isEditing ? 0 : '6px 16px'
+                                                            }}
+                                                        >
+                                                            {isEditing && isEditable ? (
+                                                                <EditableCell
+                                                                    value={row[col.field]}
+                                                                    rowId={row.id}
+                                                                    field={col.field}
+                                                                    type={col.type}
+                                                                    onUpdate={handleUpdateCell}
+                                                                    onCancel={() => setEditingCell(null)}
+                                                                />
+                                                            ) : (
+                                                                col.field === 'project' ? row.project : 
+                                                                (row[col.field] != null) && (
+                                                                    (col.field === 'debitIncrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]}/>} color="warning" size="small"/> :
+                                                                    (col.field === 'creditDecrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]}/>} color="success" size="small"/> :
+                                                                    <Typography variant="body2" sx={{fontWeight: (col.field.includes('closing')) && isDataRow ? 'bold' : 'inherit'}}>
+                                                                        <CurrencyDisplay value={row[col.field]} />
+                                                                    </Typography>
+                                                                )
+                                                            )}
+                                                        </TableCell>
+                                                    )
+                                                })}
                                                 <TableCell align="center" sx={{ minWidth: 100 }}>
                                                     {row.type === 'data' && ( <IconButton size="small" onClick={() => handleDeleteRow(row.id)}><DeleteIcon fontSize="small" /></IconButton> )}
                                                     {row.type === 'group-header' && ( <IconButton size="small" onClick={() => handleAddRow(row.categoryId)}><AddIcon fontSize="small" /></IconButton> )}
@@ -371,7 +495,7 @@ const updateAndSaveTotals = useCallback(async (currentRows, year, quarter) => {
                                         );
                                     })
                                 ) : (
-                                    <TableRow><TableCell colSpan={8}><NoRowsOverlay /></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={tableColumns.length + 1}><NoRowsOverlay /></TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>
