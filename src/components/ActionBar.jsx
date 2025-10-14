@@ -63,6 +63,7 @@ export default function EnhancedActionBar({
     onShowFormulas,
     onFinalizeProject, // <-- 2. THÊM PROP MỚI
     onUndoFinalize,
+    isProjectFinalized
 }) {
     const theme = useTheme();
     const isSmall = useMediaQuery(theme.breakpoints.down("md"));

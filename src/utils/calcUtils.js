@@ -129,7 +129,23 @@ export const calcAllFields = (
     } = {}
 ) => {
     if (!row.project) return;
-    if (row.project.includes("-VT") || row.project.includes("-NC")) {
+
+    const isVtNcProject = row.project.includes("-VT") || row.project.includes("-NC");
+
+    // ⭐ LOGIC MỚI ƯU TIÊN HÀNG ĐẦU: ÁP DỤNG CÔNG THỨC "SỐNG" ⭐
+    // Kiểm tra nếu là công trình VT/NC và có trường 'baseForNptck' được truyền từ quý trước.
+    if (isVtNcProject && row.hasOwnProperty('baseForNptck') && row.baseForNptck !== null) {
+        // Lấy giá trị gốc đã tính ở quý trước
+        const baseValue = Number(parseNumber(row.baseForNptck));
+        // Lấy Chi Phí Trực Tiếp của quý HIỆN TẠI (khi người dùng nhập)
+        const directCost_Current = Number(parseNumber(row.directCost || "0"));
+        
+        // Công thức cuối cùng: NPTĐK(Q2) - CPTT(Q2) - CPTT(Q3)
+        row.noPhaiTraCK = String(baseValue - directCost_Current);
+    }
+
+    // Các logic tính toán khác giữ nguyên
+    if (isVtNcProject) {
         row.revenue = "0";
     } else if (row.project.includes("-CP")) {
         if (!row.isRevenueManual) {
@@ -146,24 +162,23 @@ export const calcAllFields = (
 
     row.carryoverMinus = calcCarryoverMinus(row);
     row.totalCost = calcTotalCost(row);
-    const project = row.project || "";
-    if (project.includes("-VT") || project.includes("-NC")) {
+    
+    if (isVtNcProject) {
         row.cpVuot = "0";
     } else {
         row.cpVuot = calcCpVuot(row);
     }
-
-    // ⭐ BẢO VỆ CÁC GIÁ TRỊ ĐÃ QUYẾT TOÁN ⭐
-    // Chỉ tính toán lại các cột này nếu dòng CHƯA được quyết toán
+    
     if (!row.isFinalized) {
         row.carryoverEnd = calcCarryoverEnd(row, projectType);
 
-        if (!isUserEditingNoPhaiTraCK && row.project.includes("-CP")) {
+        // Chỉ tính NPT CK tự động cho các dự án -CP (không phải VT/NC)
+        // vì VT/NC đã được xử lý bởi logic đặc biệt ở trên.
+        if (!isUserEditingNoPhaiTraCK && !isVtNcProject && row.project.includes("-CP")) {
             row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
         }
     }
 
-    // Phần tính toán `cpSauQuyetToan` vẫn giữ nguyên
     const directCost = parseNumber(row.directCost || "0");
     const allocated = parseNumber(row.allocated || "0");
     const noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
@@ -172,24 +187,17 @@ export const calcAllFields = (
     const inventory = parseNumber(row.inventory || "0");
 
     row.cpSauQuyetToan = String(
-        directCost +
-        allocated +
-        noPhaiTraCK -
-        carryoverEnd -
-        debt -
-        inventory
+        directCost + allocated + noPhaiTraCK - carryoverEnd - debt - inventory
     );
 };
-// ---------- Hidden Columns Helper (cho -VT, -NC) ----------
+
+// ---------- Hidden Columns Helper (Giữ nguyên) ----------
 export const getHiddenColumnsForProject = (project) =>
     project.includes("-VT") || project.includes("-NC")
-        ? [
-              "allocated",
-              "carryover",
-              "carryoverMinus",
-              "carryoverEnd",
-              "hskh",
-              "revenue",
-              "cpVuot"
-          ]
+        ? ["allocated", "carryover", "carryoverMinus", "carryoverEnd", "hskh", "revenue", "cpVuot"]
         : [];
+
+// =================================================================
+// KẾT THÚC KHỐI CODE THAY THẾ
+// =================================================================
+// ---------- Hidden Columns Helper (cho -VT, -NC) ----------

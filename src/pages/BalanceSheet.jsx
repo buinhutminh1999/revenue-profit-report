@@ -32,6 +32,8 @@ const ACCOUNTS_COLLECTION = 'chartOfAccounts';
 const BALANCES_COLLECTION = 'accountBalances';
 
 const syncedCellsConfig = {
+    '152': ['cuoiKyNo'], // ✨ THÊM DÒNG NÀY
+    '155': ['cuoiKyNo'], // ✨ THÊM DÒNG NÀY
     '131': ['cuoiKyCo'], '132': ['cuoiKyNo'], '133': ['cuoiKyNo'], '134': ['cuoiKyNo'], '142': ['cuoiKyNo'],
     '135': ['cuoiKyNo'], '339': ['cuoiKyCo'], '338': ['cuoiKyCo'],
     '139': ['cuoiKyCo'], '140': ['cuoiKyNo'], '332': ['cuoiKyCo'], '333': ['cuoiKyCo'],
@@ -492,7 +494,74 @@ const BalanceSheet = () => {
                 if (totalFor332 !== balances['332']?.cuoiKyCo) { updateBalanceMutation.mutate({ accountId: '332', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor332 }); }
                 if (totalFor333 !== balances['333']?.cuoiKyCo) { updateBalanceMutation.mutate({ accountId: '333', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor333 }); }
                 if (totalFor339 !== balances['339']?.cuoiKyCo) { updateBalanceMutation.mutate({ accountId: '339', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor339 }); }
+                // --- Phần 3: Đồng bộ cho TK 152 (NGUYÊN VẬT LIỆU) ---
+                try {
+                    const factoryProjectId = 'HKZyMDRhyXJzJiOauzVe';
+                    const materialDocRef = doc(db, `projects/${factoryProjectId}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`);
+                    const materialDocSnap = await getDoc(materialDocRef);
+                    
+                    let totalFor152 = 0;
 
+                    if (materialDocSnap.exists()) {
+                        const data = materialDocSnap.data();
+                        if (data.items && Array.isArray(data.items)) {
+                            // Tìm đến đúng khoản mục "NGUYÊN VẬT LIỆU"
+                            const materialItem = data.items.find(item => item.description === "+ NGUYÊN VẬT LIỆU");
+                            
+                            if (materialItem) {
+                                // Lấy giá trị từ trường `tonKhoUngKH`
+                                totalFor152 = toNumber(materialItem.tonKhoUngKH);
+                            }
+                        }
+                    }
+
+                    // Chỉ cập nhật nếu giá trị mới khác với giá trị hiện tại
+                    if (totalFor152 !== balances['152']?.cuoiKyNo) {
+                        updateBalanceMutation.mutate({
+                            accountId: '152',
+                            year: selectedYear,
+                            quarter: selectedQuarter,
+                            field: 'cuoiKyNo',
+                            value: totalFor152
+                        });
+                    }
+                } catch (err) {
+                    console.error("Lỗi khi đồng bộ TK 152:", err);
+                }
+// --- Phần 4: Đồng bộ cho TK 155 (+ THÀNH PHẨM) ---
+                try {
+                    const factoryProjectId_155 = 'HKZyMDRhyXJzJiOauzVe';
+                    const thanhPhamDocRef = doc(db, `projects/${factoryProjectId_155}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`);
+                    const thanhPhamDocSnap = await getDoc(thanhPhamDocRef);
+                    
+                    let totalFor155 = 0;
+
+                    if (thanhPhamDocSnap.exists()) {
+                        const data = thanhPhamDocSnap.data();
+                        if (data.items && Array.isArray(data.items)) {
+                            // Tìm đến đúng khoản mục "+ THÀNH PHẨM"
+                            const thanhPhamItem = data.items.find(item => item.description === "+ THÀNH PHẨM");
+                            
+                            if (thanhPhamItem) {
+                                // Lấy giá trị từ trường `tonKhoUngKH`
+                                totalFor155 = toNumber(thanhPhamItem.tonKhoUngKH);
+                            }
+                        }
+                    }
+
+                    // Chỉ cập nhật nếu giá trị mới khác với giá trị hiện tại
+                    if (totalFor155 !== balances['155']?.cuoiKyNo) {
+                        updateBalanceMutation.mutate({
+                            accountId: '155',
+                            year: selectedYear,
+                            quarter: selectedQuarter,
+                            field: 'cuoiKyNo',
+                            value: totalFor155
+                        });
+                    }
+                } catch (err) {
+                    console.error("Lỗi khi đồng bộ TK 155:", err);
+                }
             } catch (error) {
                 console.error("Lỗi khi đồng bộ dữ liệu ngoài:", error);
                 toast.error("Không thể đồng bộ dữ liệu ngoài.");
@@ -621,39 +690,114 @@ const BalanceSheet = () => {
     const handleCollapseAll = useCallback(() => setExpanded([]), []);
 
     const handlePasteAndSave = async (pastedText) => {
-        if (!pastedText || !accounts) { toast.error("Không có dữ liệu để dán hoặc hệ thống tài khoản chưa sẵn sàng."); return; }
+        if (!pastedText || !accounts) {
+            toast.error("Không có dữ liệu để dán hoặc hệ thống tài khoản chưa sẵn sàng.");
+            return;
+        }
+
         const toastId = toast.loading('Đang kiểm tra và xử lý dữ liệu...');
+        
+        const existingBalances = balances; 
         const validAccountIds = new Set(accounts.map(acc => acc.accountId));
+        
         const rows = pastedText.trim().split('\n');
-        const successes = [], errors = [], warnings = [];
+        const updates = [];
+        const errors = [];
+        const warnings = [];
+
         const parseCurrency = (value) => {
             if (typeof value !== 'string' || !value) return 0;
             const cleanedValue = value.trim().replace(/\./g, '').replace(/,/g, '');
             return isNaN(parseFloat(cleanedValue)) ? 0 : parseFloat(cleanedValue);
         };
+
         rows.forEach((row, index) => {
             const rowNum = index + 1;
             const columns = row.split('\t');
             const accountId = columns[0]?.trim();
-            if (!accountId) { warnings.push({ row: rowNum, message: 'Thiếu mã tài khoản.' }); return; }
-            if (!validAccountIds.has(accountId)) { errors.push({ row: rowNum, accountId, message: 'Mã TK không tồn tại.' }); return; }
-            const dauKyNo = parseCurrency(columns[2]);
-            const dauKyCo = parseCurrency(columns[3]);
-            successes.push({ accountId, dauKyNo, dauKyCo, cuoiKyNo: parseCurrency(columns[5]), cuoiKyCo: parseCurrency(columns[6]), year: selectedYear, quarter: selectedQuarter, isCarriedOver: !(dauKyNo > 0 || dauKyCo > 0) });
+
+            if (!accountId) { return; }
+            if (!validAccountIds.has(accountId)) {
+                errors.push({ row: rowNum, accountId, message: 'Mã TK không tồn tại.' });
+                return;
+            }
+
+            const currentData = existingBalances[accountId] || {};
+            const updatePayload = {};
+            let hasChanges = false;
+
+            const fieldsToProcess = [
+                { colIndex: 2, fieldName: 'dauKyNo',  label: 'Đầu Kỳ Nợ' },
+                { colIndex: 3, fieldName: 'dauKyCo',  label: 'Đầu Kỳ Có' },
+                { colIndex: 4, fieldName: 'cuoiKyNo', label: 'Cuối Kỳ Nợ' },
+                { colIndex: 5, fieldName: 'cuoiKyCo', label: 'Cuối Kỳ Có' }
+            ];
+
+            fieldsToProcess.forEach(field => {
+                if (columns.length <= field.colIndex) {
+                    return; 
+                }
+
+                const newValue = parseCurrency(columns[field.colIndex]);
+                const existingValue = currentData[field.fieldName] || 0;
+
+                // Quy tắc 1: Không cho sửa ô bị khóa do chuyển kỳ (GIỮ NGUYÊN)
+                const isCarriedOverLocked = (field.fieldName === 'dauKyNo' || field.fieldName === 'dauKyCo') && currentData.isCarriedOver === true;
+                if (isCarriedOverLocked) {
+                    if (newValue !== existingValue) { // Chỉ cảnh báo nếu có sự khác biệt
+                        warnings.push({ row: rowNum, accountId, message: `Bỏ qua ô [${field.label}] vì được chuyển từ kỳ trước.` });
+                    }
+                    return;
+                }
+
+                // Quy tắc 2: Không cho sửa ô bị khóa do đồng bộ tự động (GIỮ NGUYÊN)
+                if (syncedCellsConfig[accountId]?.includes(field.fieldName)) {
+                    if (newValue !== existingValue) { // Chỉ cảnh báo nếu có sự khác biệt
+                        warnings.push({ row: rowNum, accountId, message: `Bỏ qua ô [${field.label}] vì được đồng bộ tự động.` });
+                    }
+                    return;
+                }
+                
+                // ⭐ THAY ĐỔI TẠI ĐÂY: QUY TẮC BỎ QUA ĐÃ BỊ XÓA ⭐
+                // Logic cũ (đã xóa): if (existingValue !== 0 && existingValue !== newValue) ...
+
+                // Nếu giá trị mới khác giá trị cũ, thì tiến hành cập nhật
+                if (existingValue !== newValue) {
+                    updatePayload[field.fieldName] = newValue;
+                    hasChanges = true;
+                }
+            });
+
+            if (hasChanges) {
+                updates.push({ 
+                    ...updatePayload, 
+                    accountId, 
+                    year: selectedYear, 
+                    quarter: selectedQuarter 
+                });
+            }
         });
-        if (successes.length > 0) {
+
+        // --- GHI DỮ LIỆU VÀO DATABASE ---
+        if (updates.length > 0) {
             try {
                 const batch = writeBatch(db);
-                successes.forEach(update => {
+                updates.forEach(update => {
                     const docId = `${update.accountId}_${update.year}_${update.quarter}`;
-                    batch.set(doc(db, BALANCES_COLLECTION, docId), update, { merge: true });
+                    batch.set(doc(db, BALANCES_COLLECTION, docId), update, { merge: true }); 
                 });
                 await batch.commit();
                 queryClient.invalidateQueries(['accountBalances', selectedYear, selectedQuarter]);
-            } catch (error) { toast.dismiss(toastId); toast.error(`Lỗi khi cập nhật database: ${error.message}`); return; }
+            } catch (error) {
+                toast.dismiss(toastId);
+                toast.error(`Lỗi khi cập nhật CSDL: ${error.message}`);
+                return;
+            }
         }
+
+        // --- HIỂN THỊ KẾT QUẢ ---
         toast.dismiss(toastId);
-        toast.custom((t) => <ProcessReportToast t={t} successes={successes} errors={errors} warnings={warnings} />, { duration: 6000 });
+        toast.custom((t) => <ProcessReportToast t={t} successes={updates} errors={errors} warnings={warnings} />, { duration: 10000 });
     };
 
     const mergedData = useMemo(() => {

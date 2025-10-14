@@ -393,60 +393,95 @@ export default function DeviceMonitoringDashboard() {
     const onlineCount = useMemo(() => Object.values(onlineStatusMap).filter(v => v?.isOnline).length, [onlineStatusMap]);
     const isLoading = loadingMachines || (visibleMachineIds.length > 0 && loadingEvents);
 
-    // Centralized data processing for both Grid and List views
-    const processedMachineData = useMemo(() => {
-        return filteredMachines.map(machine => {
-            const events = eventsByMachine[machine.id] || [];
-            const isOnline = onlineStatusMap[machine.id]?.isOnline === true;
-            
-            let totalSec = 0;
-            let workingHoursSec = 0;
-            let sessionStart = null;
-            
-            if (events && events.length > 0) {
-                const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-                const dayStart = startOfDay(selectedDate);
-                if (STOP_IDS.has(Number(sortedEvents[0].eventId))) {
-                    sessionStart = dayStart;
+// Centralized data processing for both Grid and List views
+const processedMachineData = useMemo(() => {
+   return filteredMachines.map(machine => {
+        const events = eventsByMachine[machine.id] || [];
+        const isOnline = onlineStatusMap[machine.id]?.isOnline === true;
+        
+        let totalSec = 0;
+        let workingHoursSec = 0;
+        let sessionStart = null;
+
+        const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        const dayStart = startOfDay(selectedDate);
+
+        // ✅ LOGIC TỐI ƯU HÓA: Xử lý tất cả các trường hợp một cách nhất quán
+        const hasAnyStartEvent = sortedEvents.some(e => START_IDS.has(Number(e.eventId)));
+        
+        // Kịch bản 1: Máy đang online hôm nay nhưng CHƯA CÓ sự kiện START nào được ghi nhận.
+        // Điều này xử lý cả "race condition" và trường hợp máy chạy từ nửa đêm.
+        if (isOnline && !hasAnyStartEvent && isSameDay(selectedDate, new Date())) {
+            sessionStart = dayStart;
+        } 
+        // Kịch bản 2: Sự kiện đầu tiên trong ngày là STOP, nghĩa là máy đã chạy từ nửa đêm.
+        else if (sortedEvents.length > 0 && STOP_IDS.has(Number(sortedEvents[0].eventId))) {
+            sessionStart = dayStart;
+        }
+
+        // Vòng lặp xử lý các sự kiện đã được ghi nhận
+        for (const e of sortedEvents) {
+            const eventId = Number(e.eventId);
+
+            if (STOP_IDS.has(eventId) && sessionStart) {
+                const duration = (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
+                if (duration > 0) {
+                    totalSec += duration;
+                    workingHoursSec += getSecondsInWorkingHours(sessionStart, e.createdAt, selectedDate);
                 }
-                for (const e of sortedEvents) {
-                    const eventId = Number(e.eventId);
-                    if (START_IDS.has(eventId) && !sessionStart) {
-                        sessionStart = e.createdAt;
-                    } else if (STOP_IDS.has(eventId) && sessionStart) {
-                        const duration = (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
-                        if (duration > 0) {
-                            totalSec += duration;
-                            workingHoursSec += getSecondsInWorkingHours(sessionStart, e.createdAt, selectedDate);
-                        }
-                        sessionStart = null;
+                sessionStart = null;
+            
+            } else if (START_IDS.has(eventId)) {
+                if (sessionStart) {
+                    // Logic xử lý laptop ngủ không báo trước
+                    const sessionEndTime = machine.lastSeenAt && machine.lastSeenAt.toDate() < e.createdAt
+                        ? machine.lastSeenAt.toDate()
+                        : sessionStart;
+
+                    const duration = (sessionEndTime.getTime() - sessionStart.getTime()) / 1000;
+                    if (duration > 0) {
+                        totalSec += duration;
+                        workingHoursSec += getSecondsInWorkingHours(sessionStart, sessionEndTime, selectedDate);
                     }
                 }
+                // Luôn bắt đầu phiên mới với sự kiện START
+                sessionStart = e.createdAt;
+            }
+        }
+
+        // Chốt phiên làm việc cuối cùng nếu máy vẫn đang chạy hoặc vừa offline
+        if (sessionStart) {
+            let endPoint;
+            if (isOnline && isSameDay(selectedDate, new Date())) {
+                endPoint = new Date(); 
+            } else if (machine.lastSeenAt) {
+                const lastSeenDate = machine.lastSeenAt.toDate();
+                const endOfDayDate = endOfDay(selectedDate);
+                endPoint = lastSeenDate > endOfDayDate ? endOfDayDate : lastSeenDate;
+            } else {
+                endPoint = sessionStart;
             }
 
-            if (sessionStart) {
-                const endPoint = (isSameDay(selectedDate, new Date()) && isOnline) ? new Date() : (machine.lastSeenAt ? machine.lastSeenAt.toDate() : sessionStart);
-                const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
-                if (durationToAdd > 0) {
-                    totalSec += durationToAdd;
-                    workingHoursSec += getSecondsInWorkingHours(sessionStart, endPoint, selectedDate);
-                }
+            const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
+            if (durationToAdd > 0) {
+                totalSec += durationToAdd;
+                workingHoursSec += getSecondsInWorkingHours(sessionStart, endPoint, selectedDate);
             }
-            
-            return {
-                ...machine,
-                id: machine.id,
-                isOnline,
-                lastSeenAt: machine.lastSeenAt ? machine.lastSeenAt.toDate() : null,
-                lastBootAt: machine.lastBootAt ? machine.lastBootAt.toDate() : null,
-                usageData: {
-                    totalSec: Math.max(0, totalSec),
-                    workingHoursSec: Math.max(0, workingHoursSec)
-                }
-            };
-        });
-    }, [filteredMachines, eventsByMachine, onlineStatusMap, selectedDate]);
-
+        }
+        
+        return {
+            ...machine,
+            id: machine.id,
+            isOnline,
+            lastSeenAt: machine.lastSeenAt ? machine.lastSeenAt.toDate() : null,
+            lastBootAt: machine.lastBootAt ? machine.lastBootAt.toDate() : null,
+            usageData: {
+                totalSec: Math.max(0, totalSec),
+                workingHoursSec: Math.max(0, workingHoursSec)
+            }
+        };
+    });
+}, [filteredMachines, eventsByMachine, onlineStatusMap, selectedDate]);
     return (
         <Box sx={{ p: { xs: 2, md: 4 }, backgroundColor: '#f9fafb', minHeight: '100vh' }}>
             <Box sx={{ mb: 4 }}>

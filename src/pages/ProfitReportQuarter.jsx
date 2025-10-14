@@ -7,6 +7,10 @@ import {
     DialogContent,
     DialogActions,
     CircularProgress,
+    Tooltip,
+    Checkbox,
+    Menu,
+    ListItemText,
 } from "@mui/material";
 import {
     Box,
@@ -29,6 +33,8 @@ import {
     Switch,
     FormControlLabel,
 } from "@mui/material";
+import { ViewColumn as ViewColumnIcon } from '@mui/icons-material'; // <-- THÊM DÒNG NÀY
+
 import SaveIcon from "@mui/icons-material/Save";
 import { collection, getDocs, setDoc, doc, getDoc, collectionGroup, onSnapshot } from "firebase/firestore";
 import { db } from "../services/firebase-config";
@@ -60,7 +66,47 @@ export default function ProfitReportQuarter() {
         profitTargetDauTu: 0,
     });
     const [formulaDialogOpen, setFormulaDialogOpen] = useState(false); // <-- THÊM DÒNG NÀY
+    // ======================================================================
+    // ✅ BẮT ĐẦU: DÁN TOÀN BỘ KHỐI CODE NÀY VÀO ĐÂY
+    // ======================================================================
 
+    const [columnVisibility, setColumnVisibility] = useState({
+        revenue: true,
+        cost: true,
+        profit: true,
+        profitMarginOnCost: true, // % LN / GIÁ VỐN
+        plannedProfitMargin: true, // % LN THEO KH
+        quarterlyProfitMargin: true, // % LN QUÍ
+        costOverQuarter: true,
+        target: true,
+        note: true,
+        suggest: true,
+    });
+
+    const [anchorEl, setAnchorEl] = useState(null);
+    const open = Boolean(anchorEl);
+
+    const columnLabels = {
+        revenue: 'Doanh Thu',
+        cost: 'Chi Phí Đã Chi',
+        profit: 'Lợi Nhuận',
+        profitMarginOnCost: '% LN / Giá Vốn',
+        plannedProfitMargin: '% LN Theo KH',
+        quarterlyProfitMargin: '% LN Quí',
+        costOverQuarter: `CP Vượt Quý ${selectedQuarter}`,
+        target: 'Chỉ Tiêu',
+        note: 'Thuận Lợi / Khó Khăn',
+        suggest: 'Đề Xuất',
+    };
+
+    const handleColumnMenuClick = (event) => setAnchorEl(event.currentTarget);
+    const handleColumnMenuClose = () => setAnchorEl(null);
+    const handleToggleColumn = (columnKey) => {
+        setColumnVisibility((prev) => ({
+            ...prev,
+            [columnKey]: !prev[columnKey],
+        }));
+    };
     const handleSummaryTargetChange = (targetKey, value) => {
         setSummaryTargets((prevTargets) => ({
             ...prevTargets,
@@ -338,43 +384,43 @@ export default function ProfitReportQuarter() {
     };
 
     const updateGroupI3 = (rows) => {
-    const idxI3 = rows.findIndex(
-        (r) =>
-            (r.name || "").trim().toUpperCase() ===
-            "I.3. CÔNG TRÌNH CÔNG TY CĐT"
-    );
-    if (idxI3 === -1) return rows;
-    let i = idxI3 + 1;
-    const childRows = [];
-    while (
-        i < rows.length &&
-        !(rows[i].name && rows[i].name.match(/^[IVX]+\./))
-    ) {
-        childRows.push(rows[i]);
-        i++;
-    }
-
-    // Vẫn tính tổng Doanh thu và Chi phí để hiển thị trên dòng tổng hợp
-    const revenue = childRows.reduce((s, r) => s + toNum(r.revenue), 0);
-    const cost = childRows.reduce((s, r) => s + toNum(r.cost), 0);
-
-    // ✅ THAY ĐỔI THEO YÊU CẦU MỚI
-    // Công thức: Lợi nhuận = LN(hàng con 1) - LN(hàng con 2) - LN(hàng con 3) ...
-    const profit = childRows.reduce((acc, currentRow, index) => {
-        const currentProfit = toNum(currentRow.profit);
-        // Nếu là phần tử đầu tiên, lấy nó làm giá trị khởi tạo
-        if (index === 0) {
-            return currentProfit;
+        const idxI3 = rows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "I.3. CÔNG TRÌNH CÔNG TY CĐT"
+        );
+        if (idxI3 === -1) return rows;
+        let i = idxI3 + 1;
+        const childRows = [];
+        while (
+            i < rows.length &&
+            !(rows[i].name && rows[i].name.match(/^[IVX]+\./))
+        ) {
+            childRows.push(rows[i]);
+            i++;
         }
-        // Các phần tử sau đó sẽ được trừ đi từ giá trị đã có
-        return acc - currentProfit;
-    }, 0); // Khởi tạo với 0
 
-    const percent = revenue ? (profit / revenue) * 100 : null;
-    const newRows = [...rows];
-    newRows[idxI3] = { ...newRows[idxI3], revenue, cost, profit, percent };
-    return newRows;
-};
+        // Vẫn tính tổng Doanh thu và Chi phí để hiển thị trên dòng tổng hợp
+        const revenue = childRows.reduce((s, r) => s + toNum(r.revenue), 0);
+        const cost = childRows.reduce((s, r) => s + toNum(r.cost), 0);
+
+        // ✅ THAY ĐỔI THEO YÊU CẦU MỚI
+        // Công thức: Lợi nhuận = LN(hàng con 1) - LN(hàng con 2) - LN(hàng con 3) ...
+        const profit = childRows.reduce((acc, currentRow, index) => {
+            const currentProfit = toNum(currentRow.profit);
+            // Nếu là phần tử đầu tiên, lấy nó làm giá trị khởi tạo
+            if (index === 0) {
+                return currentProfit;
+            }
+            // Các phần tử sau đó sẽ được trừ đi từ giá trị đã có
+            return acc - currentProfit;
+        }, 0); // Khởi tạo với 0
+
+        const percent = revenue ? (profit / revenue) * 100 : null;
+        const newRows = [...rows];
+        newRows[idxI3] = { ...newRows[idxI3], revenue, cost, profit, percent };
+        return newRows;
+    };
 
     // DÁN TOÀN BỘ HÀM MỚI NÀY VÀO
     // ----------------------------------------------------------------
@@ -411,37 +457,37 @@ export default function ProfitReportQuarter() {
     // ----------------------------------------------------------------
 
     const updateXayDungRow = (inputRows) => {
-    const rows = [...inputRows];
-    const idxI = rows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
-    );
-    if (idxI === -1) return rows;
+        const rows = [...inputRows];
+        const idxI = rows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
+        );
+        if (idxI === -1) return rows;
 
-    const idxI1 = rows.findIndex(
-        (r) =>
-            (r.name || "").trim().toUpperCase() ===
-            "I.1. DÂN DỤNG + GIAO THÔNG"
-    );
-    const idxI2 = rows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
-    );
-    // ✅ THÊM DÒNG NÀY
-    const idxI3 = rows.findIndex(
-        (r) => (r.name || "").trim().toUpperCase() === "I.3. CÔNG TRÌNH CÔNG TY CĐT"
-    );
+        const idxI1 = rows.findIndex(
+            (r) =>
+                (r.name || "").trim().toUpperCase() ===
+                "I.1. DÂN DỤNG + GIAO THÔNG"
+        );
+        const idxI2 = rows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
+        );
+        // ✅ THÊM DÒNG NÀY
+        const idxI3 = rows.findIndex(
+            (r) => (r.name || "").trim().toUpperCase() === "I.3. CÔNG TRÌNH CÔNG TY CĐT"
+        );
 
 
-    const revenue =
-        toNum(rows[idxI1]?.revenue) + toNum(rows[idxI2]?.revenue) + toNum(rows[idxI3]?.revenue); // ✅ THÊM DOANH THU CỦA I.3
-    const cost = toNum(rows[idxI1]?.cost) + toNum(rows[idxI2]?.cost) + toNum(rows[idxI3]?.cost); // ✅ THÊM CHI PHÍ CỦA I.3
-    const profit = revenue - cost;
+        const revenue =
+            toNum(rows[idxI1]?.revenue) + toNum(rows[idxI2]?.revenue) + toNum(rows[idxI3]?.revenue); // ✅ THÊM DOANH THU CỦA I.3
+        const cost = toNum(rows[idxI1]?.cost) + toNum(rows[idxI2]?.cost) + toNum(rows[idxI3]?.cost); // ✅ THÊM CHI PHÍ CỦA I.3
+        const profit = revenue - cost;
 
-    const target = toNum(rows[idxI].target);
-    const percent = target !== 0 ? (profit / target) * 100 : null;
+        const target = toNum(rows[idxI].target);
+        const percent = target !== 0 ? (profit / target) * 100 : null;
 
-    rows[idxI] = { ...rows[idxI], revenue, cost, profit, percent };
-    return rows;
-};
+        rows[idxI] = { ...rows[idxI], revenue, cost, profit, percent };
+        return rows;
+    };
 
     const updateSanXuatRow = (inputRows) => {
         const rows = [...inputRows];
@@ -955,9 +1001,9 @@ export default function ProfitReportQuarter() {
                     Object.entries(groupMapping).forEach(
                         ([type, groupName]) => {
                             // Chỉ lọc từ các dự án còn lại (otherProjects)
-                            const projectsToAdd = otherProjects.filter(
-                                (p) => p.type === type
-                            );
+                            const projectsToAdd = otherProjects
+                                .filter((p) => p.type === type)
+                                .sort((a, b) => a.name.localeCompare(b.name)); // ✨ THÊM DÒNG NÀY
                             if (projectsToAdd.length > 0) {
                                 const groupIndex = processedRows.findIndex(
                                     (r) =>
@@ -993,17 +1039,20 @@ export default function ProfitReportQuarter() {
                     return { revenue, cost, profit, percent };
                 };
                 const groupI1 = groupBy(
-                    projects,
-                    (r) =>
-                        (r.type === "Thi cong" || r.type === "Thi công") &&
-                        (r.revenue !== 0 || r.cost !== 0) &&
-                        !(r.name || "").toUpperCase().includes("KÈ")
-                );
+                    projects,
+                    (r) =>
+                        (r.type === "Thi cong" || r.type === "Thi công") &&
+                        (r.revenue !== 0 || r.cost !== 0) &&
+                        !(r.name || "").toUpperCase().includes("KÈ")
+                )
+                .sort((a, b) => a.name.localeCompare(b.name)); // ✨ THÊM DÒNG NÀY
+
                 const groupI2 = groupBy(projects, (r) =>
                     (r.name || "").toUpperCase().includes("KÈ")
                 );
                 const groupI3 = groupBy(projects, (r) => r.type === "CĐT");
-                const groupI4 = groupBy(projects, (r) => r.type === "XNII");
+const groupI4 = groupBy(projects, (r) => r.type === "XNII")
+                .sort((a, b) => a.name.localeCompare(b.name)); // ✨ THÊM DÒNG NÀY
                 const groupII = projects.filter((r) =>
                     (r.type || "").toLowerCase().includes("nhà máy")
                 );
@@ -2043,6 +2092,20 @@ export default function ProfitReportQuarter() {
                         >
                             + Thêm
                         </Button>
+                        {/* ✅ BẮT ĐẦU: DÁN KHỐI CODE NÀY VÀO SAU NÚT "THÊM" */}
+                        <Tooltip title="Ẩn/Hiện cột">
+                            <Button variant="outlined" onClick={handleColumnMenuClick} startIcon={<ViewColumnIcon />}>
+                                Các cột
+                            </Button>
+                        </Tooltip>
+                        <Menu anchorEl={anchorEl} open={open} onClose={handleColumnMenuClose}>
+                            {Object.keys(columnVisibility).map((key) => (
+                                <MenuItem key={key} onClick={() => handleToggleColumn(key)}>
+                                    <Checkbox checked={columnVisibility[key]} />
+                                    <ListItemText primary={columnLabels[key] || key.toUpperCase()} />
+                                </MenuItem>
+                            ))}
+                        </Menu>
                     </Stack>
                 </Box>
                 <ProfitSummaryTable
@@ -2084,37 +2147,22 @@ export default function ProfitReportQuarter() {
                             }}
                         >
                             <TableRow>
-                                {[
-                                    "CÔNG TRÌNH",
-                                    "DOANH THU",
-                                    "CHI PHÍ ĐÃ CHI",
-                                    "LỢI NHUẬN",
-                                    "% LN / GIÁ VỐN",
-                                    "% LN THEO KH", // <-- ĐÃ SỬA
-                                    "% LN QUÍ",
-                                    cpVuotLabel,
-                                    "CHỈ TIÊU",
-                                    "THUẬN LỢI / KHÓ KHĂN",
-                                    "ĐỀ XUẤT",
-                                ].map((label, i) => (
-                                    <TableCell
-                                        key={i}
-                                        align={i > 0 ? "right" : "left"}
-                                        sx={{
-                                            fontWeight: 600,
-                                            fontSize: {
-                                                xs: 12,
-                                                sm: 14,
-                                                md: 16,
-                                            },
-                                            whiteSpace: "nowrap",
-                                            px: 2,
-                                            py: 1,
-                                        }}
-                                    >
-                                        {label}
-                                    </TableCell>
-                                ))}
+                                {/* Cột Công Trình luôn hiển thị */}
+                                <TableCell align="left" sx={{ minWidth: 300, maxWidth: 300, whiteSpace: "normal", wordBreak: "break-word" }}>
+                                    CÔNG TRÌNH
+                                </TableCell>
+
+                                {/* Các cột có điều kiện */}
+                                {columnVisibility.revenue && <TableCell align="center">DOANH THU</TableCell>}
+                                {columnVisibility.cost && <TableCell align="center">CHI PHÍ ĐÃ CHI</TableCell>}
+                                {columnVisibility.profit && <TableCell align="center">LỢI NHUẬN</TableCell>}
+                                {columnVisibility.profitMarginOnCost && <TableCell align="center">% LN / GIÁ VỐN</TableCell>}
+                                {columnVisibility.plannedProfitMargin && <TableCell align="center">% LN THEO KH</TableCell>}
+                                {columnVisibility.quarterlyProfitMargin && <TableCell align="center">% LN QUÍ</TableCell>}
+                                {columnVisibility.costOverQuarter && <TableCell align="center">{cpVuotLabel}</TableCell>}
+                                {columnVisibility.target && <TableCell align="center">CHỈ TIÊU</TableCell>}
+                                {columnVisibility.note && <TableCell align="center">THUẬN LỢI / KHÓ KHĂN</TableCell>}
+                                {columnVisibility.suggest && <TableCell align="center">ĐỀ XUẤT</TableCell>}
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -2123,9 +2171,7 @@ export default function ProfitReportQuarter() {
                                     key={idx}
                                     sx={{
                                         height: { xs: 48, md: 56 },
-                                        bgcolor: r.name
-                                            ?.toUpperCase()
-                                            .includes("LỢI NHUẬN SAU GIẢM TRỪ")
+                                        bgcolor: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
                                             ? "#f3e5f5"
                                             : r.name?.includes("TỔNG")
                                                 ? "#e8f5e9"
@@ -2135,24 +2181,21 @@ export default function ProfitReportQuarter() {
                                                         ? "#ffffff"
                                                         : "#f9f9f9",
                                         "&:hover": { bgcolor: "#f5f5f5" },
-                                        fontWeight: r.name
-                                            ?.toUpperCase()
-                                            .includes("LỢI NHUẬN SAU GIẢM TRỪ")
+                                        fontWeight: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
                                             ? 900
                                             : r.name?.includes("TỔNG")
                                                 ? 800
                                                 : r.name?.match(/^[IVX]+\./)
                                                     ? 700
                                                     : 400,
-                                        fontSize: r.name
-                                            ?.toUpperCase()
-                                            .includes("LỢI NHUẬN SAU GIẢM TRỪ")
+                                        fontSize: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
                                             ? 20
                                             : r.name?.match(/^[IVX]+\./)
                                                 ? 18
                                                 : "inherit",
                                     }}
                                 >
+                                    {/* Cột 1: CÔNG TRÌNH (Luôn hiển thị) */}
                                     <TableCell
                                         sx={{
                                             minWidth: 300,
@@ -2161,111 +2204,66 @@ export default function ProfitReportQuarter() {
                                             wordBreak: "break-word",
                                             px: 2,
                                             py: 1,
+                                            position: "sticky",
+                                            left: 0,
+                                            zIndex: 1,
+                                            backgroundColor: 'inherit', // Thừa hưởng màu nền từ TableRow
                                         }}
                                         title={r.name}
                                     >
                                         {r.name?.match(/^[IVX]+\./) && (
                                             <KeyboardArrowRightIcon
-                                                fontSize={
-                                                    tvMode ? "medium" : "small"
-                                                }
-                                                sx={{
-                                                    verticalAlign: "middle",
-                                                    mr: 0.5,
-                                                }}
+                                                fontSize={tvMode ? "medium" : "small"}
+                                                sx={{ verticalAlign: "middle", mr: 0.5 }}
                                             />
                                         )}
                                         {r.name}
                                     </TableCell>
-                                    {renderEditableCell(r, idx, "revenue")}
-                                    {renderEditableCell(r, idx, "cost")}
-                                    {renderEditableCell(r, idx, "profit")}
-                                    <TableCell align="center" sx={cellStyle}>
-                                        {
-                                            // THÊM ĐIỀU KIỆN MỚI Ở ĐÂY
-                                            isDetailUnderI1(idx) ||
-                                                isDetailUnderII1(idx)
-                                                ? "–" // Nếu là chi tiết của I.1 hoặc II.1, luôn hiển thị "–"
-                                                : r.projectId &&
-                                                    toNum(r.cost) > 0 // Giữ lại logic cũ cho các trường hợp khác
-                                                    ? `${(
-                                                        (toNum(r.profit) /
-                                                            toNum(r.cost)) *
-                                                        100
-                                                    ).toFixed(2)}%`
-                                                    : "–"
-                                        }
-                                    </TableCell>
-                                    {isDTLNLDX(r) ? (
-                                        <TableCell
-                                            align="center"
-                                            sx={{ ...cellStyle, px: 2, py: 1 }}
-                                        >
-                                            <Typography
-                                                sx={{
-                                                    fontStyle: "italic",
-                                                    color: "#757575",
-                                                }}
-                                            >
-                                                –
-                                            </Typography>
+
+                                    {/* ✅ Bọc các cột còn lại trong điều kiện hiển thị */}
+                                    {columnVisibility.revenue && renderEditableCell(r, idx, "revenue")}
+                                    {columnVisibility.cost && renderEditableCell(r, idx, "cost")}
+                                    {columnVisibility.profit && renderEditableCell(r, idx, "profit")}
+
+                                    {columnVisibility.profitMarginOnCost && (
+                                        <TableCell align="center" sx={cellStyle}>
+                                            {
+                                                isDetailUnderI1(idx) || isDetailUnderII1(idx)
+                                                    ? "–"
+                                                    : r.projectId && toNum(r.cost) > 0
+                                                        ? `${((toNum(r.profit) / toNum(r.cost)) * 100).toFixed(2)}%`
+                                                        : "–"
+                                            }
                                         </TableCell>
-                                    ) : (
-                                        renderEditableCell(
-                                            r,
-                                            idx,
-                                            "percent",
-                                            "center"
+                                    )}
+
+                                    {columnVisibility.plannedProfitMargin && (
+                                        isDTLNLDX(r) ? (
+                                            <TableCell align="center" sx={{ ...cellStyle, px: 2, py: 1 }}>
+                                                <Typography sx={{ fontStyle: "italic", color: "#757575" }}>–</Typography>
+                                            </TableCell>
+                                        ) : (
+                                            renderEditableCell(r, idx, "percent", "center")
                                         )
                                     )}
-                                    <TableCell
-                                        align="center"
-                                        sx={{ ...cellStyle, px: 2, py: 1 }}
-                                    >
-                                        {isDTLNLDX(r) ||
-                                            (r.name || "").trim().toUpperCase() ===
-                                            "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY" ||
-                                            (r.name || "").trim().toUpperCase() ===
-                                            "I.2. KÈ" ||
-                                            (r.name || "").trim().toUpperCase() ===
-                                            "TỔNG" ? (
-                                            <Typography
-                                                sx={{
-                                                    fontStyle: "italic",
-                                                    color: "#757575",
-                                                }}
-                                            >
-                                                –
-                                            </Typography>
-                                        ) : (
-                                            format(
-                                                r.revenue
-                                                    ? (r.profit / r.revenue) *
-                                                    100
-                                                    : null,
-                                                "percent",
-                                                r
-                                            )
-                                        )}
-                                    </TableCell>
-                                    {renderEditableCell(
-                                        r,
-                                        idx,
-                                        "costOverQuarter"
+
+                                    {columnVisibility.quarterlyProfitMargin && (
+                                        <TableCell align="center" sx={{ ...cellStyle, px: 2, py: 1 }}>
+                                            {isDTLNLDX(r) ||
+                                                (r.name || "").trim().toUpperCase() === "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY" ||
+                                                (r.name || "").trim().toUpperCase() === "I.2. KÈ" ||
+                                                (r.name || "").trim().toUpperCase() === "TỔNG" ? (
+                                                <Typography sx={{ fontStyle: "italic", color: "#757575" }}>–</Typography>
+                                            ) : (
+                                                format(r.revenue ? (r.profit / r.revenue) * 100 : null, "percent", r)
+                                            )}
+                                        </TableCell>
                                     )}
-                                    {renderEditableCell(r, idx, "target")}
-                                    {renderEditableCell(
-                                        r,
-                                        idx,
-                                        "note",
-                                        "center"
-                                    )}
-                                    {renderEditableCell(
-                                        r,
-                                        idx,
-                                        "suggest",
-                                        "center"
-                                    )}
+
+                                    {columnVisibility.costOverQuarter && renderEditableCell(r, idx, "costOverQuarter")}
+                                    {columnVisibility.target && renderEditableCell(r, idx, "target")}
+                                    {columnVisibility.note && renderEditableCell(r, idx, "note", "center")}
+                                    {columnVisibility.suggest && renderEditableCell(r, idx, "suggest", "center")}
                                 </TableRow>
                             ))}
                         </TableBody>

@@ -52,6 +52,8 @@ export const defaultRow = {
     revenue: "0",
     hskh: "0",
     cpSauQuyetToan: 0,
+    baseForNptck: null, // <== Thêm dòng này
+
 };
 
 const transformProjectName = (name) => {
@@ -784,60 +786,28 @@ export default function ActualCostsTab({ projectId }) {
             })
         );
     }, [overallRevenue, projectTotalAmount, projectData]);
-     // =================================================================
-    // MỚI: HÀM XỬ LÝ HỦY QUYẾT TOÁN
+    // =================================================================
+    // BẮT ĐẦU KHỐI CODE THAY THẾ CHO ACTUALCOSTSTAB.JS
+    // XÓA 4 HÀM CŨ VÀ DÁN TOÀN BỘ KHỐI NÀY VÀO
     // =================================================================
     const handleUndoFinalize = useCallback(() => {
         const isConfirmed = window.confirm(
             "❓ Bạn có chắc muốn hủy quyết toán không?\n\nTất cả các dòng sẽ được tính toán lại theo công thức tự động."
         );
-
-        if (!isConfirmed) {
-            return;
-        }
-
+        if (!isConfirmed) return;
         setCostItems((prevItems) =>
             prevItems.map((row) => {
-                // 1. Tạo một bản sao của dòng và gỡ bỏ cờ 'isFinalized'
                 const newRow = { ...row, isFinalized: false };
-
-                // 2. TÍNH TOÁN LẠI NGAY LẬP TỨC với trạng thái đã "mở khóa"
                 calcAllFields(newRow, {
                     overallRevenue,
                     projectTotalAmount,
                     projectType: projectData?.type,
                 });
-                
-                // 3. Trả về dòng đã được tính toán lại
                 return newRow;
             })
         );
-    }, [overallRevenue, projectTotalAmount, projectData]); // <-- Phải có dependencies này
-    const handleFinalizeProject = useCallback(() => {
-        const isConfirmed = window.confirm(
-            "❓ BẠN CÓ CHẮC MUỐN QUYẾT TOÁN CÔNG TRÌNH NÀY KHÔNG?\n\nHành động này sẽ:\n1. Cập nhật 'Nợ Phải Trả CK' = 'Nợ Phải Trả CK' - 'Cuối Kỳ'\n2. Đặt tất cả giá trị cột 'Cuối Kỳ' về 0."
-        );
+    }, [overallRevenue, projectTotalAmount, projectData]);
 
-        if (!isConfirmed) {
-            return;
-        }
-
-        setCostItems((prevItems) =>
-            prevItems.map((row) => {
-                const currentNoPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
-                const currentCarryoverEnd = parseNumber(row.carryoverEnd || "0");
-
-                const newNoPhaiTraCK = currentNoPhaiTraCK - currentCarryoverEnd;
-
-                return {
-                    ...row,
-                    noPhaiTraCK: String(newNoPhaiTraCK),
-                    carryoverEnd: "0",
-                    isFinalized: true, // <-- QUAN TRỌNG: Phải có dòng này
-                };
-            })
-        );
-    }, []); // Không có dependencies vì nó chỉ làm việc với state hiện tại
     const handleSave = async () => {
         if (!validateData(costItems)) {
             setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
@@ -861,106 +831,156 @@ export default function ActualCostsTab({ projectId }) {
         }
     };
 
-    const handleSaveNextQuarter = async () => {
-        if (!validateData(costItems)) {
+    /**
+     * HÀM CHUNG: Chứa logic cốt lõi của việc lưu quý hiện tại và chuyển dữ liệu sang quý sau.
+     */
+    const performSaveAndCarryOver = async (itemsToSave, baseValueMap, successMessage) => {
+        if (!validateData(itemsToSave)) {
             setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
             return;
         }
         setLoading(true);
         try {
-            // --- Bước 1: Xác định quý tiếp theo ---
             const quarters = ["Q1", "Q2", "Q3", "Q4"];
             const currIndex = quarters.indexOf(quarter);
             const isLastQuarter = currIndex === 3;
             const nextQuarter = isLastQuarter ? "Q1" : quarters[currIndex + 1];
             const nextYear = isLastQuarter ? String(Number(year) + 1) : year;
 
-            // --- Bước 2: Lưu dữ liệu của quý HIỆN TẠI (Q1) ---
             await setDoc(
                 doc(db, "projects", id, "years", year, "quarters", quarter),
-                {
-                    items: costItems,
-                    overallRevenue: Number(overallRevenue),
-                    updated_at: new Date().toISOString(),
-                }
+                { items: itemsToSave, overallRevenue: Number(overallRevenue), updated_at: new Date().toISOString() }
             );
 
-            // --- Bước 3: Đọc dữ liệu đã có của quý TIẾP THEO (Q2) ---
             const nextQuarterDocRef = doc(db, "projects", id, "years", nextYear, "quarters", nextQuarter);
             const nextQuarterDocSnap = await getDoc(nextQuarterDocRef);
             const existingNextQuarterItems = nextQuarterDocSnap.exists() ? nextQuarterDocSnap.data().items || [] : [];
-
-            // Tạo một map để tra cứu hiệu quả các dòng đã có của Q2
             const existingItemsMap = new Map(
-                existingNextQuarterItems.map(item => {
-                    const key = `${item.project}|||${item.description}`; // Khóa định danh một dòng
-                    return [key, item];
-                })
+                existingNextQuarterItems.map(item => [`${item.project}|||${item.description}`, item])
             );
 
-            // --- Bước 4: Hợp nhất dữ liệu từ Q1 vào Q2 ---
-            // Lặp qua từng dòng của Q1 để tính toán và cập nhật vào Q2
-            const mergedItems = costItems.map(currentItemFromQ1 => {
-                const key = `${currentItemFromQ1.project}|||${currentItemFromQ1.description}`;
-                const existingItemInQ2 = existingItemsMap.get(key);
+            const mergedItems = itemsToSave.map(currentItem => {
+                const key = `${currentItem.project}|||${currentItem.description}`;
+                const existingItemInNextQ = existingItemsMap.get(key);
 
-                // Lấy các giá trị cuối kỳ từ quý hiện tại (Q1)
-                const noPhaiTraCK_Q1 = Number(parseNumber(currentItemFromQ1.noPhaiTraCK || "0"));
-                const noPhaiTraCKNM_Q1 = Number(parseNumber(currentItemFromQ1.noPhaiTraCKNM || "0"));
-
-                // Xác định Nợ Phải Trả Đầu Kỳ cho quý tiếp theo (Q2) dựa trên loại dự án
-                const openingDebtForQ2 =
-                    projectData?.type === "Nhà máy"
-                        ? String(noPhaiTraCK_Q1 + noPhaiTraCKNM_Q1) // CÔNG THỨC MỚI
-                        : String(noPhaiTraCK_Q1);                 // Công thức cũ
-
-                // Đây là các giá trị "đầu kỳ" cho Q2
-                const openingBalancesForQ2 = {
-                    inventory: currentItemFromQ1.tonKhoUngKH || "0",
-                    debt: openingDebtForQ2, // <-- SỬ DỤNG GIÁ TRỊ ĐÃ TÍNH TOÁN
-                    carryover: currentItemFromQ1.carryoverEnd || "0",
+                const openingBalancesForNextQ = {
+                    inventory: currentItem.tonKhoUngKH || "0",
+                    debt: projectData?.type === "Nhà máy"
+                        ? String(Number(parseNumber(currentItem.noPhaiTraCK || "0")) + Number(parseNumber(currentItem.noPhaiTraCKNM || "0")))
+                        : currentItem.noPhaiTraCK || "0",
+                    carryover: currentItem.carryoverEnd || "0",
                 };
-                if (existingItemInQ2) {
-                    // Nếu dòng này ĐÃ TỒN TẠI trong Q2
-                    // -> Hợp nhất: Lấy toàn bộ dữ liệu của nó và chỉ ghi đè các số dư đầu kỳ
-                    existingItemsMap.delete(key); // Xóa khỏi map để theo dõi các dòng chỉ có ở Q2
-                    return { ...existingItemInQ2, ...openingBalancesForQ2 };
+
+                let newItemForNextQ;
+                if (existingItemInNextQ) {
+                    newItemForNextQ = { ...existingItemInNextQ, ...openingBalancesForNextQ };
+                    existingItemsMap.delete(key);
                 } else {
-                    // Nếu dòng này là MỚI (có ở Q1 nhưng chưa có ở Q2)
-                    // -> Tạo một dòng mới hoàn toàn cho Q2
-                    return {
-                        ...defaultRow,
-                        id: generateUniqueId(),
-                        project: currentItemFromQ1.project,
-                        description: currentItemFromQ1.description,
-                        hskh: currentItemFromQ1.hskh,
-                        ...openingBalancesForQ2, // Áp dụng số dư đầu kỳ
-                        // Các trường khác như directCost, revenue sẽ lấy từ defaultRow (là "0")
+                    newItemForNextQ = {
+                        ...defaultRow, id: generateUniqueId(), project: currentItem.project,
+                        description: currentItem.description, hskh: currentItem.hskh,
+                        ...openingBalancesForNextQ,
                     };
                 }
+
+                // ⭐ QUAN TRỌNG: Gắn giá trị gốc (base value) vào item của quý sau ⭐
+                if (baseValueMap && baseValueMap.has(key)) {
+                    newItemForNextQ.baseForNptck = baseValueMap.get(key);
+                }
+
+                return newItemForNextQ;
             });
 
-            // Thêm lại các dòng chỉ tồn tại ở Q2 mà không có ở Q1
-            const itemsOnlyInQ2 = Array.from(existingItemsMap.values());
-            const finalNextItems = [...mergedItems, ...itemsOnlyInQ2];
+            const finalNextItems = [...mergedItems, ...Array.from(existingItemsMap.values())];
 
-            // --- Bước 5: Lưu dữ liệu đã hợp nhất vào quý tiếp theo (Q2) ---
             await setDoc(nextQuarterDocRef, {
                 items: finalNextItems,
-                // Giữ lại overallRevenue của Q2 nếu đã có, nếu không thì mặc định là 0
                 overallRevenue: nextQuarterDocSnap.exists() ? (nextQuarterDocSnap.data().overallRevenue || 0) : 0,
                 updated_at: new Date().toISOString()
-            }, { merge: true }); // Sử dụng { merge: true } để đảm bảo không ghi đè các trường khác ở cấp cao nhất
+            }, { merge: true });
 
-            setSnackOpen(true);
-            alert(`Đã cập nhật và tạo dữ liệu cho ${nextQuarter} / ${nextYear}`);
+            alert(successMessage);
+
         } catch (err) {
-            setError("Lỗi khi lưu & chuyển quý: " + err.message);
-            console.error("Lỗi chi tiết:", err); // Thêm log để gỡ lỗi
+            setError("Lỗi khi thực hiện chuyển quý: " + err.message);
         } finally {
             setLoading(false);
         }
     };
+
+    const handleSaveNextQuarter = async () => {
+        await performSaveAndCarryOver(
+            costItems,
+            null,
+            `Đã lưu và chuyển dữ liệu sang quý tiếp theo thành công!`
+        );
+    };
+
+    // Nút "Quyết toán" sẽ thực hiện logic phức tạp mới
+    const handleFinalizeProject = useCallback(async () => {
+        const isConfirmed = window.confirm(
+            "❓ BẠN CÓ CHẮC MUỐN QUYẾT TOÁN?\n\nHành động này sẽ chốt số liệu quý này và tự động chuyển các số dư sang quý tiếp theo, đồng thời thiết lập công thức tính cho công trình -VT/-NC ở quý sau."
+        );
+        if (!isConfirmed) return;
+
+        // --- BƯỚC 1: TÍNH TOÁN "GIÁ TRỊ GỐC" ĐỂ LƯU SANG QUÝ SAU ---
+        const baseValueMap = new Map();
+        costItems.forEach(row => {
+            const isVtNcProject = (row.project || "").includes("-VT") || (row.project || "").includes("-NC");
+            if (isVtNcProject) {
+                const key = `${row.project}|||${row.description}`;
+                // Công thức gốc: Nợ ĐK (hiện tại) - CPTT (hiện tại)
+                const debtDK_Current = parseNumber(row.debt || "0");
+                const directCost_Current = parseNumber(row.directCost || "0");
+                const baseValue = debtDK_Current - directCost_Current;
+
+                // Lưu kết quả này để dùng cho quý sau
+                baseValueMap.set(key, baseValue);
+            }
+        });
+
+        // --- BƯỚC 2: TÍNH TOÁN QUYẾT TOÁN CHO QUÝ HIỆN TẠI (giữ nguyên logic) ---
+        const finalizedItems = costItems.map((row) => {
+            const isVtNcProject = (row.project || "").includes("-VT") || (row.project || "").includes("-NC");
+// ⭐ LOGIC MỚI ƯU TIÊN HÀNG ĐẦU: ÁP DỤNG CÔNG THỨC "SỐNG" ⭐
+    // Kiểm tra nếu là công trình VT/NC và có trường 'baseForNptck' được truyền từ quý trước.
+    if (isVtNcProject && row.hasOwnProperty('baseForNptck') && row.baseForNptck !== null) {
+        // Lấy giá trị gốc đã tính ở quý trước
+        const baseValue = Number(parseNumber(row.baseForNptck));
+        // Lấy Chi Phí Trực Tiếp của quý HIỆN TẠI (khi người dùng nhập)
+        const directCost_Current = Number(parseNumber(row.directCost || "0"));
+        
+        // Công thức cuối cùng: NPTĐK(Q2) - CPTT(Q2) - CPTT(Q3)
+        row.noPhaiTraCK = String(baseValue - directCost_Current);
+    }
+
+            if (isVtNcProject) {
+                const debtDK = parseNumber(row.debt || "0");
+                const directCost = parseNumber(row.directCost || "0");
+                const newNoPhaiTraCK = debtDK - directCost;
+                return { ...row, noPhaiTraCK: String(newNoPhaiTraCK), isFinalized: true };
+            } else {
+                const currentNoPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
+                const currentCarryoverEnd = parseNumber(row.carryoverEnd || "0");
+                const newNoPhaiTraCK = currentNoPhaiTraCK - currentCarryoverEnd;
+                return { ...row, noPhaiTraCK: String(newNoPhaiTraCK), carryoverEnd: "0", isFinalized: true };
+            }
+        });
+
+        // --- BƯỚC 3: CẬP NHẬT GIAO DIỆN VÀ GỌI HÀM CHUYỂN QUÝ ---
+        setCostItems(finalizedItems);
+        await performSaveAndCarryOver(
+            finalizedItems,
+            baseValueMap, // Truyền map giá trị gốc sang
+            `Đã quyết toán và chuyển dữ liệu sang quý tiếp theo thành công!`
+        );
+
+    }, [costItems, year, quarter, id, projectData, overallRevenue]);
+
+    // =================================================================
+    // KẾT THÚC KHỐI CODE THAY THẾ
+    // =================================================================
+
     const handleAddRow = useCallback(
         () =>
             setCostItems((prev) => [
@@ -1012,7 +1032,7 @@ export default function ActualCostsTab({ projectId }) {
                 onExport={() => exportToExcel(costItems, displayedColumns, projectData, year, quarter)}
                 onSave={handleSave}
                 onSaveNextQuarter={handleSaveNextQuarter}
-                 onUndoFinalize={handleUndoFinalize} // <-- TRUYỀN HÀM MỚI XUỐNG
+                onUndoFinalize={handleUndoFinalize} // <-- TRUYỀN HÀM MỚI XUỐNG
                 onFinalizeProject={handleFinalizeProject} // <-- 4. TRUYỀN HÀM XUỐNG
 
                 onToggleColumns={handleOpenColumnsDialog}
