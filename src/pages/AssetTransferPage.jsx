@@ -2770,8 +2770,8 @@ export default function AssetTransferPage() {
                                                             <TableCell>{a.notes || "—"}</TableCell>
                                                             {canManageAssets && (
                                                                 <TableCell align="right">
-                                                                    {currentUser?.role === 'admin' && (
-                                                                        <Tooltip title="Chỉnh sửa (Admin)">
+                                                                    {canManageAssets && (
+                                                                        <Tooltip title="Chỉnh sửa tài sản">
                                                                             <IconButton size="small" onClick={() => handleOpenEditModal(a)}>
                                                                                 <Edit size={18} />
                                                                             </IconButton>
