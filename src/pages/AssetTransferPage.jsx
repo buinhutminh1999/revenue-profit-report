@@ -1639,50 +1639,52 @@ export default function AssetTransferPage() {
         }
     };
 
+
     const handleDeleteAsset = async () => {
         if (!deleteConfirm || !currentUser) return;
 
         const assetToDelete = deleteConfirm;
 
-        // ====================== BẮT ĐẦU LOGIC MỚI ======================
-        // Chỉ áp dụng logic kiểm tra này khi số lượng tài sản cần xóa là 1
+        // ✅ BƯỚC 1: Bật trạng thái loading
+        setIsProcessingRequest(prev => ({ ...prev, [assetToDelete.id]: true }));
+
+        // Logic kiểm tra phiếu yêu cầu đã tồn tại (giữ nguyên)
         if (assetToDelete.quantity === 1) {
-            // Tìm xem có yêu cầu XÓA nào đang trong quá trình xử lý cho tài sản này không
             const existingRequest = assetRequests.find(req =>
                 req.type === 'DELETE' &&
                 req.targetAssetId === assetToDelete.id &&
-                !['COMPLETED', 'REJECTED'].includes(req.status) // Chỉ xét các phiếu đang chờ
+                !['COMPLETED', 'REJECTED'].includes(req.status)
             );
 
-            // Nếu tìm thấy một yêu cầu đang tồn tại
             if (existingRequest) {
-                // Hiển thị thông báo cho người dùng và không tạo phiếu mới
                 setToast({
                     open: true,
                     msg: `Phiếu yêu cầu xóa đã tồn tại: ${existingRequest.maPhieuHienThi || '#' + shortId(existingRequest.id)}`,
-                    severity: 'info' // Dùng 'info' để thông báo thay vì 'success'
+                    severity: 'info'
                 });
-                setDeleteConfirm(null); // Đóng dialog xác nhận
-                return; // Dừng hàm tại đây, không thực hiện các bước sau
+                setDeleteConfirm(null);
+                // ✅ BƯỚC 2: Tắt loading nếu dừng sớm
+                setIsProcessingRequest(prev => ({ ...prev, [assetToDelete.id]: false }));
+                return;
             }
         }
-        // ======================= KẾT THÚC LOGIC MỚI =======================
 
-        // Nếu số lượng > 1, hoặc SL=1 nhưng chưa có phiếu, thì tiến hành tạo như bình thường.
         try {
             const createRequestCallable = httpsCallable(functions, 'createAssetRequest');
             const payload = { type: "DELETE", targetAssetId: assetToDelete.id };
             const result = await createRequestCallable(payload);
-            setDeleteConfirm(null);
+
             setToast({ open: true, msg: `Đã gửi yêu cầu xóa ${result.data.displayId}.`, severity: "success" });
-            setTabIndex(2); // Chuyển sang tab Yêu cầu để người dùng thấy
+            setTabIndex(3); // Chuyển sang tab Yêu cầu để người dùng thấy
         } catch (e) {
             console.error(e);
             setToast({ open: true, msg: "Lỗi khi tạo yêu cầu xóa: " + e.message, severity: "error" });
+        } finally {
+            // ✅ BƯỚC 3: Luôn tắt loading dù thành công hay thất bại
+            setIsProcessingRequest(prev => ({ ...prev, [assetToDelete.id]: false }));
+            setDeleteConfirm(null); // Đóng dialog
         }
     };
-
-
     const handlePasteAndSave = async () => {
         if (!pastedText.trim() || !filterDeptForAsset) {
             return setToast({ open: true, msg: "Vui lòng dán dữ liệu và chọn phòng ban.", severity: "warning" });
@@ -2691,7 +2693,7 @@ export default function AssetTransferPage() {
                                                     isSelected={isSelected}
                                                     canManageAssets={canManageAssets}
                                                     onSelect={handleSelectAssetForPrint}
-                                                    onEdit={() => currentUser?.role === 'admin' && handleOpenEditModal(a)}
+                                                    onEdit={() => canManageAssets && handleOpenEditModal(a)} // ✅ SỬA LẠI DÒNG NÀY
                                                     onDelete={() => {
                                                         if (a.quantity > 1) {
                                                             setReduceQuantityTarget(a);
@@ -3645,9 +3647,36 @@ export default function AssetTransferPage() {
                             onChange={(e) => setCurrentAsset({ ...currentAsset, description: e.target.value, })} />
                         <Grid container spacing={2}>
                             <Grid item xs={6}>
-                                <TextField label="Số lượng" type="number" fullWidth required
-                                    value={currentAsset?.quantity || 1}
-                                    onChange={(e) => setCurrentAsset({ ...currentAsset, quantity: Math.max(1, parseInt(e.target.value || 1, 10)), })} />
+
+                                <TextField
+                                    label="Số lượng"
+                                    type="number"
+                                    fullWidth
+                                    required
+                                    value={currentAsset?.quantity || ""} // Cho phép hiển thị chuỗi rỗng
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        // Cho phép người dùng xóa trống ô nhập để gõ lại
+                                        if (value === "") {
+                                            setCurrentAsset({ ...currentAsset, quantity: "" });
+                                            return;
+                                        }
+                                        const num = parseInt(value, 10);
+                                        // Chỉ cập nhật state nếu là một số hợp lệ và lớn hơn 0
+                                        if (!isNaN(num) && num > 0) {
+                                            setCurrentAsset({ ...currentAsset, quantity: num });
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        // Khi người dùng bấm ra ngoài, kiểm tra lại lần cuối
+                                        const quantity = parseInt(currentAsset?.quantity, 10);
+                                        if (isNaN(quantity) || quantity < 1) {
+                                            // Nếu giá trị không hợp lệ (trống, 0, âm), đặt lại là 1
+                                            setCurrentAsset({ ...currentAsset, quantity: 1 });
+                                        }
+                                    }}
+                                    inputProps={{ min: 1 }} // Giữ lại validation của trình duyệt
+                                />
                             </Grid>
                             <Grid item xs={6}>
                                 <TextField label="Đơn vị tính" fullWidth required
@@ -3680,7 +3709,15 @@ export default function AssetTransferPage() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDeleteConfirm(null)}>Hủy</Button>
-                    <Button onClick={handleDeleteAsset} color="error" variant="contained">Gửi Yêu Cầu</Button>
+                    <Button
+                        onClick={handleDeleteAsset}
+                        color="error"
+                        variant="contained"
+                        // ✅ THÊM 2 DÒNG NÀY VÀO
+                        disabled={isProcessingRequest[deleteConfirm?.id]}
+                    >
+                        {isProcessingRequest[deleteConfirm?.id] ? "Đang gửi..." : "Gửi Yêu Cầu"}
+                    </Button>
                 </DialogActions>
             </Dialog>
 
