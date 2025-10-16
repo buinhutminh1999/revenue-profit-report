@@ -1,6 +1,6 @@
 // src/pages/AssetTransferPage.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback, } from "react";
-import { Box, Typography, Button, Card, CardContent, Grid, Select, MenuItem, FormControl, InputLabel, Paper, Tabs, Tab, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Checkbox, ListItemText, OutlinedInput, IconButton, TextField, DialogContentText, Toolbar, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Stack, Divider, Tooltip, Snackbar, Alert, Avatar, Skeleton, Drawer, Badge, ToggleButton, ToggleButtonGroup, Stepper, Step, StepLabel, Autocomplete, CardActions, Collapse, CardActionArea, useTheme, useMediaQuery, } from "@mui/material";
+import { Box, Typography, Button, Card, CardContent, Grid, Select, MenuItem, FormControl, InputLabel, Paper, Tabs, Tab, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Checkbox, ListItemText, OutlinedInput, IconButton, TextField, DialogContentText, Toolbar, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Stack, Divider, Tooltip, Snackbar, Alert, Avatar, Skeleton, Drawer, Badge, ToggleButton, ToggleButtonGroup, Stepper, Step, StepLabel, Autocomplete, CardActions, Collapse, CardActionArea, useTheme, useMediaQuery, FormControlLabel, } from "@mui/material";
 import { ArrowRightLeft, Check, FilePen, Handshake, Send, UserCheck, Warehouse, PlusCircle, Edit, Trash2, X, Filter, Eye, TableProperties, Clock, Inbox, History, FilePlus, FileX, Users, Sheet, Printer, BookCheck, ChevronRight, QrCode } from "lucide-react"; // NEW: Thêm icon
 import { motion } from "framer-motion";
 import { getAuth } from "firebase/auth";
@@ -251,7 +251,59 @@ const WorkflowCard = ({
 };
 
 // src/pages/AssetTransferPage.jsx
+// src/pages/AssetTransferPage.jsx
 
+// ✅ BƯỚC 1: THÊM COMPONENT NÀY VÀO
+const AssetCardMobile = ({ asset, isSelected, canManageAssets, onSelect, onEdit, onDelete }) => (
+    <Card variant="outlined" sx={{ mb: 1.5, borderRadius: 2 }}>
+        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                {/* Checkbox để chọn in tem */}
+                {canManageAssets && (
+                    <Checkbox
+                        checked={isSelected}
+                        onChange={(event) => onSelect(event, asset.id)}
+                        sx={{ p: 0, mt: '6px' }}
+                    />
+                )}
+
+                {/* Phần thông tin chính */}
+                <Box sx={{ flexGrow: 1 }} onClick={onEdit}>
+                    <Typography fontWeight={600}>{asset.name}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Số lượng: <strong>{asset.quantity} {asset.unit}</strong>
+                    </Typography>
+                    {asset.size && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                            Kích thước: {asset.size}
+                        </Typography>
+                    )}
+                    {asset.notes && (
+                        <Typography variant="caption" display="block" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                            Ghi chú: {asset.notes}
+                        </Typography>
+                    )}
+                </Box>
+
+                {/* Các nút hành động */}
+                {canManageAssets && (
+                    <Stack>
+                        <Tooltip title="Chỉnh sửa (Admin)">
+                            <IconButton size="small" onClick={onEdit}>
+                                <Edit size={18} />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Yêu cầu Xóa/Giảm SL">
+                            <IconButton size="small" color="error" onClick={onDelete}>
+                                <Trash2 size={18} />
+                            </IconButton>
+                        </Tooltip>
+                    </Stack>
+                )}
+            </Stack>
+        </CardContent>
+    </Card>
+);
 // Thêm vào gần các component SignatureTimeline khác
 
 const ReportSignatureTimeline = ({ signatures = {}, status, type }) => {
@@ -525,7 +577,7 @@ export default function AssetTransferPage() {
             unsubAccessControl(); // <-- THÊM DÒNG NÀY ĐỂ DỌN DẸP
         }
     }, []); // Dependency rỗng để chỉ chạy 1 lần
-// TẠO BIẾN KIỂM TRA QUYỀN
+    // TẠO BIẾN KIỂM TRA QUYỀN
     const canManageAssets = useMemo(() => {
         if (!currentUser) return false;
         if (currentUser.role === 'admin') return true; // Admin luôn có quyền
@@ -737,9 +789,9 @@ export default function AssetTransferPage() {
     const assetsWithDept = useMemo(() => { const byId = new Map(departments.map((d) => [d.id, d.name])); return assets.map((a) => ({ ...a, departmentName: byId.get(a.departmentId) || "Chưa gán" })) }, [assets, departments]);
     const assetsWithAvailability = useMemo(() => { return assetsWithDept.map((a) => ({ ...a, reserved: Number(a.reserved || 0), availableQuantity: Math.max(0, Number(a.quantity || 0) - Number(a.reserved || 0)) })) }, [assetsWithDept]);
     // ✅ BƯỚC 4: Tạo một useMemo để lấy thông tin chi tiết các tài sản đã chọn để in
-     const assetsToPrint = useMemo(() => {
+    const assetsToPrint = useMemo(() => {
         if (selectedAssetIdsForPrint.length === 0) return [];
-        
+
         const assetMap = new Map(assetsWithDept.map(a => [a.id, a]));
         const selectedAssets = selectedAssetIdsForPrint.map(id => assetMap.get(id)).filter(Boolean);
 
@@ -2062,21 +2114,21 @@ export default function AssetTransferPage() {
                 {tabIndex === 2 && (
                     canManageAssets && (
                         <Stack direction="row" spacing={1}>
-                        <Tooltip title={!filterDeptForAsset ? "Vui lòng chọn một phòng ban để nhập tài sản" : ""}>
-                            <span> {/* Bọc bằng span để Tooltip hoạt động với nút bị disabled */}
-                                <Button
-                                    variant="outlined"
-                                    size="large"
-                                    startIcon={<Sheet />}
-                                    onClick={() => setIsPasteModalOpen(true)}
-                                    disabled={!filterDeptForAsset} // <-- Thêm điều kiện này
-                                >
-                                    Nhập Excel
-                                </Button>
-                            </span>
-                        </Tooltip>
-                        <Button variant="contained" size="large" startIcon={<PlusCircle />} onClick={handleOpenAddModal}>Thêm Tài Sản</Button>
-                    </Stack>
+                            <Tooltip title={!filterDeptForAsset ? "Vui lòng chọn một phòng ban để nhập tài sản" : ""}>
+                                <span> {/* Bọc bằng span để Tooltip hoạt động với nút bị disabled */}
+                                    <Button
+                                        variant="outlined"
+                                        size="large"
+                                        startIcon={<Sheet />}
+                                        onClick={() => setIsPasteModalOpen(true)}
+                                        disabled={!filterDeptForAsset} // <-- Thêm điều kiện này
+                                    >
+                                        Nhập Excel
+                                    </Button>
+                                </span>
+                            </Tooltip>
+                            <Button variant="contained" size="large" startIcon={<PlusCircle />} onClick={handleOpenAddModal}>Thêm Tài Sản</Button>
+                        </Stack>
                     )
                 )}
             </Stack>
@@ -2544,183 +2596,222 @@ export default function AssetTransferPage() {
                         )}
                     </Box>
                 )}
-                {/* ======================================================================= */}
-{/* ==================== TAB 2: DANH SÁCH TÀI SẢN (ĐÃ PHÂN QUYỀN) =========== */}
-{/* ======================================================================= */}
-{tabIndex === 2 && (
-    <Box sx={{ p: 2 }}>
-        {/* Toolbar chứa bộ lọc và các nút hành động */}
-        <Paper
-            variant="outlined"
-            sx={{ p: 1.5, mb: 2, borderRadius: 2 }}
-        >
-            <Toolbar
-                disableGutters
-                sx={{ gap: 1, flexWrap: "wrap" }}
-            >
-                <TextField
-                    placeholder="🔎 Tìm theo tên tài sản..."
-                    size="small"
-                    sx={{ flex: "1 1 320px" }}
-                    value={assetSearch}
-                    onChange={(e) => setAssetSearch(e.target.value)}
-                />
-                <FormControl size="small" sx={{ minWidth: 220 }}>
-                    <InputLabel>Lọc theo phòng ban</InputLabel>
-                    <Select
-                        value={filterDeptForAsset}
-                        label="Lọc theo phòng ban"
-                        onChange={(e) => setFilterDeptForAsset(e.target.value)}
-                    >
-                        <MenuItem value="">
-                            <em>Tất cả phòng ban</em>
-                        </MenuItem>
-                        {departments.map((d) => (
-                            <MenuItem key={d.id} value={d.id}>
-                                {d.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-                <Box flexGrow={1} />
 
-                {/* === THAY ĐỔI: Chỉ hiển thị các nút này cho người có quyền === */}
-                {canManageAssets && (
-                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                        <Button
-                            variant="outlined"
-                            color="secondary"
-                            startIcon={<QrCode />}
-                            onClick={() => setIsLabelPrintModalOpen(true)}
-                            disabled={selectedAssetIdsForPrint.length === 0}
-                        >
-                            In Tem ({selectedAssetIdsForPrint.length})
-                        </Button>
-                        <Button
-                            variant="contained"
-                            startIcon={<Printer />}
-                            onClick={() => setIsPrintModalOpen(true)}
-                        >
-                            In Báo cáo
-                        </Button>
-                    </Stack>
-                )}
-            </Toolbar>
-        </Paper>
-
-        {/* Bảng danh sách tài sản */}
-        <TableContainer
-            component={Paper}
-            variant="outlined"
-            sx={{ borderRadius: 2 }}
-        >
-            <Table stickyHeader>
-                <TableHead>
-                    <TableRow>
-                        {/* === THAY ĐỔI: Ẩn cột Checkbox nếu không có quyền === */}
-                        {canManageAssets && (
-                            <TableCell padding="checkbox">
-                                <Checkbox
-                                    color="primary"
-                                    indeterminate={selectedAssetIdsForPrint.length > 0 && selectedAssetIdsForPrint.length < filteredAssets.length}
-                                    checked={filteredAssets.length > 0 && selectedAssetIdsForPrint.length === filteredAssets.length}
-                                    onChange={handleSelectAllAssets}
-                                    inputProps={{ 'aria-label': 'chọn tất cả tài sản' }}
+                {tabIndex === 2 && (
+                    <Box sx={{ p: { xs: 1.5, sm: 2.5 } }}>
+                        {/* Toolbar chứa bộ lọc và các nút hành động (giữ nguyên) */}
+                        <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 2 }}>
+                            <Toolbar disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
+                                <TextField
+                                    placeholder="🔎 Tìm theo tên tài sản..."
+                                    size="small"
+                                    sx={{ flex: "1 1 320px" }}
+                                    value={assetSearch}
+                                    onChange={(e) => setAssetSearch(e.target.value)}
                                 />
-                            </TableCell>
-                        )}
-                        <TableCell sx={{ fontWeight: "bold" }}>Tên tài sản</TableCell>
-                        <TableCell sx={{ fontWeight: "bold" }}>Kích thước</TableCell>
-                        <TableCell sx={{ fontWeight: "bold" }} align="center">Số lượng</TableCell>
-                        <TableCell sx={{ fontWeight: "bold" }}>ĐVT</TableCell>
-                        <TableCell sx={{ fontWeight: "bold" }}>Ghi chú</TableCell>
-                        {/* === THAY ĐỔI: Ẩn cột Thao tác nếu không có quyền === */}
-                        {canManageAssets && (
-                            <TableCell sx={{ fontWeight: "bold" }} align="right">Thao tác</TableCell>
-                        )}
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {groupedAssets.map((group) => (
-                        <React.Fragment key={group.name}>
-                            <TableRow>
-                                {/* === THAY ĐỔI: colSpan động dựa trên quyền === */}
-                                <TableCell colSpan={canManageAssets ? 7 : 5}
-                                    sx={{
-                                        position: 'sticky', top: 56, zIndex: 1,
-                                        backgroundColor: 'grey.100', fontWeight: 800,
-                                        textTransform: 'uppercase', letterSpacing: '0.5px',
-                                        color: 'primary.main', borderBottom: '2px solid',
-                                        borderColor: 'grey.300'
-                                    }}
-                                >
-                                    PHÒNG BAN: {group.name}
-                                </TableCell>
-                            </TableRow>
-                            {group.items.map((a) => {
-                                const isSelected = selectedAssetIdsForPrint.indexOf(a.id) !== -1;
-                                return (
-                                    <TableRow key={a.id} hover role="checkbox" aria-checked={isSelected} tabIndex={-1} selected={isSelected}>
-                                        {/* === THAY ĐỔI: Ẩn checkbox của dòng nếu không có quyền === */}
-                                        {canManageAssets && (
-                                            <TableCell padding="checkbox">
-                                                <Checkbox
-                                                    color="primary"
-                                                    checked={isSelected}
-                                                    onChange={(event) => handleSelectAssetForPrint(event, a.id)}
-                                                    inputProps={{ 'aria-labelledby': `asset-checkbox-${a.id}` }}
-                                                />
-                                            </TableCell>
-                                        )}
-                                        <TableCell id={`asset-checkbox-${a.id}`} sx={{ fontWeight: 600 }}>{hi(a.name, assetSearch)}</TableCell>
-                                        <TableCell>{a.size || "—"}</TableCell>
-                                        <TableCell align="center">{a.quantity}</TableCell>
-                                        <TableCell>{a.unit}</TableCell>
-                                        <TableCell>{a.notes || "—"}</TableCell>
-                                        {/* === THAY ĐỔI: Ẩn các nút thao tác của dòng nếu không có quyền === */}
-                                        {canManageAssets && (
-                                            <TableCell align="right">
-                                                {currentUser?.role === 'admin' && (
-                                                    <Tooltip title="Chỉnh sửa (Admin)">
-                                                        <IconButton size="small" onClick={() => handleOpenEditModal(a)}>
-                                                            <Edit size={18} />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                )}
-                                                <Tooltip title="Yêu cầu Xóa/Giảm SL">
-                                                    <IconButton size="small" color="error" onClick={() => {
+                                <FormControl size="small" sx={{ minWidth: 220 }}>
+                                    <InputLabel>Lọc theo phòng ban</InputLabel>
+                                    <Select
+                                        value={filterDeptForAsset}
+                                        label="Lọc theo phòng ban"
+                                        onChange={(e) => setFilterDeptForAsset(e.target.value)}
+                                    >
+                                        <MenuItem value=""><em>Tất cả phòng ban</em></MenuItem>
+                                        {departments.map((d) => (
+                                            <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                                <Box flexGrow={1} />
+                                {canManageAssets && (
+                                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                                        <Button
+                                            variant="outlined"
+                                            color="secondary"
+                                            startIcon={<QrCode />}
+                                            onClick={() => setIsLabelPrintModalOpen(true)}
+                                            disabled={selectedAssetIdsForPrint.length === 0}
+                                        >
+                                            In Tem ({selectedAssetIdsForPrint.length})
+                                        </Button>
+                                        <Button variant="contained" startIcon={<Printer />} onClick={() => setIsPrintModalOpen(true)}>
+                                            In Báo cáo
+                                        </Button>
+                                    </Stack>
+                                )}
+                            </Toolbar>
+                        </Paper>
+
+                        {/* ✅ BẮT ĐẦU LOGIC HIỂN THỊ ĐỘNG */}
+                        {isMobile ? (
+                            // Giao diện cho điện thoại: Danh sách các Card
+                            <Box>
+                                {/* Checkbox chọn tất cả */}
+                                {canManageAssets && (
+                                    <FormControlLabel
+                                        control={
+                                            <Checkbox
+                                                color="primary"
+                                                indeterminate={selectedAssetIdsForPrint.length > 0 && selectedAssetIdsForPrint.length < filteredAssets.length}
+                                                checked={filteredAssets.length > 0 && selectedAssetIdsForPrint.length === filteredAssets.length}
+                                                onChange={handleSelectAllAssets}
+                                            />
+                                        }
+                                        label="Chọn tất cả để in tem"
+                                        sx={{ mb: 1, color: 'text.secondary' }}
+                                    />
+                                )}
+
+                                {groupedAssets.map((group) => (
+                                    <React.Fragment key={group.name}>
+                                        {/* Tên phòng ban */}
+                                        <Typography
+                                            variant="overline"
+                                            sx={{
+                                                display: 'block',
+                                                fontWeight: 700,
+                                                color: 'primary.main',
+                                                py: 1,
+                                                px: 1.5,
+                                                mt: 1,
+                                                bgcolor: 'primary.lighter',
+                                                borderRadius: 1.5,
+                                            }}
+                                        >
+                                            {group.name}
+                                        </Typography>
+
+                                        {/* Danh sách tài sản trong phòng ban */}
+                                        {group.items.map((a) => {
+                                            const isSelected = selectedAssetIdsForPrint.indexOf(a.id) !== -1;
+                                            return (
+                                                <AssetCardMobile
+                                                    key={a.id}
+                                                    asset={a}
+                                                    isSelected={isSelected}
+                                                    canManageAssets={canManageAssets}
+                                                    onSelect={handleSelectAssetForPrint}
+                                                    onEdit={() => currentUser?.role === 'admin' && handleOpenEditModal(a)}
+                                                    onDelete={() => {
                                                         if (a.quantity > 1) {
                                                             setReduceQuantityTarget(a);
                                                             setQuantityToDelete(1);
                                                         } else {
                                                             setDeleteConfirm(a);
                                                         }
-                                                    }}>
-                                                        <Trash2 size={18} />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </TableCell>
-                                        )}
-                                    </TableRow>
-                                );
-                            })}
-                        </React.Fragment>
-                    ))}
-                    {filteredAssets.length === 0 && (
-                        <TableRow>
-                             {/* === THAY ĐỔI: colSpan động dựa trên quyền === */}
-                            <TableCell colSpan={canManageAssets ? 7 : 5}>
-                                <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
-                                    Không có tài sản nào phù hợp.
-                                </Typography>
-                            </TableCell>
-                        </TableRow>
-                    )}
-                </TableBody>
-            </Table>
-        </TableContainer>
-    </Box>
-)}
+                                                    }}
+                                                />
+                                            );
+                                        })}
+                                    </React.Fragment>
+                                ))}
+                            </Box>
+                        ) : (
+                            // Giao diện cho Desktop: Bảng dữ liệu (giữ nguyên logic cũ)
+                            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                                <Table stickyHeader>
+                                    <TableHead>
+                                        <TableRow>
+                                            {canManageAssets && (
+                                                <TableCell padding="checkbox">
+                                                    <Checkbox
+                                                        color="primary"
+                                                        indeterminate={selectedAssetIdsForPrint.length > 0 && selectedAssetIdsForPrint.length < filteredAssets.length}
+                                                        checked={filteredAssets.length > 0 && selectedAssetIdsForPrint.length === filteredAssets.length}
+                                                        onChange={handleSelectAllAssets}
+                                                        inputProps={{ 'aria-label': 'chọn tất cả tài sản' }}
+                                                    />
+                                                </TableCell>
+                                            )}
+                                            <TableCell sx={{ fontWeight: "bold" }}>Tên tài sản</TableCell>
+                                            <TableCell sx={{ fontWeight: "bold" }}>Kích thước</TableCell>
+                                            <TableCell sx={{ fontWeight: "bold" }} align="center">Số lượng</TableCell>
+                                            <TableCell sx={{ fontWeight: "bold" }}>ĐVT</TableCell>
+                                            <TableCell sx={{ fontWeight: "bold" }}>Ghi chú</TableCell>
+                                            {canManageAssets && (
+                                                <TableCell sx={{ fontWeight: "bold" }} align="right">Thao tác</TableCell>
+                                            )}
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {groupedAssets.map((group) => (
+                                            <React.Fragment key={group.name}>
+                                                <TableRow>
+                                                    <TableCell colSpan={canManageAssets ? 7 : 5}
+                                                        sx={{
+                                                            position: 'sticky', top: 56, zIndex: 1,
+                                                            backgroundColor: 'grey.100', fontWeight: 800,
+                                                            textTransform: 'uppercase', letterSpacing: '0.5px',
+                                                            color: 'primary.main', borderBottom: '2px solid',
+                                                            borderColor: 'grey.300'
+                                                        }}
+                                                    >
+                                                        PHÒNG BAN: {group.name}
+                                                    </TableCell>
+                                                </TableRow>
+                                                {group.items.map((a) => {
+                                                    const isSelected = selectedAssetIdsForPrint.indexOf(a.id) !== -1;
+                                                    return (
+                                                        <TableRow key={a.id} hover role="checkbox" aria-checked={isSelected} tabIndex={-1} selected={isSelected}>
+                                                            {canManageAssets && (
+                                                                <TableCell padding="checkbox">
+                                                                    <Checkbox
+                                                                        color="primary"
+                                                                        checked={isSelected}
+                                                                        onChange={(event) => handleSelectAssetForPrint(event, a.id)}
+                                                                        inputProps={{ 'aria-labelledby': `asset-checkbox-${a.id}` }}
+                                                                    />
+                                                                </TableCell>
+                                                            )}
+                                                            <TableCell id={`asset-checkbox-${a.id}`} sx={{ fontWeight: 600 }}>{hi(a.name, assetSearch)}</TableCell>
+                                                            <TableCell>{a.size || "—"}</TableCell>
+                                                            <TableCell align="center">{a.quantity}</TableCell>
+                                                            <TableCell>{a.unit}</TableCell>
+                                                            <TableCell>{a.notes || "—"}</TableCell>
+                                                            {canManageAssets && (
+                                                                <TableCell align="right">
+                                                                    {currentUser?.role === 'admin' && (
+                                                                        <Tooltip title="Chỉnh sửa (Admin)">
+                                                                            <IconButton size="small" onClick={() => handleOpenEditModal(a)}>
+                                                                                <Edit size={18} />
+                                                                            </IconButton>
+                                                                        </Tooltip>
+                                                                    )}
+                                                                    <Tooltip title="Yêu cầu Xóa/Giảm SL">
+                                                                        <IconButton size="small" color="error" onClick={() => {
+                                                                            if (a.quantity > 1) {
+                                                                                setReduceQuantityTarget(a);
+                                                                                setQuantityToDelete(1);
+                                                                            } else {
+                                                                                setDeleteConfirm(a);
+                                                                            }
+                                                                        }}>
+                                                                            <Trash2 size={18} />
+                                                                        </IconButton>
+                                                                    </Tooltip>
+                                                                </TableCell>
+                                                            )}
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </React.Fragment>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        )}
+
+                        {/* Trạng thái không có dữ liệu */}
+                        {filteredAssets.length === 0 && (
+                            <Box sx={{ textAlign: 'center', py: 8 }}>
+                                <Stack alignItems="center" spacing={1.5} sx={{ color: 'text.secondary' }}>
+                                    <Inbox size={32} />
+                                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Không có tài sản nào phù hợp.</Typography>
+                                </Stack>
+                            </Box>
+                        )}
+                    </Box>
+                )}
                 {tabIndex === 3 && (
                     <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
                         {/* Thanh công cụ với Bộ lọc và Nút chuyển đổi View */}
