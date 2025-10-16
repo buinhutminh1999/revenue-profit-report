@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+
 
 /* --- Dán toàn bộ khối code của shadcn vào ĐÂY --- */
 @layer base {

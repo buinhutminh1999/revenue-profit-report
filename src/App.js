@@ -3,6 +3,7 @@
 import React from "react";
 import { QueryClientProvider } from "react-query";
 import { Toaster } from "react-hot-toast";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 import queryClient from "./services/queryClient"; 
 import { AuthProvider } from "./contexts/AuthContext"; // Import AuthProvider từ file context
@@ -36,6 +37,7 @@ export default function App() {
           </AuthProvider>
         </CustomThemeProvider>
       </QueryClientProvider>
+      <SpeedInsights />
     </ErrorBoundary>
   );
 }
