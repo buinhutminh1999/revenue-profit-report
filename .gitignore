@@ -1,6 +1,19 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# Dependencies & Environment
 /node_modules
 .env*
 sendgrid_key.txt
+
+# Production build folder
+/build
+/dist
+/.next
+
+# Logs
+npm-debug.log*
+yarn-error.log*
+yarn-debug.log*
+
+# Other
+.DS_Store
