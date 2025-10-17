@@ -20,8 +20,15 @@ export default function EventSlideshow() {
     // Thời gian
     eventTimestamp: null,
 
-    // MÀU TÊN CÔNG TY (mặc định đỏ logo)
+    // MÀU TÊN CÔNG TY
     companyNameColor: "#ff0000",
+
+    // THÊM CÁC TRƯỜNG CỠ CHỮ VỚI GIÁ TRỊ MẶC ĐỊNH
+    titleLine1Size: 80,
+    titleLine2Size: 60,
+    statusTextSize: 24,
+    countdownSize: 48,
+    locationAndDateSize: 20,
   });
 
   const [statusText, setStatusText] = useState("Sự kiện sẽ bắt đầu trong");
@@ -30,7 +37,7 @@ export default function EventSlideshow() {
   const [eventStarted, setEventStarted] = useState(false);
 
   const canvasRef = useRef(null);
-  const intervalRef = useRef(null); // <-- giữ interval ID an toàn
+  const intervalRef = useRef(null);
 
   const docRef = useMemo(() => {
     const appId = typeof __app_id !== "undefined" ? __app_id : "default-app-id";
@@ -48,6 +55,12 @@ export default function EventSlideshow() {
           backgroundType: data.backgroundType || "shader",
           backgroundColor: data.backgroundColor || "#000000",
           companyNameColor: data.companyNameColor || "#ff0000",
+          // Đảm bảo có giá trị mặc định nếu dữ liệu trên server bị thiếu
+          titleLine1Size: data.titleLine1Size || 80,
+          titleLine2Size: data.titleLine2Size || 60,
+          statusTextSize: data.statusTextSize || 24,
+          countdownSize: data.countdownSize || 48,
+          locationAndDateSize: data.locationAndDateSize || 20,
         }));
       } else {
         setContent({
@@ -60,13 +73,18 @@ export default function EventSlideshow() {
           attendees: "",
           eventTimestamp: null,
           companyNameColor: "#ff0000",
+          titleLine1Size: 80,
+          titleLine2Size: 60,
+          statusTextSize: 24,
+          countdownSize: 48,
+          locationAndDateSize: 20,
         });
       }
     });
     return () => unsubscribe();
   }, [docRef]);
 
-  // Nền shader WebGL
+  // Nền shader WebGL (Không thay đổi)
   useEffect(() => {
     if (content.backgroundType !== "shader") return;
     const canvas = canvasRef.current;
@@ -141,9 +159,8 @@ export default function EventSlideshow() {
     return () => cancelAnimationFrame(rafId);
   }, [content.backgroundType]);
 
-  // Đếm ngược – SỬA LỖI 'timer'
+  // Đếm ngược (Không thay đổi)
   useEffect(() => {
-    // clear interval cũ (nếu có)
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -170,24 +187,27 @@ export default function EventSlideshow() {
         setIsFading(true);
         setTimeout(() => {
           setStatusText("Sự kiện đang diễn ra");
-          setEventStarted(true);   // ẩn countdown
+          setEventStarted(true);
           setIsFading(false);
         }, 300);
         return;
       }
-
+      
+      const d = Math.floor(distance / (1000 * 60 * 60 * 24));
       const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
       const s = Math.floor((distance % (1000 * 60)) / 1000);
 
-      setCountdown(
-        `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s
-          .toString()
-          .padStart(2, "0")}`
-      );
+      let countdownString = "";
+      if (d > 0) {
+        countdownString += `${d} ngày `;
+      }
+      countdownString += `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+      
+      setCountdown(countdownString);
     };
 
-    updateClock(); // tick ngay lần đầu
+    updateClock();
     intervalRef.current = setInterval(updateClock, 1000);
 
     return () => {
@@ -206,7 +226,6 @@ export default function EventSlideshow() {
           content.backgroundType === "color" ? content.backgroundColor : "transparent",
       }}
     >
-      {/* Nền shader */}
       {content.backgroundType === "shader" && (
         <canvas id="interactive-canvas" ref={canvasRef}></canvas>
       )}
@@ -218,30 +237,35 @@ export default function EventSlideshow() {
             alt="Logo Bách Khoa An Giang"
             className="logo"
           />
-          {/* Áp dụng màu đỏ từ Firestore, mặc định #ff0000 */}
           <p className="subtitle" style={{ color: content.companyNameColor || "#ff0000" }}>
             CÔNG TY CPXD BÁCH KHOA
           </p>
         </div>
 
+        {/* --- ÁP DỤNG CỠ CHỮ TỪ FIRESTORE --- */}
         <div className="title-container">
-          <h1 className="blended-text typing-effect">{content.titleLine1}</h1>
-          <h1 className="blended-text2">{content.titleLine2}</h1>
+          <h1 className="blended-text typing-effect" style={{ fontSize: `${content.titleLine1Size}px` }}>
+            {content.titleLine1}
+          </h1>
+          <h1 className="blended-text2" style={{ fontSize: `${content.titleLine2Size}px` }}>
+            {content.titleLine2}
+          </h1>
         </div>
 
         <div className="divider"></div>
-        <p className={`status-text blended-text ${isFading ? "fading-out" : ""}`}>
+        <p className={`status-text blended-text ${isFading ? "fading-out" : ""}`} style={{ fontSize: `${content.statusTextSize}px` }}>
           {statusText}
         </p>
 
-        {/* Chỉ hiện countdown khi chưa bắt đầu */}
         {!eventStarted && (
-          <div id="countdown" className={`blended-text ${isFading ? "fading-out" : ""}`}>
+          <div id="countdown" className={`blended-text ${isFading ? "fading-out" : ""}`} style={{ fontSize: `${content.countdownSize}px` }}>
             {countdown}
           </div>
         )}
 
-        <p className="date blended-text">{content.locationAndDate}</p>
+        <p className="date blended-text" style={{ fontSize: `${content.locationAndDateSize}px` }}>
+          {content.locationAndDate}
+        </p>
       </div>
     </div>
   );

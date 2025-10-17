@@ -22,6 +22,7 @@ import LocationOnIcon from '@mui/icons-material/LocationOn';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import MovieFilterIcon from '@mui/icons-material/MovieFilter';
 import ColorLensIcon from '@mui/icons-material/ColorLens';
+import FormatSizeIcon from '@mui/icons-material/FormatSize'; // <-- THÊM ICON MỚI
 
 // --- Dịch vụ nội bộ ---
 import { db } from '../services/firebase-config';
@@ -35,14 +36,22 @@ const fieldConfig = {
   eventDateTime: { label: 'Thời gian sự kiện', icon: <CalendarTodayIcon />, type: 'datetime-local' },
 };
 
+// --- Cấu hình các trường cỡ chữ ---
+const fontSizeConfig = {
+  titleLine1Size: { label: 'Cỡ chữ Dòng tiêu đề 1' },
+  titleLine2Size: { label: 'Cỡ chữ Dòng tiêu đề 2' },
+  statusTextSize: { label: 'Cỡ chữ Trạng thái (sắp diễn ra...)' },
+  countdownSize: { label: 'Cỡ chữ Đồng hồ đếm ngược' },
+  locationAndDateSize: { label: 'Cỡ chữ Địa điểm & Ngày' },
+};
+
+
 // ===== Helpers (FIX) =====
 const pad2 = (n) => String(n).padStart(2, '0');
-// Chuẩn hóa Date -> chuỗi cho <input type="datetime-local"> theo giờ địa phương (KHÔNG dùng toISOString)
 const toDateTimeLocal = (d) => {
   if (!(d instanceof Date) || isNaN(d)) return '';
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
-// So sánh sâu để biết có thật sự thay đổi so với dữ liệu server không
 const deepEqual = (a, b) => {
   try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
 };
@@ -57,18 +66,28 @@ const toUIContent = (data) => ({
   locationAndDate: data.locationAndDate || '',
   eventDateTime: data.eventTimestamp
     ? toDateTimeLocal(data.eventTimestamp.toDate ? data.eventTimestamp.toDate() : new Date(data.eventTimestamp))
-    : ''
+    : '',
+  // THÊM CÁC TRƯỜNG CỠ CHỮ VỚI GIÁ TRỊ MẶC ĐỊNH
+  titleLine1Size: data.titleLine1Size || 80,
+  titleLine2Size: data.titleLine2Size || 60,
+  statusTextSize: data.statusTextSize || 24,
+  countdownSize: data.countdownSize || 48,
+  locationAndDateSize: data.locationAndDateSize || 20,
 });
 // Chuyển UI content -> payload lưu Firestore
 const toSavePayload = (c) => {
   const payload = { ...c };
   delete payload.eventDateTime;
   if (c.eventDateTime) {
-    const d = new Date(c.eventDateTime); // chuỗi datetime-local là giờ địa phương
+    const d = new Date(c.eventDateTime);
     payload.eventTimestamp = isNaN(d) ? null : d;
   } else {
     payload.eventTimestamp = null;
   }
+  // Chuyển đổi cỡ chữ sang số để đảm bảo lưu đúng định dạng
+  Object.keys(fontSizeConfig).forEach(key => {
+    payload[key] = Number(payload[key]) || 0;
+  });
   return payload;
 };
 
@@ -78,46 +97,42 @@ export default function EventEditor() {
     backgroundColor: '#001a1e',
     companyNameColor: '#ffffff',
     titleLine1: '', titleLine2: '', slogan: '', locationAndDate: '',
-    eventDateTime: ''
+    eventDateTime: '',
+    // THÊM CÁC TRƯỜNG CỠ CHỮ VÀO STATE BAN ĐẦU
+    titleLine1Size: 80,
+    titleLine2Size: 60,
+    statusTextSize: 24,
+    countdownSize: 48,
+    locationAndDateSize: 20,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [pickerAnchorEl, setPickerAnchorEl] = useState(null);
   const [companyColorPickerAnchorEl, setCompanyColorPickerAnchorEl] = useState(null);
 
-  // ===== Refs để kiểm soát vòng đời lưu (FIX) =====
-  const isBootstrappingRef = useRef(true);          // true cho đến khi nhận xong snapshot đầu tiên từ server
-  const savingRef = useRef(false);                  // đang lưu -> bỏ qua autosave kế tiếp
-  const lastServerDataRef = useRef(null);           // UI content lần cuối nhận từ server (để so sánh)
+  const isBootstrappingRef = useRef(true);
+  const savingRef = useRef(false);
+  const lastServerDataRef = useRef(null);
 
   const docRef = useMemo(() => {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     return doc(db, `artifacts/${appId}/public/data/slideshow`, 'mainContent');
   }, []);
 
-  // ===== Lắng nghe Firestore, chỉ cập nhật khi khác và bỏ qua local pending writes (FIX) =====
   useEffect(() => {
     const unsubscribe = onSnapshot(
       docRef,
-      { includeMetadataChanges: true }, // để biết pendingWrites
+      { includeMetadataChanges: true },
       (docSnap) => {
         if (!docSnap.exists()) {
-          // Chưa có tài liệu: để người dùng nhập mới
           isBootstrappingRef.current = false;
           setIsLoading(false);
           return;
         }
-
-        // Bỏ qua snapshot phản hồi local write chính mình (tránh vòng lặp)
         if (docSnap.metadata.hasPendingWrites) return;
-
         const data = docSnap.data();
         const ui = toUIContent(data);
-
-        lastServerDataRef.current = ui; // ghi nhận phiên bản server mới nhất
-
-        // Chỉ setState khi THẬT SỰ khác để không kích hoạt autosave vô ích
+        lastServerDataRef.current = ui;
         setContent((prev) => (deepEqual(prev, ui) ? prev : ui));
-
         isBootstrappingRef.current = false;
         setIsLoading(false);
       },
@@ -128,23 +143,19 @@ export default function EventEditor() {
         setIsLoading(false);
       }
     );
-
     return () => unsubscribe();
   }, [docRef]);
 
-  // ===== Thay đổi input =====
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setContent(prev => ({ ...prev, [name]: value }));
   };
 
-  // ===== Lưu (debounced) chỉ khi khác server và không ở trạng thái bootstrapping/saving (FIX) =====
   const saveContent = useCallback(async (currentContent) => {
     try {
       savingRef.current = true;
       const payload = toSavePayload(currentContent);
       await setDoc(docRef, payload, { merge: true });
-      // Sau khi lưu thành công, coi như server = local hiện tại (để autosave kế không bắn lại)
       lastServerDataRef.current = currentContent;
       toast.success('Đã lưu tự động!');
     } catch (error) {
@@ -156,24 +167,18 @@ export default function EventEditor() {
   }, [docRef]);
 
   useEffect(() => {
-    // Không autosave khi đang boot hoặc đang lưu, hoặc không có thay đổi so với server
     if (isBootstrappingRef.current) return;
     if (savingRef.current) return;
     if (deepEqual(content, lastServerDataRef.current)) return;
-
     const handler = setTimeout(() => {
-      // gọi lưu với snapshot content hiện tại
       saveContent(content);
-    }, 1000); // debounce 1s
-
+    }, 1000);
     return () => clearTimeout(handler);
   }, [content, saveContent]);
 
-  // ===== Color pickers =====
   const handlePickerOpen = (event) => setPickerAnchorEl(event.currentTarget);
   const handlePickerClose = () => setPickerAnchorEl(null);
   const handleColorChange = (color) => setContent(prev => ({ ...prev, backgroundColor: color.hex }));
-
   const handleCompanyColorPickerOpen = (event) => setCompanyColorPickerAnchorEl(event.currentTarget);
   const handleCompanyColorPickerClose = () => setCompanyColorPickerAnchorEl(null);
   const handleCompanyColorChange = (color) => setContent(prev => ({ ...prev, companyNameColor: color.hex }));
@@ -197,6 +202,7 @@ export default function EventEditor() {
             />
             <CardContent>
               <Grid container spacing={{ xs: 2, sm: 3 }}>
+                {/* --- Các trường cũ không đổi --- */}
                 <Grid item xs={12} sm={6}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Loại nền</InputLabel>
@@ -205,20 +211,16 @@ export default function EventEditor() {
                       name="backgroundType"
                       value={content.backgroundType}
                       onChange={handleInputChange}
-                      // Lưu ý: Select không hỗ trợ startAdornment trực tiếp; để đơn giản giữ nguyên UI
                     >
                       <MenuItem value="shader"><MovieFilterIcon style={{ marginRight: 8 }} />Hiệu ứng động</MenuItem>
                       <MenuItem value="color"><ColorLensIcon style={{ marginRight: 8 }} />Màu nền tĩnh</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
-
                 {content.backgroundType === 'color' && (
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      fullWidth
-                      label="Mã màu nền"
-                      value={content.backgroundColor}
+                      fullWidth label="Mã màu nền" value={content.backgroundColor}
                       onChange={(e) => setContent(prev => ({ ...prev, backgroundColor: e.target.value }))}
                       size="small"
                       InputProps={{
@@ -237,12 +239,9 @@ export default function EventEditor() {
                     </Popover>
                   </Grid>
                 )}
-
                 <Grid item xs={12} sm={6}>
                   <TextField
-                    fullWidth
-                    label="Màu tên công ty"
-                    value={content.companyNameColor}
+                    fullWidth label="Màu tên công ty" value={content.companyNameColor}
                     onChange={(e) => setContent(prev => ({ ...prev, companyNameColor: e.target.value }))}
                     size="small"
                     InputProps={{
@@ -260,29 +259,51 @@ export default function EventEditor() {
                     <ChromePicker color={content.companyNameColor} onChangeComplete={handleCompanyColorChange} />
                   </Popover>
                 </Grid>
-
                 <Grid item xs={12}><hr style={{ border: 'none', borderTop: '1px solid #e0e0e0' }} /></Grid>
-
                 {Object.keys(fieldConfig).map((key) => {
                   const config = fieldConfig[key];
                   return (
                     <Grid item xs={12} key={key}>
                       <TextField
-                        fullWidth
-                        id={key}
-                        name={key}
-                        label={config.label}
+                        fullWidth id={key} name={key} label={config.label}
                         type={config.type || 'text'}
                         value={content[key] || ''}
                         onChange={handleInputChange}
-                        variant="outlined"
-                        size="small"
+                        variant="outlined" size="small"
                         InputProps={{ startAdornment: (<InputAdornment position="start">{config.icon}</InputAdornment>) }}
                         InputLabelProps={{ shrink: config.type === 'datetime-local' || content[key] ? true : undefined }}
                       />
                     </Grid>
                   );
                 })}
+
+                {/* --- PHẦN MỚI: CÀI ĐẶT CỠ CHỮ --- */}
+                <Grid item xs={12}>
+                  <Typography variant="h6" component="h2" sx={{ mt: 2, mb: 1 }}>Cài đặt Cỡ chữ</Typography>
+                </Grid>
+                {Object.keys(fontSizeConfig).map((key) => {
+                  const config = fontSizeConfig[key];
+                  return (
+                    <Grid item xs={12} sm={6} key={key}>
+                      <TextField
+                        fullWidth
+                        type="number"
+                        id={key}
+                        name={key}
+                        label={config.label}
+                        value={content[key] || ''}
+                        onChange={handleInputChange}
+                        variant="outlined"
+                        size="small"
+                        InputProps={{
+                          startAdornment: (<InputAdornment position="start"><FormatSizeIcon /></InputAdornment>),
+                          endAdornment: <InputAdornment position="end">px</InputAdornment>,
+                        }}
+                      />
+                    </Grid>
+                  );
+                })}
+
               </Grid>
             </CardContent>
           </Card>

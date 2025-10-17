@@ -1039,20 +1039,20 @@ export default function ProfitReportQuarter() {
                     return { revenue, cost, profit, percent };
                 };
                 const groupI1 = groupBy(
-                    projects,
-                    (r) =>
-                        (r.type === "Thi cong" || r.type === "Thi công") &&
-                        (r.revenue !== 0 || r.cost !== 0) &&
-                        !(r.name || "").toUpperCase().includes("KÈ")
-                )
-                .sort((a, b) => a.name.localeCompare(b.name)); // ✨ THÊM DÒNG NÀY
+                    projects,
+                    (r) =>
+                        (r.type === "Thi cong" || r.type === "Thi công") &&
+                        (r.revenue !== 0 || r.cost !== 0) &&
+                        !(r.name || "").toUpperCase().includes("KÈ")
+                )
+                    .sort((a, b) => a.name.localeCompare(b.name)); // ✨ THÊM DÒNG NÀY
 
                 const groupI2 = groupBy(projects, (r) =>
                     (r.name || "").toUpperCase().includes("KÈ")
                 );
                 const groupI3 = groupBy(projects, (r) => r.type === "CĐT");
-const groupI4 = groupBy(projects, (r) => r.type === "XNII")
-                .sort((a, b) => a.name.localeCompare(b.name)); // ✨ THÊM DÒNG NÀY
+                const groupI4 = groupBy(projects, (r) => r.type === "XNII")
+                    .sort((a, b) => a.name.localeCompare(b.name)); // ✨ THÊM DÒNG NÀY
                 const groupII = projects.filter((r) =>
                     (r.type || "").toLowerCase().includes("nhà máy")
                 );

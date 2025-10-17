@@ -41,7 +41,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AllInclusiveIcon from '@mui/icons-material/AllInclusive';
 
 /* ===================== Constants ===================== */
-const START_IDS = new Set([6005, 107, 4801, 506]);
+const START_IDS = new Set([6005, 107, 4801, 506, 7777]);
 const STOP_IDS = new Set([6006, 6008, 1074, 42, 4800, 507, 7000]);
 
 const EVENT_LABEL = {
@@ -53,6 +53,7 @@ const EVENT_LABEL = {
     42: { text: 'Ngủ', color: 'warning', icon: <NightsStayOutlinedIcon sx={{ fontSize: '1rem' }} /> },
     4800: { text: 'Khóa máy', color: 'grey', icon: <LockOutlinedIcon sx={{ fontSize: '1rem' }} /> },
     6008: { text: 'Crash', color: 'error', icon: <ReportProblemOutlinedIcon sx={{ fontSize: '1rem' }} /> },
+    7777: { text: 'Thức dậy nhanh', color: 'info', icon: <AllInclusiveIcon sx={{ fontSize: '1rem' }} /> } // <-- Thêm dòng này
 };
 
 /* ===================== Helper Functions ===================== */
@@ -393,95 +394,85 @@ export default function DeviceMonitoringDashboard() {
     const onlineCount = useMemo(() => Object.values(onlineStatusMap).filter(v => v?.isOnline).length, [onlineStatusMap]);
     const isLoading = loadingMachines || (visibleMachineIds.length > 0 && loadingEvents);
 
-// Centralized data processing for both Grid and List views
-const processedMachineData = useMemo(() => {
-   return filteredMachines.map(machine => {
-        const events = eventsByMachine[machine.id] || [];
-        const isOnline = onlineStatusMap[machine.id]?.isOnline === true;
-        
-        let totalSec = 0;
-        let workingHoursSec = 0;
-        let sessionStart = null;
+    const processedMachineData = useMemo(() => {
+        return filteredMachines.map(machine => {
+            const events = eventsByMachine[machine.id] || [];
+            const isOnline = onlineStatusMap[machine.id]?.isOnline === true;
+            const lastBootTime = machine.lastBootAt ? machine.lastBootAt.toDate() : null;
+            
+            let totalSec = 0;
+            let workingHoursSec = 0;
+            let sessionStart = null;
+            const dayStart = startOfDay(selectedDate);
+            const dayEnd = endOfDay(selectedDate);
 
-        const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-        const dayStart = startOfDay(selectedDate);
+            if (events && events.length > 0) {
+                const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+                
+                // If the first event is a shutdown, it implies the machine was running since the start of the day.
+                // Or if the machine booted before today and the first event isn't a startup event.
+                const firstEvent = sortedEvents[0];
+                if (
+                    STOP_IDS.has(Number(firstEvent.eventId)) || 
+                    (!START_IDS.has(Number(firstEvent.eventId)) && lastBootTime && lastBootTime < dayStart)
+                ) {
+                    sessionStart = dayStart;
+                }
 
-        // ✅ LOGIC TỐI ƯU HÓA: Xử lý tất cả các trường hợp một cách nhất quán
-        const hasAnyStartEvent = sortedEvents.some(e => START_IDS.has(Number(e.eventId)));
-        
-        // Kịch bản 1: Máy đang online hôm nay nhưng CHƯA CÓ sự kiện START nào được ghi nhận.
-        // Điều này xử lý cả "race condition" và trường hợp máy chạy từ nửa đêm.
-        if (isOnline && !hasAnyStartEvent && isSameDay(selectedDate, new Date())) {
-            sessionStart = dayStart;
-        } 
-        // Kịch bản 2: Sự kiện đầu tiên trong ngày là STOP, nghĩa là máy đã chạy từ nửa đêm.
-        else if (sortedEvents.length > 0 && STOP_IDS.has(Number(sortedEvents[0].eventId))) {
-            sessionStart = dayStart;
-        }
+                for (const e of sortedEvents) {
+                    const eventId = Number(e.eventId);
+                    if (START_IDS.has(eventId) && !sessionStart) {
+                        sessionStart = e.createdAt;
+                    } else if (STOP_IDS.has(eventId) && sessionStart) {
+                        const duration = (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
+                        if (duration > 0) {
+                            totalSec += duration;
+                            workingHoursSec += getSecondsInWorkingHours(sessionStart, e.createdAt, selectedDate);
+                        }
+                        sessionStart = null;
+                    }
+                }
+            } else {
+                // NO EVENTS TODAY: Check if it was left on from yesterday.
+                if (isOnline && lastBootTime && lastBootTime < dayStart) {
+                    sessionStart = dayStart;
+                }
+            }
 
-        // Vòng lặp xử lý các sự kiện đã được ghi nhận
-        for (const e of sortedEvents) {
-            const eventId = Number(e.eventId);
+            // Calculate duration for any open session (either started today or carried over)
+            if (sessionStart) {
+                // Determine the end point for the calculation
+                let endPoint;
+                if (isSameDay(selectedDate, new Date()) && isOnline) {
+                    // It's today and the machine is still online: calculate up to now
+                    endPoint = new Date();
+                } else {
+                    // It's a past date, or the machine is offline. Use last seen time, but cap it at the end of the selected day.
+                    const lastSeenTime = machine.lastSeenAt ? machine.lastSeenAt.toDate() : dayEnd;
+                    endPoint = new Date(Math.min(lastSeenTime.getTime(), dayEnd.getTime()));
+                }
 
-            if (STOP_IDS.has(eventId) && sessionStart) {
-                const duration = (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
-                if (duration > 0) {
-                    totalSec += duration;
-                    workingHoursSec += getSecondsInWorkingHours(sessionStart, e.createdAt, selectedDate);
-                }
-                sessionStart = null;
-            
-            } else if (START_IDS.has(eventId)) {
-                if (sessionStart) {
-                    // Logic xử lý laptop ngủ không báo trước
-                    const sessionEndTime = machine.lastSeenAt && machine.lastSeenAt.toDate() < e.createdAt
-                        ? machine.lastSeenAt.toDate()
-                        : sessionStart;
+                const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
+                if (durationToAdd > 0) {
+                    totalSec += durationToAdd;
+                    workingHoursSec += getSecondsInWorkingHours(sessionStart, endPoint, selectedDate);
+                }
+            }
+            
+            return {
+                ...machine,
+                id: machine.id,
+                isOnline,
+                lastSeenAt: machine.lastSeenAt ? machine.lastSeenAt.toDate() : null,
+                lastBootAt: lastBootTime,
+                usageData: {
+                    totalSec: Math.max(0, totalSec),
+                    workingHoursSec: Math.max(0, workingHoursSec)
+                }
+            };
+        });
+    }, [filteredMachines, eventsByMachine, onlineStatusMap, selectedDate]);
 
-                    const duration = (sessionEndTime.getTime() - sessionStart.getTime()) / 1000;
-                    if (duration > 0) {
-                        totalSec += duration;
-                        workingHoursSec += getSecondsInWorkingHours(sessionStart, sessionEndTime, selectedDate);
-                    }
-                }
-                // Luôn bắt đầu phiên mới với sự kiện START
-                sessionStart = e.createdAt;
-            }
-        }
-
-        // Chốt phiên làm việc cuối cùng nếu máy vẫn đang chạy hoặc vừa offline
-        if (sessionStart) {
-            let endPoint;
-            if (isOnline && isSameDay(selectedDate, new Date())) {
-                endPoint = new Date(); 
-            } else if (machine.lastSeenAt) {
-                const lastSeenDate = machine.lastSeenAt.toDate();
-                const endOfDayDate = endOfDay(selectedDate);
-                endPoint = lastSeenDate > endOfDayDate ? endOfDayDate : lastSeenDate;
-            } else {
-                endPoint = sessionStart;
-            }
-
-            const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
-            if (durationToAdd > 0) {
-                totalSec += durationToAdd;
-                workingHoursSec += getSecondsInWorkingHours(sessionStart, endPoint, selectedDate);
-            }
-        }
-        
-        return {
-            ...machine,
-            id: machine.id,
-            isOnline,
-            lastSeenAt: machine.lastSeenAt ? machine.lastSeenAt.toDate() : null,
-            lastBootAt: machine.lastBootAt ? machine.lastBootAt.toDate() : null,
-            usageData: {
-                totalSec: Math.max(0, totalSec),
-                workingHoursSec: Math.max(0, workingHoursSec)
-            }
-        };
-    });
-}, [filteredMachines, eventsByMachine, onlineStatusMap, selectedDate]);
     return (
         <Box sx={{ p: { xs: 2, md: 4 }, backgroundColor: '#f9fafb', minHeight: '100vh' }}>
             <Box sx={{ mb: 4 }}>
