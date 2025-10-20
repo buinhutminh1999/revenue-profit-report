@@ -1513,19 +1513,39 @@ exports.ingestEvent = onRequest({ secrets: [BK_INGEST_SECRET], cors: true }, asy
             return res.status(401).send("invalid-signature");
         }
 
-        const { machineId, eventId, createdAt } = req.body || {};
-        if (!machineId || !eventId || !createdAt) return res.status(400).send("bad-request");
+        // Kiểm tra xem req.body có phải là một mảng hay không
+        const events = Array.isArray(req.body) ? req.body : [req.body];
 
-        await db.collection("machineEvents").add({
-            machineId,
-            eventId: Number(eventId),
-            createdAt: admin.firestore.Timestamp.fromDate(new Date(createdAt)),
-            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        if (events.length === 0) {
+            return res.status(400).send("bad-request-empty");
+        }
 
+        // Dùng batch write của Firestore để ghi nhiều document cùng lúc, rất hiệu quả
+        const batch = db.batch();
+
+        for (const event of events) {
+            const { machineId, eventId, createdAt } = event || {};
+            if (!machineId || !eventId || !createdAt) {
+                logger.warn("Skipping invalid event in batch:", event);
+                continue; // Bỏ qua sự kiện không hợp lệ và xử lý các sự kiện tiếp theo
+            }
+
+            const docRef = db.collection("machineEvents").doc(); // Tạo một document mới
+            batch.set(docRef, {
+                machineId,
+                eventId: Number(eventId),
+                createdAt: admin.firestore.Timestamp.fromDate(new Date(createdAt)),
+                receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        }
+
+        // Thực hiện ghi toàn bộ batch
+        await batch.commit();
+
+        logger.log(`Successfully ingested ${events.length} event(s).`);
         return res.status(200).send("ok");
     } catch (e) {
-        logger.error(e);
+        logger.error("IngestEvent error:", e);
         return res.status(500).send("error");
     }
 });
