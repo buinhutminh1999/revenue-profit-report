@@ -23,6 +23,7 @@ import ColumnSelector from "../ColumnSelector";
 import CostTable from "../CostTable";
 import SummaryPanel from "../ui/SummaryPanel";
 import FormulaGuide from "../ui/FormulaGuide";
+import ConfirmDialog from "../ui/ConfirmDialog"; // <== ĐÃ CÓ
 
 // ---------- Cấu hình sắp xếp ----------
 const SORT_CONFIG = {
@@ -53,7 +54,6 @@ export const defaultRow = {
     hskh: "0",
     cpSauQuyetToan: 0,
     baseForNptck: null, // <== Thêm dòng này
-
 };
 
 const transformProjectName = (name) => {
@@ -150,8 +150,8 @@ export const handleFileUpload = (
                     const key = `${(row["Công Trình"] || "")
                         .trim()
                         .toUpperCase()}|||${(
-                            row["Khoản Mục Chi Phí"] || ""
-                        ).trim()}`;
+                        row["Khoản Mục Chi Phí"] || ""
+                    ).trim()}`;
                     newDataMap[key] = row;
                 }
 
@@ -165,7 +165,7 @@ export const handleFileUpload = (
                         if (excelRow.hasOwnProperty(excelKey)) {
                             newRow[excelToField[excelKey]] = String(
                                 excelRow[excelKey] ??
-                                oldRow[excelToField[excelKey]]
+                                    oldRow[excelToField[excelKey]]
                             );
                         }
                     }
@@ -181,11 +181,11 @@ export const handleFileUpload = (
                         return !costItems.some(
                             (oldRow) =>
                                 oldRow.project ===
-                                (row["Công Trình"] || "")
-                                    .trim()
-                                    .toUpperCase() &&
+                                    (row["Công Trình"] || "")
+                                        .trim()
+                                        .toUpperCase() &&
                                 oldRow.description ===
-                                (row["Khoản Mục Chi Phí"] || "").trim()
+                                    (row["Khoản Mục Chi Phí"] || "").trim()
                         );
                     })
                     .map((row) => {
@@ -272,7 +272,20 @@ export default function ActualCostsTab({ projectId }) {
     const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
 
     const [initialDbLoadComplete, setInitialDbLoadComplete] = useState(false);
+    // V State mới để quản lý dialog xác nhận (ĐÃ CÓ)
+    const [confirmState, setConfirmState] = useState({
+        open: false,
+        title: "",
+        content: "",
+        onConfirm: () => {}, // Hàm sẽ chạy khi bấm xác nhận
+        confirmText: "Xác nhận",
+        confirmColor: "primary",
+    });
 
+    // V Hàm chung để đóng dialog (ĐÃ CÓ)
+    const handleCloseConfirm = () => {
+        setConfirmState((prev) => ({ ...prev, open: false }));
+    };
     useEffect(() => {
         const fetchCostAllocations = async () => {
             if (!year || !quarter) return;
@@ -434,7 +447,9 @@ export default function ActualCostsTab({ projectId }) {
         return columnsAll.reduce((acc, col) => {
             // Lọc các cột chỉ dành cho type "Nhà máy" nếu type hiện tại không khớp
             const isNhaMayOnlyColumn =
-                col.key === "cpVuot" || col.key === "payableDeductionThisQuarter" || col.key === "noPhaiTraCKNM";
+                col.key === "cpVuot" ||
+                col.key === "payableDeductionThisQuarter" ||
+                col.key === "noPhaiTraCKNM";
 
             if (isNhaMayOnlyColumn && !isNhaMayType) {
                 return acc; // Bỏ qua cột này
@@ -539,7 +554,15 @@ export default function ActualCostsTab({ projectId }) {
     useEffect(() => {
         if (!id || !year || !quarter) return;
 
-        const docRef = doc(db, "projects", id, "years", year, "quarters", quarter);
+        const docRef = doc(
+            db,
+            "projects",
+            id,
+            "years",
+            year,
+            "quarters",
+            quarter
+        );
 
         const unsubscribe = onSnapshot(
             docRef,
@@ -547,11 +570,15 @@ export default function ActualCostsTab({ projectId }) {
                 try {
                     // Lấy overallRevenue từ server doc để dùng ngay (state setOverallRevenue sẽ tới chậm hơn 1 tick)
                     const orvFromDoc = parseNumber(
-                        docSnap.exists() ? (docSnap.data().overallRevenue ?? 0) : 0
+                        docSnap.exists()
+                            ? docSnap.data().overallRevenue ?? 0
+                            : 0
                     );
                     setOverallRevenue(orvFromDoc);
 
-                    const rawItems = (docSnap.exists() ? (docSnap.data().items || []) : []).map((item) => ({
+                    const rawItems = (
+                        docSnap.exists() ? docSnap.data().items || [] : []
+                    ).map((item) => ({
                         ...item,
                         id: item.id || generateUniqueId(),
                         project: (item.project || "").trim().toUpperCase(),
@@ -562,9 +589,9 @@ export default function ActualCostsTab({ projectId }) {
                     const recalculated = rawItems.map((row) => {
                         const r = { ...row };
                         calcAllFields(r, {
-                            overallRevenue: orvFromDoc,              // dùng giá trị mới ngay
-                            projectTotalAmount,                      // có thể là state hiện tại
-                            projectType: projectData?.type,          // nếu chưa có, effect khác của bạn sẽ tính lại sau
+                            overallRevenue: orvFromDoc, // dùng giá trị mới ngay
+                            projectTotalAmount, // có thể là state hiện tại
+                            projectType: projectData?.type, // nếu chưa có, effect khác của bạn sẽ tính lại sau
                             isUserEditingNoPhaiTraCK: false,
                         });
                         return r;
@@ -572,7 +599,9 @@ export default function ActualCostsTab({ projectId }) {
 
                     setCostItems(recalculated);
                 } catch (err) {
-                    setError("Lỗi khi xử lý dữ liệu thời gian thực: " + err.message);
+                    setError(
+                        "Lỗi khi xử lý dữ liệu thời gian thực: " + err.message
+                    );
                 } finally {
                     setInitialDbLoadComplete(true);
                     setLoading(false);
@@ -586,7 +615,6 @@ export default function ActualCostsTab({ projectId }) {
 
         return () => unsubscribe();
     }, [id, year, quarter, projectData, projectTotalAmount]);
-
 
     useEffect(() => {
         if (!id) return;
@@ -703,7 +731,9 @@ export default function ActualCostsTab({ projectId }) {
                         } else if (field === "noPhaiTraCK") {
                             newVal = String(val);
                         } else {
-                            newVal = parseNumber(val.trim() === "" ? "0" : val);
+                            newVal = parseNumber(
+                                val.trim() === "" ? "0" : val
+                            );
                         }
 
                         const newRow = { ...row, [field]: newVal };
@@ -763,17 +793,11 @@ export default function ActualCostsTab({ projectId }) {
     );
 
     // =================================================================
-    // MỚI: HÀM ĐỂ RESET TOÀN BỘ DOANH THU VỀ CHẾ ĐỘ TỰ ĐỘNG
+    // === BẮT ĐẦU SỬA ĐỔI ===
     // =================================================================
-    const handleResetAllRevenue = useCallback(() => {
-        if (
-            !window.confirm(
-                "Bạn có chắc muốn đặt lại TOÀN BỘ doanh thu về chế độ tính tự động không? Các giá trị nhập tay sẽ bị mất."
-            )
-        ) {
-            return;
-        }
 
+    // Phần 2: Logic thực thi (giữ nguyên dependencies của useCallback)
+    const executeResetAllRevenue = useCallback(() => {
         setCostItems((prev) =>
             prev.map((row) => {
                 const newRow = { ...row, isRevenueManual: false };
@@ -786,15 +810,24 @@ export default function ActualCostsTab({ projectId }) {
             })
         );
     }, [overallRevenue, projectTotalAmount, projectData]);
-    // =================================================================
-    // BẮT ĐẦU KHỐI CODE THAY THẾ CHO ACTUALCOSTSTAB.JS
-    // XÓA 4 HÀM CŨ VÀ DÁN TOÀN BỘ KHỐI NÀY VÀO
-    // =================================================================
-    const handleUndoFinalize = useCallback(() => {
-        const isConfirmed = window.confirm(
-            "❓ Bạn có chắc muốn hủy quyết toán không?\n\nTất cả các dòng sẽ được tính toán lại theo công thức tự động."
-        );
-        if (!isConfirmed) return;
+
+    // Phần 1: Hàm mở Dialog (sẽ được gọi bởi nút bấm)
+    const handleOpenResetRevenueDialog = () => {
+        setConfirmState({
+            open: true,
+            title: "Xác nhận Reset Doanh thu",
+            content:
+                "Bạn có chắc muốn đặt lại TOÀN BỘ doanh thu về chế độ tính tự động không? Các giá trị nhập tay sẽ bị mất.",
+            onConfirm: executeResetAllRevenue, // <== Gán logic thực thi vào đây
+            confirmText: "Reset",
+            confirmColor: "warning", // Dùng màu vàng để cảnh báo
+        });
+    };
+
+    // ---
+    
+    // Phần 2: Logic thực thi
+    const executeUndoFinalize = useCallback(() => {
         setCostItems((prevItems) =>
             prevItems.map((row) => {
                 const newRow = { ...row, isFinalized: false };
@@ -807,6 +840,21 @@ export default function ActualCostsTab({ projectId }) {
             })
         );
     }, [overallRevenue, projectTotalAmount, projectData]);
+
+    // Phần 1: Hàm mở Dialog
+    const handleOpenUndoDialog = () => {
+        setConfirmState({
+            open: true,
+            title: "Xác nhận Hủy Quyết toán",
+            content:
+                "Bạn có chắc muốn hủy quyết toán không? Tất cả các dòng sẽ được tính toán lại theo công thức tự động.",
+            onConfirm: executeUndoFinalize,
+            confirmText: "Hủy Quyết toán",
+            confirmColor: "warning",
+        });
+    };
+    
+    // ---
 
     const handleSave = async () => {
         if (!validateData(costItems)) {
@@ -834,7 +882,11 @@ export default function ActualCostsTab({ projectId }) {
     /**
      * HÀM CHUNG: Chứa logic cốt lõi của việc lưu quý hiện tại và chuyển dữ liệu sang quý sau.
      */
-    const performSaveAndCarryOver = async (itemsToSave, baseValueMap, successMessage) => {
+    const performSaveAndCarryOver = async (
+        itemsToSave,
+        baseValueMap,
+        successMessage
+    ) => {
         if (!validateData(itemsToSave)) {
             setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
             return;
@@ -849,36 +901,69 @@ export default function ActualCostsTab({ projectId }) {
 
             await setDoc(
                 doc(db, "projects", id, "years", year, "quarters", quarter),
-                { items: itemsToSave, overallRevenue: Number(overallRevenue), updated_at: new Date().toISOString() }
+                {
+                    items: itemsToSave,
+                    overallRevenue: Number(overallRevenue),
+                    updated_at: new Date().toISOString(),
+                }
             );
 
-            const nextQuarterDocRef = doc(db, "projects", id, "years", nextYear, "quarters", nextQuarter);
+            const nextQuarterDocRef = doc(
+                db,
+                "projects",
+                id,
+                "years",
+                nextYear,
+                "quarters",
+                nextQuarter
+            );
             const nextQuarterDocSnap = await getDoc(nextQuarterDocRef);
-            const existingNextQuarterItems = nextQuarterDocSnap.exists() ? nextQuarterDocSnap.data().items || [] : [];
+            const existingNextQuarterItems = nextQuarterDocSnap.exists()
+                ? nextQuarterDocSnap.data().items || []
+                : [];
             const existingItemsMap = new Map(
-                existingNextQuarterItems.map(item => [`${item.project}|||${item.description}`, item])
+                existingNextQuarterItems.map((item) => [
+                    `${item.project}|||${item.description}`,
+                    item,
+                ])
             );
 
-            const mergedItems = itemsToSave.map(currentItem => {
+            const mergedItems = itemsToSave.map((currentItem) => {
                 const key = `${currentItem.project}|||${currentItem.description}`;
                 const existingItemInNextQ = existingItemsMap.get(key);
 
                 const openingBalancesForNextQ = {
                     inventory: currentItem.tonKhoUngKH || "0",
-                    debt: projectData?.type === "Nhà máy"
-                        ? String(Number(parseNumber(currentItem.noPhaiTraCK || "0")) + Number(parseNumber(currentItem.noPhaiTraCKNM || "0")))
-                        : currentItem.noPhaiTraCK || "0",
+                    debt:
+                        projectData?.type === "Nhà máy"
+                            ? String(
+                                  Number(
+                                      parseNumber(currentItem.noPhaiTraCK || "0")
+                                  ) +
+                                      Number(
+                                          parseNumber(
+                                              currentItem.noPhaiTraCKNM || "0"
+                                          )
+                                      )
+                              )
+                            : currentItem.noPhaiTraCK || "0",
                     carryover: currentItem.carryoverEnd || "0",
                 };
 
                 let newItemForNextQ;
                 if (existingItemInNextQ) {
-                    newItemForNextQ = { ...existingItemInNextQ, ...openingBalancesForNextQ };
+                    newItemForNextQ = {
+                        ...existingItemInNextQ,
+                        ...openingBalancesForNextQ,
+                    };
                     existingItemsMap.delete(key);
                 } else {
                     newItemForNextQ = {
-                        ...defaultRow, id: generateUniqueId(), project: currentItem.project,
-                        description: currentItem.description, hskh: currentItem.hskh,
+                        ...defaultRow,
+                        id: generateUniqueId(),
+                        project: currentItem.project,
+                        description: currentItem.description,
+                        hskh: currentItem.hskh,
                         ...openingBalancesForNextQ,
                     };
                 }
@@ -891,16 +976,24 @@ export default function ActualCostsTab({ projectId }) {
                 return newItemForNextQ;
             });
 
-            const finalNextItems = [...mergedItems, ...Array.from(existingItemsMap.values())];
+            const finalNextItems = [
+                ...mergedItems,
+                ...Array.from(existingItemsMap.values()),
+            ];
 
-            await setDoc(nextQuarterDocRef, {
-                items: finalNextItems,
-                overallRevenue: nextQuarterDocSnap.exists() ? (nextQuarterDocSnap.data().overallRevenue || 0) : 0,
-                updated_at: new Date().toISOString()
-            }, { merge: true });
+            await setDoc(
+                nextQuarterDocRef,
+                {
+                    items: finalNextItems,
+                    overallRevenue: nextQuarterDocSnap.exists()
+                        ? nextQuarterDocSnap.data().overallRevenue || 0
+                        : 0,
+                    updated_at: new Date().toISOString(),
+                },
+                { merge: true }
+            );
 
             alert(successMessage);
-
         } catch (err) {
             setError("Lỗi khi thực hiện chuyển quý: " + err.message);
         } finally {
@@ -916,17 +1009,16 @@ export default function ActualCostsTab({ projectId }) {
         );
     };
 
-    // Nút "Quyết toán" sẽ thực hiện logic phức tạp mới
-    const handleFinalizeProject = useCallback(async () => {
-        const isConfirmed = window.confirm(
-            "❓ BẠN CÓ CHẮC MUỐN QUYẾT TOÁN?\n\nHành động này sẽ chốt số liệu quý này và tự động chuyển các số dư sang quý tiếp theo, đồng thời thiết lập công thức tính cho công trình -VT/-NC ở quý sau."
-        );
-        if (!isConfirmed) return;
+    // ---
 
+    // Phần 2: Logic thực thi (đổi tên từ handleFinalizeProject -> executeFinalizeProject)
+    const executeFinalizeProject = useCallback(async () => {
         // --- BƯỚC 1: TÍNH TOÁN "GIÁ TRỊ GỐC" ĐỂ LƯU SANG QUÝ SAU ---
         const baseValueMap = new Map();
-        costItems.forEach(row => {
-            const isVtNcProject = (row.project || "").includes("-VT") || (row.project || "").includes("-NC");
+        costItems.forEach((row) => {
+            const isVtNcProject =
+                (row.project || "").includes("-VT") ||
+                (row.project || "").includes("-NC");
             if (isVtNcProject) {
                 const key = `${row.project}|||${row.description}`;
                 // Công thức gốc: Nợ ĐK (hiện tại) - CPTT (hiện tại)
@@ -941,29 +1033,48 @@ export default function ActualCostsTab({ projectId }) {
 
         // --- BƯỚC 2: TÍNH TOÁN QUYẾT TOÁN CHO QUÝ HIỆN TẠI (giữ nguyên logic) ---
         const finalizedItems = costItems.map((row) => {
-            const isVtNcProject = (row.project || "").includes("-VT") || (row.project || "").includes("-NC");
-// ⭐ LOGIC MỚI ƯU TIÊN HÀNG ĐẦU: ÁP DỤNG CÔNG THỨC "SỐNG" ⭐
-    // Kiểm tra nếu là công trình VT/NC và có trường 'baseForNptck' được truyền từ quý trước.
-    if (isVtNcProject && row.hasOwnProperty('baseForNptck') && row.baseForNptck !== null) {
-        // Lấy giá trị gốc đã tính ở quý trước
-        const baseValue = Number(parseNumber(row.baseForNptck));
-        // Lấy Chi Phí Trực Tiếp của quý HIỆN TẠI (khi người dùng nhập)
-        const directCost_Current = Number(parseNumber(row.directCost || "0"));
-        
-        // Công thức cuối cùng: NPTĐK(Q2) - CPTT(Q2) - CPTT(Q3)
-        row.noPhaiTraCK = String(baseValue - directCost_Current);
-    }
+            const isVtNcProject =
+                (row.project || "").includes("-VT") ||
+                (row.project || "").includes("-NC");
+            // ⭐ LOGIC MỚI ƯU TIÊN HÀNG ĐẦU: ÁP DỤNG CÔNG THỨC "SỐNG" ⭐
+            // Kiểm tra nếu là công trình VT/NC và có trường 'baseForNptck' được truyền từ quý trước.
+            if (
+                isVtNcProject &&
+                row.hasOwnProperty("baseForNptck") &&
+                row.baseForNptck !== null
+            ) {
+                // Lấy giá trị gốc đã tính ở quý trước
+                const baseValue = Number(parseNumber(row.baseForNptck));
+                // Lấy Chi Phí Trực Tiếp của quý HIỆN TẠI (khi người dùng nhập)
+                const directCost_Current = Number(
+                    parseNumber(row.directCost || "0")
+                );
+
+                // Công thức cuối cùng: NPTĐK(Q2) - CPTT(Q2) - CPTT(Q3)
+                row.noPhaiTraCK = String(baseValue - directCost_Current);
+            }
 
             if (isVtNcProject) {
                 const debtDK = parseNumber(row.debt || "0");
                 const directCost = parseNumber(row.directCost || "0");
                 const newNoPhaiTraCK = debtDK - directCost;
-                return { ...row, noPhaiTraCK: String(newNoPhaiTraCK), isFinalized: true };
+                return {
+                    ...row,
+                    noPhaiTraCK: String(newNoPhaiTraCK),
+                    isFinalized: true,
+                };
             } else {
                 const currentNoPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
-                const currentCarryoverEnd = parseNumber(row.carryoverEnd || "0");
+                const currentCarryoverEnd = parseNumber(
+                    row.carryoverEnd || "0"
+                );
                 const newNoPhaiTraCK = currentNoPhaiTraCK - currentCarryoverEnd;
-                return { ...row, noPhaiTraCK: String(newNoPhaiTraCK), carryoverEnd: "0", isFinalized: true };
+                return {
+                    ...row,
+                    noPhaiTraCK: String(newNoPhaiTraCK),
+                    carryoverEnd: "0",
+                    isFinalized: true,
+                };
             }
         });
 
@@ -974,11 +1085,23 @@ export default function ActualCostsTab({ projectId }) {
             baseValueMap, // Truyền map giá trị gốc sang
             `Đã quyết toán và chuyển dữ liệu sang quý tiếp theo thành công!`
         );
-
     }, [costItems, year, quarter, id, projectData, overallRevenue]);
 
+    // Phần 1: Hàm mở Dialog
+    const handleOpenFinalizeDialog = () => {
+        setConfirmState({
+            open: true,
+            title: "Xác nhận Quyết toán",
+            content:
+                "BẠN CÓ CHẮC MUỐN QUYẾT TOÁN? Hành động này sẽ chốt số liệu quý này và tự động chuyển các số dư sang quý tiếp theo.",
+            onConfirm: executeFinalizeProject,
+            confirmText: "Quyết toán",
+            confirmColor: "error", // Dùng màu đỏ cho hành động nguy hiểm
+        });
+    };
+
     // =================================================================
-    // KẾT THÚC KHỐI CODE THAY THẾ
+    // === KẾT THÚC SỬA ĐỔI ===
     // =================================================================
 
     const handleAddRow = useCallback(
@@ -1007,9 +1130,12 @@ export default function ActualCostsTab({ projectId }) {
     const groupedData = useMemo(() => groupByProject(filtered), [filtered]);
     // Dòng code để debug
     // --- BẮT ĐẦU ĐOẠN CODE GỠ LỖI ---
-    const itemsWithoutId = sortedCostItems.filter(item => !item.id);
+    const itemsWithoutId = sortedCostItems.filter((item) => !item.id);
     if (itemsWithoutId.length > 0) {
-        console.error("!!! LỖI DỮ LIỆU: CÁC DÒNG SAU ĐANG BỊ THIẾU ID:", itemsWithoutId);
+        console.error(
+            "!!! LỖI DỮ LIỆU: CÁC DÒNG SAU ĐANG BỊ THIẾU ID:",
+            itemsWithoutId
+        );
     } else {
         console.log("OK: Tất cả các dòng trong 'sortedCostItems' đều có ID.");
     }
@@ -1029,15 +1155,25 @@ export default function ActualCostsTab({ projectId }) {
                         mode
                     )
                 }
-                onExport={() => exportToExcel(costItems, displayedColumns, projectData, year, quarter)}
+                onExport={() =>
+                    exportToExcel(
+                        costItems,
+                        displayedColumns,
+                        projectData,
+                        year,
+                        quarter
+                    )
+                }
                 onSave={handleSave}
                 onSaveNextQuarter={handleSaveNextQuarter}
-                onUndoFinalize={handleUndoFinalize} // <-- TRUYỀN HÀM MỚI XUỐNG
-                onFinalizeProject={handleFinalizeProject} // <-- 4. TRUYỀN HÀM XUỐNG
+                
+                // === THAY ĐỔI 3 DÒNG NÀY ===
+                onUndoFinalize={handleOpenUndoDialog}
+                onFinalizeProject={handleOpenFinalizeDialog}
+                onResetAllRevenue={handleOpenResetRevenueDialog}
+                // === KẾT THÚC THAY ĐỔI ===
 
                 onToggleColumns={handleOpenColumnsDialog}
-                onResetAllRevenue={handleResetAllRevenue}
-
                 onBack={() => navigate("/construction-plan")}
                 costItems={costItems}
                 sx={{ mb: 2 }}
@@ -1076,7 +1212,6 @@ export default function ActualCostsTab({ projectId }) {
                     handleChangeField={handleChangeField}
                     handleRemoveRow={handleRemoveRow}
                     onToggleRevenueMode={handleToggleRevenueMode}
-
                     overallRevenue={overallRevenue}
                     projectTotalAmount={projectTotalAmount}
                     categories={categories}
@@ -1096,7 +1231,10 @@ export default function ActualCostsTab({ projectId }) {
                 onClose={() => setSnackOpen(false)}
                 anchorOrigin={{ vertical: "top", horizontal: "center" }}
             >
-                <Alert severity="success" onClose={() => setSnackOpen(false)}>
+                <Alert
+                    severity="success"
+                    onClose={() => setSnackOpen(false)}
+                >
                     Lưu dữ liệu thành công!
                 </Alert>
             </Snackbar>
@@ -1113,6 +1251,17 @@ export default function ActualCostsTab({ projectId }) {
             <FormulaGuide
                 open={formulaDialogOpen}
                 onClose={() => setFormulaDialogOpen(false)}
+            />
+
+            {/* === THÊM COMPONENT NÀY VÀO CUỐI === */}
+            <ConfirmDialog
+                open={confirmState.open}
+                onClose={handleCloseConfirm}
+                onConfirm={confirmState.onConfirm}
+                title={confirmState.title}
+                content={confirmState.content}
+                confirmText={confirmState.confirmText}
+                confirmColor={confirmState.confirmColor}
             />
         </Box>
     );
