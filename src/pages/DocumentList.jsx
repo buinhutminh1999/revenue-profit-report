@@ -29,8 +29,9 @@ import CircularProgress from '@mui/material/CircularProgress';
 import AddIcon from '@mui/icons-material/Add';
 import InboxIcon from '@mui/icons-material/Inbox';
 
-// Đường dẫn file trên server
+// Đường dẫn file trên server (qua proxy)
 const FILE_BASE_URL = '/api/files';
+
 // --- Hàm fetch dữ liệu từ Firestore ---
 const fetchPublishedDocuments = async () => {
   const q = query(collection(db, 'publishedDocuments'), orderBy('createdAt', 'desc'));
@@ -49,22 +50,6 @@ const StyledGridOverlay = styled('div')(({ theme }) => ({
   alignItems: 'center',
   justifyContent: 'center',
   height: '100%',
-  '& .ant-empty-img-1': {
-    fill: theme.palette.mode === 'light' ? '#aeb8c2' : '#262626',
-  },
-  '& .ant-empty-img-2': {
-    fill: theme.palette.mode === 'light' ? '#f5f5f7' : '#595959',
-  },
-  '& .ant-empty-img-3': {
-    fill: theme.palette.mode === 'light' ? '#dce0e6' : '#434343',
-  },
-  '& .ant-empty-img-4': {
-    fill: theme.palette.mode === 'light' ? '#fff' : '#1c1c1c',
-  },
-  '& .ant-empty-img-5': {
-    fillOpacity: theme.palette.mode === 'light' ? '0.8' : '0.08',
-    fill: theme.palette.mode === 'light' ? '#f5f5f5' : '#fff',
-  },
 }));
 
 function CustomLoadingOverlay() {
@@ -92,13 +77,13 @@ function CustomNoRowsOverlay() {
 
 // --- Component Chính ---
 export default function DocumentList() {
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
 
   const { data: documents, isLoading, error } = useQuery(
     'publishedDocuments',
     fetchPublishedDocuments,
     {
-      staleTime: 5 * 60 * 1000, 
+      staleTime: 5 * 60 * 1000,
     }
   );
 
@@ -106,7 +91,7 @@ export default function DocumentList() {
     {
       field: 'title',
       headerName: 'Tiêu đề văn bản',
-      flex: 2, 
+      flex: 2,
       minWidth: 250,
     },
     {
@@ -133,11 +118,16 @@ export default function DocumentList() {
     {
       field: 'createdAt',
       headerName: 'Ngày phát hành',
+      type: 'dateTime', // Để DataGrid hiểu đây là ngày giờ (cho việc sort/filter)
       flex: 1,
       minWidth: 160,
       valueFormatter: (params) => {
         try {
-          return format(params.value, 'dd/MM/yyyy HH:mm');
+          // Kiểm tra xem params.value có phải là Date object hợp lệ không
+          if (params.value instanceof Date && !isNaN(params.value)) {
+            return format(params.value, 'dd/MM/yyyy HH:mm');
+          }
+          return 'N/A';
         } catch (e) {
           return 'N/A';
         }
@@ -160,22 +150,32 @@ export default function DocumentList() {
       headerAlign: 'center',
       renderCell: (params) => (
         <Tooltip title="Tải văn bản">
-          <IconButton
-            color="primary"
-            href={`${FILE_BASE_URL}/${params.row.fileName}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <DownloadIcon />
-          </IconButton>
+          {/* Dùng span để ngăn Tooltip chặn sự kiện click */}
+          <span>
+            <IconButton
+              color="primary"
+              href={`${FILE_BASE_URL}/${params.row.fileName}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()} // Quan trọng: Ngăn click vào icon bị coi là click vào hàng
+              disabled={!params.row.fileName} // Disable nếu không có fileName
+            >
+              <DownloadIcon />
+            </IconButton>
+          </span>
         </Tooltip>
       ),
     },
   ];
 
   const handleAddNew = () => {
-    navigate('/admin/publish-document'); 
+    navigate('/admin/publish-document');
+  };
+
+  // --- HÀM XỬ LÝ KHI CLICK VÀO HÀNG ---
+  const handleRowClick = (params) => {
+    // params.id chính là document ID từ Firestore
+    navigate(`/admin/document/${params.id}`);
   };
 
   return (
@@ -183,12 +183,7 @@ export default function DocumentList() {
       <Helmet>
         <title>Danh Sách Văn Bản</title>
       </Helmet>
-      {/* ================================================================
-        ---   ĐÂY LÀ THAY ĐỔI: `maxWidth="xl"` ĐỔI THÀNH `maxWidth={false}`  ---
-        ---   VÀ SỬA PADDING `py: 4` THÀNH `p: 3` (hoặc `px: 3, py: 3`)   ---
-        ================================================================
-      */}
-      <Container maxWidth={false} sx={{ p: 3 }}> 
+      <Container maxWidth={false} sx={{ p: 3 }}>
         <Paper elevation={3} sx={{ borderRadius: 4, overflow: 'hidden' }}>
           {/* Header */}
           <Box
@@ -214,7 +209,7 @@ export default function DocumentList() {
                 </Typography>
               </Box>
             </Box>
-            
+
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -225,7 +220,6 @@ export default function DocumentList() {
           </Box>
 
           {/* Data Grid */}
-          {/* --- TĂNG CHIỀU CAO TỪ 70vh LÊN 75vh --- */}
           <Box sx={{ height: '75vh', width: '100%' }}>
             {error && (
               <Box sx={{ p: 3 }}>
@@ -240,29 +234,43 @@ export default function DocumentList() {
 
             {!error && (
               <DataGrid
-                rows={documents || []} 
+                rows={documents || []}
                 columns={columns}
                 pageSizeOptions={[10, 25, 50]}
                 initialState={{
                   pagination: {
                     paginationModel: { pageSize: 10 },
                   },
+                   // Thêm sắp xếp mặc định theo ngày mới nhất
+                  sorting: {
+                    sortModel: [{ field: 'createdAt', sort: 'desc' }],
+                  },
                 }}
                 slots={{
                   toolbar: GridToolbar,
-                  loadingOverlay: CustomLoadingOverlay, 
-                  noRowsOverlay: CustomNoRowsOverlay,   
+                  loadingOverlay: CustomLoadingOverlay,
+                  noRowsOverlay: CustomNoRowsOverlay,
                 }}
                 slotProps={{
                   toolbar: {
-                    showQuickFilter: true, 
+                    showQuickFilter: true,
+                    // Tùy chỉnh placeholder cho ô tìm kiếm
+                    quickFilterProps: { placeholder: 'Tìm kiếm nhanh...' },
                   },
                 }}
                 loading={isLoading}
                 checkboxSelection={false}
-                disableRowSelectionOnClick
+                // --- CÁC THAY ĐỔI ĐỂ KÍCH HOẠT ROW CLICK ---
+                disableRowSelectionOnClick={false} // Cho phép click vào hàng
+                onRowClick={handleRowClick}      // Gọi hàm khi click
+                // ------------------------------------------
                 sx={{
-                  border: 0, 
+                  border: 0,
+                  // --- Thêm con trỏ khi di chuột vào hàng ---
+                  '& .MuiDataGrid-row:hover': {
+                    cursor: 'pointer',
+                    backgroundColor: '#f5f5f5' // Thêm hiệu ứng hover nhẹ
+                  },
                   '& .MuiDataGrid-toolbarContainer': {
                     padding: '16px',
                     borderBottom: '1px solid #E0E0E0',

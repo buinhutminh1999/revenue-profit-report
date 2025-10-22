@@ -64,6 +64,7 @@ const CloseQuarterPage = lazy(() => import('../pages/CloseQuarterPage'));
 const WhitelistManager = lazy(() => import('../pages/WhitelistManager'));
 const DocumentPublisher = lazy(() => import('../pages/DocumentPublisher'));
 const DocumentList = lazy(() => import('../pages/DocumentList'));
+const DocumentDetail = lazy(() => import('../pages/DocumentDetail'));
 // --- LAZY-LOAD CÁC TRANG CỦA MODULE CHẤM CÔNG ---
 const AttendanceDashboard = lazy(() => import('../pages/attendance/AttendanceDashboard'));
 
@@ -161,7 +162,8 @@ function AppRoutes() {
                             <Route path="close-quarter" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(CloseQuarterPage)}</RequireRole>} />
                             <Route path="whitelist" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(WhitelistManager)}</RequireRole>} />
                             <Route path="publish-document" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(DocumentPublisher)}</RequireRole>} />
-<Route path="document-list" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(DocumentList)}</RequireRole>} />
+                            <Route path="document-list" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(DocumentList)}</RequireRole>} />
+                            <Route path="document/:documentId" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(DocumentDetail)}</RequireRole>} />
                         </Route>
                     </Route>
                 </Route>
