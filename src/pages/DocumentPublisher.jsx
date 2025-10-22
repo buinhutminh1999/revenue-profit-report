@@ -32,7 +32,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'; // <--- Icon cho nút
 import { auth, db } from '../services/firebase-config';
 
 // URL API máy chủ của bạn
-const UPLOAD_API_URL = 'http://115.78.92.176:3001/upload';
+const UPLOAD_API_URL = '/api/upload'; // <--- Đây là đường dẫn proxy
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 const ALLOWED_FILE_TYPES = {
   'application/pdf': ['.pdf'],

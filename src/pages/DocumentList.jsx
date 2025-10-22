@@ -30,8 +30,7 @@ import AddIcon from '@mui/icons-material/Add';
 import InboxIcon from '@mui/icons-material/Inbox';
 
 // Đường dẫn file trên server
-const FILE_BASE_URL = 'http://115.78.92.176:3001/files';
-
+const FILE_BASE_URL = '/api/files';
 // --- Hàm fetch dữ liệu từ Firestore ---
 const fetchPublishedDocuments = async () => {
   const q = query(collection(db, 'publishedDocuments'), orderBy('createdAt', 'desc'));

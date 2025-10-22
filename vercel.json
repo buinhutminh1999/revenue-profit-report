@@ -1,7 +1,6 @@
 {
   "headers": [
     {
-
       "source": "/(.*).(js|css|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$",
       "headers": [
         {
@@ -11,7 +10,6 @@
       ]
     },
     {
-     
       "source": "/(.*)",
       "headers": [
         {
@@ -19,6 +17,12 @@
           "value": "public, s-maxage=0, stale-while-revalidate=300"
         }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://115.78.92.176:3001/:path*"
     }
   ]
 }
