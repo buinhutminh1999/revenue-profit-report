@@ -13,6 +13,7 @@ import RequireRole from '../components/auth/RequireRole';
 import RequireEmailAccess from '../components/auth/RequireEmailAccess';
 import VerifiedAccessLayout from '../components/auth/VerifiedAccessLayout';
 import ModernLayout from '../components/layout/Layout';
+import { HelmetProvider } from 'react-helmet-async';
 
 // --- LAZY-LOAD HELPER ---
 const lazyLoad = (Component) => (
@@ -61,6 +62,8 @@ const AdminDepartmentManager = lazy(() => import('../pages/AdminDepartmentManage
 const AdminAuditLog = lazy(() => import('../pages/AdminAuditLog'));
 const CloseQuarterPage = lazy(() => import('../pages/CloseQuarterPage'));
 const WhitelistManager = lazy(() => import('../pages/WhitelistManager'));
+const DocumentPublisher = lazy(() => import('../pages/DocumentPublisher'));
+const DocumentList = lazy(() => import('../pages/DocumentList'));
 // --- LAZY-LOAD CÁC TRANG CỦA MODULE CHẤM CÔNG ---
 const AttendanceDashboard = lazy(() => import('../pages/attendance/AttendanceDashboard'));
 
@@ -69,10 +72,13 @@ const DeviceMonitoringDashboard = lazy(() => import('../pages/monitoring/DeviceM
 // --- COMPONENT ĐỊNH TUYẾN CHÍNH ---
 export default function Router() {
     return (
-        <BrowserRouter>
-            <ProgressBar />
-            <AppRoutes />
-        </BrowserRouter>
+        <HelmetProvider>
+            <BrowserRouter>
+                <ProgressBar />
+                <AppRoutes />
+            </BrowserRouter>
+        </HelmetProvider>
+
     );
 }
 
@@ -80,7 +86,7 @@ function AppRoutes() {
     const { isAuthenticated, loading } = useAuth();
     const location = useLocation();
     const backTo = location.state?.from?.pathname || '/';
- // =========================================================
+    // =========================================================
     // THÊM ĐOẠN KIỂM TRA NÀY VÀO ĐẦU COMPONENT
     // =========================================================
     if (loading) {
@@ -133,7 +139,7 @@ function AppRoutes() {
                         {/* === MODULE CHẤM CÔNG === */}
                         <Route path="attendance">
                             <Route index element={<RequireEmailAccess pathKey="attendance">{lazyLoad(AttendanceDashboard)}</RequireEmailAccess>} />
-                            
+
                         </Route>
                         <Route path="reports">
                             <Route path="profit-quarter" element={<RequireEmailAccess pathKey="reports/profit-quarter">{lazyLoad(ProfitReportQuarter)}</RequireEmailAccess>} />
@@ -154,6 +160,8 @@ function AppRoutes() {
                             <Route path="audit-log" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminAuditLog)}</RequireRole>} />
                             <Route path="close-quarter" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(CloseQuarterPage)}</RequireRole>} />
                             <Route path="whitelist" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(WhitelistManager)}</RequireRole>} />
+                            <Route path="publish-document" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(DocumentPublisher)}</RequireRole>} />
+<Route path="document-list" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(DocumentList)}</RequireRole>} />
                         </Route>
                     </Route>
                 </Route>
