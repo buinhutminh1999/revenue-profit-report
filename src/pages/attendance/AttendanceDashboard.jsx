@@ -1,5 +1,5 @@
 // src/pages/Home.js
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react"; // Thêm useMemo
 import {
     Box,
     Button,
@@ -13,13 +13,13 @@ import {
     Grid,
     Divider,
     Stack,
-    IconButton, // Thêm IconButton
-    InputAdornment, // Thêm InputAdornment
+    IconButton,
+    InputAdornment,
 } from "@mui/material";
 import { LocalizationProvider, DatePicker, MobileDatePicker } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { startOfDay, endOfDay } from "date-fns";
-import { Print, UploadFile, Search, Clear } from "@mui/icons-material"; // Thêm icon
+import { Print, UploadFile, Search, Clear } from "@mui/icons-material";
 
 import FileUpload from "../../components/FileUpload";
 import DepartmentFilter from "../../components/DepartmentFilter";
@@ -36,52 +36,46 @@ import { db } from "../../services/firebase-config";
 import { useSnackbar } from "notistack";
 import { useFileUpload } from "../../hooks/useFileUpload";
 
-// Thay thế hoàn toàn 2 hàm này trong Home.js
+// (Giữ nguyên các hàm toDateString, parseDMY, isValidTimeString của bạn)
 
 const toDateString = (val) => {
-  if (!val) return "N/A";
-
-  let d = null;
-
-  if (typeof val === "string") {
-    // Ưu tiên định dạng dd/mm/yyyy, fallback qua Date(...)
-    const m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    d = m ? new Date(+m[3], +m[2] - 1, +m[1]) : new Date(val);
-  } else if (val instanceof Date) {
-    d = val;
-  } else if (val && typeof val.toDate === "function") {
-    d = val.toDate(); // Firestore Timestamp thật sự
-  } else if (val && typeof val.seconds === "number") {
-    d = new Date(val.seconds * 1000); // một số SDK trả về .seconds
-  } else if (val && typeof val._seconds === "number") {
-    d = new Date(val._seconds * 1000); // dạng serialize (_seconds/_nanoseconds)
-  } else {
-    d = new Date(val); // cố gắng parse cuối cùng
-  }
-
-  if (!d || Number.isNaN(d.getTime())) {
-    console.error("Không thể chuyển đổi giá trị ngày tháng không hợp lệ:", val);
-    return "Ngày lỗi";
-  }
-
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  if (!val) return "N/A";
+  let d = null;
+  if (typeof val === "string") {
+    const m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    d = m ? new Date(+m[3], +m[2] - 1, +m[1]) : new Date(val);
+  } else if (val instanceof Date) {
+    d = val;
+  } else if (val && typeof val.toDate === "function") {
+    d = val.toDate();
+  } else if (val && typeof val.seconds === "number") {
+    d = new Date(val.seconds * 1000);
+  } else if (val && typeof val._seconds === "number") {
+    d = new Date(val._seconds * 1000);
+  } else {
+    d = new Date(val);
+  }
+  if (!d || Number.isNaN(d.getTime())) {
+    console.error("Không thể chuyển đổi giá trị ngày tháng không hợp lệ:", val);
+    return "Ngày lỗi";
+  }
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 };
 
 const parseDMY = (s) => {
-  if (!s || typeof s !== "string") return null;
-  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!m) {
-    const d = new Date(s);
-    return Number.isNaN(+d) ? null : d;
-  }
-  const dd = +m[1], mm = +m[2], yyyy = +m[3];
-  const d = new Date(yyyy, mm - 1, dd);
-  return Number.isNaN(+d) ? null : d;
+  if (!s || typeof s !== "string") return null;
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) {
+    const d = new Date(s);
+    return Number.isNaN(+d) ? null : d;
+  }
+  const dd = +m[1], mm = +m[2], yyyy = +m[3];
+  const d = new Date(yyyy, mm - 1, dd);
+  return Number.isNaN(+d) ? null : d;
 };
-
 
 const isValidTimeString = (timeString) => {
     if (!timeString || typeof timeString !== 'string') return false;
@@ -89,26 +83,57 @@ const isValidTimeString = (timeString) => {
     return timeRegex.test(timeString);
 };
 
+// --- HÀM MỚI: LẤY TUẦN TRƯỚC (THỨ 2 - THỨ 7) ---
+const getPreviousWeek = () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ... 6=Sat
+
+    // 1. Tìm ngày thứ 2 của tuần HIỆN TẠI
+    // Nếu là Chủ Nhật (0), lùi 6 ngày. Nếu là T2 (1), lùi 0...
+    const diffToCurrentMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    
+    // new Date(y, m, d) sẽ tự động set 00:00:00
+    const currentMonday = new Date(
+        today.getFullYear(), 
+        today.getMonth(), 
+        today.getDate() - diffToCurrentMonday
+    );
+
+    // 2. Lấy ngày Thứ 2 của tuần TRƯỚC (lùi 7 ngày)
+    // Đây là fromDate
+    const lastMonday = new Date(currentMonday);
+    lastMonday.setDate(currentMonday.getDate() - 7);
+
+    // 3. Lấy ngày Thứ 7 của tuần TRƯỚC (Thứ 2 + 5 ngày)
+    // Đây là toDate
+    const lastSaturday = new Date(lastMonday);
+    lastSaturday.setDate(lastMonday.getDate() + 5);
+
+    return { from: lastMonday, to: lastSaturday };
+};
+// --- KẾT THÚC HÀM MỚI ---
+
+
 export default function Home() {
     const isMobile = useMediaQuery("(max-width:600px)");
-    const [rows, setRows] = useState([]);
-    const [filtered, setFiltered] = useState([]);
+    const [rows, setRows] = useState([]); // Đây là state "nguồn", chứa TẤT CẢ dữ liệu
+    // const [filtered, setFiltered] = useState([]); // <-- BỎ STATE NÀY
     const [depts, setDepts] = useState([]);
     const [dept, setDept] = useState("all");
-    const [fromDate, setFromDate] = useState(null);
-    const [toDate, setToDate] = useState(null);
-    const [searchTerm, setSearchTerm] = useState(""); // State cho ô tìm kiếm
+    const [fromDate, setFromDate] = useState(() => getPreviousWeek().from);
+    const [toDate, setToDate] = useState(() => getPreviousWeek().to);
+    const [searchTerm, setSearchTerm] = useState(""); // State cho input (thay đổi tức thì)
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // State cho filtering (thay đổi sau 300ms)
     const [includeSaturday, setIncludeSaturday] = useState(false);
 
-    // --- STATE MỚI ĐỂ TỐI ƯU UX ---
-    const [isLoading, setIsLoading] = useState(true); // Trạng thái tải dữ liệu ban đầu
-    const [isUploading, setIsUploading] = useState(false); // Trạng thái tải file lên
+    const [isLoading, setIsLoading] = useState(true);
+    const [isUploading, setIsUploading] = useState(false);
 
     const { enqueueSnackbar } = useSnackbar();
     const Picker = isMobile ? MobileDatePicker : DatePicker;
 
     const loadAttendanceData = useCallback(async () => {
-        setIsLoading(true); // Bắt đầu tải
+        setIsLoading(true);
         try {
             const attendanceCol = collection(db, "attendance");
             const q = query(attendanceCol, orderBy("Ngày", "asc"), orderBy("Tên nhân viên", "asc"));
@@ -140,14 +165,26 @@ export default function Home() {
                 enqueueSnackbar("Lỗi khi tải dữ liệu", { variant: "error" });
             }
         } finally {
-            setIsLoading(false); // Kết thúc tải
+            setIsLoading(false);
         }
     }, [enqueueSnackbar]);
 
     useEffect(() => { loadAttendanceData(); }, [loadAttendanceData]);
 
-    // Tách riêng logic filter để dễ quản lý
-    const applyFilters = useCallback(() => {
+    // --- TỐI ƯU 1: Thêm useEffect để debounce searchTerm ---
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm);
+        }, 300); // Đợi 300ms sau khi người dùng ngừng gõ
+
+        return () => {
+            clearTimeout(handler); // Hủy bỏ timer nếu người dùng gõ tiếp
+        };
+    }, [searchTerm]); // Chỉ chạy lại khi searchTerm thay đổi
+
+
+    // --- TỐI ƯU 2: Dùng useMemo thay cho applyFilters + useEffect ---
+    const filtered = useMemo(() => {
         let tempRows = rows;
 
         if (dept !== "all") {
@@ -160,27 +197,26 @@ export default function Home() {
             tempRows = tempRows.filter((r) => r.dateObj >= start && r.dateObj <= end);
         }
 
-        if (searchTerm) {
-            const k = searchTerm.trim().toLowerCase();
+        // Dùng debouncedSearchTerm để lọc
+        if (debouncedSearchTerm) {
+            const k = debouncedSearchTerm.trim().toLowerCase();
             tempRows = tempRows.filter((r) =>
                 Object.values(r).some((v) => v?.toString().toLowerCase().includes(k))
             );
         }
 
-        setFiltered(tempRows);
-    }, [rows, dept, fromDate, toDate, searchTerm]);
+        return tempRows;
+    }, [rows, dept, fromDate, toDate, debouncedSearchTerm]); // Phụ thuộc vào debouncedSearchTerm
 
-    useEffect(() => {
-        applyFilters();
-    }, [applyFilters]);
+    // BỎ const applyFilters = useCallback(...)
+    // BỎ useEffect(() => { applyFilters(); }, [applyFilters]);
 
-    // --- CẬP NHẬT: Thêm loading state ---
+
     const handleFileUploadData = useCallback(async (rawRows) => {
-        setIsUploading(true); // Bắt đầu upload
+        setIsUploading(true);
         try {
             const errors = [];
             const formattedData = rawRows.map((r, index) => {
-                // ... (giữ nguyên logic kiểm tra lỗi của bạn)
                 const excelRow = `dòng ${index + 2}`;
                 const employeeName = r["Tên nhân viên"] || `Không có tên`;
                 const dateStr = convertExcelDateToJSDate(r["Ngày"]);
@@ -212,12 +248,12 @@ export default function Home() {
             );
 
             enqueueSnackbar("Tải & lưu dữ liệu chấm công thành công!", { variant: "success" });
-            await loadAttendanceData();
+            await loadAttendanceData(); // Tải lại dữ liệu, 'rows' sẽ cập nhật, 'useMemo' sẽ tự chạy lại
         } catch (err) {
             console.error("Lỗi hệ thống khi xử lý file:", err);
             enqueueSnackbar("Lỗi hệ thống khi xử lý file. Vui lòng kiểm tra console.", { variant: "error" });
         } finally {
-            setIsUploading(false); // Kết thúc upload
+            setIsUploading(false);
         }
     }, [enqueueSnackbar, loadAttendanceData]);
 
@@ -225,13 +261,16 @@ export default function Home() {
         try {
             await setDoc(doc(db, "lateReasons", rowId), { [field]: value }, { merge: true });
             enqueueSnackbar("Đã lưu lý do", { variant: "success" });
+            
+            // Cập nhật state 'rows' (nguồn)
+            // 'useMemo' sẽ tự động phát hiện 'rows' thay đổi và tính toán lại 'filtered'
             setRows(prevRows => prevRows.map(row =>
                 row.id === rowId ? { ...row, [field]: value } : row
             ));
         } catch {
             enqueueSnackbar("Lỗi khi lưu lý do", { variant: "error" });
         }
-    }, [enqueueSnackbar]);
+    }, [enqueueSnackbar]); // Không cần setFiltered ở đây nữa
 
     const { handleFileUpload } = useFileUpload(handleFileUploadData);
 
@@ -240,18 +279,18 @@ export default function Home() {
             enqueueSnackbar("Chọn đủ Từ ngày và Đến ngày để in", { variant: "warning" });
             return;
         }
+        // 'filtered' ở đây đã là biến được 'useMemo' tính toán
         printStyledAttendance(filtered, dept === "all" ? "Tất cả" : dept, fromDate, toDate, includeSaturday);
     };
 
-    // --- HÀM MỚI: Xóa bộ lọc ---
     const handleClearFilters = () => {
-        setSearchTerm("");
+        setSearchTerm(""); // setDebouncedSearchTerm sẽ được trigger bởi useEffect
         setDept("all");
         setFromDate(null);
         setToDate(null);
+        // Không cần setFiltered, useMemo sẽ tự chạy lại
     };
 
-    // --- CẬP NHẬT: Trạng thái loading ban đầu ---
     if (isLoading) return (
         <Box sx={{ mt: 8, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
             <CircularProgress />
@@ -278,7 +317,7 @@ export default function Home() {
                     </Box>
                     <Divider />
 
-                    {/* --- KHU VỰC LỌC ĐƯỢC TỐI ƯU --- */}
+                    {/* KHU VỰC LỌC: Đã tối ưu */}
                     <Box>
                         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                             <Typography variant="h6" fontWeight="bold">
@@ -299,8 +338,8 @@ export default function Home() {
                                     fullWidth
                                     size="small"
                                     label="Tìm kiếm theo tên, bộ phận..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    value={searchTerm} // value trỏ đến searchTerm
+                                    onChange={(e) => setSearchTerm(e.target.value)} // onChange cập nhật searchTerm
                                     InputProps={{
                                         startAdornment: (
                                             <InputAdornment position="start">
@@ -321,7 +360,7 @@ export default function Home() {
                                         onChange={setFromDate}
                                         slots={{ textField: TextField }}
                                         slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                                    />                </LocalizationProvider>
+                                    />                                </LocalizationProvider>
                             </Grid>
                             <Grid item xs={12} sm={6}>
                                 <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -331,7 +370,7 @@ export default function Home() {
                                         onChange={setToDate}
                                         slots={{ textField: TextField }}
                                         slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                                    />                </LocalizationProvider>
+                                    />                                </LocalizationProvider>
                             </Grid>
                         </Grid>
                     </Box>
@@ -355,7 +394,7 @@ export default function Home() {
                 </Stack>
             </Paper>
 
-            {/* --- CẬP NHẬT: Xử lý trạng thái rỗng --- */}
+            {/* Trạng thái rỗng: Dùng 'filtered' đã 'useMemo' */}
             {filtered.length > 0 ? (
                 <AttendanceTable
                     rows={filtered}

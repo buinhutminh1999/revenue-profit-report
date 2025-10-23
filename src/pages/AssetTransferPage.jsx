@@ -15,7 +15,7 @@ import { AssetListPrintTemplate } from "../components/AssetListPrintTemplate";
 import { AssetSummaryPrintTemplate } from "../components/AssetSummaryPrintTemplate";
 import { RequestPrintTemplate } from "../components/RequestPrintTemplate";
 import { CheckCircleOutline, GroupWork } from "@mui/icons-material";
-import { ALL_STATUS, reportStatusConfig, reportWorkflows, requestStatusConfig, statusConfig } from "../utils/constants";
+import { ALL_STATUS, reportStatusConfig, reportWorkflows, requestStatusConfig, statusConfig } from "../utils/constants.jsx";
 import { AssetLabelPrintTemplate } from "../components/AssetLabelPrintTemplate";
 
 const shortId = (id) => (id ? id.slice(0, 6) : "");
@@ -2111,7 +2111,6 @@ export default function AssetTransferPage() {
                     <Typography color="text.secondary">Theo dõi, luân chuyển và quản lý các yêu cầu thay đổi tài sản.</Typography>
                 </Box>
                 {/* Nút hành động chính thay đổi theo Tab */}
-                {tabIndex === 0}
                 {tabIndex === 1 && <Button variant="contained" size="large" startIcon={<ArrowRightLeft />} onClick={handleOpenTransferModal}>Tạo Phiếu Luân Chuyển</Button>}
                 {tabIndex === 2 && (
                     canManageAssets && (

@@ -1,10 +1,11 @@
 // functions/utils/numberUtils.js
 
 /**
- * toNum(v)
- * Chuyển đổi chuỗi thành số, xử lý các định dạng phức tạp.
- */
-exports.toNum = function (v) {
+ * toNum(v)
+ * Chuyển đổi chuỗi thành số, xử lý các định dạng phức tạp.
+ */
+// Đã sửa: dùng "export function"
+export function toNum(v) {
   if (v == null) return 0;
   if (typeof v === "number" && Number.isFinite(v)) {
     return Math.round(v);
@@ -60,16 +61,19 @@ exports.toNum = function (v) {
   return Number.isFinite(n) ? Math.round(sign * n) : 0;
 };
 
-exports.parseNumber = (value) => exports.toNum(value);
+// Đã sửa: dùng "export const" và bỏ "exports." bên trong
+export const parseNumber = (value) => toNum(value);
 
-exports.formatNumber = (v) => {
+// Đã sửa: dùng "export const"
+export const formatNumber = (v) => {
   const n = Number(v);
   return Number.isFinite(n)
     ? n.toLocaleString("en-US", { maximumFractionDigits: 0 })
     : v;
 };
 
-exports.normalize = function (str = "") {
+// Đã sửa: dùng "export function"
+export function normalize(str = "") {
   return str
     .toLowerCase()
     .normalize("NFD")
