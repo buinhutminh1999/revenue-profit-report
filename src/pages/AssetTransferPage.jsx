@@ -197,10 +197,6 @@ const WorkflowCard = ({
                     },
                     borderLeft: isHighlighted ? '4px solid' : '1px solid',
                     borderColor: isHighlighted ? 'primary.main' : 'divider',
-                    '&:hover': {
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                        borderColor: 'primary.main',
-                    }
                 }}
             >
                 {/* Phần nội dung chính của thẻ */}
