@@ -2,6 +2,24 @@ import { isLate, isEarly, isTimeString } from "./timeUtils";
 
 const WEEKDAYS = ["Chủ Nhật", "Hai", "Ba", "Tư", "Năm", "Sáu", "Bảy"];
 
+// --- THAY ĐỔI 1: Sao chép đối tượng logic thời gian từ AttendanceTable ---
+const TIME_THRESHOLDS = {
+    // Logic của Xây Dựng Bách Khoa (Mặc định)
+    BKXD: {
+        S1_LATE: 7 * 60 + 15,  // 07:15
+        S2_EARLY: 11 * 60 + 15, // 11:15
+        C1_LATE: 13 * 60,       // 13:00
+        C2_EARLY: 17 * 60,      // 17:00
+    },
+    // Logic của Bách Khoa Châu Thành (Mới)
+    BKCT: {
+        S1_LATE: 7 * 60,        // 07:00
+        S2_EARLY: 11 * 60,      // 11:00
+        C1_LATE: 13 * 60,       // 13:00 (Như cũ)
+        C2_EARLY: 17 * 60,      // 17:00 (Như cũ)
+    }
+};
+
 function parseDateString(str) {
   const [dd, mm, yyyy] = str.split("/").map(Number);
   return new Date(yyyy, mm - 1, dd);
@@ -12,14 +30,19 @@ function toMinutes(timeStr) {
   return h * 60 + m;
 }
 
+// --- THAY ĐỔI 2: Thêm 'company' vào tham số của hàm ---
 export function printStyledAttendance(
   rowsToPrint,
   dept,
   fromDate,
   toDate,
-  includeSaturday = false
+  includeSaturday = false,
+  company = "BKXD" // Thêm tham số này, mặc định là "BKXD"
 ) {
   if (!rowsToPrint.length) return;
+
+  // --- THAY ĐỔI 3: Chọn logic dựa trên 'company' ---
+  const logic = TIME_THRESHOLDS[company] || TIME_THRESHOLDS.BKXD;
 
   const firstDate = rowsToPrint[0].Ngày;
   const lastDate = rowsToPrint[rowsToPrint.length - 1].Ngày;
@@ -43,7 +66,7 @@ export function printStyledAttendance(
         font-size: 12px;
       }
       th { background: #f2f2f2; }
-      .late { background: #FFCCCC; }
+      .late { background: #FFCCCC; } /* Đây là class tô màu */
       .signature { display: flex; justify-content: space-between; margin-top: 40px; }
       .signature div { width: 40%; text-align: center; }
       .signature p { font-weight: bold; margin-bottom: 60px; }
@@ -58,15 +81,12 @@ export function printStyledAttendance(
       const isSat = dateObj.getDay() === 6;
       const hideSat = isSat && !includeSaturday;
 
-      // Gom và sort giờ
       const allTimes = [r.S1, r.S2, r.C1, r.C2]
         .filter(isTimeString)
         .sort((a, b) => toMinutes(a) - toMinutes(b));
       
-      // Tính S2 cho mọi ngày: luôn hiển thị r.S2 nếu có, còn không thì ❌
       const S2calc = r.S2 || "❌";
 
-      // Tính C1, C2
       let C1calc, C2calc;
       if (isSat) {
         if (!includeSaturday) {
@@ -83,6 +103,7 @@ export function printStyledAttendance(
       const mReason = (r.morning || "").trim();
       const aReason = (r.afternoon || "").trim();
 
+      // --- THAY ĐỔI 4: Sử dụng 'logic' động thay vì số cứng ---
       return `
         <tr>
           <td>${i + 1}</td>
@@ -90,30 +111,24 @@ export function printStyledAttendance(
           <td>${r.Ngày}</td>
           <td>${weekday}</td>
 
-          <!-- S1 -->
-          <td class="${isTimeString(r.S1) && isLate(r.S1, 7*60+15) ? 'late' : ''}">
+          <td class="${isTimeString(r.S1) && isLate(r.S1, logic.S1_LATE) ? 'late' : ''}">
             ${r.S1 || '❌'}
           </td>
 
-          <!-- S2 -->
-          <td class="${isTimeString(S2calc) && isEarly(S2calc, 11*60+15) ? 'late' : ''}">
+          <td class="${isTimeString(S2calc) && isEarly(S2calc, logic.S2_EARLY) ? 'late' : ''}">
             ${S2calc}
           </td>
 
-          <!-- Lý do Sáng -->
           <td>${mReason}</td>
 
-          <!-- C1 -->
-          <td class="${!hideSat && isTimeString(C1calc) && isLate(C1calc, 13*60) ? 'late' : ''}">
+          <td class="${!hideSat && isTimeString(C1calc) && isLate(C1calc, logic.C1_LATE) ? 'late' : ''}">
             ${C1calc}
           </td>
 
-          <!-- C2 -->
-          <td class="${!hideSat && isTimeString(C2calc) && isEarly(C2calc, 17*60) ? 'late' : ''}">
+          <td class="${!hideSat && isTimeString(C2calc) && isEarly(C2calc, logic.C2_EARLY) ? 'late' : ''}">
             ${C2calc}
           </td>
 
-          <!-- Lý do Chiều -->
           <td>${hideSat ? '—' : aReason}</td>
         </tr>
       `;

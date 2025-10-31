@@ -1,5 +1,5 @@
 // src/pages/Home.js
-import React, { useState, useEffect, useCallback, useMemo } from "react"; // Thêm useMemo
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
     Box,
     Button,
@@ -15,6 +15,7 @@ import {
     Stack,
     IconButton,
     InputAdornment,
+    MenuItem, // --- THAY ĐỔI 1: Thêm MenuItem ---
 } from "@mui/material";
 import { LocalizationProvider, DatePicker, MobileDatePicker } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -23,7 +24,7 @@ import { Print, UploadFile, Search, Clear } from "@mui/icons-material";
 
 import FileUpload from "../../components/FileUpload";
 import DepartmentFilter from "../../components/DepartmentFilter";
-import FilterToolbar from "../../components/FilterToolbar";
+// Bỏ FilterToolbar (nếu bạn không dùng nữa)
 import AttendanceTable from "../../components/AttendanceTable";
 import {
     convertExcelDateToJSDate,
@@ -36,45 +37,45 @@ import { db } from "../../services/firebase-config";
 import { useSnackbar } from "notistack";
 import { useFileUpload } from "../../hooks/useFileUpload";
 
-// (Giữ nguyên các hàm toDateString, parseDMY, isValidTimeString của bạn)
-
+// (Giữ nguyên các hàm toDateString, parseDMY, isValidTimeString, getPreviousWeek)
+// ... (Các hàm này không thay đổi) ...
 const toDateString = (val) => {
-  if (!val) return "N/A";
-  let d = null;
-  if (typeof val === "string") {
-    const m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    d = m ? new Date(+m[3], +m[2] - 1, +m[1]) : new Date(val);
-  } else if (val instanceof Date) {
-    d = val;
-  } else if (val && typeof val.toDate === "function") {
-    d = val.toDate();
-  } else if (val && typeof val.seconds === "number") {
-    d = new Date(val.seconds * 1000);
-  } else if (val && typeof val._seconds === "number") {
-    d = new Date(val._seconds * 1000);
-  } else {
-    d = new Date(val);
-  }
-  if (!d || Number.isNaN(d.getTime())) {
-    console.error("Không thể chuyển đổi giá trị ngày tháng không hợp lệ:", val);
-    return "Ngày lỗi";
-  }
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+    if (!val) return "N/A";
+    let d = null;
+    if (typeof val === "string") {
+        const m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        d = m ? new Date(+m[3], +m[2] - 1, +m[1]) : new Date(val);
+    } else if (val instanceof Date) {
+        d = val;
+    } else if (val && typeof val.toDate === "function") {
+        d = val.toDate();
+    } else if (val && typeof val.seconds === "number") {
+        d = new Date(val.seconds * 1000);
+    } else if (val && typeof val._seconds === "number") {
+        d = new Date(val._seconds * 1000);
+    } else {
+        d = new Date(val);
+    }
+    if (!d || Number.isNaN(d.getTime())) {
+        console.error("Không thể chuyển đổi giá trị ngày tháng không hợp lệ:", val);
+        return "Ngày lỗi";
+    }
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
 };
 
 const parseDMY = (s) => {
-  if (!s || typeof s !== "string") return null;
-  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!m) {
-    const d = new Date(s);
-    return Number.isNaN(+d) ? null : d;
-  }
-  const dd = +m[1], mm = +m[2], yyyy = +m[3];
-  const d = new Date(yyyy, mm - 1, dd);
-  return Number.isNaN(+d) ? null : d;
+    if (!s || typeof s !== "string") return null;
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) {
+        const d = new Date(s);
+        return Number.isNaN(+d) ? null : d;
+    }
+    const dd = +m[1], mm = +m[2], yyyy = +m[3];
+    const d = new Date(yyyy, mm - 1, dd);
+    return Number.isNaN(+d) ? null : d;
 };
 
 const isValidTimeString = (timeString) => {
@@ -83,55 +84,52 @@ const isValidTimeString = (timeString) => {
     return timeRegex.test(timeString);
 };
 
-// --- HÀM MỚI: LẤY TUẦN TRƯỚC (THỨ 2 - THỨ 7) ---
 const getPreviousWeek = () => {
     const today = new Date();
     const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ... 6=Sat
-
-    // 1. Tìm ngày thứ 2 của tuần HIỆN TẠI
-    // Nếu là Chủ Nhật (0), lùi 6 ngày. Nếu là T2 (1), lùi 0...
     const diffToCurrentMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    
-    // new Date(y, m, d) sẽ tự động set 00:00:00
     const currentMonday = new Date(
-        today.getFullYear(), 
-        today.getMonth(), 
+        today.getFullYear(),
+        today.getMonth(),
         today.getDate() - diffToCurrentMonday
     );
-
-    // 2. Lấy ngày Thứ 2 của tuần TRƯỚC (lùi 7 ngày)
-    // Đây là fromDate
     const lastMonday = new Date(currentMonday);
     lastMonday.setDate(currentMonday.getDate() - 7);
-
-    // 3. Lấy ngày Thứ 7 của tuần TRƯỚC (Thứ 2 + 5 ngày)
-    // Đây là toDate
     const lastSaturday = new Date(lastMonday);
     lastSaturday.setDate(lastMonday.getDate() + 5);
-
     return { from: lastMonday, to: lastSaturday };
 };
-// --- KẾT THÚC HÀM MỚI ---
 
+
+// --- THAY ĐỔI 2: Định nghĩa các lựa chọn công ty ---
+const companyOptions = [
+    { value: "BKXD", label: "Công ty CPXD Bách Khoa" },
+    { value: "BKCT", label: "Công ty Bách Khoa Châu Thành" },
+];
 
 export default function Home() {
     const isMobile = useMediaQuery("(max-width:600px)");
-    const [rows, setRows] = useState([]); // Đây là state "nguồn", chứa TẤT CẢ dữ liệu
-    // const [filtered, setFiltered] = useState([]); // <-- BỎ STATE NÀY
+    const [rows, setRows] = useState([]);
     const [depts, setDepts] = useState([]);
     const [dept, setDept] = useState("all");
     const [fromDate, setFromDate] = useState(() => getPreviousWeek().from);
     const [toDate, setToDate] = useState(() => getPreviousWeek().to);
-    const [searchTerm, setSearchTerm] = useState(""); // State cho input (thay đổi tức thì)
-    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // State cho filtering (thay đổi sau 300ms)
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
     const [includeSaturday, setIncludeSaturday] = useState(false);
 
+    // --- THAY ĐỔI 3: Thêm state cho công ty được chọn ---
+    const [selectedCompany, setSelectedCompany] = useState(
+        () => localStorage.getItem("defaultCompany") || "BKXD" // Lấy "defaultCompany" từ localStorage, nếu không có thì mặc định là "BKXD"
+    );
     const [isLoading, setIsLoading] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
 
     const { enqueueSnackbar } = useSnackbar();
     const Picker = isMobile ? MobileDatePicker : DatePicker;
 
+    // (Các hàm loadAttendanceData, useEffect, useMemo, handleFileUploadData, handleReasonSave... 
+    // ... KHÔNG CÓ THAY ĐỔI)
     const loadAttendanceData = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -171,46 +169,37 @@ export default function Home() {
 
     useEffect(() => { loadAttendanceData(); }, [loadAttendanceData]);
 
-    // --- TỐI ƯU 1: Thêm useEffect để debounce searchTerm ---
     useEffect(() => {
         const handler = setTimeout(() => {
             setDebouncedSearchTerm(searchTerm);
-        }, 300); // Đợi 300ms sau khi người dùng ngừng gõ
-
+        }, 300);
         return () => {
-            clearTimeout(handler); // Hủy bỏ timer nếu người dùng gõ tiếp
+            clearTimeout(handler);
         };
-    }, [searchTerm]); // Chỉ chạy lại khi searchTerm thay đổi
+    }, [searchTerm]);
+    // (useEffect LƯU localStorage)
+    useEffect(() => {
+        localStorage.setItem("defaultCompany", selectedCompany);
+    }, [selectedCompany]);
 
-
-    // --- TỐI ƯU 2: Dùng useMemo thay cho applyFilters + useEffect ---
     const filtered = useMemo(() => {
         let tempRows = rows;
-
         if (dept !== "all") {
             tempRows = tempRows.filter((r) => r["Tên bộ phận"] === dept);
         }
-
         if (fromDate && toDate) {
             const start = startOfDay(fromDate);
             const end = endOfDay(toDate);
             tempRows = tempRows.filter((r) => r.dateObj >= start && r.dateObj <= end);
         }
-
-        // Dùng debouncedSearchTerm để lọc
         if (debouncedSearchTerm) {
             const k = debouncedSearchTerm.trim().toLowerCase();
             tempRows = tempRows.filter((r) =>
                 Object.values(r).some((v) => v?.toString().toLowerCase().includes(k))
             );
         }
-
         return tempRows;
-    }, [rows, dept, fromDate, toDate, debouncedSearchTerm]); // Phụ thuộc vào debouncedSearchTerm
-
-    // BỎ const applyFilters = useCallback(...)
-    // BỎ useEffect(() => { applyFilters(); }, [applyFilters]);
-
+    }, [rows, dept, fromDate, toDate, debouncedSearchTerm]);
 
     const handleFileUploadData = useCallback(async (rawRows) => {
         setIsUploading(true);
@@ -248,7 +237,7 @@ export default function Home() {
             );
 
             enqueueSnackbar("Tải & lưu dữ liệu chấm công thành công!", { variant: "success" });
-            await loadAttendanceData(); // Tải lại dữ liệu, 'rows' sẽ cập nhật, 'useMemo' sẽ tự chạy lại
+            await loadAttendanceData();
         } catch (err) {
             console.error("Lỗi hệ thống khi xử lý file:", err);
             enqueueSnackbar("Lỗi hệ thống khi xử lý file. Vui lòng kiểm tra console.", { variant: "error" });
@@ -261,34 +250,43 @@ export default function Home() {
         try {
             await setDoc(doc(db, "lateReasons", rowId), { [field]: value }, { merge: true });
             enqueueSnackbar("Đã lưu lý do", { variant: "success" });
-            
-            // Cập nhật state 'rows' (nguồn)
-            // 'useMemo' sẽ tự động phát hiện 'rows' thay đổi và tính toán lại 'filtered'
+
             setRows(prevRows => prevRows.map(row =>
                 row.id === rowId ? { ...row, [field]: value } : row
             ));
         } catch {
             enqueueSnackbar("Lỗi khi lưu lý do", { variant: "error" });
         }
-    }, [enqueueSnackbar]); // Không cần setFiltered ở đây nữa
+    }, [enqueueSnackbar]);
 
     const { handleFileUpload } = useFileUpload(handleFileUploadData);
+
+    // Bên trong src/pages/Home.js
 
     const handlePrint = () => {
         if (!fromDate || !toDate) {
             enqueueSnackbar("Chọn đủ Từ ngày và Đến ngày để in", { variant: "warning" });
             return;
         }
-        // 'filtered' ở đây đã là biến được 'useMemo' tính toán
-        printStyledAttendance(filtered, dept === "all" ? "Tất cả" : dept, fromDate, toDate, includeSaturday);
+
+        // --- THAY ĐỔI DUY NHẤT Ở ĐÂY ---
+        printStyledAttendance(
+            filtered,
+            dept === "all" ? "Tất cả" : dept,
+            fromDate,
+            toDate,
+            includeSaturday,
+            selectedCompany // <-- Thêm biến này vào cuối
+        );
     };
 
+    // --- ĐẶT CÁC HÀM HANDLER TẠI ĐÂY ---
     const handleClearFilters = () => {
-        setSearchTerm(""); // setDebouncedSearchTerm sẽ được trigger bởi useEffect
+        setSearchTerm("");
         setDept("all");
         setFromDate(null);
         setToDate(null);
-        // Không cần setFiltered, useMemo sẽ tự chạy lại
+        // setSelectedCompany("BKXD"); // Như bạn nói, có thể bỏ dòng này
     };
 
     if (isLoading) return (
@@ -306,6 +304,7 @@ export default function Home() {
 
             <Paper elevation={2} sx={{ p: isMobile ? 2 : 3, mb: 3, background: theme => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50' }}>
                 <Stack spacing={3}>
+                    {/* Khu vực Tải Dữ Liệu (Không đổi) */}
                     <Box>
                         <Typography variant="h6" fontWeight="bold" gutterBottom>
                             Tải Dữ Liệu Chấm Công
@@ -317,7 +316,7 @@ export default function Home() {
                     </Box>
                     <Divider />
 
-                    {/* KHU VỰC LỌC: Đã tối ưu */}
+                    {/* KHU VỰC LỌC: ĐÃ CẬP NHẬT */}
                     <Box>
                         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                             <Typography variant="h6" fontWeight="bold">
@@ -332,14 +331,16 @@ export default function Home() {
                                 Xóa bộ lọc
                             </Button>
                         </Stack>
+
+                        {/* --- THAY ĐỔI 5: Cập nhật Grid layout và thêm Select --- */}
                         <Grid container spacing={2} alignItems="center">
-                            <Grid item xs={12} md={6}>
+                            <Grid item xs={12} md={4}> {/* Đổi từ md={6} */}
                                 <TextField
                                     fullWidth
                                     size="small"
                                     label="Tìm kiếm theo tên, bộ phận..."
-                                    value={searchTerm} // value trỏ đến searchTerm
-                                    onChange={(e) => setSearchTerm(e.target.value)} // onChange cập nhật searchTerm
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
                                     InputProps={{
                                         startAdornment: (
                                             <InputAdornment position="start">
@@ -349,9 +350,29 @@ export default function Home() {
                                     }}
                                 />
                             </Grid>
-                            <Grid item xs={12} md={6}>
+                            <Grid item xs={12} md={4}> {/* Đổi từ md={6} */}
                                 <DepartmentFilter depts={depts} value={dept} onChange={setDept} labels={{ all: "Tất cả bộ phận" }} />
                             </Grid>
+
+                            {/* --- THÊM SELECT CÔNG TY --- */}
+                            <Grid item xs={12} md={4}>
+                                <TextField
+                                    select
+                                    fullWidth
+                                    size="small"
+                                    label="Chọn logic chấm công"
+                                    value={selectedCompany} // Vẫn đọc từ state
+                                    onChange={(e) => setSelectedCompany(e.target.value)} // Vẫn cập nhật state
+                                >
+                                    {companyOptions.map((option) => (
+                                        <MenuItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+                            </Grid>
+                            {/* --------------------------- */}
+
                             <Grid item xs={12} sm={6}>
                                 <LocalizationProvider dateAdapter={AdapterDateFns}>
                                     <Picker
@@ -360,7 +381,8 @@ export default function Home() {
                                         onChange={setFromDate}
                                         slots={{ textField: TextField }}
                                         slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                                    />                                </LocalizationProvider>
+                                    />
+                                </LocalizationProvider>
                             </Grid>
                             <Grid item xs={12} sm={6}>
                                 <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -370,12 +392,14 @@ export default function Home() {
                                         onChange={setToDate}
                                         slots={{ textField: TextField }}
                                         slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                                    />                                </LocalizationProvider>
+                                    />
+                                </LocalizationProvider>
                             </Grid>
                         </Grid>
                     </Box>
                     <Divider />
 
+                    {/* Khu vực Hành Động (Không đổi) */}
                     <Box>
                         <Typography variant="h6" fontWeight="bold" gutterBottom>
                             Hành Động
@@ -394,13 +418,14 @@ export default function Home() {
                 </Stack>
             </Paper>
 
-            {/* Trạng thái rỗng: Dùng 'filtered' đã 'useMemo' */}
+            {/* --- THAY ĐỔI 6: Truyền 'company' prop vào AttendanceTable --- */}
             {filtered.length > 0 ? (
                 <AttendanceTable
                     rows={filtered}
                     includeSaturday={includeSaturday}
                     onReasonSave={handleReasonSave}
                     isMobile={isMobile}
+                    company={selectedCompany} // <-- TRUYỀN PROP VÀO ĐÂY
                 />
             ) : (
                 <Box sx={{ mt: 4, textAlign: 'center' }}>
