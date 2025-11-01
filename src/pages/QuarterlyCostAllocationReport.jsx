@@ -751,33 +751,43 @@ export default function QuarterlyCostAllocationReport() {
             // Lấy các dòng đã lưu (nếu có)
             const savedRowsMap = new Map((reportData.mainRows || []).map(r => [r.id, r]));
 
-            // TẠO DỮ LIỆU BẢNG:
+           // TẠO DỮ LIỆU BẢNG:
             const mergedRows = items.map(item => {
                 const savedRow = savedRowsMap.get(item.id);
                 const prevCumCurrent = prevQuarterCumCurrentMap.get(item.id) || 0; // Thiếu LK quý trước
 
-                // Lấy %DT: (Ưu tiên: 1. Đã lưu, 2. Mặc định null)
+                // [SỬA] Lấy %DT và CarryOver cho type HIỆN TẠI
                 const savedPercent = savedRow?.byType?.[typeFilter]?.[pctKey];
                 const percent = (typeof savedPercent === 'number') ? savedPercent : null;
 
-                // Lấy CARRYOVER: (Ưu tiên: 1. Đã lưu, 2. "Thiếu LK" quý trước)
-                const savedCarryOver = savedRow?.byType?.[typeFilter]?.carryOver;
+                const savedCarryOver = savedRow?.byType?.[typeFilter]?.['carryOver'];
                 const carryOver = (typeof savedCarryOver === 'number') ? savedCarryOver : prevCumCurrent;
 
-                // Tạo row
+                // [SỬA] Lấy TOÀN BỘ byType đã lưu (nếu có)
+                const existingByType = savedRow?.byType || {};
+
+                // [SỬA] Tạo object cho type hiện tại
+                const currentTypeData = {
+                    ...(existingByType[typeFilter] || {}), // Giữ lại các field khác của type này (nếu có)
+                    
+                    [pctKey]: percent, // Cập nhật %DT
+                    carryOver: carryOver, // Cập nhật CarryOver
+
+                    // Đảm bảo các field khác cũng được load đúng
+                    used: savedRow?.byType?.[typeFilter]?.used || 0,
+                    allocated: 0, // Sẽ được điền từ originalMainRowsMap
+                    cumQuarterOnly: savedRow?.byType?.[typeFilter]?.cumQuarterOnly || 0,
+                    surplusCumCurrent: savedRow?.byType?.[typeFilter]?.surplusCumCurrent || 0,
+                    cumCurrent: savedRow?.byType?.[typeFilter]?.cumCurrent || 0,
+                };
+
+                // [SỬA] Tạo baseRow
                 const baseRow = {
                     id: item.id,
                     item: item.item,
                     byType: {
-                        [typeFilter]: {
-                            [pctKey]: percent,
-                            used: savedRow?.byType?.[typeFilter]?.used || 0,
-                            allocated: 0, // Sẽ được điền từ originalMainRowsMap
-                            carryOver: carryOver, // <--- LOGIC MỚI
-                            cumQuarterOnly: savedRow?.byType?.[typeFilter]?.cumQuarterOnly || 0,
-                            surplusCumCurrent: savedRow?.byType?.[typeFilter]?.surplusCumCurrent || 0,
-                            cumCurrent: savedRow?.byType?.[typeFilter]?.cumCurrent || 0,
-                        }
+                        ...existingByType, // <-- BƯỚC 1: Copy tất cả type đã lưu (vd: "KH-ĐT")
+                        [typeFilter]: currentTypeData // <-- BƯỚC 2: Ghi đè/tạo mới type hiện tại (vd: "Thi công")
                     }
                 };
 
@@ -833,8 +843,15 @@ export default function QuarterlyCostAllocationReport() {
     const columns = useMemo(() => {
         const staticStartCols = [{ field: 'item', headerName: 'Khoản mục', sticky: true, minWidth: 350, type: 'string' }, { field: 'percentDT', headerName: '% DT', minWidth: 100, type: 'percent' },];
         const projectCols = visibleProjects.map((p) => ({ field: p.id, headerName: p.name.toUpperCase(), minWidth: 160, type: 'number', }));
-        const staticEndCols = [{ field: 'used', headerName: `Sử dụng ${quarterStr}`, minWidth: 160, type: 'number' }, { field: 'allocated', headerName: 'Phân bổ', minWidth: 160, type: 'number' }, { field: 'carryOver', headerName: 'Vượt kỳ trước', minWidth: 160, type: 'number' }, { field: 'cumQuarterOnly', headerName: `Vượt ${quarterStr}`, minWidth: 160, type: 'number' }, { field: 'surplusCumCurrent', headerName: `Thặng dư LK ${quarterStr}`, minWidth: 160, type: 'number' }, { field: 'cumCurrent', headerName: `Thiếu LK ${quarterStr}`, minWidth: 160, type: 'number' },];
-        return [...staticStartCols, ...projectCols, ...staticEndCols];
+        const staticEndCols = [
+            { field: 'used', headerName: `Sử dụng ${quarterStr}`, minWidth: 160, type: 'number' },
+            { field: 'allocated', headerName: 'Phân bổ Khả Dụng', minWidth: 160, type: 'number' }, // <--- ĐỔI TÊN
+            { field: 'allocatedOriginal', headerName: 'Phân bổ Gốc', minWidth: 160, type: 'number' }, // <--- THÊM DÒNG NÀY
+            { field: 'carryOver', headerName: 'Vượt kỳ trước', minWidth: 160, type: 'number' },
+            { field: 'cumQuarterOnly', headerName: `Vượt ${quarterStr}`, minWidth: 160, type: 'number' },
+            { field: 'surplusCumCurrent', headerName: `Thặng dư LK ${quarterStr}`, minWidth: 160, type: 'number' },
+            { field: 'cumCurrent', headerName: `Thiếu LK ${quarterStr}`, minWidth: 160, type: 'number' },
+        ]; return [...staticStartCols, ...projectCols, ...staticEndCols];
     }, [visibleProjects, quarterStr]);
 
     // Tính toán TỔNG (Giữ nguyên)
@@ -844,10 +861,23 @@ export default function QuarterlyCostAllocationReport() {
             if (row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') return; const typeData = row.byType?.[typeFilter] || {};
             fieldsToSum.forEach(field => { let value = 0; if (visibleProjects.some(p => p.id === field)) { value = toNum(row[field]); } else if (typeData[field] !== undefined && field !== 'allocated' && field !== 'percentDT') { value = toNum(typeData[field]); } totals[field] += value; });
         });
-        let allocatedTotal = 0; originalMainRowsData.forEach(row => { if (row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') return; allocatedTotal += toNum(row[valKey]); }); totals['allocated'] = allocatedTotal;
-        totals['percentDT'] = null;
-        return totals;
-    }, [mainRowsData, originalMainRowsData, visibleProjects, columns, typeFilter, valKey]);
+     
+        let allocatedOriginalTotal = 0;
+        originalMainRowsData.forEach(row => {
+            if (row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') return;
+            allocatedOriginalTotal += toNum(row[valKey]);
+        });
+        
+        // Gán vào cột Gốc
+        totals['allocatedOriginal'] = allocatedOriginalTotal;
+        
+        // Gán vào cột Khả Dụng (allocated)
+        // (totals['carryOver'] đã được tính trong vòng lặp trước đó)
+        totals['allocated'] = allocatedOriginalTotal - totals['carryOver'];
+
+        totals['percentDT'] = null;
+        return totals;
+    }, [mainRowsData, originalMainRowsData, visibleProjects, columns, typeFilter, valKey]);
     const showSnack = useCallback((msg, sev = "success") => { setSnack({ open: true, msg, sev }); }, []);
 
     // Hàm lấy Chi phí trực tiếp (Giữ nguyên)
@@ -1060,10 +1090,11 @@ export default function QuarterlyCostAllocationReport() {
                 projectDeficits: calculatedProjectDeficits
             }
         }));
-        const cumValue = newTotalUsed - totalBudget + finalCarryOver;
-        const newSurplusCumCurrent = Math.max(cumValue, 0);
-        const newCumCurrent = Math.min(cumValue, 0);
-        const newCumQuarterOnly = Math.min(newTotalUsed - totalBudget, 0); // Sẽ = 0
+        const cumValue = (newTotalUsed - originalAllocated) + finalCarryOver; // <--- SỬA THÀNH DÒNG NÀY
+        const newSurplusCumCurrent = Math.max(cumValue, 0);
+        const newCumCurrent = Math.min(cumValue, 0);
+        // [SỬA] Tính Vượt Q bằng Phân bổ GỐC
+        const newCumQuarterOnly = Math.min(newTotalUsed - originalAllocated, 0); // <--- SỬA DÒNG NÀY
         setMainRowsData(prevData => {
 
             setDirtyRows(prev => new Set(prev).add(rowId));
@@ -1249,7 +1280,7 @@ export default function QuarterlyCostAllocationReport() {
                 <TableContainer sx={{ maxHeight: 'calc(100vh - 220px)' }}>
                     <Table stickyHeader size="small">
                         <TableHead>
-                            <TableRow> {columns.map((column) => (<TableCell key={column.field} align={column.sticky ? 'left' : 'right'} sx={{ textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 600, color: (theme) => theme.palette.text.secondary, backgroundColor: (theme) => theme.palette.grey[100], minWidth: column.minWidth, whiteSpace: 'nowrap', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, ...(column.sticky && { position: 'sticky', left: 0, top: 0, zIndex: 20 }), ...(!column.sticky && { position: 'sticky', top: 0, zIndex: 10 }), }}> {column.headerName} </TableCell>))} </TableRow>
+                            <TableRow>{columns.map((column) => (<TableCell key={column.field} align={column.sticky ? 'left' : 'right'} sx={{ textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 600, color: (theme) => theme.palette.text.secondary, backgroundColor: (theme) => theme.palette.grey[100], minWidth: column.minWidth, whiteSpace: 'nowrap', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, ...(column.sticky && { position: 'sticky', left: 0, top: 0, zIndex: 20 }), ...(!column.sticky && { position: 'sticky', top: 0, zIndex: 10 }), }}> {column.headerName} </TableCell>))} </TableRow>
                         </TableHead>
                         <TableBody>
                             {isLoading ? (
@@ -1264,12 +1295,17 @@ export default function QuarterlyCostAllocationReport() {
                                     const rowDataFromState = mainRowsData.find(r => r.id === itemRow.id);
                                     const rowDataOriginal = originalMainRowsMap.get(itemRow.id);
                                     const typeData = rowDataFromState?.byType?.[typeFilter] || {};
-                                    // [THÊM MỚI] Tính trước giá trị Vượt kỳ trước
+                                    
+                                    // [SỬA] Tính trước giá trị Vượt kỳ trước
                                     let carryOverValue = typeData['carryOver']; // Lấy từ state
                                     if (typeof carryOverValue !== 'number') {
                                         // Nếu không có, lấy từ GỐC
                                         carryOverValue = rowDataOriginal ? toNum(rowDataOriginal.byType?.[typeFilter]?.carryOver || 0) : 0;
                                     }
+
+                                    // [SỬA] Tính Phân bổ GỐC (đã di chuyển lên đây)
+                                    const originalAllocated = rowDataOriginal ? toNum(rowDataOriginal[valKey]) : 0;
+
                                     const isSummaryRow = itemRow.id === 'DOANH_THU' || itemRow.id === 'TONG_CHI_PHI';
                                     const isDoanhThuRow = itemRow.id === 'DOANH_THU';
                                     let rowBgColor = (theme) => theme.palette.background.paper;
@@ -1341,11 +1377,14 @@ export default function QuarterlyCostAllocationReport() {
                                                                 {renderCell(cellValue, cellType)}
                                                             </TableCell>
                                                         )
-                                                        // ...
                                                     } else if (col.field === 'allocated') {
-                                                        // [SỬA] Lấy gốc trừ đi Vượt kỳ trước
-                                                        const originalAllocated = rowDataOriginal ? toNum(rowDataOriginal[valKey]) : 0;
-                                                        cellValue = originalAllocated - carryOverValue; // <--- LOGIC MỚI
+                                                        // [SỬA] Tính "Phân bổ Khả Dụng"
+                                                        // Dòng "const originalAllocated = ..." đã được dời lên trên
+                                                        cellValue = originalAllocated - carryOverValue;
+
+                                                    } else if (col.field === 'allocatedOriginal') {
+                                                        // [THÊM MỚI] Hiển thị "Phân bổ Gốc"
+                                                        cellValue = originalAllocated;
 
                                                     } else if (col.field === 'carryOver') {
                                                         // [SỬA] Dùng giá trị đã tính toán trước
