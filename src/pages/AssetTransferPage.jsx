@@ -403,7 +403,7 @@ export default function AssetTransferPage() {
 
     // Asset Tab states
     const [assetSearch, setAssetSearch] = useState("");
-    const [filterDeptForAsset, setFilterDeptForAsset] = useState("");
+    const [filterDeptsForAsset, setFilterDeptsForAsset] = useState([]); // <-- THAY ĐỔI Ở ĐÂY
     const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState("add");
     const [currentAsset, setCurrentAsset] = useState(null);
@@ -844,15 +844,16 @@ export default function AssetTransferPage() {
         // Ẩn record quantity = 0 để không thấy dòng “0 Cái”
         let list = assetsWithDept.filter(a => Number(a.quantity || 0) > 0);
 
-        if (filterDeptForAsset) {
-            list = list.filter((a) => a.departmentId === filterDeptForAsset);
+        // === BẮT ĐẦU THAY ĐỔI ===
+        if (filterDeptsForAsset.length > 0) { // <-- Sửa điều kiện
+            list = list.filter((a) => filterDeptsForAsset.includes(a.departmentId)); // <-- Sửa logic lọc
         }
         if (assetSearch.trim()) {
             const q = normVn(assetSearch);
             list = list.filter((a) => normVn(a.name).includes(q));
         }
         return list;
-    }, [assetsWithDept, assetSearch, filterDeptForAsset]);
+    }, [assetsWithDept, assetSearch, filterDeptsForAsset]);
     // Nhóm theo phòng ban để render header mỗi nhóm
     const groupedAssets = useMemo(() => {
         const map = new Map();
@@ -1682,14 +1683,17 @@ export default function AssetTransferPage() {
         }
     };
     const handlePasteAndSave = async () => {
-        if (!pastedText.trim() || !filterDeptForAsset) {
-            return setToast({ open: true, msg: "Vui lòng dán dữ liệu và chọn phòng ban.", severity: "warning" });
+        // === BẮT ĐẦU THAY ĐỔI ===
+        if (!pastedText.trim() || filterDeptsForAsset.length !== 1) {
+            return setToast({ open: true, msg: "Vui lòng dán dữ liệu và chọn CHỈ MỘT phòng ban.", severity: "warning" });
         }
+        const targetDepartmentId = filterDeptsForAsset[0]; // Lấy ID phòng ban duy nhất
+        // === KẾT THÚC THAY ĐỔI ===
 
         setCreating(true); // Bật trạng thái loading để vô hiệu hóa nút bấm
 
         try {
-            const selectedDept = departments.find(d => d.id === filterDeptForAsset);
+            const selectedDept = departments.find(d => d.id === targetDepartmentId);
             if (!selectedDept) {
                 throw new Error("Phòng ban đã chọn không hợp lệ. Vui lòng thử lại.");
             }
@@ -1709,7 +1713,7 @@ export default function AssetTransferPage() {
                     unit: columns[2]?.trim() || "",
                     quantity: quantity,
                     notes: columns[4]?.trim() || "",
-                    departmentId: filterDeptForAsset,
+                    departmentId: targetDepartmentId, // <-- SỬA DÒNG NÀY
                     managementBlock: selectedDept.managementBlock || null,
                 };
             });
@@ -2111,14 +2115,12 @@ export default function AssetTransferPage() {
                 {tabIndex === 2 && (
                     canManageAssets && (
                         <Stack direction="row" spacing={1}>
-                            <Tooltip title={!filterDeptForAsset ? "Vui lòng chọn một phòng ban để nhập tài sản" : ""}>
+                            <Tooltip title={filterDeptsForAsset.length !== 1 ? "Vui lòng chọn CHỈ MỘT phòng ban để nhập tài sản" : "Nhập Excel cho phòng ban đã chọn"}>
                                 <span> {/* Bọc bằng span để Tooltip hoạt động với nút bị disabled */}
                                     <Button
-                                        variant="outlined"
-                                        size="large"
-                                        startIcon={<Sheet />}
+
                                         onClick={() => setIsPasteModalOpen(true)}
-                                        disabled={!filterDeptForAsset} // <-- Thêm điều kiện này
+                                        disabled={filterDeptsForAsset.length !== 1} // <-- SỬA DÒNG NÀY
                                     >
                                         Nhập Excel
                                     </Button>
@@ -2606,19 +2608,32 @@ export default function AssetTransferPage() {
                                     value={assetSearch}
                                     onChange={(e) => setAssetSearch(e.target.value)}
                                 />
-                                <FormControl size="small" sx={{ minWidth: 220 }}>
+                                {/* === BẮT ĐẦU THAY ĐỔI: Chuyển sang Multi-select Checkbox === */}
+                                <FormControl size="small" sx={{ minWidth: 220, maxWidth: 300 }}>
                                     <InputLabel>Lọc theo phòng ban</InputLabel>
                                     <Select
-                                        value={filterDeptForAsset}
-                                        label="Lọc theo phòng ban"
-                                        onChange={(e) => setFilterDeptForAsset(e.target.value)}
+                                        multiple // <-- Cho phép chọn nhiều
+                                        value={filterDeptsForAsset} // <-- Dùng state mảng mới
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            setFilterDeptsForAsset(typeof value === 'string' ? value.split(',') : value);
+                                        }}
+                                        input={<OutlinedInput label="Lọc theo phòng ban" />}
+                                        renderValue={(selectedIds) => (
+                                            selectedIds.map(id => departments.find(d => d.id === id)?.name || id).join(', ')
+                                        )}
+                                        MenuProps={{ PaperProps: { sx: { maxHeight: 280 } } }}
                                     >
-                                        <MenuItem value=""><em>Tất cả phòng ban</em></MenuItem>
+                                        {/* Bỏ mục "Tất cả" vì có thể bỏ chọn tất cả */}
                                         {departments.map((d) => (
-                                            <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
+                                            <MenuItem key={d.id} value={d.id}>
+                                                <Checkbox checked={filterDeptsForAsset.indexOf(d.id) > -1} /> {/* <-- Thêm Checkbox */}
+                                                <ListItemText primary={d.name} />
+                                            </MenuItem>
                                         ))}
                                     </Select>
                                 </FormControl>
+                                {/* === KẾT THÚC THAY ĐỔI === */}
                                 <Box flexGrow={1} />
                                 {canManageAssets && (
                                     <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -3376,8 +3391,8 @@ export default function AssetTransferPage() {
                     <DialogContentText sx={{ mb: 2 }}>
                         Vui lòng copy các dòng từ Excel (không bao gồm tiêu đề) và dán vào ô bên dưới.
                         Đảm bảo các cột theo đúng thứ tự: <b>Tên Tài Sản, Kích Thước, ĐVT, Số Lượng, Ghi Chú</b>.
-                        Tất cả tài sản sẽ được thêm vào phòng: <b>{departments.find(d => d.id === filterDeptForAsset)?.name || "Chưa chọn"}</b>
-                    </DialogContentText>
+                        Tất cả tài sản sẽ được thêm vào phòng: <b>{departments.find(d => d.id === filterDeptsForAsset[0])?.name || "Chưa chọn"}</b>           
+                                 </DialogContentText>
                     <TextField
                         autoFocus
                         margin="dense"
@@ -3396,7 +3411,7 @@ export default function AssetTransferPage() {
                     <Button
                         onClick={handlePasteAndSave}
                         variant="contained"
-                        disabled={!pastedText.trim() || !filterDeptForAsset || creating} // Thêm 'creating' để vô hiệu hóa khi đang xử lý
+                        disabled={!pastedText.trim() || filterDeptsForAsset.length !== 1 || creating}
                     >
                         {creating ? "Đang xử lý..." : "Thêm vào danh sách"} {/* <-- SỬA LẠI THÀNH DÒNG NÀY */}
                     </Button>

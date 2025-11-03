@@ -2,14 +2,10 @@ import React, { createContext, useMemo, useState, useEffect, useCallback } from 
 import { createTheme, ThemeProvider, CssBaseline, alpha } from '@mui/material';
 
 /**
- * ERP-Modern Theme Provider (MUI v5) - v2 UPGRADED
- * - Clean, compact, high-contrast where needed
- * - Soft surfaces, glass panels, subtle focus rings
- * - Smooth transitions and refined shadow system
- * - Global density control (Comfortable / Compact)
- * - DataGrid tuned for dense enterprise tables
- * - Custom Button variants: soft, ghost
- * - Persisted color mode & density with system-preference bootstrap
+ * ERP-Modern Theme Provider (MUI v5) - v3 (Tối ưu hóa)
+ * - Triển khai custom button variants: 'soft' và 'ghost'.
+ * - Tối ưu 'glassmorphism' thành một variant (biến thể) cho Card.
+ * - Dọn dẹp và tinh chỉnh các component overrides.
  */
 export const ThemeSettingsContext = createContext({
   toggleColorMode: () => {},
@@ -20,7 +16,8 @@ export const ThemeSettingsContext = createContext({
   density: 'comfortable',
 });
 
-// ===== Palette =====
+// ===== Palette (Giữ nguyên) =====
+// ... (Giữ nguyên hàm createPalette của bạn)
 const createPalette = (mode) => {
   const isLight = mode === 'light';
   return {
@@ -62,13 +59,14 @@ const createPalette = (mode) => {
   };
 };
 
-// ===== Typography =====
+// ===== Typography (Giữ nguyên) =====
+// ... (Giữ nguyên hàm createTypography của bạn)
 const createTypography = () => ({
   fontFamily: '"Inter", "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif',
   fontWeightRegular: 400,
   fontWeightMedium: 500,
   fontWeightBold: 700,
-  h1: { fontWeight: 800, lineHeight: 1.2,   fontSize: '2rem',    '@media (min-width:600px)': { fontSize: '2.5rem' }, '@media (min-width:900px)': { fontSize: '3rem' } },
+  h1: { fontWeight: 800, lineHeight: 1.2,   fontSize: '2rem',     '@media (min-width:600px)': { fontSize: '2.5rem' }, '@media (min-width:900px)': { fontSize: '3rem' } },
   h2: { fontWeight: 800, lineHeight: 1.3,   fontSize: '1.75rem', '@media (min-width:600px)': { fontSize: '2rem' } },
   h3: { fontWeight: 700, lineHeight: 1.375, fontSize: '1.5rem' },
   h4: { fontWeight: 700, lineHeight: 1.375, fontSize: '1.25rem' },
@@ -83,7 +81,8 @@ const createTypography = () => ({
   button: { fontWeight: 600, fontSize: '0.875rem', textTransform: 'none', letterSpacing: '0.2px' },
 });
 
-// ===== Shadows =====
+// ===== Shadows (Giữ nguyên) =====
+// ... (Giữ nguyên hàm createShadows của bạn)
 const createShadows = (mode) => {
   const color = mode === 'light' ? '#919EAB' : '#000000';
   return [
@@ -99,10 +98,34 @@ const createShadows = (mode) => {
   ];
 }
 
-// ===== Components Overrides =====
+
+// ===== Components Overrides (CẬP NHẬT) =====
 const createComponents = (theme) => {
   const { palette, shape } = theme;
+
+  // ===== TIỆN ÍCH TẠO STYLES CHO NÚT =====
+  // Hàm này tạo style cho variant 'soft' và 'ghost'
+  const createButtonVariant = (color) => ({
+    // GHOST variant
+    [`&.MuiButton-ghost${color}`]: {
+      color: palette[color][theme.palette.mode === 'light' ? 'main' : 'light'],
+      backgroundColor: 'transparent',
+      '&:hover': {
+        backgroundColor: alpha(palette[color].main, 0.1),
+      },
+    },
+    // SOFT variant
+    [`&.MuiButton-soft${color}`]: {
+      color: palette[color][theme.palette.mode === 'light' ? 'dark' : 'light'],
+      backgroundColor: alpha(palette[color].main, 0.16),
+      '&:hover': {
+        backgroundColor: alpha(palette[color].main, 0.24),
+      },
+    },
+  });
+
   return {
+    // ===== CSS Baseline (Thanh cuộn) =====
     MuiCssBaseline: {
       styleOverrides: {
         '*': { scrollbarColor: `${alpha(palette.grey[500], 0.48)} transparent`, scrollbarWidth: 'thin' },
@@ -115,42 +138,63 @@ const createComponents = (theme) => {
         },
       },
     },
+
+    // ===== Button (CẬP NHẬT) =====
     MuiButton: {
-      defaultProps: { disableElevation: true },
+      defaultProps: { disableElevation: true, variant: 'contained' }, // Đặt variant default là 'contained'
       styleOverrides: {
         root: { borderRadius: 8, fontWeight: 600 },
+        // Thêm các style cho 'ghost' và 'soft'
+        ...createButtonVariant('primary'),
+        ...createButtonVariant('secondary'),
+        ...createButtonVariant('success'),
+        ...createButtonVariant('info'),
+        ...createButtonVariant('warning'),
+        ...createButtonVariant('error'),
       },
     },
+
+    // ===== Card (CẬP NHẬT) =====
     MuiCard: {
       styleOverrides: {
+        // Style mặc định cho Card
         root: {
           borderRadius: shape.borderRadius * 1.5,
           position: 'relative',
-          border: `1px solid ${palette.divider}`,
-          boxShadow: theme.shadows[3],
-          backgroundImage: palette.gradients.glass,
+          border: 'none', // Bỏ border mặc định
+          boxShadow: theme.shadows[3], // Thêm shadow nhẹ
         },
       },
+      // Thêm variant "glass"
+      variants: [
+        {
+          props: { variant: 'glass' },
+          style: {
+            backgroundImage: palette.gradients.glass,
+            backdropFilter: 'blur(8px)',
+            border: `1px solid ${palette.divider}`,
+            boxShadow: 'none', // Thường không cần shadow khi đã có border + glass
+          },
+        },
+      ],
     },
-    MuiTableCell: {
-      styleOverrides: {
-        root: ({ ownerState, theme }) => ({
-           padding: theme.spacing(ownerState.density === 'compact' ? 0.75 : 1.25, 2)
-        }),
-        head: { color: palette.text.primary, backgroundColor: palette.background.neutral, fontWeight: 700 },
-      },
-    },
+
+    // ===== BỎ MuiTableCell (vì đã xử lý trong MuiDataGrid) =====
+    
+    // ===== Dialog (Giữ nguyên) =====
     MuiDialog: {
       styleOverrides: {
         paper: {
           borderRadius: shape.borderRadius * 1.5,
-          backgroundColor: alpha(palette.background.paper, 0.9),
-          backdropFilter: 'blur(8px)',
+          backgroundColor: alpha(palette.background.paper, 0.9), // Hơi trong suốt
+          backdropFilter: 'blur(8px)', // Hiệu ứng kính mờ
           border: `1px solid ${palette.divider}`,
           boxShadow: theme.shadows[20],
         },
       },
     },
+    
+    // ===== OutlinedInput (TINH CHỈNH) =====
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
@@ -160,31 +204,34 @@ const createComponents = (theme) => {
           },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
             borderColor: palette.primary.main,
-            borderWidth: '1px',
+            // Bỏ 'borderWidth: 1px' vì nó là mặc định, chỉ cần boxShadow
             boxShadow: `0 0 0 3px ${alpha(palette.primary.main, 0.14)}`,
           },
         },
       },
     },
-     MuiDataGrid: {
-        styleOverrides: {
-          root: {
-            border: `1px solid ${palette.divider}`,
-            '--DataGrid-rowBorderColor': palette.divider,
-            '--DataGrid-cellPaddingInline': theme.spacing(2),
-            '--DataGrid-cellPaddingBlock': theme.spacing(theme.density === 'compact' ? 0.75 : 1.25),
-          },
-          columnHeaders: {
-            backgroundColor: palette.background.neutral,
-            borderBottom: `1px solid ${palette.divider}`,
-          },
-          toolbarContainer: { borderBottom: `1px solid ${palette.divider}`, padding: theme.spacing(1, 1.5) },
-          footerContainer:  { borderTop: `1px solid ${palette.divider}` },
+    
+    // ===== DataGrid (Giữ nguyên - Rất tốt) =====
+    MuiDataGrid: {
+      styleOverrides: {
+        root: {
+          border: `1px solid ${palette.divider}`,
+          '--DataGrid-rowBorderColor': palette.divider,
+          '--DataGrid-cellPaddingInline': theme.spacing(2),
+          '--DataGrid-cellPaddingBlock': theme.spacing(theme.density === 'compact' ? 0.75 : 1.25),
         },
+        columnHeaders: {
+          backgroundColor: palette.background.neutral,
+          borderBottom: `1px solid ${palette.divider}`,
+        },
+        toolbarContainer: { borderBottom: `1px solid ${palette.divider}`, padding: theme.spacing(1, 1.5) },
+        footerContainer:  { borderTop: `1px solid ${palette.divider}` },
       },
+    },
   };
 };
 
+// ===== Provider (Giữ nguyên) =====
 export default function CustomThemeProvider({ children }) {
   const getInitialSetting = useCallback((key, defaultValue, matchMediaKey) => {
     try {
@@ -216,7 +263,7 @@ export default function CustomThemeProvider({ children }) {
     const palette = createPalette(mode);
     const typography = createTypography();
     const shadows = createShadows(mode);
-    const spacing = density === 'compact' ? 6 : 8;
+    const spacing = density === 'compact' ? 6 : 8; // Mật độ compact dùng spacing 6px, thoải mái 8px
 
     let themeInstance = createTheme({
       palette,
@@ -235,7 +282,9 @@ export default function CustomThemeProvider({ children }) {
       },
     });
     
+    // Thêm density vào theme để các component khác có thể truy cập
     themeInstance.density = density;
+    // Gán các component overrides sau khi themeInstance đã có 'density'
     themeInstance.components = createComponents(themeInstance);
     return themeInstance;
   }, [mode, density]);
