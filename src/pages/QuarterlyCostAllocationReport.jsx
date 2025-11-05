@@ -556,7 +556,7 @@ export default function QuarterlyCostAllocationReport() {
     const [currentLimitCell, setCurrentLimitCell] = useState(null);
     // [SỬA] State riêng cho chi tiết quý HIỆN TẠI (để tránh bị onSnapshot ghi đè)
     const [tempCalcDetails, setTempCalcDetails] = useState({});
-
+const calculationLock = useRef(false);
     const typeFilter = useMemo(() => (projectType === 'kh_dt' ? 'KH-ĐT' : 'Thi công'), [projectType]);
     const { pctKey } = useMemo(() => valueFieldMap[typeFilter] || { pctKey: 'percentThiCong' }, [typeFilter]);
     const { valKey } = useMemo(() => valueFieldMap[typeFilter] || { valKey: 'thiCongValue' }, [typeFilter]);
@@ -1255,9 +1255,64 @@ export default function QuarterlyCostAllocationReport() {
             console.error("Lỗi khi lưu:", error); showSnack(`Lỗi khi lưu: ${error.message}`, "error");
         } finally { setSaving(false); }
     };
-
+    
     const isLoading = loadingItems || loadingProjData || loadingReportData || loadingOriginalData || loadingPrevData;
+// [THÊM MỚI] useEffect để tự động tính toán lại khi dữ liệu nền (projData, originalMainRowsMap, v.v.) thay đổi
+useEffect(() => {
+    // `handlePercentChange` thay đổi khi dữ liệu nền (projData, originalMainRowsMap, prevQuarterDetails, ...)
+    // hoặc state (mainRowsData) thay đổi.
 
+    // 1. Nếu đang loading, hoặc không có dữ liệu, hoặc không có hàm, thoát
+    if (isLoading || mainRowsData.length === 0 || !handlePercentChange) {
+        return;
+    }
+
+    // 2. Nếu "khóa" đang bật (nghĩa là chúng ta đang trong quá trình tính toán), 
+    // hãy bỏ qua trigger này để tránh vòng lặp vô hạn.
+    if (calculationLock.current) {
+        // console.log("Calc lock ON, skipping trigger.");
+        return;
+    }
+
+    // 3. Bật "khóa"
+    // console.log("Data change detected, LOCKING and recalculating all rows...");
+    calculationLock.current = true;
+
+    // 4. Lấy state hiện tại (quan trọng)
+    const currentRows = mainRowsData; 
+
+    currentRows.forEach(row => {
+        // Bỏ qua các dòng tổng
+        if (row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') return;
+
+        // Lấy %DT hiện tại của dòng
+        const currentPercent = row.byType?.[typeFilter]?.[pctKey];
+
+        // Chỉ tính toán lại nếu dòng đó có %DT
+        if (typeof currentPercent === 'number') {
+            // Kích hoạt tính toán lại.
+            // Chúng ta truyền `undefined` cho 4 tham số cuối (limits, rules, carryOver).
+            // Hàm `handlePercentChange` sẽ tự động tìm
+            // giá trị `carryOver` chính xác từ `mainRowsData` (mà nó đã đóng qua closure).
+            handlePercentChange(row.id, pctKey, currentPercent, undefined, undefined, undefined);
+        }
+    });
+
+    // 5. Thả "khóa" sau một khoảng trễ ngắn (0ms).
+    // Điều này đảm bảo React đã hoàn thành batch update
+    // trước khi chúng ta cho phép một trigger mới.
+    setTimeout(() => {
+        // console.log("UNLOCKING calc.");
+        calculationLock.current = false;
+    }, 0);
+
+}, [
+    handlePercentChange, // Trigger chính: thay đổi khi dữ liệu nền hoặc state thay đổi
+    isLoading, 
+    mainRowsData, // Cần để đọc state hiện tại
+    typeFilter, 
+    pctKey
+]);
     // --- Render Component ---
     return (
         <Box sx={{ p: 3 }}>
