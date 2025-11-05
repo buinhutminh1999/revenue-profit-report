@@ -854,30 +854,72 @@ const calculationLock = useRef(false);
         ]; return [...staticStartCols, ...projectCols, ...staticEndCols];
     }, [visibleProjects, quarterStr]);
 
-    // Tính toán TỔNG (Giữ nguyên)
-    const summaryTotals = useMemo(() => {
-        const totals = {}; const fieldsToSum = columns.map(col => col.field); fieldsToSum.forEach(field => { totals[field] = 0; });
-        mainRowsData.forEach((row) => {
-            if (row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') return; const typeData = row.byType?.[typeFilter] || {};
-            fieldsToSum.forEach(field => { let value = 0; if (visibleProjects.some(p => p.id === field)) { value = toNum(row[field]); } else if (typeData[field] !== undefined && field !== 'allocated' && field !== 'percentDT') { value = toNum(typeData[field]); } totals[field] += value; });
-        });
-     
+   // Tính toán TỔNG
+    const summaryTotals = useMemo(() => {
+        // [SỬA] Tạo một Set các ID hàng HỢP LỆ (từ 'items')
+        // Đây là bước quan trọng nhất để lọc
+        const visibleRowIds = new Set(items.map(item => item.id));
+
+        // [SỬA] Khởi tạo totals
+        const totals = {};
+        visibleProjects.forEach(p => { totals[p.id] = 0; });
+        totals['used'] = 0;
+        totals['carryOver'] = 0;
+        totals['cumQuarterOnly'] = 0;
+        totals['surplusCumCurrent'] = 0;
+        totals['cumCurrent'] = 0;
+        totals['allocatedOriginal'] = 0;
+        totals['allocated'] = 0;
+        totals['percentDT'] = null;
+
+        // --- BƯỚC 1: Tính tổng các cột từ mainRowsData (dữ liệu đã điều chỉnh) ---
+        mainRowsData.forEach((row) => {
+            // [SỬA] CHỈ TÍNH TỔNG nếu hàng này có trong 'items'
+            if (!visibleRowIds.has(row.id) || row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') {
+                return;
+            }
+
+            const typeData = row.byType?.[typeFilter] || {};
+
+            // Tổng các cột công trình
+            visibleProjects.forEach(p => {
+                totals[p.id] += toNum(row[p.id]);
+            });
+
+            // Tổng các cột 'byType'
+            totals['used'] += toNum(typeData['used']);
+            totals['carryOver'] += toNum(typeData['carryOver']); // <--- Phải lấy từ 'typeData'
+            totals['cumQuarterOnly'] += toNum(typeData['cumQuarterOnly']);
+            totals['surplusCumCurrent'] += toNum(typeData['surplusCumCurrent']);
+            totals['cumCurrent'] += toNum(typeData['cumCurrent']);
+        });
+
+        // --- BƯỚC 2: Tính tổng 'Phân bổ Gốc' (allocatedOriginal) TÁCH BIỆT ---
         let allocatedOriginalTotal = 0;
         originalMainRowsData.forEach(row => {
-            if (row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') return;
+            // [SỬA] CHỈ TÍNH TỔNG nếu hàng này có trong 'items'
+            if (!visibleRowIds.has(row.id) || row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') {
+                return;
+            }
+            // Giờ nó sẽ chỉ cộng các hàng bạn thấy
             allocatedOriginalTotal += toNum(row[valKey]);
         });
-        
-        // Gán vào cột Gốc
-        totals['allocatedOriginal'] = allocatedOriginalTotal;
-        
-        // Gán vào cột Khả Dụng (allocated)
-        // (totals['carryOver'] đã được tính trong vòng lặp trước đó)
-        totals['allocated'] = allocatedOriginalTotal - totals['carryOver'];
 
-        totals['percentDT'] = null;
+        // --- BƯỚC 3: Gán các giá trị cuối cùng ---
+        totals['allocatedOriginal'] = allocatedOriginalTotal;
+        // 'totals['carryOver']' đã được tính chính xác từ mainRowsData ở BƯỚC 1
+        totals['allocated'] = allocatedOriginalTotal - totals['carryOver']; 
+
         return totals;
-    }, [mainRowsData, originalMainRowsData, visibleProjects, columns, typeFilter, valKey]);
+        
+    }, [
+        mainRowsData, 
+        originalMainRowsData, 
+        visibleProjects, 
+        items, // <-- Thêm 'items' vào dependencies
+        typeFilter, 
+        valKey
+    ]);
     const showSnack = useCallback((msg, sev = "success") => { setSnack({ open: true, msg, sev }); }, []);
 
     // Hàm lấy Chi phí trực tiếp (Giữ nguyên)
