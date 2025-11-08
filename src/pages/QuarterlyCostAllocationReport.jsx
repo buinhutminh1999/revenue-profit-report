@@ -556,7 +556,7 @@ export default function QuarterlyCostAllocationReport() {
     const [currentLimitCell, setCurrentLimitCell] = useState(null);
     // [SỬA] State riêng cho chi tiết quý HIỆN TẠI (để tránh bị onSnapshot ghi đè)
     const [tempCalcDetails, setTempCalcDetails] = useState({});
-const calculationLock = useRef(false);
+    const calculationLock = useRef(false);
     const typeFilter = useMemo(() => (projectType === 'kh_dt' ? 'KH-ĐT' : 'Thi công'), [projectType]);
     const { pctKey } = useMemo(() => valueFieldMap[typeFilter] || { pctKey: 'percentThiCong' }, [typeFilter]);
     const { valKey } = useMemo(() => valueFieldMap[typeFilter] || { valKey: 'thiCongValue' }, [typeFilter]);
@@ -751,7 +751,7 @@ const calculationLock = useRef(false);
             // Lấy các dòng đã lưu (nếu có)
             const savedRowsMap = new Map((reportData.mainRows || []).map(r => [r.id, r]));
 
-           // TẠO DỮ LIỆU BẢNG:
+            // TẠO DỮ LIỆU BẢNG:
             const mergedRows = items.map(item => {
                 const savedRow = savedRowsMap.get(item.id);
                 const prevCumCurrent = prevQuarterCumCurrentMap.get(item.id) || 0; // Thiếu LK quý trước
@@ -769,7 +769,7 @@ const calculationLock = useRef(false);
                 // [SỬA] Tạo object cho type hiện tại
                 const currentTypeData = {
                     ...(existingByType[typeFilter] || {}), // Giữ lại các field khác của type này (nếu có)
-                    
+
                     [pctKey]: percent, // Cập nhật %DT
                     carryOver: carryOver, // Cập nhật CarryOver
 
@@ -854,72 +854,72 @@ const calculationLock = useRef(false);
         ]; return [...staticStartCols, ...projectCols, ...staticEndCols];
     }, [visibleProjects, quarterStr]);
 
-   // Tính toán TỔNG
-    const summaryTotals = useMemo(() => {
-        // [SỬA] Tạo một Set các ID hàng HỢP LỆ (từ 'items')
+    // Tính toán TỔNG
+    const summaryTotals = useMemo(() => {
+        // [SỬA] Tạo một Set các ID hàng HỢP LỆ (từ 'items')
         // Đây là bước quan trọng nhất để lọc
-        const visibleRowIds = new Set(items.map(item => item.id));
+        const visibleRowIds = new Set(items.map(item => item.id));
 
-        // [SỬA] Khởi tạo totals
-        const totals = {};
-        visibleProjects.forEach(p => { totals[p.id] = 0; });
-        totals['used'] = 0;
-        totals['carryOver'] = 0;
-        totals['cumQuarterOnly'] = 0;
-        totals['surplusCumCurrent'] = 0;
-        totals['cumCurrent'] = 0;
-        totals['allocatedOriginal'] = 0;
-        totals['allocated'] = 0;
-        totals['percentDT'] = null;
+        // [SỬA] Khởi tạo totals
+        const totals = {};
+        visibleProjects.forEach(p => { totals[p.id] = 0; });
+        totals['used'] = 0;
+        totals['carryOver'] = 0;
+        totals['cumQuarterOnly'] = 0;
+        totals['surplusCumCurrent'] = 0;
+        totals['cumCurrent'] = 0;
+        totals['allocatedOriginal'] = 0;
+        totals['allocated'] = 0;
+        totals['percentDT'] = null;
 
-        // --- BƯỚC 1: Tính tổng các cột từ mainRowsData (dữ liệu đã điều chỉnh) ---
-        mainRowsData.forEach((row) => {
-            // [SỬA] CHỈ TÍNH TỔNG nếu hàng này có trong 'items'
-            if (!visibleRowIds.has(row.id) || row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') {
-                return;
-            }
+        // --- BƯỚC 1: Tính tổng các cột từ mainRowsData (dữ liệu đã điều chỉnh) ---
+        mainRowsData.forEach((row) => {
+            // [SỬA] CHỈ TÍNH TỔNG nếu hàng này có trong 'items'
+            if (!visibleRowIds.has(row.id) || row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') {
+                return;
+            }
 
-            const typeData = row.byType?.[typeFilter] || {};
+            const typeData = row.byType?.[typeFilter] || {};
 
-            // Tổng các cột công trình
-            visibleProjects.forEach(p => {
-                totals[p.id] += toNum(row[p.id]);
-            });
+            // Tổng các cột công trình
+            visibleProjects.forEach(p => {
+                totals[p.id] += toNum(row[p.id]);
+            });
 
-            // Tổng các cột 'byType'
-            totals['used'] += toNum(typeData['used']);
-            totals['carryOver'] += toNum(typeData['carryOver']); // <--- Phải lấy từ 'typeData'
-            totals['cumQuarterOnly'] += toNum(typeData['cumQuarterOnly']);
-            totals['surplusCumCurrent'] += toNum(typeData['surplusCumCurrent']);
-            totals['cumCurrent'] += toNum(typeData['cumCurrent']);
-        });
+            // Tổng các cột 'byType'
+            totals['used'] += toNum(typeData['used']);
+            totals['carryOver'] += toNum(typeData['carryOver']); // <--- Phải lấy từ 'typeData'
+            totals['cumQuarterOnly'] += toNum(typeData['cumQuarterOnly']);
+            totals['surplusCumCurrent'] += toNum(typeData['surplusCumCurrent']);
+            totals['cumCurrent'] += toNum(typeData['cumCurrent']);
+        });
 
-        // --- BƯỚC 2: Tính tổng 'Phân bổ Gốc' (allocatedOriginal) TÁCH BIỆT ---
-        let allocatedOriginalTotal = 0;
-        originalMainRowsData.forEach(row => {
-            // [SỬA] CHỈ TÍNH TỔNG nếu hàng này có trong 'items'
-            if (!visibleRowIds.has(row.id) || row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') {
-                return;
-            }
-            // Giờ nó sẽ chỉ cộng các hàng bạn thấy
-            allocatedOriginalTotal += toNum(row[valKey]);
-        });
+        // --- BƯỚC 2: Tính tổng 'Phân bổ Gốc' (allocatedOriginal) TÁCH BIỆT ---
+        let allocatedOriginalTotal = 0;
+        originalMainRowsData.forEach(row => {
+            // [SỬA] CHỈ TÍNH TỔNG nếu hàng này có trong 'items'
+            if (!visibleRowIds.has(row.id) || row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') {
+                return;
+            }
+            // Giờ nó sẽ chỉ cộng các hàng bạn thấy
+            allocatedOriginalTotal += toNum(row[valKey]);
+        });
 
-        // --- BƯỚC 3: Gán các giá trị cuối cùng ---
-        totals['allocatedOriginal'] = allocatedOriginalTotal;
-        // 'totals['carryOver']' đã được tính chính xác từ mainRowsData ở BƯỚC 1
-        totals['allocated'] = allocatedOriginalTotal - totals['carryOver']; 
+        // --- BƯỚC 3: Gán các giá trị cuối cùng ---
+        totals['allocatedOriginal'] = allocatedOriginalTotal;
+        // 'totals['carryOver']' đã được tính chính xác từ mainRowsData ở BƯỚC 1
+        totals['allocated'] = allocatedOriginalTotal - totals['carryOver'];
 
-        return totals;
-        
-    }, [
-        mainRowsData, 
-        originalMainRowsData, 
-        visibleProjects, 
-        items, // <-- Thêm 'items' vào dependencies
-        typeFilter, 
-        valKey
-    ]);
+        return totals;
+
+    }, [
+        mainRowsData,
+        originalMainRowsData,
+        visibleProjects,
+        items, // <-- Thêm 'items' vào dependencies
+        typeFilter,
+        valKey
+    ]);
     const showSnack = useCallback((msg, sev = "success") => { setSnack({ open: true, msg, sev }); }, []);
 
     // Hàm lấy Chi phí trực tiếp (Giữ nguyên)
@@ -955,7 +955,67 @@ const calculationLock = useRef(false);
                 : originalCarryOverFromMap;
         }
         const totalBudget = Math.round(originalAllocated - finalCarryOver);
+        // ===== THÊM ĐOẠN NÀY VÀO =====
+// KIỂM TRA: Nếu %DT = 0, không phân bổ gì cả (kể cả nợ cũ)
+if (newValue === 0 || newValue === null || newValue === undefined) {
+    const updatedProjectValues = {};
+    visibleProjects.forEach(p => {
+        updatedProjectValues[p.id] = 0;
+    });
 
+    const calculatedProjectDeficits = {};
+    visibleProjects.forEach(p => {
+        const prevDeficit = prevQuarterDetails[rowId]?.projectDeficits?.[p.id] || 
+                           prevQuarterDetails[rowId]?.[p.id] || 0;
+        calculatedProjectDeficits[p.id] = prevDeficit;
+    });
+
+    setTempCalcDetails(prev => ({
+        ...prev,
+        [rowId]: {
+            projectDemands: {},
+            projectDeficits: calculatedProjectDeficits
+        }
+    }));
+
+    const cumValue = (0 - originalAllocated) + finalCarryOver;
+    const newSurplusCumCurrent = Math.max(cumValue, 0);
+    const newCumCurrent = Math.min(cumValue, 0);
+    const newCumQuarterOnly = Math.min(0 - originalAllocated, 0);
+
+    setMainRowsData(prevData => {
+        setDirtyRows(prev => new Set(prev).add(rowId));
+        return prevData.map(row => {
+            if (row.id === rowId) {
+                const newRow = JSON.parse(JSON.stringify(row));
+                if (!newRow.byType) newRow.byType = {};
+                if (!newRow.byType[typeFilter]) newRow.byType[typeFilter] = {};
+
+                newRow.byType[typeFilter][fieldKey] = newValue;
+                newRow.byType[typeFilter].used = 0;
+                newRow.byType[typeFilter].cumQuarterOnly = newCumQuarterOnly;
+                newRow.byType[typeFilter].surplusCumCurrent = newSurplusCumCurrent;
+                newRow.byType[typeFilter].cumCurrent = newCumCurrent;
+                
+                if (typeof carryOverOverride === 'number') {
+                    newRow.byType[typeFilter].carryOver = carryOverOverride;
+                }
+
+                visibleProjects.forEach(p => {
+                    newRow[p.id] = 0;
+                });
+
+                delete newRow.projectDemands;
+                delete newRow.projectDeficits;
+
+                return newRow;
+            }
+            return row;
+        });
+    });
+    
+    return; // Kết thúc hàm sớm
+}
         // --- BƯỚC 1: TÁCH CÔNG TRÌNH & TÍNH TOÁN NHU CẦU BAN ĐẦU ---
         // (Toàn bộ logic BƯỚC 1 giữ nguyên y hệt)
 
@@ -1133,10 +1193,10 @@ const calculationLock = useRef(false);
             }
         }));
         const cumValue = (newTotalUsed - originalAllocated) + finalCarryOver; // <--- SỬA THÀNH DÒNG NÀY
-        const newSurplusCumCurrent = Math.max(cumValue, 0);
-        const newCumCurrent = Math.min(cumValue, 0);
+        const newSurplusCumCurrent = Math.max(cumValue, 0);
+        const newCumCurrent = Math.min(cumValue, 0);
         // [SỬA] Tính Vượt Q bằng Phân bổ GỐC
-        const newCumQuarterOnly = Math.min(newTotalUsed - originalAllocated, 0); // <--- SỬA DÒNG NÀY
+        const newCumQuarterOnly = Math.min(newTotalUsed - originalAllocated, 0); // <--- SỬA DÒNG NÀY
         setMainRowsData(prevData => {
 
             setDirtyRows(prev => new Set(prev).add(rowId));
@@ -1173,7 +1233,6 @@ const calculationLock = useRef(false);
         originalMainRowsMap, valKey,
         manualLimits, roundingSettings,
         prevQuarterDetails, items, projectsOnlyWithDeficit,
-        mainRowsData // <-- [THÊM MỚI]
     ]);
     // [THÊM MỚI] Hàm xử lý thay đổi giá trị Vượt kỳ trước
     const handleCarryOverChange = useCallback((rowId, fieldKey, newValue) => {
@@ -1297,64 +1356,63 @@ const calculationLock = useRef(false);
             console.error("Lỗi khi lưu:", error); showSnack(`Lỗi khi lưu: ${error.message}`, "error");
         } finally { setSaving(false); }
     };
-    
+
     const isLoading = loadingItems || loadingProjData || loadingReportData || loadingOriginalData || loadingPrevData;
-// [THÊM MỚI] useEffect để tự động tính toán lại khi dữ liệu nền (projData, originalMainRowsMap, v.v.) thay đổi
-useEffect(() => {
-    // `handlePercentChange` thay đổi khi dữ liệu nền (projData, originalMainRowsMap, prevQuarterDetails, ...)
-    // hoặc state (mainRowsData) thay đổi.
+    // [THÊM MỚI] useEffect để tự động tính toán lại khi dữ liệu nền (projData, originalMainRowsMap, v.v.) thay đổi
+    useEffect(() => {
+        // `handlePercentChange` thay đổi khi dữ liệu nền (projData, originalMainRowsMap, prevQuarterDetails, ...)
+        // hoặc state (mainRowsData) thay đổi.
 
-    // 1. Nếu đang loading, hoặc không có dữ liệu, hoặc không có hàm, thoát
-    if (isLoading || mainRowsData.length === 0 || !handlePercentChange) {
-        return;
-    }
-
-    // 2. Nếu "khóa" đang bật (nghĩa là chúng ta đang trong quá trình tính toán), 
-    // hãy bỏ qua trigger này để tránh vòng lặp vô hạn.
-    if (calculationLock.current) {
-        // console.log("Calc lock ON, skipping trigger.");
-        return;
-    }
-
-    // 3. Bật "khóa"
-    // console.log("Data change detected, LOCKING and recalculating all rows...");
-    calculationLock.current = true;
-
-    // 4. Lấy state hiện tại (quan trọng)
-    const currentRows = mainRowsData; 
-
-    currentRows.forEach(row => {
-        // Bỏ qua các dòng tổng
-        if (row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') return;
-
-        // Lấy %DT hiện tại của dòng
-        const currentPercent = row.byType?.[typeFilter]?.[pctKey];
-
-        // Chỉ tính toán lại nếu dòng đó có %DT
-        if (typeof currentPercent === 'number') {
-            // Kích hoạt tính toán lại.
-            // Chúng ta truyền `undefined` cho 4 tham số cuối (limits, rules, carryOver).
-            // Hàm `handlePercentChange` sẽ tự động tìm
-            // giá trị `carryOver` chính xác từ `mainRowsData` (mà nó đã đóng qua closure).
-            handlePercentChange(row.id, pctKey, currentPercent, undefined, undefined, undefined);
+        // 1. Nếu đang loading, hoặc không có dữ liệu, hoặc không có hàm, thoát
+        if (isLoading || mainRowsData.length === 0 || !handlePercentChange) {
+            return;
         }
-    });
 
-    // 5. Thả "khóa" sau một khoảng trễ ngắn (0ms).
-    // Điều này đảm bảo React đã hoàn thành batch update
-    // trước khi chúng ta cho phép một trigger mới.
-    setTimeout(() => {
-        // console.log("UNLOCKING calc.");
-        calculationLock.current = false;
-    }, 0);
+        // 2. Nếu "khóa" đang bật (nghĩa là chúng ta đang trong quá trình tính toán), 
+        // hãy bỏ qua trigger này để tránh vòng lặp vô hạn.
+        if (calculationLock.current) {
+            // console.log("Calc lock ON, skipping trigger.");
+            return;
+        }
 
-}, [
-    handlePercentChange, // Trigger chính: thay đổi khi dữ liệu nền hoặc state thay đổi
-    isLoading, 
-    mainRowsData, // Cần để đọc state hiện tại
-    typeFilter, 
-    pctKey
-]);
+        // 3. Bật "khóa"
+        // console.log("Data change detected, LOCKING and recalculating all rows...");
+        calculationLock.current = true;
+
+        // 4. Lấy state hiện tại (quan trọng)
+        const currentRows = mainRowsData;
+
+        currentRows.forEach(row => {
+            // Bỏ qua các dòng tổng
+            if (row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') return;
+
+            // Lấy %DT hiện tại của dòng
+            const currentPercent = row.byType?.[typeFilter]?.[pctKey];
+
+            // Chỉ tính toán lại nếu dòng đó có %DT
+            if (typeof currentPercent === 'number') {
+                // Kích hoạt tính toán lại.
+                // Chúng ta truyền `undefined` cho 4 tham số cuối (limits, rules, carryOver).
+                // Hàm `handlePercentChange` sẽ tự động tìm
+                // giá trị `carryOver` chính xác từ `mainRowsData` (mà nó đã đóng qua closure).
+                handlePercentChange(row.id, pctKey, currentPercent, undefined, undefined, undefined);
+            }
+        });
+
+        // 5. Thả "khóa" sau một khoảng trễ ngắn (0ms).
+        // Điều này đảm bảo React đã hoàn thành batch update
+        // trước khi chúng ta cho phép một trigger mới.
+        setTimeout(() => {
+            // console.log("UNLOCKING calc.");
+            calculationLock.current = false;
+        }, 0);
+
+    }, [
+        handlePercentChange, // Trigger chính: thay đổi khi dữ liệu nền hoặc state thay đổi
+        isLoading,
+        typeFilter,
+        pctKey
+    ]);
     // --- Render Component ---
     return (
         <Box sx={{ p: 3 }}>
@@ -1392,7 +1450,7 @@ useEffect(() => {
                                     const rowDataFromState = mainRowsData.find(r => r.id === itemRow.id);
                                     const rowDataOriginal = originalMainRowsMap.get(itemRow.id);
                                     const typeData = rowDataFromState?.byType?.[typeFilter] || {};
-                                    
+
                                     // [SỬA] Tính trước giá trị Vượt kỳ trước
                                     let carryOverValue = typeData['carryOver']; // Lấy từ state
                                     if (typeof carryOverValue !== 'number') {

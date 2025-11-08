@@ -65,7 +65,10 @@ const WhitelistManager = lazy(() => import('../pages/WhitelistManager'));
 const DocumentPublisher = lazy(() => import('../pages/DocumentPublisher'));
 const DocumentList = lazy(() => import('../pages/DocumentList'));
 const DocumentDetail = lazy(() => import('../pages/DocumentDetail'));
-// --- LAZY-LOAD CÁC TRANG CỦA MODULE CHẤM CÔNG ---
+// THAY ĐỔI DÒNG NÀY:
+const MaterialPriceComparisonDetail = lazy(() => import('../pages/MaterialPriceComparisonDetail'));
+// THÊM DÒNG MỚI NÀY (CHO TRANG DANH SÁCH):
+const MaterialPriceComparison = lazy(() => import('../pages/MaterialPriceComparison'));// --- LAZY-LOAD CÁC TRANG CỦA MODULE CHẤM CÔNG ---
 const AttendanceDashboard = lazy(() => import('../pages/attendance/AttendanceDashboard'));
 
 // --- LAZY-LOAD CÁC TRANG CỦA MODULE GIÁM SÁT THIẾT BỊ ---
@@ -136,8 +139,17 @@ function AppRoutes() {
                         <Route path="profit-change" element={<RequireEmailAccess pathKey="profit-change">{lazyLoad(ProfitChange)}</RequireEmailAccess>} />
                         <Route path="asset-transfer" element={<RequireEmailAccess pathKey="asset-transfer">{lazyLoad(AssetTransferPage)}</RequireEmailAccess>} />
                         <Route path="device-monitoring" element={<RequireEmailAccess pathKey="device-monitoring">{lazyLoad(DeviceMonitoringDashboard)}</RequireEmailAccess>} />
-
-                        {/* === MODULE CHẤM CÔNG === */}
+                        {/* === ROUTE TRANG DANH SÁCH (TRỎ VÀO FILE MỚI) === */}
+                        <Route
+                            path="material-price-comparison"
+                            element={<RequireEmailAccess pathKey="material-price-comparison">{lazyLoad(MaterialPriceComparison)}</RequireEmailAccess>}
+                        />
+                        {/* === ROUTE TRANG CHI TIẾT (TRỎ VÀO FILE VỪA ĐỔI TÊN) === */}
+                        <Route
+                            path="material-price-comparison/:tableId"
+                            element={<RequireEmailAccess pathKey="material-price-comparison">{lazyLoad(MaterialPriceComparisonDetail)}</RequireEmailAccess>}
+                        />                       
+                         {/* === MODULE CHẤM CÔNG === */}
                         <Route path="attendance">
                             <Route index element={<RequireEmailAccess pathKey="attendance">{lazyLoad(AttendanceDashboard)}</RequireEmailAccess>} />
 

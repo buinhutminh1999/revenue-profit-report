@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { doc, getDoc, onSnapshot, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase-config';
-import { Box, Typography, Paper, CircularProgress, Container, Divider, Chip, Button, Stack, Avatar } from '@mui/material';
+import { Box, Typography, Paper, CircularProgress, Container, Divider, Chip, Button, Stack, Avatar, Grid, Tooltip } from '@mui/material'; // Thêm Grid và Tooltip
 import { ArrowLeft, Building, Calendar, CheckCircle, Tag, Warehouse, History, Send, ArrowRight, XCircle } from 'lucide-react';
 import PageTransition from '../components/common/PageTransition';
 
@@ -50,7 +50,6 @@ export default function AssetDetailPage() {
                 setAsset(assetData);
             } else {
                 setError('Tài sản không tồn tại hoặc đã bị xóa.');
-                // Lấy thông tin tài sản đã xóa từ audit_logs nếu có thể (nâng cao)
             }
             setLoading(false);
         }, (err) => {
@@ -59,27 +58,26 @@ export default function AssetDetailPage() {
             setLoading(false);
         });
         
-        // Lấy lịch sử luân chuyển của tài sản
+        // Lấy lịch sử luân chuyển của tài sản (ĐÃ SỬA LẠI QUERY CHO ĐÚNG)
         const fetchHistory = async () => {
-            const transferQuery = query(
-                collection(db, "transfers"),
-                where("assets", "array-contains", { id: assetId }),
-                where("status", "==", "COMPLETED"),
-                orderBy("date", "desc")
-            );
+            try {
+                // ✅ SỬA LOGIC QUERY: Dùng trường 'assetIds' (mảng string)
+                const transferQuery = query(
+                    collection(db, "transfers"),
+                    where("assetIds", "array-contains", assetId), // Query trên mảng ID
+                    where("status", "==", "COMPLETED"),
+                    orderBy("date", "desc")
+                );
+                
+                const querySnapshot = await getDocs(transferQuery);
+                const transferHistory = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setHistory(transferHistory);
 
-            // Do firestore không cho phép array-contains cùng lúc với orderBy
-            // Ta sẽ phải lấy và sắp xếp thủ công
-            // Chỉnh sửa lại query để hoạt động
-            const q = query(collection(db, "transfers"), where("assets", "array-contains", { id: assetId }), orderBy("date", "desc"));
-            const querySnapshot = await getDocs(q);
-            const transferHistory = [];
-            querySnapshot.forEach((doc) => {
-                if(doc.data().status === 'COMPLETED') {
-                   transferHistory.push({ id: doc.id, ...doc.data() });
-                }
-            });
-            setHistory(transferHistory);
+            } catch (err) {
+                // Bắt lỗi nếu query fail (ví dụ: chưa tạo index)
+                console.error("Lỗi khi fetchHistory:", err.message);
+                // Vẫn hiển thị trang, chỉ là không có lịch sử
+            }
         };
         
         fetchHistory();
@@ -87,16 +85,7 @@ export default function AssetDetailPage() {
         return () => unsubscribeAsset();
     }, [assetId]);
     
-    // Component con để hiển thị một dòng thông tin
-    const InfoRow = ({ icon, label, value, valueColor = 'text.primary' }) => (
-        <Stack direction="row" alignItems="center" spacing={2} sx={{ py: 1.5 }}>
-            <Avatar sx={{ bgcolor: 'action.hover' }}>{icon}</Avatar>
-            <Box>
-                <Typography variant="body2" color="text.secondary">{label}</Typography>
-                <Typography sx={{ fontWeight: 600, color: valueColor }}>{value || '—'}</Typography>
-            </Box>
-        </Stack>
-    );
+    // ❌ Component InfoRow đã bị xóa vì không còn dùng
 
     if (loading) {
         return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><CircularProgress /></Box>;
@@ -104,88 +93,145 @@ export default function AssetDetailPage() {
 
     return (
         <PageTransition>
-            <Box sx={{ bgcolor: '#f4f6f8', minHeight: '100vh', py: { xs: 4, sm: 6 } }}>
+            <Box sx={{ bgcolor: '#f4f6f8', minHeight: '100vh', py: { xs: 3, sm: 6 } }}>
                 <Container maxWidth="sm">
-                    <Stack direction="row" justifyContent="space-between" sx={{ mb: 2 }}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ mb: 2, px: 1 }}>
                         <Button startIcon={<ArrowLeft size={16} />} onClick={() => navigate(-1)}>
                             Quay lại
                         </Button>
-                        <Button component={Link} to="/asset-transfer" variant="outlined">
-                            Quản lý tài sản
+                        <Button component={Link} to="/asset-transfer" variant="outlined" size="small">
+                            Quản lý
                         </Button>
                     </Stack>
 
-                    <Paper elevation={3} sx={{ borderRadius: 4, overflow: 'hidden' }}>
-                        {error || !asset ? (
+                    {error || !asset ? (
+                        // Trạng thái Lỗi (Giữ nguyên, đã tốt)
+                        <Paper elevation={3} sx={{ borderRadius: 4, overflow: 'hidden' }}>
                             <Box sx={{ p: 4, textAlign: 'center' }}>
                                 <XCircle size={48} color="#f44336" style={{ marginBottom: '16px' }}/>
                                 <Typography variant="h5" sx={{ fontWeight: 'bold' }}>Không tìm thấy tài sản</Typography>
                                 <Typography color="text.secondary">{error || 'Tài sản có thể đã bị xóa khỏi hệ thống.'}</Typography>
                             </Box>
-                        ) : (
-                            <>
-                                <Box sx={{ p: 3, bgcolor: 'primary.main', color: 'white' }}>
-                                    <Stack direction="row" spacing={2} alignItems="center">
-                                        <Warehouse size={32} />
-                                        <Box>
-                                            <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold' }}>
-                                                Thông tin Tài sản
-                                            </Typography>
-                                            <Typography variant="caption">Mã: {asset.id}</Typography>
-                                        </Box>
-                                    </Stack>
-                                </Box>
-                                <Box sx={{ p: 3 }}>
-                                    <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, color: 'text.primary', wordBreak: 'break-word' }}>
+                        </Paper>
+                    ) : (
+                        // === THIẾT KẾ THẺ PROFILE MỚI ===
+                        <Paper elevation={3} sx={{ borderRadius: 4, p: { xs: 2.5, sm: 4 } }}>
+                            {/* 1. Phần Tiêu đề chính */}
+                            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+                                <Avatar sx={{ bgcolor: 'primary.main', color: 'white', width: 52, height: 52, borderRadius: 3 }}>
+                                    <Warehouse size={28} />
+                                </Avatar>
+                                <Box sx={{ minWidth: 0 }}>
+                                    <Typography variant="h4" component="h1" sx={{ fontWeight: 800, lineHeight: 1.2, wordBreak: 'break-word' }}>
                                         {asset.name}
                                     </Typography>
-
-                                    <Chip icon={<CheckCircle size={16} />} label="Đang hoạt động" color="success" size="small" sx={{ mb: 2 }} />
-                                    
-                                    <Divider sx={{ mb: 1 }} />
-                                    
-                                    <InfoRow icon={<Building size={20} />} label="Phòng ban hiện tại" value={asset.departmentName} />
-                                    <InfoRow icon={<Tag size={20} />} label="Số lượng" value={`${asset.quantity} ${asset.unit}`} />
-                                    <InfoRow icon={<Calendar size={20} />} label="Ngày kiểm kê gần nhất" value={formatDate(asset.lastChecked)} valueColor="success.dark" />
-                                    
-                                    {asset.notes && (
-                                        <>
-                                            <Divider sx={{ my: 1 }} />
-                                            <Box sx={{ py: 1.5 }}>
-                                                <Typography variant="body2" color="text.secondary">Ghi chú:</Typography>
-                                                <Typography sx={{ fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>{asset.notes}</Typography>
-                                            </Box>
-                                        </>
-                                    )}
-
-                                    {history.length > 0 && (
-                                        <>
-                                            <Divider sx={{ my: 2 }} />
-                                            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                                                <History size={20} />
-                                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Lịch sử Luân chuyển</Typography>
-                                            </Stack>
-                                            <Stack spacing={1}>
-                                                {history.map(t => (
-                                                    <Paper key={t.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
-                                                        <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                                            <Stack direction="row" alignItems="center" spacing={1}>
-                                                                <Send size={16} />
-                                                                <Typography variant="body2">
-                                                                    {t.from} <ArrowRight size={14} /> <b>{t.to}</b>
-                                                                </Typography>
-                                                            </Stack>
-                                                            <Typography variant="caption" color="text.secondary">{formatTime(t.date)}</Typography>
-                                                        </Stack>
-                                                    </Paper>
-                                                ))}
-                                            </Stack>
-                                        </>
-                                    )}
+                                    <Tooltip title="Sao chép Mã">
+                                        <Chip 
+                                            label={`Mã: ${asset.id}`} 
+                                            size="small" 
+                                            variant="outlined" 
+                                            // ✅ SỬA LỖI: Bỏ chữ 'm' bị thừa ở đây
+                                            sx={{ mt: 0.5, cursor: 'pointer' }} 
+                                            onClick={() => navigator.clipboard.writeText(asset.id)}
+                                        />
+                                    </Tooltip>
                                 </Box>
-                            </>
-                        )}
-                    </Paper>
+                            </Stack>
+                            <Chip icon={<CheckCircle size={16} />} label="Đang hoạt động" color="success" sx={{ mb: 2.5 }} />
+                            
+                            <Divider sx={{ mb: 2.5 }} />
+
+                            {/* 2. Lưới Thống kê (Stat Cards) */}
+                            <Typography variant="overline" color="text.secondary">Thông tin Trạng thái</Typography>
+                            <Grid container spacing={2} sx={{ mb: 3 }}>
+                                {/* Card 1: Phòng ban (Quan trọng nhất) */}
+                                <Grid item xs={12}>
+                                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'primary.lighter', borderColor: 'primary.light' }}>
+                                        <Stack direction="row" spacing={1.5} alignItems="center">
+                                            <Avatar sx={{ bgcolor: 'primary.main', color: 'white', borderRadius: '8px' }}><Building size={20} /></Avatar>
+                                            <Box>
+                                                <Typography variant="caption" sx={{ textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 600, color: 'primary.dark' }}>Phòng ban hiện tại</Typography>
+                                                <Typography sx={{ fontWeight: 700, fontSize: '1.2rem', color: 'primary.dark' }}>
+                                                    {asset.departmentName || 'Chưa gán'}
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
+                                    </Paper>
+                                </Grid>
+                                
+                                {/* Card 2: Số lượng */}
+                                <Grid item xs={6}>
+                                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, height: '100%' }}>
+                                        <Stack direction="row" spacing={1.5} alignItems="center">
+                                            <Avatar sx={{ bgcolor: 'action.hover', color: 'text.secondary', borderRadius: '8px' }}><Tag size={20} /></Avatar>
+                                            <Box>
+                                                <Typography variant="caption" sx={{ textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 600, color: 'text.secondary' }}>Số lượng</Typography>
+                                                <Typography sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
+                                                    {asset.quantity} {asset.unit}
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
+                                    </Paper>
+                                </Grid>
+                                
+                                {/* Card 3: Ngày kiểm kê (Dùng màu động) */}
+                                <Grid item xs={6}>
+                                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, height: '100%' }}>
+                                        <Stack direction="row" spacing={1.5} alignItems="center">
+                                            <Avatar sx={{ bgcolor: 'action.hover', color: 'text.secondary', borderRadius: '8px' }}><Calendar size={20} /></Avatar>
+                                            <Box>
+                                                <Typography variant="caption" sx={{ textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 600, color: 'text.secondary' }}>Kiểm kê</Typography>
+                                                <Typography sx={{ 
+                                                    fontWeight: 600, 
+                                                    fontSize: '1.1rem',
+                                                    color: asset.lastChecked ? 'success.dark' : 'warning.dark' 
+                                                }}>
+                                                    {formatDate(asset.lastChecked)} 
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
+                                    </Paper>
+                                </Grid>
+                            </Grid>
+
+                            {/* 3. Ghi chú (nếu có) */}
+                            {asset.notes && (
+                                <>
+                                    <Typography variant="overline" color="text.secondary">Ghi chú</Typography>
+                                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 3, fontStyle: 'italic', whiteSpace: 'pre-wrap', bgcolor: 'grey.50' }}>
+                                        {asset.notes}
+                                    </Paper>
+                                </>
+                            )}
+
+                            {/* 4. Lịch sử (di chuyển vào trong thẻ) */}
+                            {history.length > 0 && (
+                                <>
+                                    <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                                        <History size={20} />
+                                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Lịch sử Luân chuyển</Typography>
+                                    </Stack>
+                                    <Stack spacing={1}>
+                                        {history.map(t => (
+                                            <Paper key={t.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, bgcolor: 'grey.50' }}>
+                                                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} flexWrap="wrap">
+                                                    <Stack direction="row" alignItems="center" spacing={1}>
+                                                        <Avatar sx={{ bgcolor: 'action.hover', color: 'text.secondary', width: 28, height: 28 }}><Send size={14} /></Avatar>
+                                                        <Typography variant="body2">
+                                                            {t.from} 
+                                                            <Box component="span" sx={{ mx: 0.5, verticalAlign: 'middle', display: 'inline-block' }}><ArrowRight size={14} /></Box> 
+                                                            <b>{t.to}</b>
+                                                        </Typography>
+                                                    </Stack>
+                                                    <Typography variant="caption" color="text.secondary">{formatTime(t.date)}</Typography>
+                                                </Stack>
+                                            </Paper>
+                                        ))}
+                                    </Stack>
+                                </>
+                            )}
+                        </Paper>
+                    )}
                 </Container>
             </Box>
         </PageTransition>

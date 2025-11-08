@@ -214,6 +214,44 @@ async function ensureAdmin(auth) {
     }
 }
 
+/**
+ * Tìm tài sản trùng khớp (cùng tên, đơn vị, kích thước, phòng ban) BÊN TRONG một transaction.
+ * @param {admin.firestore.Transaction} tx - Transaction đang chạy.
+ * @param {object} assetData - Dữ liệu tài sản cần kiểm tra.
+ * @returns {Promise<admin.firestore.DocumentSnapshot | null>}
+ */
+async function findMatchingAsset(tx, assetData) {
+    const { name, unit = "", size = "", departmentId } = assetData;
+    if (!name || !departmentId) {
+        // Nếu dữ liệu đầu vào không hợp lệ, trả về null
+        return null;
+    }
+
+    // Chuẩn hóa dữ liệu để query chính xác
+    const normalizedName = name.trim();
+    const normalizedUnit = (unit || "").trim();
+    const normalizedSize = (size || "").trim();
+
+    const assetsRef = db.collection("assets");
+    const q = assetsRef
+        .where("departmentId", "==", departmentId)
+        .where("name", "==", normalizedName)
+        .where("unit", "==", normalizedUnit)
+        .where("size", "==", normalizedSize)
+        .limit(1); // Chỉ cần tìm 1 cái là đủ
+
+    // Dùng tx.get() để đảm bảo an toàn trong transaction
+    const snapshot = await tx.get(q);
+
+    if (snapshot.empty) {
+        return null;
+    }
+
+    return snapshot.docs[0]; // Trả về document đầu tiên tìm thấy
+}
+
+// ====================================================================
+
 // ====================================================================
 // HÀM MỚI: TỰ ĐỘNG TẠO SỰ KIỆN KHI MÁY THỨC DẬY TỪ FAST STARTUP
 // ====================================================================
@@ -538,8 +576,11 @@ exports.manualCloseQuarter = onCall(async (request) => {
     }
 });
 
+// functions/index.js
+
 // ====================================================================
 // HÀM 1: TẠO PHIẾU LUÂN CHUYỂN
+// (HÃY THAY THẾ TOÀN BỘ HÀM NÀY)
 // ====================================================================
 exports.createTransfer = onCall(async (request) => {
     ensureSignedIn(request.auth);
@@ -592,6 +633,9 @@ exports.createTransfer = onCall(async (request) => {
                 });
             }
 
+            // ✅ BƯỚC 1: TẠO MẢNG CHỈ CHỨA ID
+            const assetIds = assets.map((a) => a.id);
+
             const transferRef = db.collection("transfers").doc();
             tx.set(transferRef, {
                 maPhieuHienThi: displayId,
@@ -599,7 +643,9 @@ exports.createTransfer = onCall(async (request) => {
                 to: toDeptSnap.data().name,
                 fromDeptId,
                 toDeptId,
-                assets,
+                assets, // Giữ lại mảng object đầy đủ để hiển thị chi tiết phiếu
+                // ✅ BƯỚC 2: LƯU MẢNG ID MỚI VÀO
+                assetIds: assetIds,
                 status: "PENDING_SENDER",
                 date: admin.firestore.FieldValue.serverTimestamp(),
                 signatures: { sender: null, receiver: null, admin: null },
@@ -629,7 +675,6 @@ exports.createTransfer = onCall(async (request) => {
         throw new HttpsError("internal", error.message || "Không thể tạo phiếu chuyển trên server.");
     }
 });
-// File: functions/index.js (v2)
 
 // ====================================================================
 // HÀM 1: THAY THẾ TOÀN BỘ HÀM createAssetRequest CŨ BẰNG HÀM NÀY
@@ -759,6 +804,52 @@ exports.createAssetRequest = onCall(async (request) => {
                     await writeAuditLog("ASSET_REQUEST_REDUCE_CREATED", uid, { type: "asset_request", id: newRequestRef.id }, { name: assetToReduce.name, quantity: Number(quantity), displayId }, { request });
 
                     return { ok: true, message: "Yêu cầu giảm số lượng đã được tạo.", displayId };
+                });
+            }
+
+            // ✅ THÊM CASE MỚI NÀY VÀO
+            case "INCREASE_QUANTITY": {
+                if (!targetAssetId || !quantity || Number(quantity) <= 0) {
+                    throw new HttpsError("invalid-argument", "Thiếu ID tài sản hoặc số lượng không hợp lệ.");
+                }
+
+                return db.runTransaction(async (tx) => {
+                    const counterDoc = await tx.get(counterRef);
+                    const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
+                    const year = new Date().getFullYear();
+                    const displayId = `PYC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+
+                    const assetToIncreaseSnap = await tx.get(db.collection("assets").doc(targetAssetId));
+                    if (!assetToIncreaseSnap.exists) {
+                        throw new HttpsError("not-found", "Không tìm thấy tài sản để tạo yêu cầu.");
+                    }
+                    const assetToIncrease = assetToIncreaseSnap.data();
+
+                    const requestPayload = {
+                        type: "INCREASE_QUANTITY",
+                        status: "PENDING_HC", // Bắt đầu luồng duyệt
+                        requester,
+                        targetAssetId,
+                        departmentId: assetToIncrease.departmentId,
+                        assetData: { // Lưu thông tin tài sản VÀ số lượng cần *cộng*
+                            name: assetToIncrease.name,
+                            quantity: Number(quantity), // Đây là số lượng cần cộng
+                            unit: assetToIncrease.unit,
+                            departmentId: assetToIncrease.departmentId,
+                            ...assetData // Ghi đè thông tin client gửi (nếu có)
+                        },
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        signatures: { hc: null, kt: null },
+                        maPhieuHienThi: displayId,
+                    };
+
+                    const newRequestRef = db.collection("asset_requests").doc();
+                    tx.set(newRequestRef, requestPayload);
+                    tx.update(counterRef, { currentValue: newCounterValue });
+
+                    await writeAuditLog("ASSET_REQUEST_INCREASE_CREATED", uid, { type: "asset_request", id: newRequestRef.id }, { name: assetToIncrease.name, quantity: Number(quantity), displayId }, { request });
+
+                    return { ok: true, message: "Yêu cầu tăng số lượng đã được tạo.", displayId };
                 });
             }
             // ✅ KẾT THÚC CASE MỚI
@@ -1029,6 +1120,13 @@ exports.processAssetRequest = onCall(async (request) => {
                 const assetRef = db.collection("assets").doc(reqData.targetAssetId);
                 const quantityToReduce = reqData.assetData.quantity;
                 transaction.update(assetRef, { quantity: admin.firestore.FieldValue.increment(-quantityToReduce) });
+                // eslint-disable-next-line brace-style
+            }
+            // ✅ THÊM DÒNG NÀY
+            else if (type === "INCREASE_QUANTITY") {
+                const assetRef = db.collection("assets").doc(reqData.targetAssetId);
+                const quantityToIncrease = reqData.assetData.quantity;
+                transaction.update(assetRef, { quantity: admin.firestore.FieldValue.increment(quantityToIncrease) });
             }
 
             transaction.update(requestRef, {
@@ -1079,40 +1177,40 @@ exports.onTransferCompleted = onDocumentUpdated("transfers/{transferId}", async 
     }
 });
 
-/**
- * [GIAI ĐOẠN 2 - v2] Tự động cập nhật ngày kiểm kê khi báo cáo kiểm kê hoàn tất.
- */
-exports.onReportCompleted = onDocumentUpdated("inventory_reports/{reportId}", async (event) => {
-    const beforeData = event.data.before.data();
-    const afterData = event.data.after.data();
+// /**
+//  * [GIAI ĐOẠN 2 - v2] Tự động cập nhật ngày kiểm kê khi báo cáo kiểm kê hoàn tất.
+//  */
+// exports.onReportCompleted = onDocumentUpdated("inventory_reports/{reportId}", async (event) => {
+//     const beforeData = event.data.before.data();
+//     const afterData = event.data.after.data();
 
-    if (beforeData.status !== "COMPLETED" && afterData.status === "COMPLETED") {
-        const assets = afterData.assets;
-        const { reportId } = event.params;
+//     if (beforeData.status !== "COMPLETED" && afterData.status === "COMPLETED") {
+//         const assets = afterData.assets;
+//         const { reportId } = event.params;
 
-        if (!assets || assets.length === 0) {
-            logger.log(`Báo cáo ${reportId} hoàn tất nhưng không có tài sản.`);
-            return;
-        }
+//         if (!assets || assets.length === 0) {
+//             logger.log(`Báo cáo ${reportId} hoàn tất nhưng không có tài sản.`);
+//             return;
+//         }
 
-        const batch = db.batch();
-        const now = admin.firestore.FieldValue.serverTimestamp();
+//         const batch = db.batch();
+//         const now = admin.firestore.FieldValue.serverTimestamp();
 
-        assets.forEach((asset) => {
-            if (asset.id) {
-                const assetRef = db.collection("assets").doc(asset.id);
-                batch.update(assetRef, { lastChecked: now });
-            }
-        });
+//         assets.forEach((asset) => {
+//             if (asset.id) {
+//                 const assetRef = db.collection("assets").doc(asset.id);
+//                 batch.update(assetRef, { lastChecked: now });
+//             }
+//         });
 
-        try {
-            await batch.commit();
-            logger.log(`Đã cập nhật ngày kiểm kê cho ${assets.length} tài sản từ báo cáo ${reportId}.`);
-        } catch (error) {
-            logger.error(`Lỗi khi cập nhật tài sản từ báo cáo ${reportId}:`, error);
-        }
-    }
-});
+//         try {
+//             await batch.commit();
+//             logger.log(`Đã cập nhật ngày kiểm kê cho ${assets.length} tài sản từ báo cáo ${reportId}.`);
+//         } catch (error) {
+//             logger.error(`Lỗi khi cập nhật tài sản từ báo cáo ${reportId}:`, error);
+//         }
+//     }
+// });
 // ====================================================================
 // NEW: FUNCTION ĐỂ XÓA YÊU CẦU THAY ĐỔI TÀI SẢN (CHỈ ADMIN)
 // ====================================================================
@@ -1426,67 +1524,175 @@ exports.deleteInventoryReport = onCall(async (request) => {
     return { ok: true, message: "Đã xoá báo cáo kiểm kê." };
 });
 
-// Thêm toàn bộ hàm mới này vào file functions/index.js của bạn
+// index.js (khoảng dòng 1122)
 
 // ====================================================================
-// HÀM MỚI: THÊM TÀI SẢN HÀNG LOẠT TRỰC TIẾP (CHỈ ADMIN)
+// HÀM MỚI: THÊM TÀI SẢN HÀNG LOẠT TRỰC TIẾP (CHỈ ADMIN) - CẬP NHẬT LOGIC SKIP
 // ====================================================================
 exports.batchAddAssetsDirectly = onCall(async (request) => {
-    // 1. Đảm bảo người thực hiện là Admin
     await ensureAdmin(request.auth);
     const { uid } = request.auth;
     const { assetsData } = request.data;
 
-    // 2. Kiểm tra dữ liệu đầu vào
     if (!Array.isArray(assetsData) || assetsData.length === 0) {
         throw new HttpsError("invalid-argument", "Thiếu dữ liệu tài sản.");
     }
-    if (assetsData.length > 200) { // Đặt giới hạn để tránh quá tải
+    if (assetsData.length > 200) {
         throw new HttpsError("invalid-argument", "Chỉ có thể thêm tối đa 200 tài sản mỗi lần.");
     }
 
     try {
-        const batch = db.batch();
         const userSnap = await db.collection("users").doc(uid).get();
         const creatorName = userSnap.data()?.displayName || request.auth.token.email || "Admin";
 
-        assetsData.forEach((asset) => {
-            // 3. Validation cho từng tài sản
+        // ✅ LOGIC MỚI: Bỏ qua (SKIP) tài sản trùng
+
+        // Tạo một mảng các promise, mỗi promise là một transaction
+        const upsertPromises = assetsData.map(async (asset) => {
+            // Validation cho từng tài sản
             if (!asset.name || !asset.departmentId || !asset.unit || !asset.quantity) {
-                // Trong thực tế, bạn có thể log lỗi này thay vì quăng lỗi để không làm hỏng cả batch
-                // Nhưng để đơn giản, chúng ta sẽ quăng lỗi
-                throw new HttpsError("invalid-argument", `Tài sản "${asset.name || "không tên"}" thiếu thông tin cần thiết.`);
+                logger.warn("Bỏ qua tài sản không hợp lệ trong batch:", asset);
+                return { status: "skipped", name: asset.name || "N/A" }; // Bỏ qua
+            }
+            const quantityToAdd = Number(asset.quantity) || 0;
+            if (quantityToAdd <= 0) {
+                return { status: "skipped", name: asset.name }; // Bỏ qua
             }
 
-            const newAssetRef = db.collection("assets").doc(); // Tự động tạo ID
-            batch.set(newAssetRef, {
-                ...asset, // Bao gồm name, quantity, unit, departmentId, managementBlock,...
-                createdBy: { uid, name: creatorName }, // Ghi lại người tạo
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                reserved: 0, // Giá trị mặc định
+            // Chạy một transaction cho MỖI tài sản
+            return db.runTransaction(async (tx) => {
+                // Gọi hàm helper để tìm tài sản trùng
+                const existingAssetSnap = await findMatchingAsset(tx, asset);
+
+                if (existingAssetSnap) {
+                    // ĐÃ TỒN TẠI: BỎ QUA (SKIP)
+                    logger.log(`Skipping duplicate asset: ${asset.name}`);
+                    return { status: "skipped", name: asset.name };
+                } else {
+                    // CHƯA TỒN TẠI: Thêm mới
+                    const newAssetRef = db.collection("assets").doc();
+                    tx.set(newAssetRef, {
+                        ...asset,
+                        quantity: quantityToAdd,
+                        createdBy: { uid, name: creatorName },
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        reserved: 0,
+                    });
+                    return { status: "created", name: asset.name };
+                }
             });
         });
 
-        // 4. Thực hiện ghi hàng loạt
-        await batch.commit();
+        // Chờ tất cả transaction hoàn tất
+        const results = await Promise.all(upsertPromises);
 
-        // 5. Ghi log kiểm toán
+        const createdCount = results.filter((r) => r?.status === "created").length;
+        const skippedCount = results.filter((r) => r?.status === "skipped").length;
+        const skippedNames = results
+            .filter((r) => r?.status === "skipped")
+            .map((r) => r.name)
+            .slice(0, 5); // Lấy 5 tên đầu tiên để báo lỗi
+
         await writeAuditLog(
-            "ASSET_BATCH_ADDED_DIRECTLY",
+            "ASSET_BATCH_ADD_WITH_SKIP", // Tên action mới
             uid,
-            null, // Không có target cụ thể, đây là hành động hàng loạt
-            { count: assetsData.length, departmentId: assetsData[0]?.departmentId },
+            null,
+            {
+                created: createdCount,
+                skipped: skippedCount,
+                total: assetsData.length,
+                skippedExamples: skippedNames.join(", ")
+            },
             { request, origin: "callable:batchAddAssetsDirectly" }
         );
 
-        return { ok: true, message: `Đã thêm ${assetsData.length} tài sản.` };
+        // 5. Trả về kết quả
+        let message = `Đã thêm ${createdCount} tài sản mới.`;
+        if (skippedCount > 0) {
+            message += ` ${skippedCount} tài sản bị bỏ qua vì đã tồn tại (VD: ${skippedNames.join(", ")}...).`;
+        }
+
+        return {
+            ok: true,
+            message: message
+        };
     } catch (error) {
         logger.error("Lỗi khi thêm tài sản hàng loạt trực tiếp:", error);
         throw new HttpsError("internal", error.message || "Không thể thêm tài sản lên server.");
     }
 });
 
+// ====================================================================
+// HÀM MỚI: CẬP NHẬT NGÀY KIỂM KÊ HÀNG LOẠT (CHỈ ADMIN)
+// ====================================================================
+exports.batchUpdateAssetDates = onCall(async (request) => {
+    // 1. Đảm bảo người thực hiện là Admin
+    await ensureAdmin(request.auth);
+    const { uid } = request.auth;
+    const { assetIds, newCheckDate } = request.data;
 
+    // 2. Kiểm tra dữ liệu đầu vào
+    if (!Array.isArray(assetIds) || assetIds.length === 0 || !newCheckDate) {
+        throw new HttpsError("invalid-argument", "Dữ liệu không hợp lệ (thiếu IDs hoặc ngày).");
+    }
+    if (assetIds.length > 1000) { // Đặt giới hạn
+        throw new HttpsError("invalid-argument", "Chỉ có thể cập nhật tối đa 1000 tài sản mỗi lần.");
+    }
+
+    const newDate = new Date(newCheckDate); // Chuyển chuỗi ISO về đối tượng Date
+    if (isNaN(newDate.getTime())) {
+        throw new HttpsError("invalid-argument", "Ngày không hợp lệ.");
+    }
+
+    const db = admin.firestore();
+
+    // 3. Xử lý cập nhật hàng loạt (Batch Write)
+    // Một batch chỉ cho phép tối đa 500 thao tác
+    const chunks = [];
+    for (let i = 0; i < assetIds.length; i += 500) {
+        chunks.push(assetIds.slice(i, i + 500));
+    }
+
+    let successCount = 0;
+    try {
+        // Thực thi từng batch (chunk)
+        for (const chunk of chunks) {
+            const batch = db.batch();
+
+            chunk.forEach((assetId) => {
+                const docRef = db.collection("assets").doc(assetId);
+                // Cập nhật trường lastChecked
+                batch.update(docRef, { lastChecked: newDate });
+            });
+
+            await batch.commit();
+            successCount += chunk.length;
+        }
+
+        // 4. Ghi log kiểm toán
+        await writeAuditLog(
+            "ASSET_DATES_BATCH_UPDATED",
+            uid,
+            null, // Hành động hàng loạt
+            {
+                count: successCount,
+                newCheckDate: newCheckDate
+            },
+            { request, origin: "callable:batchUpdateAssetDates", severity: "INFO" }
+        );
+
+        // 5. Trả về kết quả
+        return {
+            success: true,
+            message: `Đã cập nhật ngày kiểm kê cho ${successCount} tài sản.`,
+        };
+    } catch (error) {
+        logger.error("Lỗi khi batchUpdateAssetDates: ", error);
+
+        // ✅ ĐÂY LÀ DÒNG ĐÃ SỬA LỖI (thêm toán tử '+')
+        throw new HttpsError("internal", "Cập nhật thất bại: " + error.message);
+    }
+});
 /* ===================== BK Agent: ingest & status ===================== */
 
 function validSignature(rawBody, header, secret) {

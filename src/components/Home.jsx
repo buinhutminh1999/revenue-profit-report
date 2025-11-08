@@ -16,7 +16,8 @@ import {
     Construction, Building, BookCheck, FileSpreadsheet, BarChart3,
     Landmark, ClipboardList, BookUser, PieChart, LineChart, TrendingUp,
     FileCheck2, FileBarChart2, ArrowRightLeft, ShieldOff,
-    UserCheck, Search // Thêm icon Search
+    UserCheck, Search, // Thêm icon Search
+    ClipboardCheck
 } from 'lucide-react';
 
 // Styled Card với hiệu ứng ERP hiện đại
@@ -57,6 +58,15 @@ const Home = () => {
         { category: 'Chức Năng Chính', icon: <Construction size={26} />, title: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ công việc", color: '#3b82f6' },
         { category: 'Chức Năng Chính', icon: <Building size={26} />, title: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết thông tin các công trình", color: '#8b5cf6' },
         { category: 'Chức Năng Chính', icon: <ArrowRightLeft size={26} />, title: "QL Luân chuyển Tài sản", to: "/asset-transfer", desc: "Theo dõi và luân chuyển tài sản", color: '#0891b2', isNew: true },
+        { 
+            category: 'Chức Năng Chính', 
+            icon: <ClipboardCheck size={26} />, 
+            title: "So Sánh Báo Giá Vật Tư", 
+            to: "/material-price-comparison", // Đường dẫn bạn đã tạo ở Router
+            desc: "Tổng hợp, so sánh giá từ nhà cung cấp", 
+            color: '#f97316', // (Một màu cam mới)
+            isNew: true 
+        },
         { category: 'Chức Năng Chính', icon: <BookCheck size={26} />, title: "Phân Bổ Chi Phí", to: "/allocations", desc: "Quản lý và phân bổ chi phí dự án", color: '#10b981' },
         { category: 'Chức Năng Chính', icon: <FileSpreadsheet size={26} />, title: "Công Nợ Phải Trả", to: "/construction-payables", desc: "Theo dõi và quản lý các khoản công nợ", color: '#f59e0b' },
         { category: 'Chức Năng Chính', icon: <FileCheck2 size={26} />, title: "Công Nợ Phải Thu", to: "/accounts-receivable", desc: "Theo dõi các khoản phải thu từ khách hàng", color: '#ec4899' },
