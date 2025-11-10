@@ -761,7 +761,13 @@ export default function QuarterlyCostAllocationReport() {
                 const percent = (typeof savedPercent === 'number') ? savedPercent : null;
 
                 const savedCarryOver = savedRow?.byType?.[typeFilter]?.['carryOver'];
-                const carryOver = (typeof savedCarryOver === 'number') ? savedCarryOver : prevCumCurrent;
+                
+                // Nếu người dùng đã nhập, dùng giá trị đã lưu (savedCarryOver).
+                // Nếu chưa nhập (undefined/null), dùng giá trị Thiếu LK quý trước (prevCumCurrent).
+                // Lưu ý: Số 0 là giá trị HỢP LỆ (người dùng chủ động reset).
+                const carryOver = (savedCarryOver !== undefined && savedCarryOver !== null) 
+                    ? savedCarryOver 
+                    : prevCumCurrent;
 
                 // [SỬA] Lấy TOÀN BỘ byType đã lưu (nếu có)
                 const existingByType = savedRow?.byType || {};
@@ -956,66 +962,69 @@ export default function QuarterlyCostAllocationReport() {
         }
         const totalBudget = Math.round(originalAllocated - finalCarryOver);
         // ===== THÊM ĐOẠN NÀY VÀO =====
-// KIỂM TRA: Nếu %DT = 0, không phân bổ gì cả (kể cả nợ cũ)
-if (newValue === 0 || newValue === null || newValue === undefined) {
-    const updatedProjectValues = {};
-    visibleProjects.forEach(p => {
-        updatedProjectValues[p.id] = 0;
-    });
+        // KIỂM TRA: Nếu %DT = 0, không phân bổ gì cả (kể cả nợ cũ)
+        if (newValue === 0 || newValue === null || newValue === undefined) {
+            const updatedProjectValues = {};
+            visibleProjects.forEach(p => {
+                updatedProjectValues[p.id] = 0;
+            });
 
-    const calculatedProjectDeficits = {};
-    visibleProjects.forEach(p => {
-        const prevDeficit = prevQuarterDetails[rowId]?.projectDeficits?.[p.id] || 
-                           prevQuarterDetails[rowId]?.[p.id] || 0;
-        calculatedProjectDeficits[p.id] = prevDeficit;
-    });
+            const calculatedProjectDeficits = {};
+            visibleProjects.forEach(p => {
+                const prevDeficit = prevQuarterDetails[rowId]?.projectDeficits?.[p.id] ||
+                    prevQuarterDetails[rowId]?.[p.id] || 0;
+                calculatedProjectDeficits[p.id] = prevDeficit;
+            });
 
-    setTempCalcDetails(prev => ({
-        ...prev,
-        [rowId]: {
-            projectDemands: {},
-            projectDeficits: calculatedProjectDeficits
-        }
-    }));
-
-    const cumValue = (0 - originalAllocated) + finalCarryOver;
-    const newSurplusCumCurrent = Math.max(cumValue, 0);
-    const newCumCurrent = Math.min(cumValue, 0);
-    const newCumQuarterOnly = Math.min(0 - originalAllocated, 0);
-
-    setMainRowsData(prevData => {
-        setDirtyRows(prev => new Set(prev).add(rowId));
-        return prevData.map(row => {
-            if (row.id === rowId) {
-                const newRow = JSON.parse(JSON.stringify(row));
-                if (!newRow.byType) newRow.byType = {};
-                if (!newRow.byType[typeFilter]) newRow.byType[typeFilter] = {};
-
-                newRow.byType[typeFilter][fieldKey] = newValue;
-                newRow.byType[typeFilter].used = 0;
-                newRow.byType[typeFilter].cumQuarterOnly = newCumQuarterOnly;
-                newRow.byType[typeFilter].surplusCumCurrent = newSurplusCumCurrent;
-                newRow.byType[typeFilter].cumCurrent = newCumCurrent;
-                
-                if (typeof carryOverOverride === 'number') {
-                    newRow.byType[typeFilter].carryOver = carryOverOverride;
+            setTempCalcDetails(prev => ({
+                ...prev,
+                [rowId]: {
+                    projectDemands: {},
+                    projectDeficits: calculatedProjectDeficits
                 }
+            }));
 
-                visibleProjects.forEach(p => {
-                    newRow[p.id] = 0;
+            const cumValue = (0 - originalAllocated) + finalCarryOver;
+            const newSurplusCumCurrent = Math.max(cumValue, 0);
+            const newCumCurrent = Math.min(cumValue, 0);
+            const newCumQuarterOnly = Math.min(0 - originalAllocated, 0);
+
+            setMainRowsData(prevData => {
+                setDirtyRows(prev => new Set(prev).add(rowId));
+                return prevData.map(row => {
+                    if (row.id === rowId) {
+                        const newRow = JSON.parse(JSON.stringify(row));
+                        if (!newRow.byType) newRow.byType = {};
+                        if (!newRow.byType[typeFilter]) newRow.byType[typeFilter] = {};
+
+                        newRow.byType[typeFilter][fieldKey] = newValue;
+                        newRow.byType[typeFilter].used = 0;
+                        newRow.byType[typeFilter].cumQuarterOnly = newCumQuarterOnly;
+                        newRow.byType[typeFilter].surplusCumCurrent = newSurplusCumCurrent;
+                        newRow.byType[typeFilter].cumCurrent = newCumCurrent;
+
+                        if (typeof carryOverOverride === 'number') {
+                            newRow.byType[typeFilter].carryOver = carryOverOverride;
+                        }else {
+                    // Quan trọng: Nếu không có override, giữ nguyên giá trị carryOver hiện tại (đã là cumCurrent quý trước)
+                    newRow.byType[typeFilter].carryOver = finalCarryOver; // finalCarryOver là giá trị cumCurrent quý trước
+                }   
+
+                        visibleProjects.forEach(p => {
+                            newRow[p.id] = 0;
+                        });
+
+                        delete newRow.projectDemands;
+                        delete newRow.projectDeficits;
+
+                        return newRow;
+                    }
+                    return row;
                 });
+            });
 
-                delete newRow.projectDemands;
-                delete newRow.projectDeficits;
-
-                return newRow;
-            }
-            return row;
-        });
-    });
-    
-    return; // Kết thúc hàm sớm
-}
+            return; // Kết thúc hàm sớm
+        }
         // --- BƯỚC 1: TÁCH CÔNG TRÌNH & TÍNH TOÁN NHU CẦU BAN ĐẦU ---
         // (Toàn bộ logic BƯỚC 1 giữ nguyên y hệt)
 
@@ -1215,7 +1224,10 @@ if (newValue === 0 || newValue === null || newValue === undefined) {
                     // [THÊM MỚI] Thêm đoạn code này vào đây
                     if (typeof carryOverOverride === 'number') {
                         newRow.byType[typeFilter].carryOver = carryOverOverride;
-                    }
+                    }else {
+                        // Quan trọng: Nếu không có override, giữ nguyên giá trị carryOver hiện tại
+                        newRow.byType[typeFilter].carryOver = finalCarryOver;
+                    }
                     visibleProjects.forEach(p => {
                         newRow[p.id] = updatedProjectValues[p.id] || 0;
                     });
