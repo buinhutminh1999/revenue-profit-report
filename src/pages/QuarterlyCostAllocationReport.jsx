@@ -760,14 +760,7 @@ export default function QuarterlyCostAllocationReport() {
                 const savedPercent = savedRow?.byType?.[typeFilter]?.[pctKey];
                 const percent = (typeof savedPercent === 'number') ? savedPercent : null;
 
-                const savedCarryOver = savedRow?.byType?.[typeFilter]?.['carryOver'];
-                
-                // Nếu người dùng đã nhập, dùng giá trị đã lưu (savedCarryOver).
-                // Nếu chưa nhập (undefined/null), dùng giá trị Thiếu LK quý trước (prevCumCurrent).
-                // Lưu ý: Số 0 là giá trị HỢP LỆ (người dùng chủ động reset).
-                const carryOver = (savedCarryOver !== undefined && savedCarryOver !== null) 
-                    ? savedCarryOver 
-                    : prevCumCurrent;
+               const carryOver = prevCumCurrent;
 
                 // [SỬA] Lấy TOÀN BỘ byType đã lưu (nếu có)
                 const existingByType = savedRow?.byType || {};
