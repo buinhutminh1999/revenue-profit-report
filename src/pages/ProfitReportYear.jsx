@@ -213,8 +213,13 @@ const useProfitReportData = (selectedYear) => {
                 };
             });
 
+            // Tính tổng cho 3 nhóm con bạn yêu cầu (I.1, I.2, I.3)
             const groupISum = sumGroup(
-                updatedRows.filter((r) => r.name.startsWith("I."))
+                updatedRows.filter((r) =>
+                    r.name === "I.1. Dân Dụng + Giao Thông" ||
+                    r.name === "I.2. KÈ" ||
+                    r.name === "I.3. CÔNG TRÌNH CÔNG TY CĐT"
+                )
             );
             const groupIISum = sumGroup(
                 updatedRows.filter((r) => r.name.startsWith("II."))
@@ -1417,132 +1422,132 @@ const useProfitReportData = (selectedYear) => {
                     }
                 }
             });
-// ======================================================================
-// ✅ BẮT ĐẦU: KHỐI CODE HỢP NHẤT VÀ CHÈN DỮ LIỆU HOÀN CHỈNH
-// ======================================================================
+            // ======================================================================
+            // ✅ BẮT ĐẦU: KHỐI CODE HỢP NHẤT VÀ CHÈN DỮ LIỆU HOÀN CHỈNH
+            // ======================================================================
 
-// Object để tổng hợp dữ liệu thủ công chỉ từ nhóm I.1
-const manualI1Data = {};
+            // Object để tổng hợp dữ liệu thủ công chỉ từ nhóm I.1
+            const manualI1Data = {};
 
-// Bước 1: Quét qua 4 quý để tìm dữ liệu thủ công trong nhóm I.1
-for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-    try {
-        const quarterlyReportDoc = await getDoc(
-            doc(db, "profitReports", `${selectedYear}_${quarter}`)
-        );
+            // Bước 1: Quét qua 4 quý để tìm dữ liệu thủ công trong nhóm I.1
+            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+                try {
+                    const quarterlyReportDoc = await getDoc(
+                        doc(db, "profitReports", `${selectedYear}_${quarter}`)
+                    );
 
-        if (quarterlyReportDoc.exists()) {
-            const quarterlyRows = quarterlyReportDoc.data().rows || [];
-            const groupI1Index = quarterlyRows.findIndex(r => (r.name || "").trim().toUpperCase() === "I.1. DÂN DỤNG + GIAO THÔNG");
+                    if (quarterlyReportDoc.exists()) {
+                        const quarterlyRows = quarterlyReportDoc.data().rows || [];
+                        const groupI1Index = quarterlyRows.findIndex(r => (r.name || "").trim().toUpperCase() === "I.1. DÂN DỤNG + GIAO THÔNG");
 
-            if (groupI1Index === -1) continue;
+                        if (groupI1Index === -1) continue;
 
-            let endIndex = quarterlyRows.findIndex((r, idx) => idx > groupI1Index && (r.name || "").trim().toUpperCase().startsWith("I.2"));
-            if (endIndex === -1) endIndex = quarterlyRows.findIndex((r, idx) => idx > groupI1Index && r.name && r.name.match(/^[IVX]+\./));
-            if (endIndex === -1) endIndex = quarterlyRows.length;
+                        let endIndex = quarterlyRows.findIndex((r, idx) => idx > groupI1Index && (r.name || "").trim().toUpperCase().startsWith("I.2"));
+                        if (endIndex === -1) endIndex = quarterlyRows.findIndex((r, idx) => idx > groupI1Index && r.name && r.name.match(/^[IVX]+\./));
+                        if (endIndex === -1) endIndex = quarterlyRows.length;
 
-            const childRows = quarterlyRows.slice(groupI1Index + 1, endIndex);
-            const manualRowsInGroup = childRows.filter(row => !row.projectId && row.name);
+                        const childRows = quarterlyRows.slice(groupI1Index + 1, endIndex);
+                        const manualRowsInGroup = childRows.filter(row => !row.projectId && row.name);
 
-            manualRowsInGroup.forEach(row => {
-                if (!manualI1Data[row.name]) {
-                    manualI1Data[row.name] = { name: row.name, type: "Thi công" };
+                        manualRowsInGroup.forEach(row => {
+                            if (!manualI1Data[row.name]) {
+                                manualI1Data[row.name] = { name: row.name, type: "Thi công" };
+                            }
+                            manualI1Data[row.name][quarter] = {
+                                revenue: toNum(row.revenue),
+                                cost: toNum(row.cost),
+                                profit: toNum(row.profit),
+                            };
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Lỗi khi đọc báo cáo quý ${quarter}/${selectedYear}:`, error);
                 }
-                manualI1Data[row.name][quarter] = {
-                    revenue: toNum(row.revenue),
-                    cost: toNum(row.cost),
-                    profit: toNum(row.profit),
-                };
+            }
+
+            // Bước 2: Hợp nhất dữ liệu thủ công vào danh sách `projects` gốc
+            const manualI1Names = Object.keys(manualI1Data);
+            const purelyManualI1Projects = [];
+
+            manualI1Names.forEach(name => {
+                const manualData = manualI1Data[name];
+                const baseProject = projects.find(p => p.name === name);
+
+                if (baseProject) {
+                    // Nếu TÌM THẤY dự án gốc, tiến hành ghi đè dữ liệu quý
+                    for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+                        if (manualData[quarter]) {
+                            baseProject[`revenue${quarter}`] = manualData[quarter].revenue;
+                            baseProject[`cost${quarter}`] = manualData[quarter].cost;
+                            baseProject[`profit${quarter}`] = manualData[quarter].profit;
+                        }
+                    }
+                    baseProject.revenue = (baseProject.revenueQ1 || 0) + (baseProject.revenueQ2 || 0) + (baseProject.revenueQ3 || 0) + (baseProject.revenueQ4 || 0);
+                    baseProject.cost = (baseProject.costQ1 || 0) + (baseProject.costQ2 || 0) + (baseProject.costQ3 || 0) + (baseProject.costQ4 || 0);
+                    baseProject.profit = (baseProject.profitQ1 || 0) + (baseProject.profitQ2 || 0) + (baseProject.profitQ3 || 0) + (baseProject.profitQ4 || 0);
+                } else {
+                    // Nếu KHÔNG TÌM THẤY, đây là dự án mới 100% từ thêm tay
+                    const newManualProject = {
+                        name: name, type: "Thi công", revenue: 0, cost: 0, profit: 0,
+                        revenueQ1: 0, costQ1: 0, profitQ1: 0, revenueQ2: 0, costQ2: 0, profitQ2: 0,
+                        revenueQ3: 0, costQ3: 0, profitQ3: 0, revenueQ4: 0, costQ4: 0, profitQ4: 0,
+                    };
+                    for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+                        if (manualData[quarter]) {
+                            const qData = manualData[quarter];
+                            newManualProject[`revenue${quarter}`] = qData.revenue;
+                            newManualProject[`cost${quarter}`] = qData.cost;
+                            newManualProject[`profit${quarter}`] = qData.profit;
+                        }
+                    }
+                    newManualProject.revenue = newManualProject.revenueQ1 + newManualProject.revenueQ2 + newManualProject.revenueQ3 + newManualProject.revenueQ4;
+                    newManualProject.cost = newManualProject.costQ1 + newManualProject.costQ2 + newManualProject.costQ3 + newManualProject.costQ4;
+                    newManualProject.profit = newManualProject.profitQ1 + newManualProject.profitQ2 + newManualProject.profitQ3 + newManualProject.profitQ4;
+                    purelyManualI1Projects.push(newManualProject);
+                }
             });
-        }
-    } catch (error) {
-        console.error(`Lỗi khi đọc báo cáo quý ${quarter}/${selectedYear}:`, error);
-    }
-}
 
-// Bước 2: Hợp nhất dữ liệu thủ công vào danh sách `projects` gốc
-const manualI1Names = Object.keys(manualI1Data);
-const purelyManualI1Projects = [];
+            // Bước 3: Tạo một danh sách tổng hợp cuối cùng
+            const allProjects = [...projects, ...purelyManualI1Projects];
 
-manualI1Names.forEach(name => {
-    const manualData = manualI1Data[name];
-    const baseProject = projects.find(p => p.name === name);
+            // Bước 4: Dùng vòng lặp duy nhất để chèn TOÀN BỘ công trình vào `rowTemplate`
+            allProjects.forEach((p) => {
+                const index = rowTemplate.findIndex((r) => r.name === p.name);
+                if (index > -1) {
+                    // Ghi đè nếu đã tồn tại (dành cho trường hợp load từ báo cáo đã lưu)
+                    rowTemplate[index] = { ...rowTemplate[index], ...p };
+                } else {
+                    // Chèn mới vào đúng vị trí theo logic nguyên bản
+                    let insertIndex = -1;
+                    if (p.type === "Thi công") {
+                        if ((p.name || "").toUpperCase().includes("KÈ")) {
+                            insertIndex = rowTemplate.findIndex(
+                                (r) => r.name === `I.3. CÔNG TRÌNH CÔNG TY CĐT`
+                            );
+                        } else {
+                            insertIndex = rowTemplate.findIndex(
+                                (r) => r.name === `I.2. KÈ`
+                            );
+                        }
+                    } else if (p.type.toLowerCase().includes("nhà máy")) {
+                        insertIndex = rowTemplate.findIndex(
+                            (r) => r.name === `II.2. DT + LN ĐƯỢC CHIA TỪ LDX`
+                        );
+                    } else if (p.type === "KH-ĐT") {
+                        insertIndex = rowTemplate.findIndex(
+                            (r) => r.name === "IV. TỔNG"
+                        );
+                    }
 
-    if (baseProject) {
-        // Nếu TÌM THẤY dự án gốc, tiến hành ghi đè dữ liệu quý
-        for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-            if (manualData[quarter]) {
-                baseProject[`revenue${quarter}`] = manualData[quarter].revenue;
-                baseProject[`cost${quarter}`] = manualData[quarter].cost;
-                baseProject[`profit${quarter}`] = manualData[quarter].profit;
-            }
-        }
-        baseProject.revenue = (baseProject.revenueQ1 || 0) + (baseProject.revenueQ2 || 0) + (baseProject.revenueQ3 || 0) + (baseProject.revenueQ4 || 0);
-        baseProject.cost = (baseProject.costQ1 || 0) + (baseProject.costQ2 || 0) + (baseProject.costQ3 || 0) + (baseProject.costQ4 || 0);
-        baseProject.profit = (baseProject.profitQ1 || 0) + (baseProject.profitQ2 || 0) + (baseProject.profitQ3 || 0) + (baseProject.profitQ4 || 0);
-    } else {
-        // Nếu KHÔNG TÌM THẤY, đây là dự án mới 100% từ thêm tay
-        const newManualProject = {
-            name: name, type: "Thi công", revenue: 0, cost: 0, profit: 0,
-            revenueQ1: 0, costQ1: 0, profitQ1: 0, revenueQ2: 0, costQ2: 0, profitQ2: 0,
-            revenueQ3: 0, costQ3: 0, profitQ3: 0, revenueQ4: 0, costQ4: 0, profitQ4: 0,
-        };
-        for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-            if (manualData[quarter]) {
-                const qData = manualData[quarter];
-                newManualProject[`revenue${quarter}`] = qData.revenue;
-                newManualProject[`cost${quarter}`] = qData.cost;
-                newManualProject[`profit${quarter}`] = qData.profit;
-            }
-        }
-        newManualProject.revenue = newManualProject.revenueQ1 + newManualProject.revenueQ2 + newManualProject.revenueQ3 + newManualProject.revenueQ4;
-        newManualProject.cost = newManualProject.costQ1 + newManualProject.costQ2 + newManualProject.costQ3 + newManualProject.costQ4;
-        newManualProject.profit = newManualProject.profitQ1 + newManualProject.profitQ2 + newManualProject.profitQ3 + newManualProject.profitQ4;
-        purelyManualI1Projects.push(newManualProject);
-    }
-});
+                    if (insertIndex > -1) {
+                        rowTemplate.splice(insertIndex, 0, p);
+                    }
+                }
+            });
 
-// Bước 3: Tạo một danh sách tổng hợp cuối cùng
-const allProjects = [...projects, ...purelyManualI1Projects];
-
-// Bước 4: Dùng vòng lặp duy nhất để chèn TOÀN BỘ công trình vào `rowTemplate`
-allProjects.forEach((p) => {
-    const index = rowTemplate.findIndex((r) => r.name === p.name);
-    if (index > -1) {
-        // Ghi đè nếu đã tồn tại (dành cho trường hợp load từ báo cáo đã lưu)
-        rowTemplate[index] = { ...rowTemplate[index], ...p };
-    } else {
-        // Chèn mới vào đúng vị trí theo logic nguyên bản
-        let insertIndex = -1;
-        if (p.type === "Thi công") {
-            if ((p.name || "").toUpperCase().includes("KÈ")) {
-                insertIndex = rowTemplate.findIndex(
-                    (r) => r.name === `I.3. CÔNG TRÌNH CÔNG TY CĐT`
-                );
-            } else {
-                insertIndex = rowTemplate.findIndex(
-                    (r) => r.name === `I.2. KÈ`
-                );
-            }
-        } else if (p.type.toLowerCase().includes("nhà máy")) {
-            insertIndex = rowTemplate.findIndex(
-                (r) => r.name === `II.2. DT + LN ĐƯỢC CHIA TỪ LDX`
-            );
-        } else if (p.type === "KH-ĐT") {
-            insertIndex = rowTemplate.findIndex(
-                (r) => r.name === "IV. TỔNG"
-            );
-        }
-
-        if (insertIndex > -1) {
-            rowTemplate.splice(insertIndex, 0, p);
-        }
-    }
-});
-
-// ======================================================================
-// ✅ KẾT THÚC: KHỐI CODE HỢP NHẤT VÀ CHÈN DỮ LIỆU HOÀN CHỈNH
-// ======================================================================
+            // ======================================================================
+            // ✅ KẾT THÚC: KHỐI CODE HỢP NHẤT VÀ CHÈN DỮ LIỆU HOÀN CHỈNH
+            // ======================================================================
             // Cập nhật dữ liệu cho các hàng có thể chỉnh sửa và tính toán
             const finalRows = runAllCalculations(
                 rowTemplate,

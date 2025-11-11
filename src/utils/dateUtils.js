@@ -1,38 +1,46 @@
 import { format, parse } from 'date-fns';
 
 export const convertExcelDateToJSDate = (excelDate) => {
-  if (!excelDate) return '❌';
-  
-  // Nếu là số serial date của Excel
-  if (typeof excelDate === 'number') {
-    const jsDate = new Date((excelDate - 25569) * 86400 * 1000);
-    if (isNaN(jsDate.getTime())) return '❌';
-    return format(jsDate, 'dd/MM/yyyy');
-  }
-  
-  // Nếu đã là string
-  if (typeof excelDate === 'string') {
-    // Nếu đã đúng format DD/MM/YYYY thì return luôn
-    const ddmmyyyyMatch = excelDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (ddmmyyyyMatch) {
-      const day = ddmmyyyyMatch[1].padStart(2, '0');
-      const month = ddmmyyyyMatch[2].padStart(2, '0');
-      const year = ddmmyyyyMatch[3];
-      return `${day}/${month}/${year}`;
+    if (!excelDate) return '❌';
+    
+    // Nếu là số serial date của Excel (Trường hợp dự phòng)
+    if (typeof excelDate === 'number') {
+        const msPerDay = 86400 * 1000;
+        
+        // Dùng 25569 cho hệ thống 1900.
+        // Đây là điểm dễ gây lỗi trượt ngày, nên dùng Date.UTC để đảm bảo
+        // ngày tháng không bị ảnh hưởng bởi múi giờ địa phương khi khởi tạo.
+        let jsDate = new Date(Date.UTC(0, 0, excelDate - 25568)); 
+
+        if (isNaN(jsDate.getTime())) return '❌';
+        
+        return format(jsDate, 'dd/MM/yyyy');
     }
     
-    // Thử parse các format khác
-    try {
-      const parsedDate = new Date(excelDate);
-      if (!isNaN(parsedDate.getTime())) {
-        return format(parsedDate, 'dd/MM/yyyy');
-      }
-    } catch (error) {
-      console.error('Lỗi parse date:', excelDate, error);
+    // Nếu là chuỗi (STRING): ĐÂY LÀ ĐẦU VÀO MONG MUỐN SAU KHI SỬA useFileUpload
+    if (typeof excelDate === 'string') {
+        // Nếu đã đúng format DD/MM/YYYY hoặc D/M/YYYY thì return
+        const ddmmyyyyMatch = excelDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (ddmmyyyyMatch) {
+            const day = ddmmyyyyMatch[1].padStart(2, '0');
+            const month = ddmmyyyyMatch[2].padStart(2, '0');
+            const year = ddmmyyyyMatch[3];
+            return `${day}/${month}/${year}`;
+        }
+        
+        // Thử parse các format khác
+        try {
+            // Cố gắng parse chuỗi ngày tháng ở đây sẽ sử dụng múi giờ địa phương
+            const parsedDate = new Date(excelDate);
+            if (!isNaN(parsedDate.getTime())) {
+                return format(parsedDate, 'dd/MM/yyyy');
+            }
+        } catch (error) {
+            console.error('Lỗi parse date:', excelDate, error);
+        }
     }
-  }
-  
-  return '❌';
+    
+    return '❌';
 };
 
 export const convertExcelTimeToTimeString = (decimalTime) => {
