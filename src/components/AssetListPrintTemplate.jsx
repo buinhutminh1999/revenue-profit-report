@@ -245,18 +245,15 @@ const SignatureDisplay = ({ signature, role }) => (
 // --- Main Print Component ---
 export const AssetListPrintTemplate = React.forwardRef(({ report, company, departments }, ref) => {
     
-    // Thay thế khối useMemo hiện tại (từ dòng 104 đến 119) bằng mã sau:
+    // 1. HOOK: TÍNH TOÁN VÀ NHÓM ASSETS (Vị trí 1 - Hợp lệ)
     const groupedAssets = useMemo(() => {
-        // Thêm kiểm tra props bên trong hook để tránh lỗi
         if (!report?.assets || !departments) return [];
 
         const departmentMap = new Map(departments.map(d => [d.id, d.name]));
         const groups = new Map();
         
-        // 1. LỌC: Chỉ giữ lại tài sản có số lượng lớn hơn 0
         const assetsToPrint = report.assets.filter(asset => Number(asset.quantity || 0) > 0);
 
-        // 2. NHÓM: Nhóm các tài sản đã lọc
         for (const asset of assetsToPrint) {
             const deptName = departmentMap.get(asset.departmentId) || "Phòng không xác định";
             if (!groups.has(deptName)) {
@@ -271,12 +268,28 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
             
     }, [report?.assets, departments]);
 
-    // ✅ BƯỚC 2: KIỂM TRA PROPS SAU KHI TẤT CẢ CÁC HOOK ĐÃ ĐƯỢC GỌI
+
+    // 2. HOOK: TÍNH TOÁN TÊN VAI TRÒ CHỮ KÝ
+    const leaderRoleName = useMemo(() => {
+        if (!report?.blockName) {
+             return "Lãnh đạo Khối/Phòng ban";
+        }
+        if (report.blockName === 'Nhà máy') {
+            return report.blockName; // Chỉ hiển thị "Nhà máy"
+        }
+        return `Lãnh đạo Khối ${report.blockName}`; // Ví dụ: "Lãnh đạo Khối XNXD1"
+    }, [report?.blockName]);
+
+
+    // 3. ĐIỀU KIỆN RETURN SỚM
     if (!report || !departments) return null;
 
     const createdDate = formatDate(report.createdAt);
     const { signatures = {} } = report;
-    const managementBlockName = report.blockName || report.departmentName;
+    
+    // managementBlockName là tên Khối (Nhà máy) hoặc tên Phòng (Phòng Hành chính)
+    const managementBlockName = report.blockName || report.departmentName; 
+    
     const qrValue = typeof window !== 'undefined'
         ? `${window.location.origin}/inventory-reports/${report.id}`
         : `/inventory-reports/${report.id}`;
@@ -388,7 +401,7 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
                     <SignatureDisplay signature={signatures.hc} role="Phòng Hành chính" />
                 </div>
                 <div style={styles.signatureCol}>
-                    <SignatureDisplay signature={signatures.deptLeader} role="Lãnh đạo Khối" />
+                    <SignatureDisplay signature={signatures.deptLeader} role={leaderRoleName} />
                 </div>
                 <div style={styles.signatureCol}>
                     <SignatureDisplay signature={signatures.director} role="Ban Giám đốc" />

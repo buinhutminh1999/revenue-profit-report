@@ -22,26 +22,31 @@ const SIDEBAR_WIDTH_COLLAPSED = 88;
 
 // AppBar mờ + blur, đổi chiều rộng theo trạng thái
 const AppBar = styled(MuiAppBar, {
-  shouldForwardProp: (prop) => prop !== "open",
+    shouldForwardProp: (prop) => prop !== "open",
 })(({ theme, open }) => ({
-  zIndex: theme.zIndex.drawer + 1,
-  backgroundColor: alpha(theme.palette.background.paper, 0.8),
-  backdropFilter: "blur(8px)",
-  boxShadow: "none",
-  borderBottom: `1px solid ${theme.palette.divider}`,
-  color: theme.palette.text.primary,
-  transition: theme.transitions.create(["width", "margin"], {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen,
-  }),
-  ...(open && {
-    marginLeft: `var(--sidebar-w, ${SIDEBAR_WIDTH_EXPANDED}px)`,
-    width: `calc(100% - var(--sidebar-w, ${SIDEBAR_WIDTH_EXPANDED}px))`,
-    transition: theme.transitions.create(["width", "margin"], {
-      easing: theme.transitions.easing.sharp,
-      duration: theme.transitions.duration.enteringScreen,
+    zIndex: theme.zIndex.drawer + 1,
+    // Màu nền mờ hiện đại
+    backgroundColor: alpha(theme.palette.background.paper, 0.95),
+    backdropFilter: "blur(12px)", // Tăng độ mờ nhẹ
+    boxShadow: "none",
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.primary,
+    
+    // Tối ưu hóa tốc độ chuyển đổi chung
+    transition: theme.transitions.create(["width", "margin", "box-shadow"], { 
+        easing: theme.transitions.easing.easeInOut,
+        duration: 300, // Tăng nhẹ thời gian chuyển đổi cho cảm giác mượt mà
     }),
-  }),
+
+    ...(open && {
+        // Chỉ áp dụng margin/width khi sidebar mở trên màn hình lớn
+        marginLeft: `var(--sidebar-w, ${SIDEBAR_WIDTH_EXPANDED}px)`,
+        width: `calc(100% - var(--sidebar-w, ${SIDEBAR_WIDTH_EXPANDED}px))`,
+        transition: theme.transitions.create(["width", "margin", "box-shadow"], {
+            easing: theme.transitions.easing.easeInOut,
+            duration: 300,
+        }),
+    }),
 }));
 
 const DrawerHeader = styled("div")(({ theme }) => ({

@@ -2576,7 +2576,24 @@ export default function AssetTransferPage() {
 
             {/* Tabs */}
             <Paper elevation={0} sx={{ border: "1px solid #e2e8f0", borderRadius: 3, overflow: "hidden", }}>
-                <Tabs value={tabIndex} onChange={(e, v) => setTabIndex(v)} sx={{ borderBottom: 1, borderColor: "divider", '& .MuiTab-root': { minHeight: '64px' } }} variant="fullWidth">                    {/* TAB MỚI */}
+                <Tabs
+                    value={tabIndex}
+                    onChange={(e, v) => setTabIndex(v)}
+                    sx={{
+                        borderBottom: 1,
+                        borderColor: "divider",
+                        // Đảm bảo padding và minWidth tối ưu cho mobile
+                        '& .MuiTab-root': {
+                            minHeight: '64px',
+                            minWidth: 'auto',
+                            padding: '0 12px', // Giảm padding ngang
+                            textTransform: 'none',
+                        }
+                    }}
+                    variant="scrollable" // ✅ BẮT BUỘC: Cho phép cuộn ngang
+                    scrollButtons="auto"
+                >
+                    {/* TAB 0: Dashboard (Giữ nguyên logic Badge cũ của bạn) */}
                     <Tab
                         label={
                             <Badge badgeContent={actionableItems.total} color="primary" max={99}>
@@ -2587,11 +2604,38 @@ export default function AssetTransferPage() {
                         iconPosition="start"
                     />
 
-                    {/* CÁC TAB CŨ */}
-                    <Tab label="Theo dõi Luân chuyển" icon={<Send size={18} />} iconPosition="start" />
-                    <Tab label="Danh sách Tài sản" icon={<Warehouse size={18} />} iconPosition="start" />
-                    <Tab label="Yêu cầu Thay đổi" icon={<History size={18} />} iconPosition="start" />
-                    <Tab label="Báo cáo Kiểm kê" icon={<BookCheck size={18} />} iconPosition="start" />
+                    {/* TAB 1: Theo dõi Luân chuyển */}
+                    <Tab
+                        icon={<Send size={18} />}
+                        iconPosition="start"
+                        label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Theo dõi Luân chuyển</Typography>}
+                        // Thêm Tooltip cho mobile (chỉ hiện icon)
+                        title="Theo dõi Luân chuyển"
+                    />
+
+                    {/* TAB 2: Danh sách Tài sản */}
+                    <Tab
+                        icon={<Warehouse size={18} />}
+                        iconPosition="start"
+                        label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Danh sách Tài sản</Typography>}
+                        title="Danh sách Tài sản"
+                    />
+
+                    {/* TAB 3: Yêu cầu Thay đổi */}
+                    <Tab
+                        icon={<History size={18} />}
+                        iconPosition="start"
+                        label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Yêu cầu Thay đổi</Typography>}
+                        title="Yêu cầu Thay đổi"
+                    />
+
+                    {/* TAB 4: Báo cáo Kiểm kê */}
+                    <Tab
+                        icon={<BookCheck size={18} />}
+                        iconPosition="start"
+                        label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Báo cáo Kiểm kê</Typography>}
+                        title="Báo cáo Kiểm kê"
+                    />
                 </Tabs>
                 {tabIndex === 0 && (
                     <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>

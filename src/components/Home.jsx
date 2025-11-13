@@ -138,62 +138,139 @@ const Home = () => {
     }
 
     return (
-        <Box sx={{ bgcolor: '#f8fafc', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>
+        // Tối ưu hóa background: Giữ nền sáng, sạch.
+        <Box sx={{ bgcolor: '#f4f6f8', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>
             <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
                 
-                {/* --- HEADER ĐƯỢC NÂNG CẤP --- */}
+                {/* --- (1) HEADER VÀ THANH TÌM KIẾM TỐI ƯU --- */}
                 <Paper
-                    elevation={0}
-                    sx={{ p: { xs: 2, sm: 3 }, mb: 5, borderRadius: 5, background: 'linear-gradient(145deg, #eef5ff 0%, #ffffff 100%)', border: '1px solid #e0e8f4' }}
+                    elevation={1} // Nâng elevation nhẹ để tạo độ sâu
+                    sx={{ 
+                        p: { xs: 2, sm: 3, md: 4 }, 
+                        mb: 5, 
+                        borderRadius: 3, // Giảm nhẹ độ cong của border
+                        background: 'white', // Nền trắng tinh khôi
+                        border: '1px solid #e0e8f4',
+                    }}
                 >
-                    <Typography variant="h4" component="h1" sx={{ fontWeight: 800, color: '#1e293b' }}>
-                        Chào mừng trở lại, {user?.displayName || user?.email || 'bạn'}!
-                    </Typography>
-                    <Typography sx={{ color: '#64748b', mt: 0.5, mb: 2.5 }}>
-                        Hãy chọn một chức năng hoặc dùng thanh tìm kiếm để bắt đầu.
-                    </Typography>
-                    <TextField
-                        fullWidth
-                        variant="outlined"
-                        placeholder="Tìm kiếm chức năng theo tên hoặc mô tả..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <Search size={20} color="#64748b" />
-                                </InputAdornment>
-                            ),
-                            sx: { borderRadius: '12px', bgcolor: 'white' }
-                        }}
-                    />
+                    <Grid container spacing={3} alignItems="center">
+                        <Grid item xs={12} md={6} sx={{ mb: { xs: 2, md: 0 } }}>
+                            <Typography variant="h4" component="h1" sx={{ fontWeight: 800, color: '#1e293b' }}>
+                                🚀 Trung Tâm Điều Hành ERP
+                            </Typography>
+                            <Typography sx={{ color: '#64748b', mt: 0.5 }}>
+                                Chào mừng, **{user?.displayName || user?.email || 'bạn'}**! Khởi động công việc của bạn.
+                            </Typography>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <TextField
+                                fullWidth
+                                variant="outlined"
+                                placeholder="Tìm kiếm chức năng (ví dụ: Công nợ, Kế hoạch...)"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <Search size={20} color="#64748b" />
+                                        </InputAdornment>
+                                    ),
+                                    sx: { borderRadius: '12px', bgcolor: '#f9fafb', '& fieldset': { borderColor: '#cbd5e1' } } // Nâng cấp màu sắc và border
+                                }}
+                            />
+                        </Grid>
+                    </Grid>
                 </Paper>
 
-                {/* --- HIỂN THỊ CÁC MODULE THEO NHÓM --- */}
+                {/* --- (2) HIỂN THỊ CÁC MODULE THEO NHÓM --- */}
                 {Object.entries(groupedModules).map(([category, modules]) => (
-                    <Box key={category} sx={{ mb: 5 }}>
-                        <Typography variant="h5" sx={{ fontWeight: 700, color: '#334155', mb: 3, pl: 1.5, borderLeft: '4px solid #3b82f6' }}>
-                            {category} ({modules.length})
+                    <Box key={category} sx={{ mb: 6 }}>
+                        {/* Cải tiến tiêu đề nhóm */}
+                        <Typography 
+                            variant="h5" 
+                            sx={{ 
+                                fontWeight: 700, 
+                                color: '#0f172a', // Màu chữ đậm hơn
+                                mb: 3, 
+                                pb: 1,
+                                borderBottom: '2px solid #e2e8f0', // Dải phân cách nhẹ nhàng
+                                display: 'inline-block', // Để borderBottom chỉ chạy dưới chữ
+                            }}
+                        >
+                            {category} <span style={{ color: '#6366f1', fontWeight: 600, fontSize: '1rem' }}>({modules.length})</span>
                         </Typography>
+
+                        {/* Tối ưu hóa Grid: Hiển thị 5 cột trên màn hình XL và 6 cột trên màn hình lớn */}
                         <Grid container spacing={3}>
                             {modules.map((module, index) => (
-                                <Grid item xs={12} sm={6} md={4} lg={3} xl={2} key={module.to}>
+                                <Grid 
+                                    item 
+                                    xs={12} 
+                                    sm={6} 
+                                    md={4} 
+                                    lg={3} 
+                                    xl={2.4} // (12/5 = 2.4 để có 5 cột trên màn hình XL)
+                                    key={module.to}
+                                >
                                     <motion.div custom={index} initial="hidden" animate="visible" variants={cardVariants} style={{ height: '100%' }}>
                                         <Link to={module.to} style={{ textDecoration: 'none' }}>
                                             <StyledCard>
                                                 {module.isNew && (
-                                                    <Badge badgeContent="MỚI" color="error" sx={{ position: 'absolute', top: 16, right: 16 }} />
+                                                    // Sử dụng Badge hiện đại hơn, màu xanh nổi bật
+                                                    <Badge 
+                                                        badgeContent="NEW" 
+                                                        sx={{ 
+                                                            '& .MuiBadge-badge': { 
+                                                                bgcolor: '#f97316', 
+                                                                color: 'white', 
+                                                                fontWeight: 700,
+                                                                fontSize: '0.65rem',
+                                                                p: '0 8px',
+                                                                height: 20,
+                                                                borderRadius: '10px'
+                                                            },
+                                                            position: 'absolute', 
+                                                            top: 16, 
+                                                            right: 16 
+                                                        }} 
+                                                    />
                                                 )}
                                                 <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
-                                                    <Box sx={{ width: 54, height: 54, borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: module.color, color: 'white', mb: 2, flexShrink: 0, boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }}>
+                                                    {/* Tối ưu hóa Icon Box */}
+                                                    <Box 
+                                                        sx={{ 
+                                                            width: 50, 
+                                                            height: 50, 
+                                                            borderRadius: '12px', 
+                                                            display: 'flex', 
+                                                            alignItems: 'center', 
+                                                            justifyContent: 'center', 
+                                                            backgroundColor: module.color, 
+                                                            color: 'white', 
+                                                            mb: 2, 
+                                                            flexShrink: 0, 
+                                                            boxShadow: (theme) => `0 4px 12px ${module.color + '40'}` // Thêm shadow nhẹ cùng màu
+                                                        }}
+                                                    >
                                                         {module.icon}
                                                     </Box>
                                                     <Box sx={{ flexGrow: 1 }}>
-                                                         {/* CẢI TIẾN: ĐẢM BẢO CHIỀU CAO ĐỒNG NHẤT */}
-                                                        <Typography variant="h6" component="h3" sx={{ fontWeight: 700, color: module.color, fontSize: '1.05rem', minHeight: '2.6rem' /* Đủ cho 2 dòng */ }}>
+                                                         {/* Tối ưu hóa Tiêu đề: Giữ chiều cao cố định */}
+                                                         <Typography 
+                                                            variant="subtitle1" 
+                                                            component="h3" 
+                                                            sx={{ 
+                                                                fontWeight: 700, 
+                                                                color: '#1e293b', // Tiêu đề chính màu đen đậm
+                                                                fontSize: '1.05rem', 
+                                                                lineHeight: 1.3,
+                                                                minHeight: '2.6rem', // Đủ cho 2 dòng
+                                                            }}
+                                                        >
                                                             {module.title}
                                                         </Typography>
-                                                        <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>
+                                                         {/* Tối ưu hóa Mô tả: Nhỏ và màu xám rõ ràng */}
+                                                        <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5, fontSize: '0.85rem' }}>
                                                             {module.desc}
                                                         </Typography>
                                                     </Box>
@@ -207,15 +284,29 @@ const Home = () => {
                     </Box>
                 ))}
 
-                {/* Trạng thái khi không có module nào hoặc không tìm thấy kết quả */}
+                {/* --- (3) TRẠNG THÁI KHÔNG TÌM THẤY TỐI ƯU --- */}
                 {!isLoading && filteredModules.length === 0 && (
-                    <Box sx={{ mt: 5, p: 4, bgcolor: 'white', borderRadius: 3, textAlign: 'center', border: '1px dashed #e2e8f0' }}>
-                        <ShieldOff size={48} color="#94a3b8" style={{ margin: '0 auto' }} />
-                        <Typography variant="h6" sx={{ mt: 2, fontWeight: 600, color: '#334155' }}>
-                            {allowedModules.length > 0 ? 'Không tìm thấy chức năng phù hợp' : 'Không có chức năng nào được chỉ định'}
+                    <Box 
+                        sx={{ 
+                            mt: 5, 
+                            p: 6, 
+                            bgcolor: 'white', 
+                            borderRadius: 4, 
+                            textAlign: 'center', 
+                            border: '2px dashed #94a3b8', 
+                            maxWidth: 600, 
+                            mx: 'auto' 
+                        }}
+                    >
+                        <ShieldOff size={64} color="#94a3b8" style={{ margin: '0 auto' }} />
+                        <Typography variant="h5" sx={{ mt: 3, fontWeight: 700, color: '#334155' }}>
+                            {allowedModules.length > 0 ? 'Không tìm thấy chức năng' : 'Truy cập bị Hạn chế'}
                         </Typography>
-                        <Typography sx={{ color: '#64748b', mt: 1 }}>
-                            {allowedModules.length > 0 ? 'Vui lòng thử lại với từ khóa khác.' : 'Bạn chưa được cấp quyền. Vui lòng liên hệ quản trị viên.'}
+                        <Typography sx={{ color: '#64748b', mt: 1.5, fontSize: '1rem' }}>
+                            {allowedModules.length > 0 
+                                ? 'Không có module nào khớp với từ khóa tìm kiếm của bạn. Vui lòng kiểm tra lại.' 
+                                : 'Tài khoản của bạn chưa được cấp quyền truy cập. Vui lòng liên hệ bộ phận hỗ trợ hoặc quản trị viên hệ thống.'
+                            }
                         </Typography>
                     </Box>
                 )}

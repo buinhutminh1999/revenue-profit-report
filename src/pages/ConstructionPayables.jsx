@@ -40,7 +40,10 @@ import {
     Close as CloseIcon,
     ChevronRight as ChevronRightIcon,
     LockClock as CloseQuarterIcon,
+    FileDownloadOutlined,
 } from "@mui/icons-material";
+import * as XLSX from "xlsx-js-style";
+import { saveAs } from "file-saver"; // Thư viện để tải file xuống
 import { NumericFormat } from "react-number-format";
 import { db } from "../services/firebase-config";
 import {
@@ -120,23 +123,43 @@ const SummaryCard = ({ title, amount, icon, color, loading }) => (
                 borderColor: "divider",
                 height: "100%",
                 display: "flex",
-                flexDirection: "column",
+                flexDirection: "row", // Thay đổi thành row
+                alignItems: "center", // Căn giữa theo chiều dọc
+                justifyContent: "space-between", // Đẩy icon và nội dung ra hai bên
+                transition: "box-shadow 0.3s",
+                "&:hover": {
+                    boxShadow: (theme) => `0 4px 20px rgba(0, 0, 0, 0.05)`, // Thêm hiệu ứng hover nhẹ
+                }
             }}
         >
             {loading ? (
-                <>
-                    <Skeleton variant="circular" width={48} height={48} />
-                    <Skeleton
-                        variant="text"
-                        sx={{ mt: 1.5, width: "80%", height: 20 }}
-                    />
-                    <Skeleton
-                        variant="text"
-                        sx={{ width: "60%", height: 32 }}
-                    />
-                </>
+                // Giữ nguyên Skeleton
+                <Stack spacing={1} sx={{ width: '100%' }}>
+                    <Skeleton variant="circular" width={40} height={40} />
+                    <Skeleton variant="text" sx={{ width: "80%", height: 20 }} />
+                    <Skeleton variant="text" sx={{ width: "60%", height: 32 }} />
+                </Stack>
             ) : (
-                <Stack direction="row" alignItems="center" spacing={2}>
+                <>
+                    <Box>
+                        <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            fontWeight="600"
+                            sx={{ mb: 0.5 }} // Thêm margin bottom nhẹ
+                        >
+                            {title}
+                        </Typography>
+                        <CurrencyDisplay
+                            value={amount}
+                            typographyProps={{
+                                variant: "h5",
+                                component: "p",
+                                fontWeight: "700",
+                                color: color.dark || color.main, // Sử dụng màu đậm hơn cho số tiền
+                            }}
+                        />
+                    </Box>
                     <Box
                         sx={{
                             width: 48,
@@ -147,38 +170,35 @@ const SummaryCard = ({ title, amount, icon, color, loading }) => (
                             justifyContent: "center",
                             bgcolor: alpha(color.main, 0.1),
                             color: color.main,
+                            ml: 2, // Thêm margin left
                         }}
                     >
                         {icon}
                     </Box>
-                    <Box>
-                        <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            fontWeight="600"
-                        >
-                            {title}
-                        </Typography>
-                        <CurrencyDisplay
-                            value={amount}
-                            typographyProps={{
-                                variant: "h5",
-                                component: "p",
-                                fontWeight: "700",
-                            }}
-                        />
-                    </Box>
-                </Stack>
+                </>
             )}
         </Paper>
     </Grid>
 );
 
-const CustomToolbar = () => (
+// THAY THẾ TOÀN BỘ CustomToolbar CŨ BẰNG CODE SAU
+const CustomToolbar = ({ onExportClick, isDataEmpty }) => (
     <GridToolbarContainer sx={{ p: 2, pb: 1, justifyContent: "space-between" }}>
-        <Typography variant="h6" fontWeight="600">
-            Bảng tổng hợp công nợ
-        </Typography>
+        <Stack direction="row" spacing={2} alignItems="center">
+            <Typography variant="h6" fontWeight="600">
+                Bảng tổng hợp công nợ
+            </Typography>
+            <Button
+                variant="outlined"
+                color="success"
+                size="small"
+                onClick={onExportClick}
+                disabled={isDataEmpty}
+                startIcon={<FileDownloadOutlined />}
+            >
+                Xuất Excel
+            </Button>
+        </Stack>
         <GridToolbarQuickFilter
             variant="outlined"
             size="small"
@@ -187,6 +207,7 @@ const CustomToolbar = () => (
         />
     </GridToolbarContainer>
 );
+// KẾT THÚC THAY THẾ CustomToolbar
 
 const CurrencyDisplay = ({ value, typographyProps = {} }) => (
     <Typography {...typographyProps}>
@@ -437,6 +458,136 @@ const ConstructionPayables = () => {
 
         return Array.from(projectsMap.values());
     }, [payablesData]);
+    // Thay thế toàn bộ hàm handleExportToExcel hiện có
+const handleExportToExcel = () => {
+    // 1. CHUẨN BỊ DỮ LIỆU ĐỊNH DẠNG SỐ (Sử dụng processedData)
+    const dataForSheet = processedData.map((row) => ({
+        // Chuẩn bị dữ liệu thô
+        "Tên Công Trình": row.project,
+        "Đầu Kỳ Nợ": toNum(row.debt),
+        "Đầu Kỳ Có": toNum(row.openingCredit),
+        "PS Nợ": toNum(row.credit),
+        "PS Giảm": toNum(row.debit),
+        "Cuối Kỳ Nợ": toNum(row.tonCuoiKy),
+        "Cuối Kỳ Có": toNum(row.carryover),
+    }));
+
+    // Thêm dòng TỔNG CỘNG
+    dataForSheet.push({
+        "Tên Công Trình": "TỔNG CỘNG",
+        "Đầu Kỳ Nợ": summaryData.opening,
+        "Đầu Kỳ Có": 0,
+        "PS Nợ": summaryData.credit,
+        "PS Giảm": summaryData.debit,
+        "Cuối Kỳ Nợ": summaryData.closing,
+        "Cuối Kỳ Có": 0,
+    });
+
+    // 2. TẠO WORKSHEET VÀ CÁC THÔNG SỐ CHUNG
+    const ws = XLSX.utils.json_to_sheet(dataForSheet);
+    const moneyFormat = '#,##0'; // Định dạng tiền tệ VNĐ không có đơn vị
+
+    // Định nghĩa Style
+    const baseStyle = {
+        font: { name: "Arial", sz: 10 },
+        border: {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" },
+        },
+        alignment: { vertical: "center", horizontal: "right" },
+    };
+
+    const headerStyle = {
+        ...baseStyle,
+        font: { name: "Arial", sz: 12, bold: true, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "007FFF" } }, // Màu Xanh Navy hiện đại
+        alignment: { vertical: "center", horizontal: "center", wrapText: true },
+    };
+    
+    const totalRowStyle = {
+        ...baseStyle,
+        font: { name: "Arial", sz: 11, bold: true, color: { rgb: "000000" } },
+        fill: { fgColor: { rgb: "F0F0F0" } }, // Màu xám nhạt cho dòng tổng cộng
+        alignment: { vertical: "center", horizontal: "right" },
+    };
+
+    // 3. APPLY STYLES VÀ FORMAT CHO TỪNG CELL
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cell_address = XLSX.utils.encode_cell({ r: R, c: C });
+            const cell = ws[cell_address];
+            
+            if (!cell) continue;
+
+            // Header Row (R=0)
+            if (R === 0) {
+                cell.s = headerStyle;
+                continue;
+            }
+
+            // Dòng dữ liệu (R > 0)
+            let currentStyle = { ...baseStyle };
+            
+            // Cột Tên Công Trình (C=0)
+            if (C === 0) {
+                currentStyle.alignment.horizontal = "left";
+                if (R === range.e.r) { // Dòng cuối cùng (Tổng cộng)
+                    currentStyle = { ...totalRowStyle, alignment: { vertical: "center", horizontal: "left" } };
+                    cell.v = dataForSheet[R-1]["Tên Công Trình"].toUpperCase();
+                }
+            }
+            
+            // Các cột dữ liệu tiền tệ (C > 0)
+            if (C > 0) {
+                cell.t = 'n'; // Ép kiểu là số
+                cell.z = moneyFormat; // Định dạng số tiền
+                
+                if (R === range.e.r) { // Dòng cuối cùng (Tổng cộng)
+                    currentStyle = totalRowStyle;
+                }
+                
+                // Tô màu cho PS Nợ (Warning/Orange)
+                if (C === 3 && cell.v > 0) { 
+                    currentStyle.fill = { fgColor: { rgb: "FFF8E1" } };
+                }
+                // Tô màu cho PS Giảm (Success/Green)
+                if (C === 4 && cell.v > 0) {
+                    currentStyle.fill = { fgColor: { rgb: "E8F5E9" } };
+                }
+                // Tô màu cho Cuối Kỳ Nợ (Error/Red)
+                if (C === 5 && cell.v > 0) {
+                    currentStyle.fill = { fgColor: { rgb: "FBE9E7" } };
+                }
+            }
+
+            // Áp dụng style đã xác định
+            cell.s = currentStyle;
+        }
+    }
+
+    // Thiết lập độ rộng cột tối ưu
+    ws["!cols"] = [
+        { wch: 40 }, // Tên Công Trình
+        { wch: 18 }, // Đầu Kỳ Nợ
+        { wch: 18 }, // Đầu Kỳ Có
+        { wch: 18 }, // PS Nợ
+        { wch: 18 }, // PS Giảm
+        { wch: 18 }, // Cuối Kỳ Nợ (In đậm)
+        { wch: 18 }, // Cuối Kỳ Có
+    ];
+
+    // 4. XUẤT FILE VÀ TẢI XUỐNG
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "CongNoTongHop");
+    
+    // Tạo file và tải xuống
+    const fileName = `BangTongHopCongNo_${selectedYear}_Q${selectedQuarter}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+};
     const summaryData = useMemo(
         () =>
             processedData.reduce(
@@ -457,7 +608,12 @@ const ConstructionPayables = () => {
         setDrawerOpen(true);
     };
     const handleDrawerClose = () => setDrawerOpen(false);
-
+// ✨ CODE BẠN CẦN THÊM ✨
+    const getGridRowSpacing = React.useCallback(() => ({
+        top: 8,
+        bottom: 8,
+    }), []);
+    const currencyCellProps = { style: { fontSize: "0.875rem", fontWeight: 500 } };
     const mainColumns = [
         {
             field: "project",
@@ -951,18 +1107,27 @@ const ConstructionPayables = () => {
                         >
                             Đã có lỗi xảy ra khi tải dữ liệu.
                         </Alert>
-                    ) : (
-                        <StyledDataGrid
-                            rows={processedData}
-                            columns={mainColumns}
-                            getRowId={(row) => row._id}
-                            loading={isLoading}
-                            onRowClick={handleRowClick}
-                            slots={{
-                                toolbar: CustomToolbar,
-                                noRowsOverlay: NoRowsOverlay,
-                            }}
-                            disableRowSelectionOnClick
+                  ) : (
+                        <StyledDataGrid
+                            rows={processedData}
+                            columns={mainColumns}
+                            getRowId={(row) => row._id}
+                            loading={isLoading}
+                            onRowClick={handleRowClick}
+                            // ✨ THÊM HAI PROP NÀY ✨
+                            rowSpacingType="border" 
+                            getRowSpacing={getGridRowSpacing}
+                            // -------------------------
+                            slots={{
+                                toolbar: () => (
+                                    <CustomToolbar
+                                        onExportClick={handleExportToExcel}
+                                        isDataEmpty={processedData.length === 0}
+                                    />
+                                ),
+                                noRowsOverlay: NoRowsOverlay,
+                            }}
+                            disableRowSelectionOnClick
                             autoHeight
                             getRowClassName={(params) =>
                                 params.id === selectedProject?._id

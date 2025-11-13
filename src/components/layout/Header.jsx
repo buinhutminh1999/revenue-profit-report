@@ -58,23 +58,24 @@ const UserSection = styled(Box)(({ theme }) => ({
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(1),
-    padding: theme.spacing(0.5, 1),
-    borderRadius: theme.shape.borderRadius * 2,
+    padding: theme.spacing(0.5, 1.5), // Tăng padding ngang
+    borderRadius: theme.shape.borderRadius * 3, // Bo góc nhiều hơn, hiện đại hơn
     cursor: "pointer",
-    transition: "background-color 0.2s ease",
+    transition: "background-color 0.2s ease, box-shadow 0.2s ease",
+    backgroundColor: theme.palette.mode === 'light' ? theme.palette.grey[100] : alpha(theme.palette.common.white, 0.05), 
     "&:hover": {
-        backgroundColor: alpha(theme.palette.action.active, 0.05),
+        backgroundColor: alpha(theme.palette.primary.main, 0.1), // Hover nổi bật
     },
 }));
 
 const CommandPalette = styled(Paper)(({ theme }) => ({
     position: "absolute",
-    top: "20%",
+    top: "15%", // Đưa lên cao hơn một chút
     left: "50%",
     transform: "translateX(-50%)",
     width: "90%",
     maxWidth: 680,
-    maxHeight: "60vh",
+    maxHeight: "70vh", // Tăng chiều cao tối đa
     overflow: "hidden",
     borderRadius: theme.shape.borderRadius * 3,
     boxShadow: theme.shadows[24],
@@ -82,12 +83,13 @@ const CommandPalette = styled(Paper)(({ theme }) => ({
 }));
 
 const QuickAction = styled(ListItemButton)(({ theme }) => ({
-    borderRadius: theme.spacing(1),
+    padding: theme.spacing(1, 1.5), // Tăng padding
+    borderRadius: theme.spacing(1.5), // Bo góc rõ ràng
     marginBottom: theme.spacing(0.5),
     transition: "all 0.2s ease",
     "&:hover": {
-        backgroundColor: alpha(theme.palette.primary.main, 0.08),
-        transform: "translateX(4px)",
+        backgroundColor: alpha(theme.palette.primary.main, 0.15), // Hover mạnh mẽ hơn
+        transform: "scale(1.01)", // Thêm hiệu ứng phóng to nhẹ
     },
     "& .action-icon": {
         color: theme.palette.primary.main,
@@ -243,11 +245,18 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
+                    // ✨ TỐI ƯU UI/UX ✨
+                    borderBottom: (t) => `1px solid ${t.palette.divider}`,
+                    backgroundColor: (t) => t.palette.background.paper,
+                    boxShadow: (t) => t.shadows[1], // Thêm shadow nhẹ
+                    zIndex: 1100, // Đảm bảo nó luôn ở trên nội dung trang
+                    position: 'sticky', // Giữ thanh Header cố định khi cuộn
+                    top: 0,
                 }}
             >
                 {/* Left: toggle + breadcrumbs */}
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Tooltip title={isSidebarOpen ? "Thu gọn" : "Mở rộng"}>
+                    <Tooltip title={isSidebarOpen ? "Thu gọn (⌘B)" : "Mở rộng (⌘B)"}>
                         <IconButton
                             color="inherit"
                             onClick={onSidebarToggle}
@@ -259,16 +268,20 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     </Tooltip>
 
                     <Box sx={{ display: { xs: "none", md: "block" } }}>
-                        <Breadcrumbs aria-label="breadcrumb" separator={<ChevronRight size={16} />}>
+                        <Breadcrumbs 
+                            aria-label="breadcrumb" 
+                            separator={<ChevronRight size={16} />} 
+                            sx={{ '& .MuiBreadcrumbs-separator': { mx: 0.5 } }} // Giảm khoảng cách giữa các dấu >
+                        >
                             <MuiLink
                                 component={RouterLink}
                                 underline="hover"
-                                sx={{ display: "flex", alignItems: "center" }}
-                                color="inherit"
+                                sx={{ display: "flex", alignItems: "center", transition: 'color 0.2s' }}
+                                color="text.secondary" // Màu xám nhẹ cho link chưa active
                                 to="/"
                             >
-                                <Home size={18} style={{ marginRight: 8 }} />
-                                Tổng quan
+                                <Home size={16} style={{ marginRight: 6 }} /> {/* Icon nhỏ hơn */}
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>Tổng quan</Typography>
                             </MuiLink>
                             {pathnames.map((value, index) => {
                                 const last = index === pathnames.length - 1;
@@ -278,14 +291,25 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                     <Typography
                                         color="text.primary"
                                         key={to}
-                                        sx={{ display: "flex", alignItems: "center", fontWeight: 600 }}
+                                        sx={{ 
+                                            display: "flex", 
+                                            alignItems: "center", 
+                                            fontWeight: 700, 
+                                            fontSize: '0.9rem' // Tăng fontWeight
+                                        }}
                                         aria-current="page"
                                     >
                                         {label}
                                     </Typography>
                                 ) : (
-                                    <MuiLink component={RouterLink} underline="hover" color="inherit" to={to} key={to}>
-                                        {label}
+                                    <MuiLink 
+                                        component={RouterLink} 
+                                        underline="hover" 
+                                        color="text.secondary" 
+                                        to={to} 
+                                        key={to}
+                                    >
+                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{label}</Typography>
                                     </MuiLink>
                                 );
                             })}
@@ -381,7 +405,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     <ListItemText primary="Cài đặt" />
                 </MenuItem>
                 
-                {/* ✅ BƯỚC 1: Bọc mục "Quản trị" trong điều kiện kiểm tra vai trò */}
+                {/* Bọc mục "Quản trị" trong điều kiện kiểm tra vai trò */}
                 {user?.role === 'admin' && (
                     <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/admin"); }}>
                         <ListItemIcon><Shield size={18} /></ListItemIcon>
@@ -443,19 +467,28 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                         if (!n.isRead) handleMarkAsRead(n.id);
                                         setNotificationAnchor(null);
                                     }}
-                                    sx={{ borderRadius: 1.5, mb: 0.5, alignItems: 'flex-start' }}
+                                    sx={{ 
+                                        borderRadius: 1.5, 
+                                        mb: 0.5, 
+                                        alignItems: 'flex-start',
+                                        // Highlight thông báo chưa đọc
+                                        bgcolor: n.isRead ? 'transparent' : alpha(theme.palette.primary.light, 0.05),
+                                        "&:hover": {
+                                            bgcolor: alpha(theme.palette.primary.light, 0.1),
+                                        }
+                                    }}
                                 >
                                     <ListItemIcon sx={{ mt: 0.5, minWidth: 36 }}>{config.icon}</ListItemIcon>
 
                                     <ListItemText
                                         primary={
-                                            <Typography variant="body2" fontWeight={n.isRead ? 400 : 600} sx={{ mb: 0.25 }}>
+                                            <Typography variant="body2" fontWeight={n.isRead ? 400 : 700} sx={{ mb: 0.25 }}>
                                                 {config.template(
                                                     n.actor?.name || "Một người dùng",
                                                     n.target?.name || "",
                                                     n.details?.step || ""
                                                 ).split('**').map((text, index) => (
-                                                    index % 2 === 1 ? <b key={index}>{text}</b> : text
+                                                    <b key={index} style={{ color: n.isRead ? undefined : theme.palette.primary.main }}>{index % 2 === 1 ? text : text}</b> 
                                                 ))}
                                             </Typography>
                                         }
@@ -503,16 +536,25 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     >
                         <CommandPalette onClick={(e) => e.stopPropagation()}>
                             <Box sx={{ p: 1.5, borderBottom: (t) => `1px solid ${t.palette.divider}`, display: "flex", alignItems: "center", gap: 1.5 }}>
-                                <Search size={18} />
+                                <Search size={18} color={theme.palette.primary.main} /> {/* Highlight icon Search */}
                                 <InputBase
                                     fullWidth
-                                    placeholder="Tìm nhanh… (gõ để lọc hành động)"
+                                    placeholder="Tìm nhanh chức năng, dự án, báo cáo... (gõ để lọc)"
                                     value={searchValue}
                                     onChange={(e) => setSearchValue(e.target.value)}
                                     autoFocus
                                     inputProps={{ "aria-label": "Tìm kiếm nhanh" }}
+                                    sx={{ fontSize: '1.1rem' }} // Chữ to hơn
                                 />
-                                <Chip size="small" label="Esc" />
+                                <Button 
+                                    onClick={() => setSearchOpen(false)} 
+                                    size="small"
+                                    color="inherit"
+                                    startIcon={<X size={14} />}
+                                    sx={{ textTransform: 'none', minWidth: 'auto', p: '2px 8px', borderRadius: 1.5 }}
+                                >
+                                    Đóng
+                                </Button>
                             </Box>
                             <Box sx={{ p: 2, maxHeight: 360, overflowY: "auto" }}>
                                 {filteredActions.map((group) => (
