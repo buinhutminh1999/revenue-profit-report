@@ -11,8 +11,16 @@ export const PROTECTED_ROUTES = [
     { path: 'project-manager', name: 'Quản Lý Công Trình', group: 'Modules chính' },
     { path: 'asset-transfer', name: 'QL Luân chuyển Tài sản', group: 'Modules chính' },
     
-    // === ROUTE MỚI ĐƯỢC THÊM VÀO ===
+    // === ROUTE MỚI ĐƯỢC THÊM VÀO (QUYỀN TRUY CẬP CHUNG) ===
     { path: 'material-price-comparison', name: 'So Sánh Giá Vật Tư', group: 'Modules chính' },
+    // ===============================
+    
+    // === QUYỀN HẠN TẠO BẢNG RIÊNG ===
+    { 
+        path: 'material-price-comparison/create', // Key mới để kiểm tra quyền tạo
+        name: 'So Sánh Giá Vật Tư (Tạo Bảng)', 
+        group: 'Quyền Hạn Chức Năng Đặc Biệt' // Đặt vào nhóm đặc biệt để dễ quản lý
+    },
     // ===============================
     
     {

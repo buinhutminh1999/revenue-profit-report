@@ -87,7 +87,7 @@ export default function Router() {
 }
 
 function AppRoutes() {
-    const { isAuthenticated, loading } = useAuth();
+   const { user: currentUser, isAuthenticated, loading } = useAuth();
     const location = useLocation();
     const backTo = location.state?.from?.pathname || '/';
     // =========================================================

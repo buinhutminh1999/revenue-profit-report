@@ -1,27 +1,100 @@
-// src/pages/MaterialPriceComparisonDetail.jsx
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { useParams } from 'react-router-dom'; // <--- Thêm import này
-import { Box, Typography, Paper, Button, Container, CircularProgress, Alert } from '@mui/material';
+import { useParams } from 'react-router-dom'; 
+import { 
+    Box, Typography, Paper, Container, CircularProgress, Alert, 
+    Stack, Chip, Tooltip,
+} from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { viVN } from '@mui/x-data-grid/locales';
-import { FileDown, Printer, Plus, AlertCircle } from 'lucide-react';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore'; // <--- Thêm doc, getDoc
+import { AlertCircle, Clock } from 'lucide-react';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore'; 
 import { db } from '../services/firebase-config';
+import { format, addDays } from 'date-fns'; 
 
-// --- Hàm định dạng số ---
+// --- 💡 TÁI SỬ DỤNG COMPONENT COUNTDOWNTIMER ---
+const CountdownTimer = ({ deadline }) => {
+    const calculateTimeLeft = () => {
+        const now = new Date();
+        const difference = deadline.getTime() - now.getTime();
+
+        let timeLeft = {
+            days: 0, hours: 0, minutes: 0, seconds: 0, expired: false,
+        };
+
+        if (difference > 0) {
+            timeLeft = {
+                days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+                hours: Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+                minutes: Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60)),
+                seconds: Math.floor((difference % (1000 * 60)) / 1000),
+                expired: false,
+            };
+        } else {
+            timeLeft.expired = true;
+        }
+        return timeLeft;
+    };
+
+    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+
+    useEffect(() => {
+        const newTimeLeft = calculateTimeLeft();
+        setTimeLeft(newTimeLeft);
+
+        if (newTimeLeft.expired) {
+            return;
+        }
+
+        const intervalId = setInterval(() => {
+            const updatedTime = calculateTimeLeft();
+            setTimeLeft(updatedTime);
+
+            if (updatedTime.expired) {
+                clearInterval(intervalId);
+            }
+        }, 1000);
+
+        return () => {
+            clearInterval(intervalId);
+        };
+    }, [deadline]);
+
+    if (timeLeft.expired) {
+        return <Chip label="Đã hết hạn" color="error" size="small" variant="filled" />;
+    }
+
+    const h = String(timeLeft.hours).padStart(2, '0');
+    const m = String(timeLeft.minutes).padStart(2, '0');
+    const s = String(timeLeft.seconds).padStart(2, '0');
+    const chipLabel = `${timeLeft.days} ngày, ${h}:${m}:${s}`;
+    const chipColor = timeLeft.days < 3 ? 'warning' : 'success';
+
+    return (
+        <Chip
+            label={chipLabel}
+            color={chipColor}
+            size="medium"
+            icon={<Clock size={16} style={{ marginRight: '4px' }} />}
+            variant="filled"
+        />
+    );
+};
+// -------------------------------------------------------------
+
+
+// --- Hàm định dạng số (Giữ nguyên) ---
 const formatCurrency = (params) => {
-    if (!params || params.value == null) { // Đã sửa lỗi
-        return '';
-    }
-    return params.value.toLocaleString('vi-VN');
+    if (!params || params.value == null) {
+        return '';
+    }
+    return params.value.toLocaleString('vi-VN');
 };
 
-// --- Định nghĩa cột (Giữ nguyên) ---
+// --- Định nghĩa cột (ĐÃ GỠ CỘT ID) ---
 const columns = [
-    // ... (Giữ nguyên 100% nội dung mảng columns của bạn) ...
     // Thông tin chung
+    // { field: 'id', headerName: 'ID', width: 60, align: 'center', headerAlign: 'center', }, <--- ĐÃ GỠ BỎ
     { field: 'stt', headerName: 'STT', width: 60, align: 'center', headerAlign: 'center', },
     { field: 'tenVatTu', headerName: 'Tên vật tư', width: 220 },
     { field: 'donVi', headerName: 'Đơn vị', width: 80 },
@@ -51,14 +124,14 @@ const columns = [
     { field: 'van_giaVAT', headerName: 'Giá VAT', width: 130, type: 'number', valueFormatter: formatCurrency },
 ];
 
-// --- Định nghĩa nhóm cột (Giữ nguyên) ---
+// --- Định nghĩa nhóm cột (ĐÃ GỠ CỘT ID) ---
 const columnGroupingModel = [
-    // ... (Giữ nguyên 100% nội dung mảng columnGroupingModel của bạn) ...
     {
       groupId: 'Thông Tin Vật Tư',
       headerName: 'Thông Tin Vật Tư',
       headerAlign: 'center',
       children: [
+        // { field: 'id' }, // <--- ĐÃ GỠ BỎ
         { field: 'stt' }, { field: 'tenVatTu' }, { field: 'donVi' },
         { field: 'khoiLuong' }, { field: 'chungLoai' }, { field: 'cuaHang' }, { field: 'ghiChu' }
       ],
@@ -97,23 +170,30 @@ const columnGroupingModel = [
 
 // --- Component Chính ---
 const MaterialPriceComparisonDetail = () => {
-    const { tableId } = useParams(); // <--- Lấy ID từ URL
+    const { tableId } = useParams(); 
     const [rows, setRows] = useState([]);
-    const [projectInfo, setProjectInfo] = useState(null); // <--- State cho thông tin dự án
+    const [projectInfo, setProjectInfo] = useState(null); 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // --- Fetch Data (Đã cập nhật) ---
+    // Tính toán Deadline
+    const deadlineDate = useMemo(() => {
+        if (projectInfo?.createdAt && projectInfo.durationDays) {
+            const startDate = projectInfo.createdAt.toDate ? projectInfo.createdAt.toDate() : new Date(projectInfo.createdAt);
+            return addDays(startDate, projectInfo.durationDays);
+        }
+        return null;
+    }, [projectInfo]);
+
+    // --- Fetch Data (Giữ nguyên) ---
     useEffect(() => {
-        if (!tableId) return; // Dừng nếu không có ID
+        if (!tableId) return; 
 
         const fetchData = async () => {
             setLoading(true);
             setError(null);
             try {
-                // Giả sử cấu trúc: Collection 'priceComparisonTables' -> Document [tableId] -> Sub-collection 'items'
-                
-                // 1. Lấy thông tin chính của bảng (tên dự án, quý...)
+                // 1. Lấy thông tin chính của bảng 
                 const tableDocRef = doc(db, 'priceComparisonTables', tableId);
                 const docSnap = await getDoc(tableDocRef);
 
@@ -125,7 +205,11 @@ const MaterialPriceComparisonDetail = () => {
                 // 2. Lấy danh sách vật tư (rows) từ sub-collection 'items'
                 const itemsColRef = collection(db, 'priceComparisonTables', tableId, 'items');
                 const querySnapshot = await getDocs(itemsColRef);
-                const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const data = querySnapshot.docs.map((doc, index) => ({ 
+                    id: doc.id, // Vẫn cần giữ id trong object rows để DataGrid biết cách theo dõi hàng
+                    stt: index + 1, 
+                    ...doc.data() 
+                }));
                 
                 setRows(data);
             } catch (err) {
@@ -136,7 +220,7 @@ const MaterialPriceComparisonDetail = () => {
         };
 
         fetchData();
-    }, [tableId]); // <--- Chạy lại khi tableId thay đổi
+    }, [tableId]); 
 
     if (loading) {
         return (
@@ -156,52 +240,70 @@ const MaterialPriceComparisonDetail = () => {
             </Container>
         );
     }
+    
+    // Lấy thông tin thời gian tạo
+    const createdDate = projectInfo?.createdAt?.toDate ? format(projectInfo.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : 'N/A';
 
     return (
         <>
             <Helmet>
-                {/* --- Tiêu đề động --- */}
-                <title>{projectInfo?.tableName || 'Bảng So Sánh Giá'} | Bách Khoa</title>
+                <title>{projectInfo?.projectName || 'Bảng So Sánh Giá'} | Bách Khoa</title>
             </Helmet>
             <Box sx={{ bgcolor: '#f8fafc', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>
                 <Container maxWidth={false} sx={{ maxWidth: 2000 }}>
                     
-                    {/* --- TIÊU ĐỀ TRANG (Động) --- */}
+                    {/* --- TIÊU ĐỀ TRANG & THÔNG TIN CHUNG (UI/UX Hiện đại) --- */}
                     <Paper 
-                        elevation={0}
-                        sx={{ p: { xs: 2, sm: 3 }, mb: 3, borderRadius: 3, background: 'linear-gradient(145deg, #eef5ff 0%, #ffffff 100%)', border: '1px solid #e0e8f4' }}
-                    >
-                        <Typography variant="h4" component="h1" sx={{ fontWeight: 800, color: '#1e293b' }}>
-                            {projectInfo?.tableName || 'Bảng Tổng Hợp Vật Liệu'}
-                        </Typography>
-                        <Typography sx={{ color: '#64748b', mt: 0.5 }}>
-                            Công trình: {projectInfo?.projectName || 'Đang tải...'}
-                        </Typography>
-                        <Typography variant="subtitle2" sx={{ color: '#64748b', mt: 0.5 }}>
-                            {projectInfo?.reportQuarter || '(Theo giá thông báo...)'}
-                        </Typography>
-                    </Paper>
-
-                    {/* --- THANH CÔNG CỤ (Giữ nguyên) --- */}
-                    <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 3, border: '1px solid #e0e8f4', bgcolor: 'white' }}>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                            <Button variant="contained" startIcon={<FileDown size={18} />}>
-                                Xuất Excel
-                            </Button>
-                            <Button variant="outlined" startIcon={<Printer size={18} />}>
-                                In Bảng
-                            </Button>
-                            <Button variant="outlined" startIcon={<Plus size={18} />} sx={{ ml: { sm: 'auto' } }}>
-                                Thêm Vật Tư
-                            </Button>
-                        </Box>
-                    </Paper>
-
-                    {/* --- BẢNG DỮ LIỆU (Giữ nguyên) --- */}
-                    <Paper 
-                        elevation={0} 
+                        elevation={2} 
                         sx={{ 
-                            height: 'calc(100vh - 340px)', // Cập nhật chiều cao
+                            p: { xs: 2, sm: 4 }, 
+                            mb: 3, 
+                            borderRadius: 3, 
+                            background: 'white', 
+                            border: '1px solid #e0e8f4' 
+                        }}
+                    >
+                        <Stack 
+                            direction={{ xs: 'column', md: 'row' }} 
+                            justifyContent="space-between" 
+                            alignItems="flex-start" 
+                            spacing={2}
+                        >
+                            <Box>
+                                <Typography 
+                                    variant="h4" 
+                                    component="h1" 
+                                    sx={{ fontWeight: 800, color: '#1e293b' }}
+                                >
+                                    {projectInfo?.projectName || 'Bảng Tổng Hợp Vật Liệu'}
+                                </Typography>
+                                <Typography variant="body1" sx={{ color: '#64748b', mt: 0.5 }}>
+                                    Quý: **{projectInfo?.reportQuarter || 'N/A'}** | Ngày tạo: {createdDate}
+                                </Typography>
+                            </Box>
+                            
+                            {/* --- THỜI GIAN CÒN LẠI (Deadline) --- */}
+                            <Box sx={{ flexShrink: 0 }}>
+                                <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                                    THỜI GIAN ĐÁNH GIÁ CÒN LẠI:
+                                </Typography>
+                                {deadlineDate ? (
+                                    <CountdownTimer deadline={deadlineDate} />
+                                ) : (
+                                    <Chip label="Không đặt hạn" size="medium" variant="outlined" />
+                                )}
+                            </Box>
+                        </Stack>
+                    </Paper>
+
+                    {/* --- THANH CÔNG CỤ (ĐÃ GỠ BỎ HOÀN TOÀN) --- */}
+                    {/* Thanh công cụ đã được gỡ bỏ để tối giản. */}
+
+                    {/* --- BẢNG DỮ LIỆU (Đã điều chỉnh chiều cao) --- */}
+                    <Paper 
+                        elevation={1} 
+                        sx={{ 
+                            height: 'calc(100vh - 200px)', 
                             minHeight: 500,
                             width: '100%', 
                             borderRadius: 3, 
@@ -226,6 +328,7 @@ const MaterialPriceComparisonDetail = () => {
                                 pagination: { paginationModel: { pageSize: 100 } },
                             }}
                             pageSizeOptions={[25, 50, 100]}
+                            disableRowSelectionOnClick
                         />
                     </Paper>
                 </Container>

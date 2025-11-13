@@ -1,5 +1,3 @@
-// src/contexts/AuthContext.jsx
-
 import React, {
   useState,
   useEffect,
@@ -8,7 +6,7 @@ import React, {
   useMemo,
 } from "react";
 import { onAuthStateChanged, getIdTokenResult } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../services/firebase-config";
 import LoadingScreen from "../components/common/LoadingScreen";
 
@@ -54,13 +52,30 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
   const [userInfo, setUserInfo] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [accessRules, setAccessRules] = useState({}); // State mới cho Whitelist
+
+  // useEffect để tải Access Rules (Whitelist)
+  useEffect(() => {
+    // Whitelist rules được lưu tại configuration/accessControl
+    const accessControlRef = doc(db, 'configuration', 'accessControl');
+    
+    // Sử dụng onSnapshot để cập nhật realtime
+    const unsubscribeRules = onSnapshot(accessControlRef, (docSnap) => {
+        setAccessRules(docSnap.exists() ? docSnap.data() : {});
+    }, (error) => {
+        console.error("Lỗi khi tải Access Control Rules:", error);
+        setAccessRules({});
+    });
+
+    return () => unsubscribeRules();
+  }, []);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
         if (user) {
           // ✨ DÒNG QUAN TRỌNG: Luôn làm mới đối tượng user trước khi xử lý.
-          // Điều này đảm bảo trạng thái emailVerified luôn là mới nhất.
           await user.reload();
 
           const [profile, tokenResult] = await Promise.all([
@@ -69,9 +84,7 @@ export const AuthProvider = ({ children }) => {
           ]);
 
           const claims = tokenResult?.claims || {};
-          // Gộp thông tin: profile từ Firestore, dữ liệu mới nhất từ Auth, và claims.
-          // Bất cứ dữ liệu nào trong `user` (như displayName, photoURL, emailVerified mới nhất)
-          // sẽ ghi đè lên dữ liệu cũ từ `profile`.
+          
           const enrichedUserInfo = { ...profile, ...user, claims };
           
           setUserInfo(enrichedUserInfo);
@@ -89,9 +102,16 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
+  // Sửa lại authValue để cung cấp accessRules và khắc phục lỗi đặt tên biến
   const authValue = useMemo(
-    () => ({ user: userInfo, isAuthenticated: !!userInfo, loading: authLoading }),
-    [userInfo, authLoading]
+    () => ({ 
+        currentUser: userInfo, // Sửa 'user' thành 'currentUser' (hoặc giữ 'user' nếu muốn dùng cách 2)
+        user: userInfo, // Giữ lại 'user' để tương thích với các component đã sửa theo Cách 2
+        isAuthenticated: !!userInfo, 
+        loading: authLoading,
+        accessRules: accessRules // CUNG CẤP ACCESS RULES
+    }),
+    [userInfo, authLoading, accessRules]
   );
 
   if (authLoading) {

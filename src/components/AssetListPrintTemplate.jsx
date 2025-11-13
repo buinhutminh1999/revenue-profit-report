@@ -245,7 +245,7 @@ const SignatureDisplay = ({ signature, role }) => (
 // --- Main Print Component ---
 export const AssetListPrintTemplate = React.forwardRef(({ report, company, departments }, ref) => {
     
-    // ✅ BƯỚC 1: DI CHUYỂN HOOK useMemo LÊN ĐẦU COMPONENT
+    // Thay thế khối useMemo hiện tại (từ dòng 104 đến 119) bằng mã sau:
     const groupedAssets = useMemo(() => {
         // Thêm kiểm tra props bên trong hook để tránh lỗi
         if (!report?.assets || !departments) return [];
@@ -253,7 +253,11 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
         const departmentMap = new Map(departments.map(d => [d.id, d.name]));
         const groups = new Map();
         
-        for (const asset of report.assets) {
+        // 1. LỌC: Chỉ giữ lại tài sản có số lượng lớn hơn 0
+        const assetsToPrint = report.assets.filter(asset => Number(asset.quantity || 0) > 0);
+
+        // 2. NHÓM: Nhóm các tài sản đã lọc
+        for (const asset of assetsToPrint) {
             const deptName = departmentMap.get(asset.departmentId) || "Phòng không xác định";
             if (!groups.has(deptName)) {
                 groups.set(deptName, []);

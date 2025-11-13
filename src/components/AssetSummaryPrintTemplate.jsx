@@ -249,30 +249,35 @@ const SignatureDisplay = ({ signature, role }) => (
 export const AssetSummaryPrintTemplate = React.forwardRef(
     ({ report, company, departments }, ref) => {
         
-        const processedData = useMemo(() => {
-            if (!report?.assets || !Array.isArray(departments)) {
-                return { sortedDeptNames: [], assetsByDept: {}, grandTotal: 0 };
-            }
+        // Thay thế khối useMemo hiện tại (từ dòng 110 đến 130) bằng mã sau:
+const processedData = useMemo(() => {
+    if (!report?.assets || !Array.isArray(departments)) {
+        return { sortedDeptNames: [], assetsByDept: {}, grandTotal: 0 };
+    }
 
-            const departmentMap = new Map(
-                departments.map(d => [d.id, d.name])
-            );
+    const departmentMap = new Map(
+        departments.map(d => [d.id, d.name])
+    );
 
-            const assetsByDept = report.assets.reduce((acc, asset) => {
-                const deptName = departmentMap.get(asset.departmentId) || "Chưa phân loại";
-                if (!acc[deptName]) {
-                    acc[deptName] = [];
-                }
-                acc[deptName].push(asset);
-                return acc;
-            }, {});
+    // Lọc tài sản có số lượng > 0 trước khi nhóm
+    const filteredAssets = report.assets.filter(asset => Number(asset.quantity || 0) > 0);
 
-            const sortedDeptNames = Object.keys(assetsByDept).sort((a, b) => a.localeCompare(b, "vi"));
-            const totalAssetTypes = report.assets.length;
+    const assetsByDept = filteredAssets.reduce((acc, asset) => { // Dùng filteredAssets
+        const deptName = departmentMap.get(asset.departmentId) || "Chưa phân loại";
+        if (!acc[deptName]) {
+            acc[deptName] = [];
+        }
+        acc[deptName].push(asset);
+        return acc;
+    }, {});
 
-            return { sortedDeptNames, assetsByDept, grandTotal: totalAssetTypes };
-            
-        }, [report, departments]);
+    const sortedDeptNames = Object.keys(assetsByDept).sort((a, b) => a.localeCompare(b, "vi"));
+    // Tổng số loại tài sản (sau khi lọc số lượng = 0)
+    const totalAssetTypes = filteredAssets.length; 
+
+    return { sortedDeptNames, assetsByDept, grandTotal: totalAssetTypes };
+    
+}, [report, departments]);
 
         if (!report || !processedData) {
              // Thêm một điểm return an toàn ở đây

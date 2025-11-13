@@ -7,30 +7,23 @@ import {
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { viVN } from '@mui/x-data-grid/locales';
-import { Plus, Eye, AlertCircle, Trash2, Edit, Save, Search, Clock, CheckCircle, XCircle, Hourglass, Check, X, ShieldOff } from 'lucide-react'; // Thêm ShieldOff
+import { Plus, Trash2, Edit, Save, Search, Clock, ShieldOff, AlertCircle } from 'lucide-react'; 
 import {
     collection, getDocs, query, orderBy, Timestamp,
     addDoc, serverTimestamp, deleteDoc, doc, writeBatch,
-    updateDoc, 
     onSnapshot
 } from 'firebase/firestore';
 import { db } from '../services/firebase-config';
 import { useNavigate } from 'react-router-dom';
-import { format, addDays, isPast, differenceInDays } from 'date-fns';
+import { format, addDays, isPast } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { vi } from 'date-fns/locale';
-// === SỬA LỖI 1: Import hook useAuth thật của bạn ===
-import { useAuth } from '../contexts/AuthContext'; // (GIẢ ĐỊNH ĐƯỜNG DẪN NÀY LÀ ĐÚNG)
+import { useAuth } from '../contexts/AuthContext'; 
 
-// Định nghĩa trạng thái duyệt
-const APPROVAL_STATUS = {
-    PENDING: { label: 'Chờ Duyệt', color: 'warning', icon: Hourglass },
-    APPROVED: { label: 'Đã Duyệt', color: 'success', icon: CheckCircle },
-    REJECTED: { label: 'Từ Chối', color: 'error', icon: XCircle },
-    DRAFT: { label: 'Bản Nháp (Chưa Gửi)', color: 'default', icon: Edit },
-};
+// --- Key Whitelist cho chức năng Tạo bảng ---
+const CREATE_PATH_KEY = 'material-price-comparison/create';
 
 // --- HÀM HELPER (Giữ nguyên) ---
 async function deleteSubCollection(db, docRef, subCollectionName) {
@@ -51,56 +44,14 @@ async function deleteSubCollection(db, docRef, subCollectionName) {
     }
 }
 
-// ==========================================================
-// === HÀM HELPER: TẢI VÀ LỌC NGƯỜI DUYỆT (Giữ nguyên) ===
-// ==========================================================
-const fetchReviewers = async (db) => {
-    try {
-        const deptsSnapshot = await getDocs(collection(db, "departments"));
-        const cungUngDept = deptsSnapshot.docs.find(
-            (d) => d.data().name === "PHÒNG CUNG ỨNG - LẦU 1"
-        );
-
-        if (!cungUngDept) {
-            console.warn("Không tìm thấy phòng ban 'PHÒNG CUNG ỨNG - LẦU 1' trong DB.");
-            return [];
-        }
-
-        const cungUngDeptId = cungUngDept.id;
-
-        const usersSnapshot = await getDocs(collection(db, "users"));
-        const reviewers = usersSnapshot.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .filter(user =>
-                user.role === 'truong-phong' &&
-                user.primaryDepartmentId === cungUngDeptId
-            )
-            .map(user => ({
-                id: String(user.uid || user.id), // CHUẨN HÓA ID VỀ STRING
-                name: `${user.displayName} (Trưởng phòng Cung Ứng)`,
-                email: user.email
-            }));
-
-        return reviewers;
-
-    } catch (error) {
-        console.error("Lỗi khi tải danh sách người duyệt:", error);
-        return [];
-    }
-};
-
-
+// --- Countdown Timer (Giữ nguyên) ---
 const CountdownTimer = ({ deadline }) => {
     const calculateTimeLeft = () => {
         const now = new Date();
         const difference = deadline.getTime() - now.getTime();
 
         let timeLeft = {
-            days: 0,
-            hours: 0,
-            minutes: 0,
-            seconds: 0,
-            expired: false,
+            days: 0, hours: 0, minutes: 0, seconds: 0, expired: false,
         };
 
         if (difference > 0) {
@@ -166,21 +117,38 @@ const CountdownTimer = ({ deadline }) => {
 // --- Component Chính (Trang Danh Sách) ---
 const MaterialPriceComparison = () => {
     
-    // === SỬA LỖI 2: XÓA MOCK USER VÀ DÙNG HOOK THẬT ===
-    // 1. Kích hoạt hook useAuth thật
-    const { currentUser } = useAuth(); // LẤY THÔNG TIN USER HIỆN TẠI
+    // SỬA: Lấy accessRules từ AuthContext
+    const { user: currentUser, loading: authLoading, accessRules } = useAuth(); 
     
-    // 2. Xóa bỏ 2 dòng mock user:
-    // const currentUser = useMemo(() => ({ uid: 'user_current_id', displayName: 'Admin Duyệt', role: 'admin', email: 'admin@example.com' }), []);
-    // const isAdmin = currentUser?.role === 'admin'; // Dòng này được di chuyển xuống dưới
+    // TRONG MaterialPriceComparison.jsx (Logic kiểm tra Whitelist TẠO BẢNG)
 
-    // 3. Tính toán 'isAdmin' dựa trên 'currentUser' thật
-    // Biến này sẽ là 'false' nếu user là 'truong-phong'
+const canCreate = useMemo(() => {
+    if (!currentUser || !accessRules) return false;
+    
+    const whitelistedEmails = accessRules[CREATE_PATH_KEY] || [];
+    
+    // Admin có thể tạo mọi thứ (quyền ưu tiên cao nhất)
+    if (currentUser.role === 'admin') return true; 
+    console.log('currentUser.role',currentUser.role)
+    // Kiểm tra email người dùng hiện tại có trong danh sách được phép tạo không
+    return whitelistedEmails.includes(currentUser.email);
+}, [currentUser, accessRules]);
+    // ==========================================
+
+
+    // Console log vẫn giữ lại để debug đăng nhập
+    useEffect(() => {
+        if (currentUser) {
+            console.log("DEBUG: Current User EXIST. UID:", currentUser.uid);
+            console.log("DEBUG: User Email:", currentUser.email);
+            console.log("DEBUG: Can Create Table (Whitelist Check):", canCreate); // Log trạng thái quyền mới
+        } else {
+            console.warn("DEBUG: User chưa đăng nhập hoặc currentUser là null. CẦN ĐĂNG NHẬP.");
+        }
+    }, [currentUser, canCreate]);
+
     const isAdmin = currentUser?.role === 'admin';
-    // ===============================================
-
     
-    // KHỞI TẠO STATE MẢNG RỖNG
     const [tables, setTables] = useState([]); 
     
     const [loading, setLoading] = useState(true);
@@ -188,83 +156,37 @@ const MaterialPriceComparison = () => {
     const navigate = useNavigate();
     const { enqueueSnackbar, closeSnackbar } = useSnackbar();
 
-    // --- State cho Dialog tạo mới / gửi đề xuất ---
+    // --- State cho Dialog tạo mới ---
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
     const [newProjectName, setNewProjectName] = useState('');
     const [newDurationDays, setNewDurationDays] = useState(7);
-    const [selectedReviewerId, setSelectedReviewerId] = useState('');
     const [isCreating, setIsCreating] = useState(false);
-
-    // === STATE NGƯỜI DUYỆT ===
-    const [REVIEWERS, setReviewers] = useState([]);
-    const [isReviewersLoading, setIsReviewersLoading] = useState(false);
-    // =================================================
 
     // --- State cho việc Xóa ---
     const [isDeleting, setIsDeleting] = useState(false);
-    // THÊM STATE CHO DIALOG XÁC NHẬN XÓA HIỆN ĐẠI
     const [openDeleteConfirm, setOpenDeleteConfirm] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState({ id: null, name: '' });
 
 
-    // --- State cho Lọc và Tìm kiếm (ĐÃ SỬA LỖI CÚ PHÁP) ---
+    // --- State cho Lọc và Tìm kiếm ---
     const [searchQuery, setSearchQuery] = useState('');
     const [filterDate, setFilterDate] = useState(null);
-    const [filterStatus, setFilterStatus] = useState('');
+    const [filterStatus, setFilterStatus] = useState(''); 
     // =================================================
 
 
-    // --- HÀM XỬ LÝ DUYỆT / TỪ CHỐI (Giữ nguyên) ---
-    const handleApprovalAction = async (tableId, action, projectName) => {
-        if (!currentUser) {
-            enqueueSnackbar('Bạn cần đăng nhập để thực hiện thao tác này.', { variant: 'error' });
-            return;
-        }
-
-        const isApproved = action === 'approve';
-        const newStatus = isApproved ? 'APPROVED' : 'REJECTED';
-        const message = isApproved ? 'Duyệt thành công' : 'Đã Từ Chối';
-        const docRef = doc(db, 'priceComparisonTables', tableId);
-
-        const persistKey = enqueueSnackbar(`Đang xử lý ${isApproved ? 'Duyệt' : 'Từ Chối'} bảng "${projectName}"...`, { variant: 'info', persist: true });
-
-        try {
-            await updateDoc(docRef, {
-                approvalStatus: newStatus,
-                approvedBy: {
-                    uid: currentUser.uid,
-                    displayName: currentUser.displayName,
-                    email: currentUser.email,
-                },
-                approvedAt: serverTimestamp(),
-            });
-
-            closeSnackbar(persistKey);
-            enqueueSnackbar(`${message} bảng "${projectName}".`, { variant: 'success' });
-            // onSnapshot sẽ tự cập nhật tables
-        } catch (error) {
-            closeSnackbar(persistKey);
-            console.error(`Lỗi khi ${action} bảng:`, error);
-            enqueueSnackbar(`Lỗi khi ${action} bảng: ${error.message}`, { variant: 'error' });
-        }
-    };
-    // ------------------------------------
-
-    // --- Cột cho bảng danh sách ---
+    // --- Cột cho bảng danh sách (Giữ nguyên) ---
     const columns = [
         {
             field: 'projectName',
             headerName: 'TÊN CÔNG TRÌNH',
-            flex: 3,
-            minWidth: 300,
+            flex: 4, 
+            minWidth: 350,
             renderCell: (params) => (
                 <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
                     <Typography
                         variant="body2"
-                        sx={{
-                            fontWeight: 600,
-                            color: 'text.primary',
-                        }}
+                        sx={{ fontWeight: 600, color: 'text.primary', }}
                     >
                         {params.value}
                     </Typography>
@@ -287,66 +209,13 @@ const MaterialPriceComparison = () => {
             )
         },
         {
-            field: 'approvalStatus',
-            headerName: 'TRẠNG THÁI DUYỆT',
-            flex: 1.5,
-            minWidth: 150,
-            align: 'center',
-            headerAlign: 'center',
-            renderCell: (params) => {
-                const status = APPROVAL_STATUS[params.value] || APPROVAL_STATUS.DRAFT;
-                const Icon = status.icon;
-                return (
-                    <Tooltip title={status.label}>
-                        <Chip
-                            label={status.label}
-                            color={status.color}
-                            size="small"
-                            variant="filled"
-                            icon={<Icon size={16} />}
-                            sx={{
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                '& .MuiChip-label': { paddingLeft: '4px' }
-                            }}
-                        />
-                    </Tooltip>
-                );
-            }
-        },
-        {
-            field: 'reviewer',
-            headerName: 'NGƯỜI DUYỆT',
-            flex: 1.5,
-            minWidth: 180,
-            align: 'left', 
-            headerAlign: 'left',
-            renderCell: (params) => {
-                const reviewer = REVIEWERS.find(r => r.id === params.row.reviewerId);
-                const reviewerName = reviewer ? reviewer.name : 'Chưa chỉ định';
-                
-                return (
-                    <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-                        <Typography variant="body2" color={reviewer ? "text.primary" : "text.secondary"} sx={{ fontWeight: 500 }}>
-                            {reviewerName}
-                        </Typography>
-                    </Box>
-                );
-            }
-        },
-
-        {
             field: 'deadline',
             headerName: 'THỜI GIAN CÒN LẠI',
-            flex: 1.5,
+            flex: 2,
             minWidth: 200,
             align: 'center',
             headerAlign: 'center',
             renderCell: (params) => {
-                if (params.row.approvalStatus !== 'PENDING' && params.row.approvalStatus !== 'APPROVED') {
-                    return <Chip label="Không áp dụng" size="small" variant="outlined" />;
-                }
-
                 const createdAt = params.row.createdAt;
                 const durationDays = params.row.durationDays;
 
@@ -366,76 +235,33 @@ const MaterialPriceComparison = () => {
             sortable: false,
             filterable: false,
             disableColumnMenu: true,
-            width: 250, 
+            width: 150, 
             align: 'center',
             headerAlign: 'center',
             renderCell: (params) => {
-                const isApproved = params.row.approvalStatus === 'APPROVED';
-                const isPending = params.row.approvalStatus === 'PENDING';
-                const isDraft = params.row.approvalStatus === 'DRAFT' || !params.row.approvalStatus;
-
-                // KIỂM TRA QUYỀN DUYỆT:
-                // Logic này giữ nguyên, vì 'isAdmin' giờ đã được tính toán đúng
-                // Nó sẽ là 'false' nếu user là 'truong-phong'
-                const canReview = currentUser && (
-                    currentUser.uid === params.row.reviewerId || isAdmin
-                );
-
+                
                 return (
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5 }}>
                         
-                        {/* 1. NÚT DUYỆT (Chỉ hiện khi Pending VÀ có quyền duyệt) */}
-                        {isPending && canReview && (
-                            <Tooltip title="Duyệt">
-                                <IconButton 
-                                    color="success" 
-                                    size="small" 
-                                    onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        handleApprovalAction(params.row.id, 'approve', params.row.projectName); 
-                                    }}
-                                >
-                                    <Check size={18} />
-                                </IconButton>
-                            </Tooltip>
-                        )}
-
-                        {/* 2. NÚT TỪ CHỐI (Chỉ hiện khi Pending VÀ có quyền duyệt) */}
-                         {isPending && canReview && (
-                            <Tooltip title="Từ Chối">
-                                <IconButton 
-                                    color="error" 
-                                    size="small" 
-                                    onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        handleApprovalAction(params.row.id, 'reject', params.row.projectName); 
-                                    }}
-                                >
-                                    <X size={18} />
-                                </IconButton>
-                            </Tooltip>
-                        )}
-
-                        {/* 3. NÚT CHỈNH SỬA / XEM CHI TIẾT */}
-                        <Tooltip title={isApproved ? "Xem Chi Tiết" : "Chỉnh sửa nội dung"}>
+                        {/* 1. NÚT CHỈNH SỬA (Luôn hiển thị) */}
+                        <Tooltip title="Chỉnh sửa nội dung">
                             <IconButton
-                                color={isApproved ? "primary" : "info"}
+                                color="info" 
                                 size="small"
                                 onClick={(e) => { e.stopPropagation(); handleViewDetails(params.row.id); }}
                                 disabled={isDeleting}
                             >
-                                {isApproved ? <Eye size={18} /> : <Edit size={18} />}
+                                <Edit size={18} /> 
                             </IconButton>
                         </Tooltip>
 
-                        {/* 4. NÚT XÓA (Admin có thể xóa mọi lúc) */}
+                        {/* 2. NÚT XÓA (Chỉ Admin) */}
                         <Tooltip title={isAdmin ? "Xóa bảng (Quyền Admin)" : "Bạn không có quyền xóa"}>
                             <IconButton 
                                 color="error" 
                                 size="small" 
                                 onClick={(e) => { 
                                     e.stopPropagation(); 
-                                    // MỞ DIALOG XÁC NHẬN MỚI
                                     setDeleteTarget({ id: params.row.id, name: params.row.projectName });
                                     setOpenDeleteConfirm(true);
                                 }} 
@@ -450,18 +276,16 @@ const MaterialPriceComparison = () => {
         },
     ];
 
-    // **THAY THẾ: Chuyển từ getDocs sang onSnapshot để Realtime**
     const fetchTables = () => {
         setLoading(true);
         const tablesColRef = collection(db, 'priceComparisonTables');
         const q = query(tablesColRef, orderBy('createdAt', 'desc'));
 
-        // === SỬ DỤNG onSnapshot (Realtime Listener) ===
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const data = querySnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
-                approvalStatus: doc.data().approvalStatus || 'DRAFT'
+                approvalStatus: 'APPROVED'
             }));
             
             setTables(data);
@@ -474,40 +298,22 @@ const MaterialPriceComparison = () => {
             setLoading(false);
             enqueueSnackbar(`Lỗi tải dữ liệu Realtime: ${err.message}`, { variant: 'error' });
         });
-
-        // onSnapshot trả về hàm hủy đăng ký (unsubscribe)
         return unsubscribe;
     };
 
     useEffect(() => {
-        const unsubscribe = fetchTables();
-        return () => {
-            if (unsubscribe) {
-                unsubscribe();
-            }
-        };
-    }, []); 
+        if (!authLoading) {
+             const unsubscribe = fetchTables();
+             return () => {
+                 if (unsubscribe) {
+                     unsubscribe();
+                 }
+             };
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [authLoading]); 
 
-    // === EFFECT TẢI NGƯỜI DUYỆT (Giữ nguyên) ===
-    useEffect(() => {
-        const loadReviewers = async () => {
-            setIsReviewersLoading(true);
-            const list = await fetchReviewers(db);
-            setReviewers(list);
-            setIsReviewersLoading(false);
-
-            if (list.length === 1) {
-                setSelectedReviewerId(list[0].id);
-            } else if (list.length > 1 && !list.some(r => r.id === selectedReviewerId)) {
-                setSelectedReviewerId(''); 
-            }
-        };
-        loadReviewers();
-    }, []); 
-    // =========================================================
-
-
-    // --- Logic Lọc (Đã sửa lỗi null is not iterable) ---
+    // --- Logic Lọc (Giữ nguyên) ---
     const filteredTables = useMemo(() => {
         const safeTables = Array.isArray(tables) ? tables : [];
         let tempTables = [...safeTables]; 
@@ -542,13 +348,14 @@ const MaterialPriceComparison = () => {
         navigate(`/material-price-comparison/${tableId}`);
     };
 
-    // --- Dialog Tạo Mới (Giữ nguyên) ---
+    // --- Dialog Tạo Mới (Thêm kiểm tra canCreate) ---
     const handleAddNew = () => {
+        if (!canCreate) { // Kiểm tra quyền trước khi mở
+             enqueueSnackbar('Bạn không có quyền tạo bảng so sánh giá.', { variant: 'error' });
+             return;
+        }
         setNewProjectName('');
         setNewDurationDays(7);
-        if (REVIEWERS.length !== 1) { 
-            setSelectedReviewerId('');
-        }
         setOpenCreateDialog(true);
     };
 
@@ -557,7 +364,7 @@ const MaterialPriceComparison = () => {
         setOpenCreateDialog(false);
     };
 
-    // === HÀM XÁC NHẬN XÓA (Thực hiện thao tác xóa) ===
+    // === HÀM XÁC NHẬN XÓA (Giữ nguyên) ===
     const handleConfirmDelete = async () => {
         setOpenDeleteConfirm(false);
         const { id: tableId, name: projectName } = deleteTarget;
@@ -573,7 +380,6 @@ const MaterialPriceComparison = () => {
             await deleteDoc(tableDocRef);
             closeSnackbar(persistKey);
             enqueueSnackbar(`Đã xóa thành công bảng của "${projectName}"`, { variant: 'success' });
-            // onSnapshot sẽ tự cập nhật tables
         } catch (err) {
             console.error("Lỗi khi xóa bảng và vật tư:", err);
             closeSnackbar(persistKey);
@@ -586,29 +392,17 @@ const MaterialPriceComparison = () => {
     // ==================================================
 
 
-    // === HÀM TẠO BẢNG (Giữ nguyên logic) ===
+    // === HÀM TẠO BẢNG (Thêm kiểm tra canCreate) ===
     const handleConfirmCreateTable = async () => {
         const duration = parseInt(newDurationDays, 10);
-        if (!newProjectName.trim()) {
-            enqueueSnackbar('Vui lòng nhập Tên Công Trình', { variant: 'warning' });
-            return;
-        }
-        if (isNaN(duration) || duration <= 0) {
-            enqueueSnackbar('Thời gian đánh giá phải là một số dương', { variant: 'warning' });
-            return;
-        }
-        if (!selectedReviewerId) {
-            enqueueSnackbar('Vui lòng chọn Người Duyệt', { variant: 'warning' });
-            return;
-        }
-        // Đảm bảo currentUser đã được tải
-        if (!currentUser) {
-            enqueueSnackbar('Lỗi: Không tìm thấy thông tin người dùng. Vui lòng tải lại trang.', { variant: 'error' });
-            return;
+        
+        // Kiểm tra quyền lần cuối khi submit
+        if (!newProjectName.trim() || isNaN(duration) || duration <= 0 || !currentUser || !canCreate) {
+             enqueueSnackbar('Lỗi quyền hoặc thiếu thông tin.', { variant: 'error' });
+             return;
         }
 
         setIsCreating(true);
-        const reviewerName = REVIEWERS.find(r => r.id === selectedReviewerId)?.name || 'Không rõ';
 
         try {
             const trimmedProjectName = newProjectName.trim();
@@ -618,28 +412,51 @@ const MaterialPriceComparison = () => {
                 createdAt: now,
                 durationDays: duration,
                 reportQuarter: `Quý ${Math.floor(new Date().getMonth() / 3) + 1} / ${new Date().getFullYear()}`,
-                approvalStatus: 'PENDING',
-                reviewerId: selectedReviewerId,
+                approvalStatus: 'APPROVED', 
                 sentAt: now,
-                // Thêm thông tin người tạo bảng để theo dõi
                 createdBy: {
                     uid: currentUser.uid,
                     displayName: currentUser.displayName,
-                }
+                },
+                approvedBy: { 
+                    uid: currentUser.uid,
+                    displayName: currentUser.displayName,
+                },
+                approvedAt: now
             });
 
-            enqueueSnackbar(`Gửi đề xuất tạo bảng thành công cho ${reviewerName}!`, { variant: 'success' });
+            enqueueSnackbar(`Tạo bảng "${trimmedProjectName}" thành công!`, { variant: 'success' });
             setOpenCreateDialog(false);
-            // onSnapshot sẽ tự cập nhật tables
         } catch (err) {
-            console.error("Lỗi khi tạo bảng mới và gửi đề xuất:", err);
-            enqueueSnackbar(`Lỗi khi gửi đề xuất: ${err.message}`, { variant: 'error' });
+            console.error("Lỗi khi tạo bảng mới:", err);
+            enqueueSnackbar(`Lỗi khi tạo bảng: ${err.message}`, { variant: 'error' });
         } finally {
             setIsCreating(false);
         }
     };
 
-
+    // === XỬ LÝ TRẠNG THÁI LOADING VÀ KHÔNG CÓ NGƯỜI DÙNG (Giữ nguyên) ===
+    if (authLoading) {
+        return (
+            <Container maxWidth={false} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', flexDirection: 'column' }}>
+                <CircularProgress size={60} sx={{ mb: 2 }} />
+                <Typography variant="h6" color="text.secondary">Đang tải thông tin xác thực...</Typography>
+            </Container>
+        );
+    }
+    
+    // Nếu Auth đã tải xong (loading=false) nhưng người dùng vẫn là null, hiển thị cảnh báo
+    if (!currentUser) {
+        return (
+            <Container maxWidth="sm" sx={{ pt: 10 }}>
+                <Alert severity="error">
+                    Truy cập bị từ chối: Vui lòng đăng nhập lại.
+                </Alert>
+            </Container>
+        );
+    }
+    
+    // --- Bắt đầu Render UI chính ---
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
             <Helmet>
@@ -669,27 +486,33 @@ const MaterialPriceComparison = () => {
                             Quản Lý Bảng So Sánh Giá Vật Tư
                         </Typography>
                         <Typography variant="body1" sx={{ color: '#525f7f', maxWidth: 700 }}>
-                            Danh sách tổng hợp các bảng so sánh giá vật tư theo công trình và trạng thái duyệt.
+                            Danh sách tổng hợp các bảng so sánh giá vật tư theo công trình.
                         </Typography>
                     </Paper>
 
-                    {/* ... (Toolbar) ... */}
+                    {/* --- TOOLBAR: Áp dụng logic canCreate cho nút Tạo Bảng Mới --- */}
                     <Paper elevation={1} sx={{ p: 2, mb: 4, borderRadius: 3, border: '1px solid #e0e8f4', bgcolor: 'white' }}>
                         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems="center">
-                            <Button
-                                variant="contained"
-                                size="large"
-                                startIcon={<Plus size={20} />}
-                                onClick={handleAddNew}
-                                disabled={isDeleting}
-                                sx={{
-                                    bgcolor: 'primary.main',
-                                    '&:hover': { bgcolor: 'primary.dark' },
-                                    flexShrink: 0
-                                }}
-                            >
-                                Gửi Đề Xuất Bảng Mới
-                            </Button>
+                            
+                            {/* NÚT TẠO BẢNG MỚI (CHỈ HIỂN THỊ KHI CÓ QUYỀN canCreate) */}
+                            <Tooltip title={canCreate ? "Tạo bảng so sánh vật tư mới" : "Bạn không có quyền tạo bảng"}>
+                                <span>
+                                    <Button
+                                        variant="contained"
+                                        size="large"
+                                        startIcon={<Plus size={20} />}
+                                        onClick={handleAddNew}
+                                        disabled={isDeleting || !canCreate} // Vô hiệu hóa nếu không có quyền
+                                        sx={{
+                                            bgcolor: 'primary.main',
+                                            '&:hover': { bgcolor: 'primary.dark' },
+                                            flexShrink: 0
+                                        }}
+                                    >
+                                        Tạo Bảng Mới
+                                    </Button>
+                                </span>
+                            </Tooltip>
 
                             <Box sx={{ flexGrow: 1, minWidth: '10px' }} />
 
@@ -721,11 +544,11 @@ const MaterialPriceComparison = () => {
                                     <MenuItem value="">
                                         <em>Tất cả trạng thái</em>
                                     </MenuItem>
-                                    {Object.entries(APPROVAL_STATUS).map(([key, value]) => (
-                                        <MenuItem key={key} value={key}>{value.label}</MenuItem>
-                                    ))}
+                                    <MenuItem value="APPROVED">Đã Duyệt</MenuItem>
+                                    <MenuItem value="DRAFT">Bản Nháp</MenuItem>
                                 </Select>
                             </FormControl>
+
 
                             <DatePicker
                                 label="Lọc theo ngày tạo"
@@ -776,14 +599,20 @@ const MaterialPriceComparison = () => {
                                 <Typography variant="h6" color="text.secondary" mt={2}>
                                     Không có dữ liệu bảng so sánh.
                                 </Typography>
-                                <Button
-                                    variant="outlined"
-                                    startIcon={<Plus size={18} />}
-                                    sx={{ mt: 3 }}
-                                    onClick={handleAddNew}
-                                >
-                                    Gửi Đề Xuất Bảng Mới
-                                </Button>
+                                {/* Nút Tạo Bảng ở đây cũng phải được kiểm tra quyền */}
+                                <Tooltip title={canCreate ? "Tạo bảng so sánh vật tư mới" : "Bạn không có quyền tạo bảng"}>
+                                    <span>
+                                        <Button
+                                            variant="outlined"
+                                            startIcon={<Plus size={18} />}
+                                            sx={{ mt: 3 }}
+                                            onClick={handleAddNew}
+                                            disabled={!canCreate}
+                                        >
+                                            Tạo Bảng Mới
+                                        </Button>
+                                    </span>
+                                </Tooltip>
                             </Box>
                         ) : (
                             <DataGrid
@@ -841,7 +670,7 @@ const MaterialPriceComparison = () => {
                 </Container>
             </Box>
 
-            {/* === DIALOG TẠO BẢNG === */}
+            {/* === DIALOG TẠO BẢNG MỚI (Giữ nguyên) === */}
             <Dialog
                 open={openCreateDialog}
                 onClose={handleCloseCreateDialog}
@@ -850,7 +679,7 @@ const MaterialPriceComparison = () => {
                 disableEscapeKeyDown={isCreating || isDeleting}
             >
                 <DialogTitle sx={{ fontWeight: 700, borderBottom: '1px solid #e0e0e0', color: 'primary.main' }}>
-                    📝 Gửi Đề Xuất Tạo Bảng So Sánh Mới
+                    📝 Tạo Bảng So Sánh Vật Tư Mới
                 </DialogTitle>
                 <DialogContent>
                     <Stack spacing={3} sx={{ mt: 2 }}>
@@ -887,46 +716,8 @@ const MaterialPriceComparison = () => {
                                 ),
                             }}
                         />
-
-                        {/* --- TRƯỜNG CHỌN NGƯỜI DUYỆT (TEXTFIELD SELECT) --- */}
-                        <TextField
-                            select 
-                            required
-                            margin="dense"
-                            id="reviewer"
-                            label="Người Duyệt Đề Xuất"
-                            fullWidth
-                            variant="outlined"
-                            value={selectedReviewerId}
-                            onChange={(e) => setSelectedReviewerId(e.target.value)}
-                            disabled={isCreating || isReviewersLoading || REVIEWERS.length === 0}
-                            InputProps={{
-                                startAdornment: isReviewersLoading ? (
-                                    <InputAdornment position="start">
-                                        <CircularProgress size={16} />
-                                    </InputAdornment>
-                                ) : null,
-                            }}
-                        >
-                            <MenuItem value="">
-                                <em>Chọn người duyệt</em>
-                            </MenuItem>
-                            {REVIEWERS.length === 0 && !isReviewersLoading ? (
-                                <MenuItem disabled value="no-reviewer">
-                                    ⚠️ Không tìm thấy Trưởng phòng Cung Ứng.
-                                </MenuItem>
-                            ) : (
-                                REVIEWERS.map((reviewer) => (
-                                    <MenuItem key={reviewer.id} value={reviewer.id}>
-                                        {reviewer.name}
-                                    </MenuItem>
-                                ))
-                            )}
-                        </TextField>
-                        {/* ---------------------------------------------------------------------- */}
-
                         <Alert severity="info" sx={{ mt: 2 }}>
-                            Bảng sẽ được tạo ở trạng thái **"Chờ Duyệt"**. Sau khi được người duyệt xác nhận, bạn mới có thể sử dụng và theo dõi tiến độ chính thức.
+                            Bảng sẽ được tạo và có thể sử dụng ngay để nhập dữ liệu.
                         </Alert>
                     </Stack>
                 </DialogContent>
@@ -938,15 +729,15 @@ const MaterialPriceComparison = () => {
                         onClick={handleConfirmCreateTable}
                         variant="contained"
                         color="primary"
-                        disabled={isCreating || !newProjectName.trim() || !newDurationDays || !selectedReviewerId}
+                        disabled={isCreating || !newProjectName.trim() || !newDurationDays}
                         startIcon={isCreating ? <CircularProgress size={20} color="inherit" /> : <Save size={18} />}
                     >
-                        {isCreating ? 'Đang Gửi...' : 'Gửi Đề Xuất'}
+                        {isCreating ? 'Đang Tạo...' : 'Tạo Bảng'}
                     </Button>
                 </DialogActions>
             </Dialog>
 
-            {/* === DIALOG XÁC NHẬN XÓA HIỆN ĐẠI === */}
+            {/* === DIALOG XÁC NHẬN XÓA HIỆN ĐẠI (Giữ nguyên) === */}
             <Dialog
                 open={openDeleteConfirm}
                 onClose={() => setOpenDeleteConfirm(false)}
