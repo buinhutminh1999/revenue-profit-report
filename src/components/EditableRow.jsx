@@ -162,77 +162,94 @@ const EditableRow = ({
                     );
                 }
 
-               if (col.key === "description") {
-    const isEditing = editingCell.id === row.id && editingCell.colKey === col.key;
+                // Dòng 141
+                if (col.key === "description") {
+                    const isEditing = editingCell.id === row.id && editingCell.colKey === col.key;
 
-    // --- LOGIC MỚI: Chỉ cho phép sửa nếu project là -VT hoặc -NC ---
-    const projectIdentifier = row.project || "";
-    const isDescriptionEditable = projectIdentifier.includes("-VT") || projectIdentifier.includes("-NC");
-    // --------------------------------------------------------------------
+                    const projectIdentifier = (row.project || "").trim().toUpperCase();
 
-    return (
-        <TableCell
-            key="description"
-            align={alignment}
-            sx={{
-                ...cellSx, // Giữ lại sx cũ
-                // Thêm màu nền để người dùng biết ô nào không thể sửa
-                backgroundColor: isDescriptionEditable ? "inherit" : "#fafafa",
-            }}
-        >
-            {isEditing && isDescriptionEditable ? (
-                // 1. Nếu đang sửa VÀ được phép -> hiện TextField
-                <TextField
-                    variant="outlined"
-                    size="small"
-                    fullWidth
-                    value={row.description || ""}
-                    autoFocus
-                    onChange={(e) => handleChangeField(row.id, "description", e.target.value)}
-                    onBlur={() => setEditingCell({ id: null, colKey: null })}
-                    onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                            e.preventDefault();
-                            setEditingCell({ id: null, colKey: null });
-                            return;
-                        }
-                        if (e.key === "Enter" || e.key === "Tab") {
-                            e.preventDefault();
-                            const dir = e.shiftKey ? -1 : 1;
-                            const idx = visibleCols.findIndex((c) => c.key === "description");
-                            const nextIdx = getNextEditableIndex(idx, dir);
-                            if (nextIdx != null) {
-                                setEditingCell({ id: row.id, colKey: visibleCols[nextIdx].key });
-                            } else {
-                                setEditingCell({ id: null, colKey: null });
-                            }
-                        }
-                    }}
-                />
-            ) : (
-                // 2. Nếu không ở chế độ sửa, hoặc không được phép sửa -> hiện Typography
-                <Typography
-                    variant="body2"
-                    onDoubleClick={() => {
-                        // Chỉ kích hoạt chế độ sửa nếu được phép
-                        if (isDescriptionEditable) {
-                            setEditingCell({ id: row.id, colKey: "description" });
-                        }
-                    }}
-                    sx={{
-                        cursor: isDescriptionEditable ? 'pointer' : 'default',
-                        minHeight: '22px' // Đảm bảo ô không bị xẹp xuống khi trống
-                    }}
-                    title={isDescriptionEditable ? "Click đúp để sửa" : "Không thể sửa khoản mục này"}
-                >
-                    {/* Hiển thị nội dung hoặc để trống */}
-                    {row.description}
-                </Typography>
-            )}
-        </TableCell>
-    );
-}
+                    // LOGIC CHO PHÉP SỬA KHOẢN MỤC (Đã sửa ở lần trước)
+                    const isDescriptionEditable =
+                        projectIdentifier === "" || // Dòng mới hoàn toàn
+                        !projectIdentifier.includes("-CP") || // KHÔNG phải mã dự án chuẩn hóa
+                        projectIdentifier.includes("-VT") ||
+                        projectIdentifier.includes("-NC");
 
+                    // Khối code này sử dụng 'visibleCols' để tìm index tiếp theo
+                    const currentColIndex = visibleCols.findIndex(c => c.key === "description");
+
+                    return (
+                        <TableCell
+                            key="description"
+                            align={alignment}
+                            sx={{
+                                ...cellSx,
+                                // Dùng logic isDescriptionEditable mới
+                                backgroundColor: isDescriptionEditable ? "inherit" : "#fafafa",
+                            }}
+                        >
+                            {isEditing && isDescriptionEditable ? (
+                                // 1. Nếu đang sửa VÀ được phép -> hiện TextField
+                                <TextField
+                                    variant="outlined"
+                                    size="small" // THÊM: đảm bảo kích thước nhỏ
+                                    fullWidth // THÊM: đảm bảo chiếm toàn bộ ô
+                                    // ✅ CHỖ SỬA LỖI: Cung cấp giá trị hiện tại của row
+                                    value={row.description || ""}
+                                    autoFocus
+                                    onChange={(e) => handleChangeField(row.id, "description", e.target.value)}
+                                    onBlur={() => setEditingCell({ id: null, colKey: null })}
+                                    inputProps={{
+                                        // THÊM: căn chỉnh text giống như các ô khác
+                                        style: { textAlign: alignment === "right" ? "right" : "left" },
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Escape") {
+                                            e.preventDefault();
+                                            setEditingCell({ id: null, colKey: null });
+                                            return;
+                                        }
+                                        if (e.key === "Enter" || e.key === "Tab") {
+                                            e.preventDefault();
+                                            const dir = e.shiftKey ? -1 : 1;
+                                            // SỬ DỤNG current_col_index đã định nghĩa
+                                            const nextIdx = getNextEditableIndex(currentColIndex, dir);
+                                            if (nextIdx != null) {
+                                                setEditingCell({ id: row.id, colKey: visibleCols[nextIdx].key });
+                                            } else {
+                                                setEditingCell({ id: null, colKey: null });
+                                            }
+                                        }
+                                    }}
+                                    sx={{ // THÊM: style viền/shadow khi focus giống các ô input khác
+                                        border: "1px solid #0288d1",
+                                        borderRadius: 1,
+                                        "& .MuiInputBase-root.Mui-focused": {
+                                            boxShadow: "0 0 0 2px rgba(2,136,209,0.15)",
+                                        },
+                                    }}
+                                />
+                            ) : (
+                                // 2. Nếu không ở chế độ sửa, hoặc không được phép sửa -> hiện Typography
+                                <Typography
+                                    variant="body2"
+                                    onDoubleClick={() => {
+                                        if (isDescriptionEditable) {
+                                            setEditingCell({ id: row.id, colKey: "description" });
+                                        }
+                                    }}
+                                    sx={{
+                                        cursor: isDescriptionEditable ? 'pointer' : 'default',
+                                        minHeight: '22px'
+                                    }}
+                                    title={isDescriptionEditable ? "Click đúp để sửa" : "Không thể sửa khoản mục này"}
+                                >
+                                    {row.description}
+                                </Typography>
+                            )}
+                        </TableCell>
+                    );
+                }
                 // Hiển thị mặc định (1-click để edit)
                 const vNum = Number(row[col.key] ?? 0);
                 const warn =

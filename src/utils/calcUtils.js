@@ -173,7 +173,6 @@ export const calcAllFields = (
         row.carryoverEnd = calcCarryoverEnd(row, projectType);
 
         // Chỉ tính NPT CK tự động cho các dự án -CP (không phải VT/NC)
-        // vì VT/NC đã được xử lý bởi logic đặc biệt ở trên.
         if (!isUserEditingNoPhaiTraCK && !isVtNcProject && row.project.includes("-CP")) {
             row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
         }
@@ -181,11 +180,26 @@ export const calcAllFields = (
 
     const directCost = parseNumber(row.directCost || "0");
     const allocated = parseNumber(row.allocated || "0");
-    const noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
-    const carryoverEnd = parseNumber(row.carryoverEnd || "0");
-    const debt = parseNumber(row.debt || "0");
-    const inventory = parseNumber(row.inventory || "0");
+    const debt = parseNumber(row.debt || "0"); // Lấy giá trị NPT ĐK
 
+    // 💡 BẮT ĐẦU LOGIC KHẮC PHỤC
+    const isStandardProject = row.project.includes("-CP") || isVtNcProject;
+    let noPhaiTraCK = parseNumber(row.noPhaiTraCK || "0"); // Sử dụng giá trị đã tính hoặc 0
+
+    if (!isStandardProject) {
+        // Đối với công trình tùy chỉnh (CHIPHIPHAITRAKHAC), 
+        // chúng ta buộc NPT CK = NPT ĐK để triệt tiêu nhau.
+        noPhaiTraCK = debt;
+    }
+    // 💡 KẾT THÚC LOGIC KHẮC PHỤC
+
+    const carryoverEnd = parseNumber(row.carryoverEnd || "0");
+    const inventory = parseNumber(row.inventory || "0");
+    
+    // Ghi lại noPhaiTraCK đã điều chỉnh vào row (quan trọng cho hiển thị và lưu DB)
+    row.noPhaiTraCK = String(noPhaiTraCK); 
+
+    // Dòng 232: Công thức tính CP Sau Quyết Toán
     row.cpSauQuyetToan = String(
         directCost + allocated + noPhaiTraCK - carryoverEnd - debt - inventory
     );

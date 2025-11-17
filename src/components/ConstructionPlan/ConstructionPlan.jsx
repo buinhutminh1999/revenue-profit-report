@@ -38,6 +38,8 @@ import {
     Avatar,
     Drawer,
     InputAdornment,
+    Alert,
+    Skeleton,
 } from "@mui/material";
 import {
     Search,
@@ -50,6 +52,9 @@ import {
     CheckCircleOutline,
     HighlightOff,
     TaskAlt,
+    Business as BusinessIcon, // Icon mới cho Nhà máy
+    AttachMoney as AttachMoneyIcon, // Icon mới cho Doanh thu
+    Close as CloseIcon
 } from "@mui/icons-material";
 import { DataGrid } from "@mui/x-data-grid";
 import { motion, useSpring, useTransform } from "framer-motion";
@@ -57,7 +62,7 @@ import AllocationTimelineModal, {
     getCurrentYear,
 } from "./AllocationTimelineModal";
 
-// --- CÁC HÀM VÀ BIẾN HỖ TRỢ (Không thay đổi) ---
+// --- CÁC HÀM VÀ BIẾN HỖ TRỢ ---
 const PROJECT_TYPES = ["Thi công", "Nhà máy", "KH-ĐT", "LDX", "Sà Lan"];
 const chipColorByType = {
     "Thi công": "warning",
@@ -98,7 +103,17 @@ function AnimatedCounter({ value, isCurrency = false }) {
     return <motion.span>{display}</motion.span>;
 }
 
-// --- COMPONENT CON (Không cần sửa đổi nhiều) ---
+// --- FRAMER MOTION VARIANTS ---
+const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
+};
+const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { y: 0, opacity: 1 },
+};
+
+// --- COMPONENT STAT CARD ---
 const StatCard = ({
     title,
     value,
@@ -108,43 +123,35 @@ const StatCard = ({
     isLoading,
     isCurrency = false,
 }) => {
-    const gradient = `linear-gradient(135deg, ${alpha(
-        theme.palette[color].light,
-        0.5
-    )} 0%, ${alpha(theme.palette[color].main, 0.8)} 100%)`;
+    const primaryColor = theme.palette[color].main;
     return (
         <Grid item xs={12} sm={6} md={4}>
             <motion.div
                 variants={itemVariants}
-                whileHover={{ y: -5 }}
-                transition={{ type: "spring", stiffness: 300 }}
+                whileHover={{ y: -5, boxShadow: `0 8px 25px ${alpha(primaryColor, 0.2)}` }}
+                transition={{ type: "spring", stiffness: 300, damping: 15 }}
             >
                 <Card
                     sx={{
                         borderRadius: 4,
-                        boxShadow: "0 4px 12px 0 rgba(0,0,0,0.05)",
+                        boxShadow: 'none',
                         border: `1px solid ${theme.palette.divider}`,
                         height: "100%",
+                        cursor: 'default',
+                        transition: 'border 0.3s',
+                        '&:hover': {
+                            borderColor: primaryColor,
+                        }
                     }}
                 >
-                    <CardContent
-                        sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            p: 3,
-                            gap: 2,
-                        }}
-                    >
+                    <CardContent sx={{ display: "flex", alignItems: "center", p: 3, gap: 2, '&:last-child': { pb: 3 } }}>
                         <Avatar
                             sx={{
-                                width: 64,
-                                height: 64,
-                                color: "#fff",
-                                background: gradient,
-                                boxShadow: `0px 6px 12px ${alpha(
-                                    theme.palette[color].main,
-                                    0.3
-                                )}`,
+                                width: 56,
+                                height: 56,
+                                color: primaryColor,
+                                background: alpha(primaryColor, 0.12),
+                                border: `2px solid ${alpha(primaryColor, 0.3)}`
                             }}
                         >
                             {React.cloneElement(icon, { sx: { fontSize: 32 } })}
@@ -158,9 +165,9 @@ const StatCard = ({
                             >
                                 {title}
                             </Typography>
-                            <Typography variant="h4" fontWeight={800}>
+                            <Typography variant="h4" fontWeight={800} color="text.primary">
                                 {isLoading ? (
-                                    "..."
+                                    <Skeleton width={120} />
                                 ) : (
                                     <AnimatedCounter
                                         value={value}
@@ -176,8 +183,8 @@ const StatCard = ({
     );
 };
 
+// --- COMPONENT FORM DRAWER ---
 const ProjectFormDrawer = ({ open, onClose, project, setProject, onSave, isEdit }) => {
-    // Tự động kiểm tra xem có phải là loại "Nhà máy" không
     const isFactoryType = project?.type === "Nhà máy";
 
     return (
@@ -188,56 +195,71 @@ const ProjectFormDrawer = ({ open, onClose, project, setProject, onSave, isEdit 
             PaperProps={{ sx: { width: { xs: "100vw", sm: 480 }, borderRadius: "16px 0 0 16px" } }}
         >
             <Box sx={{ p: { xs: 2, sm: 3 }, display: "flex", flexDirection: "column", height: "100%" }}>
-                <Typography variant="h5" fontWeight={700} sx={{ mb: 4 }}>
-                    {isEdit ? "Chỉnh Sửa Công Trình" : "Thêm Công Trình Mới"}
-                </Typography>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+                    <Typography variant="h5" fontWeight={700}>
+                        {isEdit ? "Chỉnh Sửa Công Trình" : "Thêm Công Trình Mới"}
+                    </Typography>
+                    <IconButton onClick={onClose}>
+                        <CloseIcon />
+                    </IconButton>
+                </Stack>
+                
                 <Box sx={{ flexGrow: 1, overflowY: "auto", px: 1 }}>
                     <Stack spacing={3} mt={1}>
                         <TextField
-                            variant="filled"
+                            variant="outlined"
                             label="Tên Công Trình"
                             value={project.name}
                             onChange={(e) => setProject((p) => ({ ...p, name: e.target.value }))}
                             fullWidth
+                            required
                             autoFocus
                         />
                         
                         <TextField
-                            variant="filled"
-                            // ✅ GIỮ NGUYÊN LABEL theo yêu cầu của bạn
-                            label="Doanh Thu Dự Kiến"
+                            variant="outlined"
+                            label="Tổng Giá Trị Hợp Đồng (VND)"
                             type="number"
                             value={project.totalAmount}
                             onChange={(e) => setProject((p) => ({ ...p, totalAmount: e.target.value }))}
                             fullWidth
-                            // Vẫn giữ lại helperText để làm rõ ý nghĩa cho người dùng
+                            required
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><AttachMoneyIcon fontSize="small" /></InputAdornment>,
+                            }}
                             helperText={
                                 isFactoryType
-                                    ? "Doanh thu theo từng quý được phân bổ trong 'Lịch Phân Bổ'."
+                                    ? "Lưu ý: Doanh thu này sẽ được phân bổ chi tiết qua 'Lịch Phân Bổ'."
                                     : ""
                             }
                         />
 
                         <TextField
-                            variant="filled"
+                            variant="outlined"
                             select
                             label="Loại Công Trình"
                             value={project.type}
                             onChange={(e) => setProject((p) => ({ ...p, type: e.target.value }))}
                             fullWidth
+                            required
                         >
                             {PROJECT_TYPES.map((opt) => (
                                 <MenuItem key={opt} value={opt}>
-                                    {opt}
+                                    <Chip 
+                                        label={opt} 
+                                        color={chipColorByType[opt] || "default"}
+                                        size="small"
+                                        sx={{ fontWeight: 600 }}
+                                    />
                                 </MenuItem>
                             ))}
                         </TextField>
                     </Stack>
                 </Box>
                 <DialogActions sx={{ p: 0, pt: 3 }}>
-                    <Button onClick={onClose} sx={{ mr: 1 }}>Hủy</Button>
-                    <Button onClick={onSave} variant="contained" size="large">
-                        {isEdit ? "Lưu Thay Đổi" : "Tạo Mới"}
+                    <Button onClick={onClose}>Hủy</Button>
+                    <Button onClick={onSave} variant="contained" size="large" startIcon={isEdit ? <Edit /> : <AddCircleOutline />}>
+                        {isEdit ? "LƯU THAY ĐỔI" : "TẠO CÔNG TRÌNH"}
                     </Button>
                 </DialogActions>
             </Box>
@@ -245,6 +267,7 @@ const ProjectFormDrawer = ({ open, onClose, project, setProject, onSave, isEdit 
     );
 };
 
+// --- COMPONENT ACTIONS MENU ---
 const ProjectActionsMenu = ({ onEdit, onDelete }) => {
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
@@ -255,7 +278,7 @@ const ProjectActionsMenu = ({ onEdit, onDelete }) => {
     const handleClose = () => setAnchorEl(null);
     return (
         <>
-            <IconButton onClick={handleClick} size="small">
+            <IconButton onClick={handleClick} size="small" aria-label="thao tác khác">
                 <MoreVert />
             </IconButton>
             <Menu
@@ -292,16 +315,8 @@ const ProjectActionsMenu = ({ onEdit, onDelete }) => {
     );
 };
 
-const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
-};
-const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1 },
-};
 
-// --- COMPONENT CHÍNH ---
+// --- COMPONENT CHÍNH: ConstructionPlan ---
 export default function ConstructionPlan() {
     const navigate = useNavigate();
     const theme = useTheme();
@@ -315,6 +330,8 @@ export default function ConstructionPlan() {
     const [selectionModel, setSelectionModel] = useState([]);
     const [isTimelineModalOpen, setTimelineModalOpen] = useState(false);
     const [projectForTimeline, setProjectForTimeline] = useState(null);
+    const [projectToDelete, setProjectToDelete] = useState(null);
+
     const [newProject, setNewProject] = useState({
         name: "",
         totalAmount: "",
@@ -378,6 +395,7 @@ export default function ConstructionPlan() {
         return () => unsub();
     }, []);
 
+    // --- HANDLERS DỰA TRÊN USECALLBACK ---
     const handleOpenTimelineModal = useCallback((project) => {
         setProjectForTimeline(project);
         setTimelineModalOpen(true);
@@ -400,10 +418,11 @@ export default function ConstructionPlan() {
 
     const handleCreateProject = useCallback(async () => {
         if (!newProject.name || !newProject.totalAmount) {
-            return toast.error("Vui lòng điền đầy đủ tên và doanh thu.");
+            return toast.error("Vui lòng điền đầy đủ tên và giá trị hợp đồng.");
         }
         const createPromise = addDoc(collection(db, "projects"), {
             ...newProject,
+            totalAmount: Number(newProject.totalAmount) || 0, // Đảm bảo lưu dưới dạng số
             createdAt: new Date(),
         });
         toast.promise(createPromise, {
@@ -433,7 +452,10 @@ export default function ConstructionPlan() {
     const handleUpdateProject = useCallback(async () => {
         if (!projectToEdit?.id) return;
         const { id, ...dataToUpdate } = projectToEdit;
-        const updatePromise = updateDoc(doc(db, "projects", id), dataToUpdate);
+        const updatePromise = updateDoc(doc(db, "projects", id), {
+            ...dataToUpdate,
+            totalAmount: Number(dataToUpdate.totalAmount) || 0, // Đảm bảo lưu dưới dạng số
+        });
         toast.promise(updatePromise, {
             loading: "Đang lưu...",
             success: "Cập nhật thành công!",
@@ -447,11 +469,11 @@ export default function ConstructionPlan() {
         }
     }, [projectToEdit]);
 
-    const [projectToDelete, setProjectToDelete] = useState(null);
     const handleOpenDeleteDialog = useCallback(
         (proj) => setProjectToDelete(proj),
         []
     );
+    
     const handleConfirmDelete = useCallback(async () => {
         if (!projectToDelete?.id) return;
         const deletePromise = deleteDoc(
@@ -465,6 +487,7 @@ export default function ConstructionPlan() {
         setProjectToDelete(null);
     }, [projectToDelete]);
 
+    // --- MEMOIZED DATA ---
     const filteredProjects = useMemo(() => {
         return projects.filter((p) =>
             p.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
@@ -485,12 +508,12 @@ export default function ConstructionPlan() {
         [projects]
     );
 
-    // ✅ CẢI TIẾN 1: GỘP CỘT DOANH THU
+    // --- DATAGRID CONFIG ---
     const columnGroupingModel = useMemo(
         () => [
             {
                 groupId: "Doanh Thu",
-                headerName: "DOANH THU",
+                headerName: "THÔNG SỐ TÀI CHÍNH",
                 headerAlign: "center",
                 children: [{ field: "totalAmount" }, { field: "revenueHSKH" }],
             },
@@ -498,7 +521,6 @@ export default function ConstructionPlan() {
         []
     );
 
-    // ✅ CẢI TIẾN 2: THÊM CLASSNAME CHO DÒNG "NHÀ MÁY"
     const getRowClassName = (params) => {
         if (params.row.type === "Nhà máy") {
             return "project-row--factory";
@@ -514,48 +536,54 @@ export default function ConstructionPlan() {
                 flex: 1,
                 minWidth: 350,
                 renderCell: (params) => (
-                    <Typography variant="body2" fontWeight={600}>
-                        {params.value}
-                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                        {params.row.type === "Nhà máy" && <BusinessIcon fontSize="small" color="success" />}
+                        <Typography variant="body2" fontWeight={600} color="text.primary">
+                            {params.value}
+                        </Typography>
+                    </Stack>
                 ),
             },
             {
                 field: "totalAmount",
-                // ✅ CẢI TIẾN 1B: ĐỔI TÊN CỘT CHO RÕ NGHĨA
-                headerName: "DT Dự Kiến",
+                headerName: "Giá Trị Hợp Đồng",
                 width: 180,
                 type: "number",
                 align: "right",
                 headerAlign: "right",
                 renderCell: (params) => {
                     const { row } = params;
-                    let displayValue;
+                    let displayValue = row.totalAmount;
                     let isDynamic = false;
+                    let color = 'text.primary';
+
                     if (row.type === "Nhà máy") {
                         isDynamic = true;
                         const currentKey = `${getCurrentYear()}-${getCurrentQuarter()}`;
                         displayValue = row.allocationPeriods?.[currentKey] || 0;
-                    } else {
-                        displayValue = row.totalAmount;
+                        color = 'success.dark'; // DT Nhà máy là DT Quý
                     }
+                    
                     return (
-                        <Typography
-                            variant="body2"
-                            sx={{
-                                fontFamily: "Roboto Mono, monospace",
-                                fontWeight: isDynamic ? 600 : "inherit",
-                                color: isDynamic ? "success.dark" : "inherit",
-                                fontStyle: isDynamic ? "italic" : "normal",
-                            }}
-                        >
-                            {formatNumber(displayValue)} ₫
-                        </Typography>
+                        <Tooltip title={isDynamic ? "Giá trị Doanh thu Quý hiện tại" : "Tổng Giá trị Hợp đồng"}>
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    fontFamily: "Roboto Mono, monospace",
+                                    fontWeight: isDynamic ? 700 : 500,
+                                    color: color,
+                                    fontStyle: isDynamic ? "italic" : "normal",
+                                }}
+                            >
+                                {formatNumber(displayValue)} ₫
+                            </Typography>
+                        </Tooltip>
                     );
                 },
             },
             {
                 field: "revenueHSKH",
-                headerName: "Doanh thu HSKH",
+                headerName: "Tổng HSKH Phát Sinh",
                 width: 180,
                 type: "number",
                 align: "right",
@@ -575,7 +603,7 @@ export default function ConstructionPlan() {
             },
             {
                 field: "type",
-                headerName: "Loại",
+                headerName: "Loại Dự Án",
                 width: 120,
                 renderCell: (params) => {
                     const color = chipColorByType[params.value] || "default";
@@ -598,7 +626,7 @@ export default function ConstructionPlan() {
             },
             {
                 field: "allocationPeriods",
-                headerName: `Trạng Thái (${getCurrentQuarter()}-${getCurrentYear()})`,
+                headerName: `Phân Bổ Q${getCurrentQuarter()}/${getCurrentYear()}`,
                 width: 180,
                 align: "center",
                 headerAlign: "center",
@@ -606,18 +634,10 @@ export default function ConstructionPlan() {
                 renderCell: (params) => {
                     const isAllocated = isProjectCurrentlyAllocated(params.row);
                     return (
-                        <Tooltip title="Click để xem & sửa lịch phân bổ">
+                        <Tooltip title="Xem & Sửa Lịch Phân Bổ">
                             <Chip
-                                icon={
-                                    isAllocated ? (
-                                        <CheckCircleOutline />
-                                    ) : (
-                                        <HighlightOff />
-                                    )
-                                }
-                                label={
-                                    isAllocated ? "Đang Phân Bổ" : "Tạm Ngưng"
-                                }
+                                icon={isAllocated ? (<CheckCircleOutline />) : (<HighlightOff />)}
+                                label={isAllocated ? "Đang Áp Dụng" : "Chưa Áp Dụng"}
                                 size="medium"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -627,13 +647,12 @@ export default function ConstructionPlan() {
                                     cursor: "pointer",
                                     fontWeight: 600,
                                     borderRadius: "8px",
-                                    px: 1,
-                                    color: isAllocated
-                                        ? "success.dark"
-                                        : "error.dark",
-                                    backgroundColor: isAllocated
-                                        ? alpha(theme.palette.success.main, 0.2)
-                                        : alpha(theme.palette.error.main, 0.15),
+                                    color: isAllocated ? "success.dark" : "error.dark",
+                                    backgroundColor: isAllocated ? alpha(theme.palette.success.main, 0.2) : alpha(theme.palette.error.main, 0.15),
+                                    transition: 'all 0.2s',
+                                    '&:hover': {
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                    }
                                 }}
                             />
                         </Tooltip>
@@ -667,7 +686,7 @@ export default function ConstructionPlan() {
         <Box
             sx={{
                 p: { xs: 2, md: 3, lg: 4 },
-                bgcolor: "grey.100",
+                bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'background.default',
                 minHeight: "100vh",
             }}
         >
@@ -677,44 +696,48 @@ export default function ConstructionPlan() {
                 animate="visible"
             >
                 <motion.div variants={itemVariants}>
-                    <Typography variant="h4" fontWeight={800} gutterBottom>
-                        Danh Sách Công Trình
+                    <Typography variant="h4" fontWeight={800} gutterBottom sx={{ color: 'text.primary' }}>
+                        Danh Sách Quản Lý Dự Án Xây Dựng
+                    </Typography>
+                    <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+                        Theo dõi tổng quan Hợp đồng, Phân bổ và Trạng thái thanh toán của các Công trình.
                     </Typography>
                 </motion.div>
+                
+                {/* --- KHỐI THẺ THỐNG KÊ --- */}
                 <Grid container spacing={3} sx={{ my: 2 }}>
                     <StatCard
-                        title="Tổng Dự Án"
+                        title="Tổng Dự Án Đang Hoạt Động"
                         isLoading={isLoading}
                         value={stats.total}
                         icon={<Foundation />}
                         color="primary"
                         theme={theme}
                     />
-                    {/* ✅ CẢI TIẾN 3: ĐỔI TÊN THẺ THỐNG KÊ */}
                     <StatCard
                         title="Tổng Giá Trị Hợp Đồng"
                         isLoading={isLoading}
                         value={stats.totalRevenue}
                         isCurrency={true}
-                        icon={<TrendingUp />}
-                        color="success"
+                        icon={<AttachMoneyIcon />}
+                        color="info"
                         theme={theme}
                     />
                     <StatCard
-                        title="Dự Án Đang Phân Bổ"
+                        title="Dự Án Đang Áp Dụng Phân Bổ"
                         isLoading={isLoading}
                         value={stats.allocatedCount}
                         icon={<TaskAlt />}
-                        color="warning"
+                        color="success"
                         theme={theme}
                     />
                 </Grid>
                 <motion.div variants={itemVariants}>
                     <Paper
-                        elevation={0}
+                        elevation={4}
                         sx={{
-                            mt: 3,
-                            borderRadius: 5,
+                            mt: 4,
+                            borderRadius: 3,
                             overflow: "hidden",
                             border: `1px solid ${theme.palette.divider}`,
                         }}
@@ -728,9 +751,9 @@ export default function ConstructionPlan() {
                             bgcolor="background.paper"
                         >
                             <TextField
-                                variant="filled"
-                                hiddenLabel
-                                placeholder="Tìm kiếm công trình..."
+                                variant="outlined"
+                                size="small"
+                                placeholder="Tìm kiếm theo Tên Công Trình..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 InputProps={{
@@ -739,15 +762,8 @@ export default function ConstructionPlan() {
                                             <Search color="action" />
                                         </InputAdornment>
                                     ),
-                                    disableUnderline: true,
                                 }}
-                                sx={{
-                                    width: { xs: "100%", md: 400 },
-                                    "& .MuiFilledInput-root": {
-                                        borderRadius: "12px",
-                                        bgcolor: "grey.100",
-                                    },
-                                }}
+                                sx={{ width: { xs: "100%", md: 350 }, borderRadius: "8px" }}
                             />
                             <Button
                                 variant="contained"
@@ -755,22 +771,16 @@ export default function ConstructionPlan() {
                                 startIcon={<AddCircleOutline />}
                                 onClick={() => setOpenAddDrawer(true)}
                                 sx={{
-                                    borderRadius: "12px",
+                                    borderRadius: "10px",
+                                    boxShadow: theme.shadows[4],
                                     width: { xs: "100%", md: "auto" },
-                                    boxShadow: "none",
-                                    "&:hover": {
-                                        boxShadow: `0 4px 12px ${alpha(
-                                            theme.palette.primary.main,
-                                            0.3
-                                        )}`,
-                                    },
                                 }}
                             >
-                                Thêm Công Trình
+                                THÊM CÔNG TRÌNH MỚI
                             </Button>
                         </Stack>
 
-                        <Box sx={{ height: 650, width: "100%" }}>
+                        <Box sx={{ height: 600, width: "100%", p: 1, pt: 0 }}>
                             <DataGrid
                                 rows={filteredProjects}
                                 columns={columns}
@@ -791,15 +801,14 @@ export default function ConstructionPlan() {
                                         return;
                                     navigate(`/project-details/${params.id}`);
                                 }}
-                                // ✅ THÊM CÁC PROPS CẢI TIẾN
                                 experimentalFeatures={{ columnGrouping: true }}
                                 columnGroupingModel={columnGroupingModel}
                                 getRowClassName={getRowClassName}
                                 sx={{
                                     border: "none",
                                     "& .MuiDataGrid-columnHeaders": {
-                                        borderTop: `1px solid ${theme.palette.divider}`,
-                                        borderBottom: `1px solid ${theme.palette.divider}`,
+                                        backgroundColor: alpha(theme.palette.grey[500], 0.1),
+                                        borderBottom: `2px solid ${theme.palette.divider}`,
                                     },
                                     "& .MuiDataGrid-columnHeaderTitle": {
                                         fontWeight: "700",
@@ -821,15 +830,13 @@ export default function ConstructionPlan() {
                                         },
                                     "& .MuiDataGrid-row": {
                                         cursor: "pointer",
-                                        "&:hover": {
-                                            backgroundColor: alpha(
-                                                theme.palette.primary.main,
-                                                0.04
-                                            ),
-                                        },
+                                        transition: 'background-color 0.2s',
+                                        '&:hover': {
+                                            backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                                        }
                                     },
                                     "& .MuiDataGrid-cell": {
-                                        borderBottom: `1px solid ${theme.palette.divider}`,
+                                        borderBottom: `1px dashed ${theme.palette.grey[200]}`,
                                         alignItems: "center",
                                         display: "flex",
                                     },
@@ -838,17 +845,10 @@ export default function ConstructionPlan() {
                                     "& .MuiDataGrid-footerContainer": {
                                         borderTop: `1px solid ${theme.palette.divider}`,
                                     },
-                                    // ✅ THÊM STYLE CHO DÒNG NHÀ MÁY
                                     "& .project-row--factory": {
-                                        backgroundColor: alpha(
-                                            theme.palette.success.main,
-                                            0.04
-                                        ),
+                                        backgroundColor: alpha(theme.palette.success.main, 0.08),
                                         "&:hover": {
-                                            backgroundColor: alpha(
-                                                theme.palette.success.main,
-                                                0.08
-                                            ),
+                                            backgroundColor: alpha(theme.palette.success.main, 0.12),
                                         },
                                     },
                                 }}
@@ -858,7 +858,7 @@ export default function ConstructionPlan() {
                 </motion.div>
             </motion.div>
 
-            {/* Các Modal và Drawer khác */}
+            {/* Các Modal và Drawer */}
             <ProjectFormDrawer
                 open={openAddDrawer}
                 onClose={() => setOpenAddDrawer(false)}
@@ -880,26 +880,23 @@ export default function ConstructionPlan() {
             <Dialog
                 open={!!projectToDelete}
                 onClose={() => setProjectToDelete(null)}
-                PaperProps={{ sx: { borderRadius: 4 } }}
+                PaperProps={{ sx: { borderRadius: 3 } }}
             >
                 <DialogTitle fontWeight="700">Xác Nhận Xoá</DialogTitle>
                 <DialogContent>
-                    <Typography>
-                        Bạn có chắc chắn muốn xoá công trình "
-                        {projectToDelete?.name}"? Hành động này không thể hoàn
-                        tác.
-                    </Typography>
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                        Bạn có chắc chắn muốn xoá công trình *{projectToDelete?.name}*?
+                        Tất cả dữ liệu liên quan sẽ bị xoá vĩnh viễn và không thể khôi phục.
+                    </Alert>
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={() => setProjectToDelete(null)}>
-                        Hủy
-                    </Button>
+                    <Button onClick={() => setProjectToDelete(null)}>Hủy</Button>
                     <Button
                         onClick={handleConfirmDelete}
                         color="error"
                         variant="contained"
                     >
-                        Xác Nhận Xoá
+                        XÁC NHẬN XOÁ VĨNH VIỄN
                     </Button>
                 </DialogActions>
             </Dialog>
