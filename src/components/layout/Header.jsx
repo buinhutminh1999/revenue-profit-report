@@ -4,7 +4,7 @@ import {
     useTheme, Avatar, Badge, Stack, Typography, Paper,
     InputBase, ListItemButton, ListItemIcon, ListItemText, Breadcrumbs, Link as MuiLink,
     Tabs, Tab, Button,
-    Chip
+    Chip, Skeleton, CircularProgress
 } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
@@ -15,6 +15,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { ThemeSettingsContext } from "../../styles/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
 import DensityToggleButton from "../../components/DensityToggleButton";
+import { EmptyState, ErrorState } from "../common";
 
 // Firestore
 import { db } from "../../services/firebase-config";
@@ -145,18 +146,35 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
     const [notificationAnchor, setNotificationAnchor] = useState(null);
     const [notificationTab, setNotificationTab] = useState(0);
     const [notifications, setNotifications] = useState([]);
+    const [notificationsLoading, setNotificationsLoading] = useState(true); // ✅ Thêm loading state
+    const [notificationsError, setNotificationsError] = useState(null); // ✅ Thêm error state
 
+    // ✅ Cải thiện: Thêm loading và error handling cho notifications
     useEffect(() => {
-        if (!user?.uid) return;
+        if (!user?.uid) {
+            setNotificationsLoading(false);
+            return;
+        }
+        setNotificationsLoading(true);
+        setNotificationsError(null);
         const q = query(collection(db, "audit_logs"), orderBy("timestamp", "desc"), limit(20));
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const logsData = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                isRead: doc.data().readBy?.includes(user.uid),
-            }));
-            setNotifications(logsData);
-        });
+        const unsubscribe = onSnapshot(
+            q, 
+            (querySnapshot) => {
+                const logsData = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    isRead: doc.data().readBy?.includes(user.uid),
+                }));
+                setNotifications(logsData);
+                setNotificationsLoading(false);
+            },
+            (error) => {
+                console.error("Error loading notifications:", error);
+                setNotificationsError(error);
+                setNotificationsLoading(false);
+            }
+        );
         return () => unsubscribe();
     }, [user?.uid]);
 
@@ -204,6 +222,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         navigate("/login");
     };
 
+    // ✅ Cải thiện: Mở rộng quick actions với nhiều tùy chọn hơn
     const quickActions = useMemo(
         () => [
             {
@@ -212,17 +231,28 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     { icon: <LayoutDashboard size={20} />, text: "Dashboard", action: () => navigate("/") },
                     { icon: <Building2 size={20} />, text: "Danh sách dự án", action: () => navigate("/project-manager") },
                     { icon: <BarChart2 size={20} />, text: "Báo cáo lợi nhuận", action: () => navigate("/profit-report-quarter") },
+                    { icon: <TrendingUp size={20} />, text: "Báo cáo lợi nhuận năm", action: () => navigate("/profit-report-year") },
+                    { icon: <FolderOpen size={20} />, text: "Công nợ phải thu", action: () => navigate("/accounts-receivable") },
+                    { icon: <FolderOpen size={20} />, text: "Công nợ phải trả", action: () => navigate("/construction-payables") },
                 ],
             },
             {
                 category: "Hành động",
                 items: [
                     { icon: <FolderOpen size={20} />, text: "Tạo dự án mới", action: () => navigate("/construction-plan") },
-                    { icon: <TrendingUp size={20} />, text: "Xem báo cáo tháng", action: () => navigate("/profit-report-quarter") },
+                    { icon: <PlusCircle size={20} />, text: "Quản lý tài sản", action: () => navigate("/asset-transfer") },
+                    { icon: <FilePlus size={20} />, text: "So sánh giá vật tư", action: () => navigate("/material-price-comparison") },
                 ],
             },
+            ...(user?.role === 'admin' ? [{
+                category: "Quản trị",
+                items: [
+                    { icon: <Shield size={20} />, text: "Quản trị hệ thống", action: () => navigate("/admin") },
+                    { icon: <UserCheck size={20} />, text: "Quản lý người dùng", action: () => navigate("/admin") },
+                ],
+            }] : []),
         ],
-        [navigate]
+        [navigate, user?.role]
     );
 
     const pathnames = location.pathname.split("/").filter((x) => x);
@@ -235,6 +265,55 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         }));
     }, [searchValue, quickActions]);
     const noActionFound = filteredActions.every((g) => g.items.length === 0);
+    
+    // ✅ Cải thiện: Tính toán total items cho keyboard navigation
+    const totalItems = useMemo(() => 
+        filteredActions.reduce((sum, group) => sum + group.items.length, 0),
+        [filteredActions]
+    );
+    
+    // ✅ Cải thiện: Thêm keyboard navigation cho command palette
+    const [selectedIndex, setSelectedIndex] = useState(0);
+    
+    // ✅ Cải thiện: Reset selectedIndex khi searchValue thay đổi
+    useEffect(() => {
+        setSelectedIndex(0);
+    }, [searchValue]);
+    
+    useEffect(() => {
+        if (!searchOpen) {
+            setSelectedIndex(0);
+            return;
+        }
+        
+        const handleKeyDown = (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setSelectedIndex(prev => Math.min(prev + 1, totalItems - 1));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setSelectedIndex(prev => Math.max(prev - 1, 0));
+            } else if (e.key === 'Enter' && totalItems > 0) {
+                e.preventDefault();
+                // Tìm và thực thi action được chọn
+                let currentIndex = 0;
+                for (const group of filteredActions) {
+                    for (const item of group.items) {
+                        if (currentIndex === selectedIndex) {
+                            item.action();
+                            setSearchOpen(false);
+                            setSearchValue("");
+                            return;
+                        }
+                        currentIndex++;
+                    }
+                }
+            }
+        };
+        
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [searchOpen, totalItems, selectedIndex, filteredActions]);
 
     return (
         <>
@@ -456,9 +535,52 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     <Tab label={`Chưa đọc (${unreadCount})`} />
                 </Tabs>
                 <Box sx={{ maxHeight: 360, overflowY: "auto", p: 1 }}>
-                    {notifications
-                        .filter((n) => (notificationTab === 0 ? true : !n.isRead))
-                        .map((n) => {
+                    {/* ✅ Cải thiện: Loading state */}
+                    {notificationsLoading ? (
+                        <Box sx={{ p: 2 }}>
+                            {[...Array(3)].map((_, i) => (
+                                <Box key={i} sx={{ mb: 2 }}>
+                                    <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                                        <Skeleton variant="circular" width={36} height={36} />
+                                        <Box sx={{ flexGrow: 1 }}>
+                                            <Skeleton height={20} width="80%" sx={{ mb: 0.5 }} />
+                                            <Skeleton height={16} width="60%" />
+                                        </Box>
+                                    </Stack>
+                                </Box>
+                            ))}
+                        </Box>
+                    ) : notificationsError ? (
+                        // ✅ Cải thiện: Error state
+                        <Box sx={{ p: 3 }}>
+                            <ErrorState
+                                error={notificationsError}
+                                title="Lỗi tải thông báo"
+                                onRetry={() => {
+                                    setNotificationsError(null);
+                                    setNotificationsLoading(true);
+                                }}
+                                retryLabel="Thử lại"
+                                size="small"
+                            />
+                        </Box>
+                    ) : notifications.filter((n) => (notificationTab === 0 ? true : !n.isRead)).length === 0 ? (
+                        // ✅ Cải thiện: Empty state với component
+                        <EmptyState
+                            icon={<Bell size={48} />}
+                            title="Không có thông báo nào"
+                            description={
+                                notificationTab === 0 
+                                    ? "Bạn chưa có thông báo nào. Thông báo sẽ xuất hiện ở đây khi có hoạt động mới."
+                                    : "Tất cả thông báo đã được đọc."
+                            }
+                            size="small"
+                        />
+                    ) : (
+                        // ✅ Hiển thị notifications
+                        notifications
+                            .filter((n) => (notificationTab === 0 ? true : !n.isRead))
+                            .map((n) => {
                             const config = notificationConfig[n.action] || notificationConfig.DEFAULT;
                             return (
                                 <ListItemButton
@@ -506,12 +628,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                     )}
                                 </ListItemButton>
                             );
-                        })}
-                    {notifications.filter((n) => (notificationTab === 0 ? true : !n.isRead)).length === 0 && (
-                        <Box sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>
-                            <Bell size={40} strokeWidth={1} />
-                            <Typography>Không có thông báo nào.</Typography>
-                        </Box>
+                        })
                     )}
                 </Box>
                 <Box sx={{ p: 1, borderTop: t => `1px solid ${t.palette.divider}` }}>
@@ -557,18 +674,49 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                 </Button>
                             </Box>
                             <Box sx={{ p: 2, maxHeight: 360, overflowY: "auto" }}>
-                                {filteredActions.map((group) => (
-                                    <Box key={group.category} sx={{ mb: 2 }}>
-                                        <Typography variant="overline" color="text.secondary">{group.category}</Typography>
-                                        {group.items.map((item) => (
-                                            <QuickAction key={item.text} onClick={() => { item.action(); setSearchOpen(false); }}>
-                                                <ListItemIcon className="action-icon">{item.icon}</ListItemIcon>
-                                                <ListItemText primary={item.text} />
-                                            </QuickAction>
-                                        ))}
+                                {filteredActions.map((group) => {
+                                    let groupStartIndex = 0;
+                                    // Tính toán start index cho group này
+                                    for (const g of filteredActions) {
+                                        if (g.category === group.category) break;
+                                        groupStartIndex += g.items.length;
+                                    }
+                                    
+                                    return (
+                                        <Box key={group.category} sx={{ mb: 2 }}>
+                                            <Typography variant="overline" color="text.secondary">{group.category}</Typography>
+                                            {group.items.map((item, itemIndex) => {
+                                                const currentIndex = groupStartIndex + itemIndex;
+                                                const isSelected = currentIndex === selectedIndex;
+                                                
+                                                return (
+                                                    <QuickAction 
+                                                        key={item.text} 
+                                                        onClick={() => { 
+                                                            item.action(); 
+                                                            setSearchOpen(false); 
+                                                            setSearchValue("");
+                                                        }}
+                                                        sx={{
+                                                            ...(isSelected && {
+                                                                bgcolor: alpha(theme.palette.primary.main, 0.15),
+                                                                transform: "scale(1.01)",
+                                                            })
+                                                        }}
+                                                    >
+                                                        <ListItemIcon className="action-icon">{item.icon}</ListItemIcon>
+                                                        <ListItemText primary={item.text} />
+                                                    </QuickAction>
+                                                );
+                                            })}
+                                        </Box>
+                                    );
+                                })}
+                                {noActionFound && (
+                                    <Box sx={{ p: 3, textAlign: 'center' }}>
+                                        <Typography color="text.secondary">Không tìm thấy hành động phù hợp.</Typography>
                                     </Box>
-                                ))}
-                                {noActionFound && <Typography color="text.secondary">Không tìm thấy hành động phù hợp.</Typography>}
+                                )}
                             </Box>
                         </CommandPalette>
                     </motion.div>

@@ -12,23 +12,28 @@ import {
 } from "@mui/material";
 import { formatNumber, toNum } from "../utils/numberUtils";
 
-// Các hàm tiện ích và style không đổi
-const cellStyle = {
-    border: "1px solid #e0e0e0",
+// ✅ TỐI ƯU CHO TV MÀN HÌNH LỚN - Styles sẽ được tính động dựa trên tvMode
+const getCellStyle = (tvMode) => ({
+    border: tvMode ? "2px solid #e0e0e0" : "1px solid #e0e0e0",
     textAlign: "right",
-    fontSize: "14px",
-    padding: "8px 16px",
+    fontSize: tvMode ? "1.2rem" : "14px",
+    padding: tvMode ? "14px 20px" : "8px 16px",
     whiteSpace: 'nowrap',
-};
+    fontWeight: tvMode ? 500 : 400,
+});
 
-const headerCellStyle = {
-    ...cellStyle,
-    fontWeight: "bold",
-    backgroundColor: "#fafafa",
+const getHeaderCellStyle = (tvMode) => ({
+    ...getCellStyle(tvMode),
+    fontWeight: tvMode ? 800 : "bold",
+    backgroundColor: tvMode ? "#0d47a1" : "#fafafa",
+    color: tvMode ? "#fff" : "inherit",
     textAlign: "center",
-};
+    fontSize: tvMode ? "1.3rem" : "14px",
+    padding: tvMode ? "16px 20px" : "8px 16px",
+    border: tvMode ? "2px solid #004c8f" : "1px solid #e0e0e0",
+});
 
-const formatValue = (value, isPercent = false) => {
+const formatValue = (value, isPercent = false, tvMode = false) => {
     if (value === null || value === undefined) return "–";
     const num = Number(value);
     if (isNaN(num)) return "–";
@@ -41,7 +46,14 @@ const formatValue = (value, isPercent = false) => {
 
     if (num < 0) {
         return (
-            <Typography color="error" component="span" sx={{ fontWeight: 'inherit', fontSize: 'inherit' }}>
+            <Typography 
+                color="error" 
+                component="span" 
+                sx={{ 
+                    fontWeight: tvMode ? 600 : 'inherit', 
+                    fontSize: tvMode ? '1.2rem' : 'inherit' 
+                }}
+            >
                 {`(${formatNumber(Math.abs(num))})`}
             </Typography>
         );
@@ -49,7 +61,7 @@ const formatValue = (value, isPercent = false) => {
     return formatNumber(num);
 };
 
-const EditableCell = ({ value, onChange }) => {
+const EditableCell = ({ value, onChange, tvMode = false }) => {
     const [displayValue, setDisplayValue] = React.useState(formatNumber(value));
     const isFocused = React.useRef(false);
 
@@ -79,8 +91,10 @@ const EditableCell = ({ value, onChange }) => {
         }
     };
 
+    const cellStyle = getCellStyle(tvMode);
+
     return (
-        <TableCell sx={{ ...cellStyle, padding: '4px 8px' }}>
+        <TableCell sx={{ ...cellStyle, padding: tvMode ? '10px 16px' : '4px 8px' }}>
             <TextField
                 variant="standard"
                 value={displayValue}
@@ -90,8 +104,14 @@ const EditableCell = ({ value, onChange }) => {
                 fullWidth
                 sx={{
                     '& .MuiInput-underline:before': { border: 'none' },
-                    '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottom: '2px solid #1976d2' },
-                    '& .MuiInputBase-input': { textAlign: 'right', fontSize: '14px' }
+                    '& .MuiInput-underline:hover:not(.Mui-disabled):before': { 
+                        borderBottom: tvMode ? '3px solid #1976d2' : '2px solid #1976d2' 
+                    },
+                    '& .MuiInputBase-input': { 
+                        textAlign: 'right', 
+                        fontSize: tvMode ? '1.2rem' : '14px',
+                        fontWeight: tvMode ? 500 : 400,
+                    }
                 }}
             />
         </TableCell>
@@ -103,7 +123,8 @@ export default function ProfitSummaryTable({
     data = {}, 
     targets = {}, 
     onTargetChange = () => {},
-    isYearlyReport = false 
+    isYearlyReport = false,
+    tvMode = false // ✅ Thêm prop tvMode
 }) {
     const {
         revenueXayDung, profitXayDung, costOverXayDung,
@@ -138,9 +159,30 @@ export default function ProfitSummaryTable({
         },
     ];
 
-    const sharedLayout = (isEditable) => (
-        <TableContainer component={Paper} sx={{ mt: 4, mb: 4, border: '1px solid #e0e0e0' }}>
-            <Table size="small" aria-label="profit summary table">
+    const sharedLayout = (isEditable) => {
+        const cellStyle = getCellStyle(tvMode);
+        const headerCellStyle = getHeaderCellStyle(tvMode);
+        
+        return (
+        <TableContainer 
+            component={Paper} 
+            sx={{ 
+                mt: tvMode ? 5 : 4, 
+                mb: tvMode ? 5 : 4, 
+                border: tvMode ? '3px solid #1565c0' : '1px solid #e0e0e0',
+                borderRadius: tvMode ? 3 : 1,
+                boxShadow: tvMode ? "0 4px 20px rgba(0, 0, 0, 0.1)" : "none",
+            }}
+        >
+            <Table 
+                size={tvMode ? "medium" : "small"} 
+                aria-label="profit summary table"
+                sx={{
+                    "& .MuiTableCell-root": {
+                        fontSize: tvMode ? "1.1rem" : undefined,
+                    }
+                }}
+            >
                 <TableHead>
                     <TableRow>
                         <TableCell sx={{ ...headerCellStyle, width: '20%', textAlign: 'left' }}></TableCell>
@@ -161,39 +203,91 @@ export default function ProfitSummaryTable({
 
                         return (
                             <React.Fragment key={item.name}>
-                                <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                                    <TableCell sx={{ ...cellStyle, fontWeight: 'bold', textTransform: 'uppercase', textAlign: 'left' }}>{item.id}. {item.name}</TableCell>
-                                    <TableCell colSpan={6}></TableCell>
+                                <TableRow sx={{ 
+                                    backgroundColor: tvMode ? '#e3f2fd' : '#f5f5f5',
+                                    borderBottom: tvMode ? '2px solid #1565c0' : '1px solid #e0e0e0',
+                                }}>
+                                    <TableCell sx={{ 
+                                        ...cellStyle, 
+                                        fontWeight: tvMode ? 800 : 'bold', 
+                                        textTransform: 'uppercase', 
+                                        textAlign: 'left',
+                                        fontSize: tvMode ? '1.25rem' : cellStyle.fontSize,
+                                        backgroundColor: 'inherit',
+                                    }}>
+                                        {item.id}. {item.name}
+                                    </TableCell>
+                                    <TableCell colSpan={6} sx={{ backgroundColor: 'inherit' }}></TableCell>
                                 </TableRow>
-                                <TableRow>
-                                    <TableCell sx={{ ...cellStyle, fontStyle: 'italic', paddingLeft: '32px', textAlign: 'left' }}>doanh thu</TableCell>
+                                <TableRow sx={{
+                                    borderBottom: tvMode ? '2px solid #e0e0e0' : '1px solid #e0e0e0',
+                                    "&:hover": {
+                                        backgroundColor: "#f5f5f5",
+                                        ...(tvMode ? {} : { transition: "background-color 0.2s" }), // ✅ Bỏ transition trong TV mode
+                                    },
+                                }}>
+                                    <TableCell sx={{ 
+                                        ...cellStyle, 
+                                        fontStyle: 'italic', 
+                                        paddingLeft: tvMode ? '48px' : '32px', 
+                                        textAlign: 'left',
+                                        fontSize: tvMode ? '1.15rem' : cellStyle.fontSize,
+                                    }}>
+                                        doanh thu
+                                    </TableCell>
                                     
                                     {isEditable ? (
-                                        <EditableCell value={toNum(item.revenue.target)} onChange={(value) => onTargetChange(item.revenue.targetKey, value)} />
+                                        <EditableCell 
+                                            value={toNum(item.revenue.target)} 
+                                            onChange={(value) => onTargetChange(item.revenue.targetKey, value)}
+                                            tvMode={tvMode}
+                                        />
                                     ) : (
-                                        <TableCell sx={cellStyle}>{formatValue(item.revenue.target)}</TableCell>
+                                        <TableCell sx={cellStyle}>{formatValue(item.revenue.target, false, tvMode)}</TableCell>
                                     )}
 
-                                    <TableCell sx={cellStyle}>{formatValue(item.revenue.actual)}</TableCell>
-                                    <TableCell sx={{ ...cellStyle, width: '15%' }}>{formatValue(revenueEvaluation)}</TableCell>
-                                    <TableCell sx={{ ...cellStyle, width: '10%' }}>{formatValue(revenuePercent, true)}</TableCell>
+                                    <TableCell sx={cellStyle}>{formatValue(item.revenue.actual, false, tvMode)}</TableCell>
+                                    <TableCell sx={{ ...cellStyle, width: '15%' }}>{formatValue(revenueEvaluation, false, tvMode)}</TableCell>
+                                    <TableCell sx={{ ...cellStyle, width: '10%' }}>{formatValue(revenuePercent, true, tvMode)}</TableCell>
                                     <TableCell sx={cellStyle}>–</TableCell>
                                     <TableCell sx={cellStyle}>–</TableCell>
                                 </TableRow>
-                                <TableRow>
-                                    <TableCell sx={{ ...cellStyle, fontStyle: 'italic', paddingLeft: '32px', textAlign: 'left' }}>lợi nhuận</TableCell>
+                                <TableRow sx={{
+                                    borderBottom: tvMode ? '2px solid #e0e0e0' : '1px solid #e0e0e0',
+                                    "&:hover": {
+                                        backgroundColor: "#f5f5f5",
+                                        ...(tvMode ? {} : { transition: "background-color 0.2s" }), // ✅ Bỏ transition trong TV mode
+                                    },
+                                }}>
+                                    <TableCell sx={{ 
+                                        ...cellStyle, 
+                                        fontStyle: 'italic', 
+                                        paddingLeft: tvMode ? '48px' : '32px', 
+                                        textAlign: 'left',
+                                        fontSize: tvMode ? '1.15rem' : cellStyle.fontSize,
+                                    }}>
+                                        lợi nhuận
+                                    </TableCell>
                                     
                                     {isEditable ? (
-                                        <EditableCell value={toNum(item.profit.target)} onChange={(value) => onTargetChange(item.profit.targetKey, value)} />
+                                        <EditableCell 
+                                            value={toNum(item.profit.target)} 
+                                            onChange={(value) => onTargetChange(item.profit.targetKey, value)}
+                                            tvMode={tvMode}
+                                        />
                                     ) : (
-                                        <TableCell sx={cellStyle}>{formatValue(item.profit.target)}</TableCell>
+                                        <TableCell sx={cellStyle}>{formatValue(item.profit.target, false, tvMode)}</TableCell>
                                     )}
 
-                                    <TableCell sx={cellStyle}>{formatValue(item.profit.actual)}</TableCell>
-                                    <TableCell sx={{ ...cellStyle, width: '15%' }}>{formatValue(profitEvaluation)}</TableCell>
-                                    <TableCell sx={{ ...cellStyle, width: '10%' }}>{formatValue(profitPercent, true)}</TableCell>
-                                    <TableCell sx={{ ...cellStyle, fontWeight: 'bold' }}>{formatValue(item.profit.costOver)}</TableCell>
-                                    <TableCell sx={{ ...cellStyle, fontWeight: 'bold' }}>{formatValue(adjustedProfit)}</TableCell>
+                                    <TableCell sx={cellStyle}>{formatValue(item.profit.actual, false, tvMode)}</TableCell>
+                                    <TableCell sx={{ ...cellStyle, width: '15%' }}>{formatValue(profitEvaluation, false, tvMode)}</TableCell>
+                                    <TableCell sx={{ ...cellStyle, width: '10%' }}>{formatValue(profitPercent, true, tvMode)}</TableCell>
+                                    <TableCell sx={{ ...cellStyle, fontWeight: tvMode ? 700 : 'bold', fontSize: tvMode ? '1.25rem' : cellStyle.fontSize }}>
+                                        {formatValue(item.profit.costOver, false, tvMode)}
+                                    </TableCell>
+                                    <TableCell sx={{ ...cellStyle, fontWeight: tvMode ? 700 : 'bold', fontSize: tvMode ? '1.25rem' : cellStyle.fontSize }}>
+                                        {formatValue(adjustedProfit, false, tvMode)}
+                                    </TableCell>
                                 </TableRow>
                             </React.Fragment>
                         );
@@ -201,7 +295,8 @@ export default function ProfitSummaryTable({
                 </TableBody>
             </Table>
         </TableContainer>
-    );
+        );
+    };
 
     // Dựa vào isYearlyReport để quyết định cột "CHỈ TIÊU" có được sửa hay không
     if (isYearlyReport) {

@@ -105,21 +105,90 @@ const createComponents = (theme) => {
   return {
     MuiCssBaseline: {
       styleOverrides: {
-        '*': { scrollbarColor: `${alpha(palette.grey[500], 0.48)} transparent`, scrollbarWidth: 'thin' },
+        '*': { 
+          scrollbarColor: `${alpha(palette.grey[500], 0.48)} transparent`, 
+          scrollbarWidth: 'thin',
+          // Smooth transitions for theme changes
+          transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        },
         '::-webkit-scrollbar': { width: 8, height: 8 },
         '::-webkit-scrollbar-track': { backgroundColor: 'transparent' },
         '::-webkit-scrollbar-thumb': {
           backgroundColor: alpha(palette.grey[500], 0.48),
           borderRadius: 4,
+          transition: 'background-color 0.2s ease',
           '&:hover': { backgroundColor: alpha(palette.grey[500], 0.64) },
+        },
+        // Respect reduced motion preference
+        '@media (prefers-reduced-motion: reduce)': {
+          '*': {
+            transition: 'none !important',
+            animation: 'none !important',
+          },
+        },
+        // Print styles
+        '@media print': {
+          '*': {
+            background: 'transparent !important',
+            color: '#000 !important',
+            boxShadow: 'none !important',
+            textShadow: 'none !important',
+          },
+          'a, a:visited': {
+            textDecoration: 'underline',
+          },
+          'pre, blockquote': {
+            border: '1px solid #999',
+            pageBreakInside: 'avoid',
+          },
+          'thead': {
+            display: 'table-header-group',
+          },
+          'tr, img': {
+            pageBreakInside: 'avoid',
+          },
         },
       },
     },
     MuiButton: {
       defaultProps: { disableElevation: true },
       styleOverrides: {
-        root: { borderRadius: 8, fontWeight: 600 },
+        root: { 
+          borderRadius: 8, 
+          fontWeight: 600,
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        },
       },
+      variants: [
+        {
+          props: { variant: 'soft' },
+          style: ({ theme, ownerState }) => {
+            const color = theme.palette[ownerState.color || 'primary'];
+            return {
+              backgroundColor: alpha(color.main, 0.08),
+              color: color.main,
+              '&:hover': {
+                backgroundColor: alpha(color.main, 0.16),
+              },
+            };
+          },
+        },
+        {
+          props: { variant: 'ghost' },
+          style: ({ theme, ownerState }) => {
+            const color = theme.palette[ownerState.color || 'primary'];
+            return {
+              backgroundColor: 'transparent',
+              color: color.main,
+              border: `1px solid ${alpha(color.main, 0.3)}`,
+              '&:hover': {
+                backgroundColor: alpha(color.main, 0.08),
+                borderColor: color.main,
+              },
+            };
+          },
+        },
+      ],
     },
     MuiCard: {
       styleOverrides: {
@@ -129,6 +198,13 @@ const createComponents = (theme) => {
           border: `1px solid ${palette.divider}`,
           boxShadow: theme.shadows[3],
           backgroundImage: palette.gradients.glass,
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          '@media (prefers-reduced-motion: no-preference)': {
+            '&:hover': {
+              boxShadow: theme.shadows[6],
+              transform: 'translateY(-2px)',
+            },
+          },
         },
       },
     },
@@ -154,7 +230,11 @@ const createComponents = (theme) => {
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
-          '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(palette.divider, 1) },
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          '& .MuiOutlinedInput-notchedOutline': { 
+            borderColor: alpha(palette.divider, 1),
+            transition: 'border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          },
           '&:hover .MuiOutlinedInput-notchedOutline': {
             borderColor: alpha(palette.text.primary, 0.4),
           },
@@ -162,6 +242,12 @@ const createComponents = (theme) => {
             borderColor: palette.primary.main,
             borderWidth: '1px',
             boxShadow: `0 0 0 3px ${alpha(palette.primary.main, 0.14)}`,
+          },
+          // Enhanced focus visible for accessibility
+          '&.Mui-focusVisible .MuiOutlinedInput-notchedOutline': {
+            borderColor: palette.primary.main,
+            borderWidth: '2px',
+            boxShadow: `0 0 0 4px ${alpha(palette.primary.main, 0.2)}`,
           },
         },
       },
@@ -225,12 +311,20 @@ export default function CustomThemeProvider({ children }) {
       spacing,
       shape: { borderRadius: 8 },
       transitions: {
-        easing: { easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)' },
+        easing: { 
+          easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+          easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
+          easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+          sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
+        },
         duration: {
           shortest: 150,
           shorter: 200,
           short: 250,
           standard: 300,
+          complex: 375,
+          enteringScreen: 225,
+          leavingScreen: 195,
         },
       },
     });

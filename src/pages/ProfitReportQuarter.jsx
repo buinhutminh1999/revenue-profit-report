@@ -33,8 +33,8 @@ import {
     Switch,
     FormControlLabel,
 } from "@mui/material";
-import { ViewColumn as ViewColumnIcon } from '@mui/icons-material'; // <-- THÊM DÒNG NÀY
-
+import { ViewColumn as ViewColumnIcon, Tv as TvIcon, Computer as ComputerIcon } from '@mui/icons-material';
+import { useTheme } from '@mui/material/styles'; // ✅ Thêm useTheme
 import SaveIcon from "@mui/icons-material/Save";
 import { collection, getDocs, setDoc, doc, getDoc, collectionGroup, onSnapshot } from "firebase/firestore";
 import { db } from "../services/firebase-config";
@@ -45,10 +45,11 @@ import FunctionsIcon from '@mui/icons-material/Functions'; // <-- THÊM DÒNG N�
 import ProfitReportFormulaGuide from '../components/reports_performance-profit-report/ProfitReportFormulaGuide'; // <-- THÊM DÒNG NÀY (sửa lại đường dẫn nếu cần)
 
 export default function ProfitReportQuarter() {
+    const theme = useTheme(); // ✅ Thêm useTheme để đảm bảo theme được load
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedQuarter, setSelectedQuarter] = useState("Q1");
     const [rows, setRows] = useState([]);
-    const [tvMode, setTvMode] = useState(true);
+    const [tvMode, setTvMode] = useState(false); // ✅ Mặc định false cho PC/laptop
     const [editingCell, setEditingCell] = useState({ idx: -1, field: "" });
     const [addModal, setAddModal] = useState(false);
     const [addProject, setAddProject] = useState({
@@ -117,15 +118,16 @@ export default function ProfitReportQuarter() {
     const cpVuotLabel = `CP VƯỢT QUÝ ${selectedQuarter} ${selectedYear}`;
 
     const cellStyle = {
-        minWidth: tvMode ? 120 : 80,
-        fontSize: tvMode ? "1.1rem" : "0.9rem", // Cỡ chữ to hơn đáng kể
-        px: tvMode ? 1 : 2,
-        py: tvMode ? 2 : 1, // Tăng khoảng cách dọc
+        minWidth: tvMode ? 150 : 80,
+        fontSize: tvMode ? "1.2rem" : "0.9rem", // ✅ Tăng font size cho TV mode
+        px: tvMode ? 3 : 2,
+        py: tvMode ? 2.5 : 1, // ✅ Tăng khoảng cách dọc cho TV mode
         whiteSpace: "nowrap",
         verticalAlign: "middle",
         overflow: "hidden",
         textOverflow: "ellipsis",
-        border: "1px solid #ccc",
+        border: tvMode ? "2px solid #ccc" : "1px solid #ccc", // ✅ Tăng border cho TV mode
+        fontWeight: tvMode ? 500 : 400, // ✅ Tăng font weight cho TV mode
     };
 
     // =================================================================
@@ -1995,10 +1997,25 @@ export default function ProfitReportQuarter() {
                         zIndex: 1300,
                     }}
                 >
-                    <CircularProgress size={64} color="primary" />
+                    <CircularProgress 
+                        size={tvMode ? 80 : 64} 
+                        thickness={tvMode ? 5 : 4}
+                        color="primary" 
+                    />
                 </Box>
             )}
-            <Paper elevation={3} sx={{ p: { xs: 2, md: 4 }, borderRadius: 3 }}>
+            <Paper 
+                elevation={3} 
+                sx={{ 
+                    p: tvMode ? { xs: 4, md: 5 } : { xs: 2, md: 4 }, 
+                    borderRadius: tvMode ? 4 : 3,
+                    bgcolor: tvMode ? "background.paper" : undefined,
+                    ...(tvMode && {
+                        background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+                        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
+                    }),
+                }}
+            >
                 <Box
                     sx={{
                         display: "flex",
@@ -2010,10 +2027,15 @@ export default function ProfitReportQuarter() {
                     }}
                 >
                     <Typography
-                        variant="h6"
-                        fontWeight={700}
+                        variant={tvMode ? "h3" : "h6"}
+                        fontWeight={tvMode ? 800 : 700}
                         color="primary"
-                        sx={{ fontSize: { xs: 16, sm: 18, md: 20 } }}
+                        sx={{ 
+                            fontSize: tvMode ? { xs: "2rem", sm: "2.5rem", md: "3rem" } : { xs: 16, sm: 18, md: 20 },
+                            ...(tvMode && {
+                                textShadow: "2px 2px 4px rgba(0,0,0,0.1)",
+                            }),
+                        }}
                     >
                         Báo cáo quý: {selectedQuarter}.{selectedYear}
                     </Typography>
@@ -2026,79 +2048,170 @@ export default function ProfitReportQuarter() {
                         <Button
                             variant="outlined"
                             color="secondary"
-                            startIcon={<FunctionsIcon />}
-                            onClick={() => setFormulaDialogOpen(true)} // Mở dialog khi click
-                            sx={{ borderRadius: 2, minWidth: 100 }}
+                            size={tvMode ? "large" : "medium"}
+                            startIcon={<FunctionsIcon sx={{ fontSize: tvMode ? 24 : undefined }} />}
+                            onClick={() => setFormulaDialogOpen(true)}
+                            sx={{ 
+                                borderRadius: 2, 
+                                minWidth: tvMode ? 140 : 100,
+                                fontSize: tvMode ? "1.1rem" : undefined,
+                                px: tvMode ? 3 : undefined,
+                                py: tvMode ? 1.5 : undefined,
+                                fontWeight: tvMode ? 600 : undefined,
+                            }}
                         >
                             Công Thức
                         </Button>
                         <Button
                             variant="contained"
                             color="primary"
-                            startIcon={<SaveIcon />}
+                            size={tvMode ? "large" : "medium"}
+                            startIcon={<SaveIcon sx={{ fontSize: tvMode ? 24 : undefined }} />}
                             onClick={handleSave}
-                            sx={{ borderRadius: 2, minWidth: 100 }}
+                            sx={{ 
+                                borderRadius: 2, 
+                                minWidth: tvMode ? 140 : 100,
+                                fontSize: tvMode ? "1.1rem" : undefined,
+                                px: tvMode ? 3 : undefined,
+                                py: tvMode ? 1.5 : undefined,
+                                fontWeight: tvMode ? 600 : undefined,
+                            }}
                         >
                             Lưu
                         </Button>
                         <Button
                             variant="outlined"
                             color="info"
+                            size={tvMode ? "large" : "medium"}
                             onClick={handleExportExcel}
-                            sx={{ borderRadius: 2, minWidth: 100 }}
+                            sx={{ 
+                                borderRadius: 2, 
+                                minWidth: tvMode ? 140 : 100,
+                                fontSize: tvMode ? "1.1rem" : undefined,
+                                px: tvMode ? 3 : undefined,
+                                py: tvMode ? 1.5 : undefined,
+                                fontWeight: tvMode ? 600 : undefined,
+                            }}
                         >
                             Excel
                         </Button>
-                        <FormControl size="small" sx={{ minWidth: 100 }}>
-                            <InputLabel>Quý</InputLabel>
+                        <FormControl size={tvMode ? "medium" : "small"} sx={{ minWidth: tvMode ? 140 : 100 }}>
+                            <InputLabel sx={{ fontSize: tvMode ? "1rem" : undefined }}>Quý</InputLabel>
                             <Select
                                 value={selectedQuarter}
                                 label="Chọn quý"
                                 onChange={(e) =>
                                     setSelectedQuarter(e.target.value)
                                 }
+                                sx={{
+                                    fontSize: tvMode ? "1.1rem" : undefined,
+                                    height: tvMode ? "48px" : undefined,
+                                }}
                             >
                                 {"Q1 Q2 Q3 Q4".split(" ").map((q) => (
-                                    <MenuItem key={q} value={q}>
+                                    <MenuItem key={q} value={q} sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>
                                         {q}
                                     </MenuItem>
                                 ))}
                             </Select>
                         </FormControl>
                         <TextField
-                            size="small"
+                            size={tvMode ? "medium" : "small"}
                             label="Năm"
                             type="number"
                             value={selectedYear}
                             onChange={(e) =>
                                 setSelectedYear(Number(e.target.value))
                             }
-                            sx={{ minWidth: 80 }}
+                            sx={{ 
+                                minWidth: tvMode ? 120 : 80,
+                                "& .MuiInputBase-root": {
+                                    fontSize: tvMode ? "1.1rem" : undefined,
+                                    height: tvMode ? "48px" : undefined,
+                                },
+                                "& .MuiInputLabel-root": {
+                                    fontSize: tvMode ? "1rem" : undefined,
+                                }
+                            }}
                         />
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    checked={tvMode}
-                                    onChange={() => setTvMode(!tvMode)}
-                                />
-                            }
-                            label="TV"
-                        />
+                        {/* ✅ NÚT TOGGLE TV MODE */}
+                        <Tooltip title={tvMode ? "Chuyển sang chế độ PC/Laptop" : "Chuyển sang chế độ TV màn hình lớn"}>
+                            <Button 
+                                variant={tvMode ? "contained" : "outlined"}
+                                size={tvMode ? "large" : "medium"}
+                                onClick={() => setTvMode(!tvMode)}
+                                startIcon={tvMode ? <TvIcon sx={{ fontSize: tvMode ? 24 : undefined }} /> : <ComputerIcon sx={{ fontSize: 20 }} />}
+                                sx={{
+                                    fontSize: tvMode ? "1.1rem" : undefined,
+                                    px: tvMode ? 3 : undefined,
+                                    py: tvMode ? 1.5 : undefined,
+                                    fontWeight: tvMode ? 600 : undefined,
+                                    minWidth: tvMode ? 160 : 140,
+                                    ...(tvMode && {
+                                        backgroundColor: theme.palette?.primary?.main || '#2081ED',
+                                        color: theme.palette?.primary?.contrastText || '#FFFFFF',
+                                        '&:hover': {
+                                            backgroundColor: theme.palette?.primary?.dark || '#105AB8',
+                                        },
+                                    }),
+                                }}
+                            >
+                                {tvMode ? "Chế độ TV" : "Chế độ PC"}
+                            </Button>
+                        </Tooltip>
                         <Button
                             variant="outlined"
                             color="success"
+                            size={tvMode ? "large" : "medium"}
                             onClick={() => setAddModal(true)}
-                            sx={{ borderRadius: 2, minWidth: 100 }}
+                            sx={{ 
+                                borderRadius: 2, 
+                                minWidth: tvMode ? 140 : 100,
+                                fontSize: tvMode ? "1.1rem" : undefined,
+                                px: tvMode ? 3 : undefined,
+                                py: tvMode ? 1.5 : undefined,
+                                fontWeight: tvMode ? 600 : undefined,
+                            }}
                         >
                             + Thêm
                         </Button>
                         {/* ✅ BẮT ĐẦU: DÁN KHỐI CODE NÀY VÀO SAU NÚT "THÊM" */}
                         <Tooltip title="Ẩn/Hiện cột">
-                            <Button variant="outlined" onClick={handleColumnMenuClick} startIcon={<ViewColumnIcon />}>
+                            <Button 
+                                variant="outlined" 
+                                size={tvMode ? "large" : "medium"}
+                                onClick={handleColumnMenuClick} 
+                                startIcon={<ViewColumnIcon sx={{ fontSize: tvMode ? 24 : undefined }} />}
+                                sx={{
+                                    fontSize: tvMode ? "1.1rem" : undefined,
+                                    px: tvMode ? 3 : undefined,
+                                    py: tvMode ? 1.5 : undefined,
+                                    fontWeight: tvMode ? 600 : undefined,
+                                    minWidth: tvMode ? 140 : 100,
+                                }}
+                            >
                                 Các cột
                             </Button>
                         </Tooltip>
-                        <Menu anchorEl={anchorEl} open={open} onClose={handleColumnMenuClose}>
+                        <Menu 
+                            anchorEl={anchorEl} 
+                            open={open} 
+                            onClose={handleColumnMenuClose}
+                            PaperProps={{
+                                sx: {
+                                    ...(tvMode && {
+                                        minWidth: 250,
+                                        "& .MuiMenuItem-root": {
+                                            fontSize: "1.1rem",
+                                            padding: "12px 16px",
+                                        },
+                                        "& .MuiCheckbox-root": {
+                                            fontSize: "1.2rem",
+                                        },
+                                    })
+                                }
+                            }}
+                        >
                             {Object.keys(columnVisibility).map((key) => (
                                 <MenuItem key={key} onClick={() => handleToggleColumn(key)}>
                                     <Checkbox checked={columnVisibility[key]} />
@@ -2112,43 +2225,51 @@ export default function ProfitReportQuarter() {
                     data={summaryData}
                     targets={summaryTargets}
                     onTargetChange={handleSummaryTargetChange}
+                    tvMode={tvMode} // ✅ Truyền tvMode vào component
                 />
                 <TableContainer
                     sx={{
-                        maxHeight: "75vh",
-                        minWidth: 1200,
+                        maxHeight: tvMode ? "80vh" : "75vh",
+                        minWidth: tvMode ? 1400 : 1200,
                         overflowX: "auto",
-                        border: "1px solid #e0e0e0",
-                        borderRadius: 1,
+                        border: tvMode ? "3px solid #1565c0" : "1px solid #e0e0e0",
+                        borderRadius: tvMode ? 3 : 1,
+                        boxShadow: tvMode ? "0 4px 20px rgba(0, 0, 0, 0.1)" : undefined,
                     }}
                 >
-                    <Table size="small" sx={{ minWidth: 1200 }}>
+                    <Table size={tvMode ? "medium" : "small"} sx={{ minWidth: tvMode ? 1400 : 1200 }}>
                         <TableHead
                             sx={{
                                 position: "sticky",
                                 top: 0,
                                 zIndex: 100,
-                                // Đặt nền xanh cho toàn bộ khu vực a
-                                backgroundColor: "#1565c0",
-                                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                                backgroundColor: tvMode ? "#0d47a1" : "#1565c0", // ✅ Đậm hơn trong TV mode
+                                boxShadow: tvMode ? "0 2px 8px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.1)",
 
-                                // Áp dụng style cho tất cả các ô tiêu đề (th) bên trong
                                 "& th": {
-                                    color: "#ffffff !important", // Chữ màu trắng (thêm !important để ưu tiên)
-                                    backgroundColor: "#1565c0 !important", // Nền màu xanh (thêm !important để đảm bảo)
-                                    fontWeight: 700,
-                                    fontSize: { xs: 12, sm: 14, md: 16 },
+                                    color: "#ffffff !important",
+                                    backgroundColor: tvMode ? "#0d47a1 !important" : "#1565c0 !important",
+                                    fontWeight: tvMode ? 800 : 700, // ✅ Đậm hơn trong TV mode
+                                    fontSize: tvMode ? { xs: "1.3rem", sm: "1.4rem", md: "1.5rem" } : { xs: 12, sm: 14, md: 16 },
                                     textAlign: "center",
-                                    borderBottom: "2px solid #fff",
+                                    borderBottom: tvMode ? "3px solid #fff" : "2px solid #fff",
                                     whiteSpace: "nowrap",
-                                    px: 2,
-                                    py: 1,
+                                    px: tvMode ? 3 : 2,
+                                    py: tvMode ? 2 : 1,
                                 },
                             }}
                         >
                             <TableRow>
                                 {/* Cột Công Trình luôn hiển thị */}
-                                <TableCell align="left" sx={{ minWidth: 300, maxWidth: 300, whiteSpace: "normal", wordBreak: "break-word" }}>
+                                <TableCell align="left" sx={{ 
+                                    minWidth: tvMode ? 400 : 300, 
+                                    maxWidth: tvMode ? 400 : 300, 
+                                    whiteSpace: "normal", 
+                                    wordBreak: "break-word",
+                                    fontSize: tvMode ? "1.3rem" : undefined,
+                                    fontWeight: tvMode ? 800 : 700,
+                                    padding: tvMode ? "16px" : undefined,
+                                }}>
                                     CÔNG TRÌNH
                                 </TableCell>
 
@@ -2170,29 +2291,33 @@ export default function ProfitReportQuarter() {
                                 <TableRow
                                     key={idx}
                                     sx={{
-                                        height: { xs: 48, md: 56 },
+                                        height: tvMode ? { xs: 64, md: 72 } : { xs: 48, md: 56 },
                                         bgcolor: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
-                                            ? "#f3e5f5"
+                                            ? (tvMode ? "#e1bee7" : "#f3e5f5")
                                             : r.name?.includes("TỔNG")
-                                                ? "#e8f5e9"
+                                                ? (tvMode ? "#c8e6c9" : "#e8f5e9")
                                                 : r.name?.match(/^[IVX]+\./)
-                                                    ? "#fff9c4"
+                                                    ? (tvMode ? "#fff59d" : "#fff9c4")
                                                     : idx % 2 === 0
                                                         ? "#ffffff"
-                                                        : "#f9f9f9",
-                                        "&:hover": { bgcolor: "#f5f5f5" },
+                                                        : (tvMode ? "#f5f5f5" : "#f9f9f9"),
+                                        "&:hover": { 
+                                            bgcolor: tvMode ? "#e3f2fd" : "#f5f5f5",
+                                            ...(tvMode ? {} : { transition: "background-color 0.2s" }), // ✅ Bỏ transition trong TV mode
+                                        },
+                                        borderBottom: tvMode ? "2px solid #e0e0e0" : "1px solid #e0e0e0",
                                         fontWeight: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
-                                            ? 900
+                                            ? (tvMode ? 900 : 900)
                                             : r.name?.includes("TỔNG")
-                                                ? 800
+                                                ? (tvMode ? 800 : 800)
                                                 : r.name?.match(/^[IVX]+\./)
-                                                    ? 700
-                                                    : 400,
+                                                    ? (tvMode ? 700 : 700)
+                                                    : (tvMode ? 500 : 400),
                                         fontSize: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
-                                            ? 20
+                                            ? (tvMode ? "1.4rem" : 20)
                                             : r.name?.match(/^[IVX]+\./)
-                                                ? 18
-                                                : "inherit",
+                                                ? (tvMode ? "1.3rem" : 18)
+                                                : (tvMode ? "1.2rem" : "inherit"),
                                     }}
                                 >
                                     {/* Cột 1: CÔNG TRÌNH (Luôn hiển thị) */}

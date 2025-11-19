@@ -28,7 +28,8 @@ import ProfitSummaryTable from "../reports/ProfitSummaryTable";
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
 // ✅ THAY THẾ COMPONENT RESIZABLEHEADER CŨ BẰNG COMPONENT NÀY
-import { ViewColumn as ViewColumnIcon } from '@mui/icons-material'; // ✅ Thêm import icon
+import { ViewColumn as ViewColumnIcon, Tv as TvIcon, Computer as ComputerIcon } from '@mui/icons-material'; // ✅ Thêm import icon
+import { useTheme } from '@mui/material/styles'; // ✅ Thêm useTheme
 
 const ResizableHeader = ({ onResize, width, children, ...restProps }) => {
     if (!width) {
@@ -512,8 +513,68 @@ const useProfitReportData = (selectedYear) => {
         const fetchData = async () => {
             setLoading(true);
 
+            const quarters = ["Q1", "Q2", "Q3", "Q4"];
+            
+            // ✅ Tính targetQuarter một lần để dùng lại
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentQuarterIndex = Math.floor(currentMonth / 3);
+            let targetQuarter;
+            let targetYear = selectedYear;
+            if (selectedYear < now.getFullYear()) {
+                targetQuarter = "Q4";
+            } else {
+                if (currentQuarterIndex === 0) {
+                    targetQuarter = "Q4";
+                    targetYear = selectedYear - 1;
+                } else {
+                    targetQuarter = quarters[currentQuarterIndex - 1];
+                }
+            }
+            
+            // ✅ TỐI ƯU: Load tất cả các document cần thiết song song
+            const [
+                quarterlyReports,
+                editableDoc,
+                projectsSnapshot,
+                savedReportDoc,
+                costAllocationDoc,
+                sanXuatDoc
+            ] = await Promise.all([
+                // Load tất cả 4 báo cáo quý song song
+                Promise.all(quarters.map(q => 
+                    getDoc(doc(db, "profitReports", `${selectedYear}_${q}`))
+                        .catch(err => {
+                            console.error(`Lỗi khi đọc báo cáo quý ${q}/${selectedYear}:`, err);
+                            return { exists: () => false };
+                        })
+                )),
+                // Load dữ liệu các hàng có thể chỉnh sửa
+                getDoc(doc(db, "editableProfitRows", `${selectedYear}`))
+                    .catch(() => ({ exists: () => false })),
+                // Load danh sách projects
+                getDocs(collection(db, "projects")),
+                // Load báo cáo năm đã lưu
+                getDoc(doc(db, "profitReports", `${selectedYear}`))
+                    .catch(() => ({ exists: () => false })),
+                // Load cost allocation
+                getDoc(doc(db, "costAllocationsQuarter", `${targetYear}_${targetQuarter}`))
+                    .catch(() => ({ exists: () => false })),
+                // Load sanXuatDoc
+                getDoc(doc(db, `projects/HKZyMDRhyXJzJiOauzVe/years/${targetYear}/quarters/${targetQuarter}`))
+                    .catch(() => ({ exists: () => false }))
+            ]);
+
+            // ✅ Cache các báo cáo quý để sử dụng lại
+            const quarterlyReportsCache = {};
+            quarterlyReports.forEach((docSnap, index) => {
+                if (docSnap.exists && docSnap.exists()) {
+                    quarterlyReportsCache[quarters[index]] = docSnap.data();
+                }
+            });
+
             // ======================================================================
-            // ✅ BƯỚC 1: THÊM LẠI ĐOẠN CODE TÍNH TỔNG CHỈ TIÊU TẠI ĐÂY
+            // ✅ BƯỚC 1: TÍNH TỔNG CHỈ TIÊU
             // ======================================================================
             let summedTargets = {
                 revenueTargetXayDung: 0,
@@ -524,161 +585,53 @@ const useProfitReportData = (selectedYear) => {
                 profitTargetDauTu: 0,
             };
 
-            const quarters = ["Q1", "Q2", "Q3", "Q4"];
-            // Thay thế toàn bộ vòng lặp for cũ bằng vòng lặp này
-
-            for (const quarter of quarters) {
-                try {
-                    const quarterlyReportDoc = await getDoc(
-                        doc(db, "profitReports", `${selectedYear}_${quarter}`)
-                    );
-
-                    if (quarterlyReportDoc.exists()) {
-                        const quarterlyData = quarterlyReportDoc.data();
-
-                        // Lấy object summaryTargets từ dữ liệu của quý
-                        const targetsForQuarter =
-                            quarterlyData.summaryTargets || {};
-
-                        // Cộng dồn đúng trường chỉ tiêu
-                        summedTargets.revenueTargetXayDung += toNum(
-                            targetsForQuarter.revenueTargetXayDung
-                        );
-                        summedTargets.profitTargetXayDung += toNum(
-                            targetsForQuarter.profitTargetXayDung
-                        );
-
-                        summedTargets.revenueTargetSanXuat += toNum(
-                            targetsForQuarter.revenueTargetSanXuat
-                        );
-                        summedTargets.profitTargetSanXuat += toNum(
-                            targetsForQuarter.profitTargetSanXuat
-                        );
-
-                        summedTargets.revenueTargetDauTu += toNum(
-                            targetsForQuarter.revenueTargetDauTu
-                        );
-                        summedTargets.profitTargetDauTu += toNum(
-                            targetsForQuarter.profitTargetDauTu
-                        );
-                    }
-                } catch (error) {
-                    console.error(
-                        `Lỗi khi đọc báo cáo quý ${quarter}/${selectedYear}:`,
-                        error
-                    );
+            quarters.forEach(quarter => {
+                const quarterlyData = quarterlyReportsCache[quarter];
+                if (quarterlyData) {
+                    const targetsForQuarter = quarterlyData.summaryTargets || {};
+                    summedTargets.revenueTargetXayDung += toNum(targetsForQuarter.revenueTargetXayDung);
+                    summedTargets.profitTargetXayDung += toNum(targetsForQuarter.profitTargetXayDung);
+                    summedTargets.revenueTargetSanXuat += toNum(targetsForQuarter.revenueTargetSanXuat);
+                    summedTargets.profitTargetSanXuat += toNum(targetsForQuarter.profitTargetSanXuat);
+                    summedTargets.revenueTargetDauTu += toNum(targetsForQuarter.revenueTargetDauTu);
+                    summedTargets.profitTargetDauTu += toNum(targetsForQuarter.profitTargetDauTu);
                 }
-            }
+            });
             setInitialSummaryTargets(summedTargets);
-            // ✅ KẾT THÚC THAY ĐỔI
-            // ======================================================================
-            // Load dữ liệu các hàng có thể chỉnh sửa đã lưu
-            try {
-                const editableDoc = await getDoc(
-                    doc(db, "editableProfitRows", `${selectedYear}`)
-                );
-                if (editableDoc.exists()) {
-                    setEditableRows(editableDoc.data().rows || {});
-                }
-            } catch (error) {
-                console.error(
-                    "Lỗi khi tải dữ liệu các hàng có thể chỉnh sửa:",
-                    error
-                );
+
+            // Load dữ liệu các hàng có thể chỉnh sửa
+            if (editableDoc.exists()) {
+                setEditableRows(editableDoc.data().rows || {});
             }
 
+            // ✅ Xử lý cost allocation và sanXuatDoc (đã load song song ở trên)
             let costAddedForGroupI = 0;
             let costOverForGroupI = 0;
             let costAddedForGroupII = 0;
             let costOverForGroupII = 0;
-            let costOverForGroupIII = 0; // ✅ THÊM BIẾN NÀY
+            let costOverForGroupIII = 0;
 
+            if (costAllocationDoc.exists && costAllocationDoc.exists()) {
+                const data = costAllocationDoc.data();
+                costAddedForGroupI = toNum(data.totalSurplusThiCong);
+                costOverForGroupI = toNum(data.totalDeficitThiCong);
+                costAddedForGroupII = toNum(data.totalSurplusNhaMay);
+                costOverForGroupIII = toNum(data.totalDeficitKHDT);
+            }
 
-            const now = new Date();
-            const currentMonth = now.getMonth();
-            const currentQuarterIndex = Math.floor(currentMonth / 3);
-
-            let targetQuarter;
-            let targetYear = selectedYear;
-
-            if (selectedYear < now.getFullYear()) {
-                targetQuarter = "Q4";
-            } else {
-                if (currentQuarterIndex === 0) {
-                    targetQuarter = "Q4";
-                    targetYear = selectedYear - 1;
-                } else {
-                    const quarters = ["Q1", "Q2", "Q3", "Q4"];
-                    targetQuarter = quarters[currentQuarterIndex - 1];
+            if (sanXuatDoc.exists && sanXuatDoc.exists()) {
+                const data = sanXuatDoc.data();
+                if (Array.isArray(data.items) && data.items.length > 0) {
+                    const totalCarryoverEnd = data.items.reduce((sum, item) => {
+                        return sum + toNum(item.carryoverEnd || 0);
+                    }, 0);
+                    costOverForGroupII = -totalCarryoverEnd;
+                } else if (data.carryoverEnd !== undefined) {
+                    costOverForGroupII = -toNum(data.carryoverEnd);
                 }
             }
 
-            // Lấy dữ liệu cho Group I từ costAllocationsQuarter như cũ
-            const docId = `${targetYear}_${targetQuarter}`;
-            try {
-                const costAllocationDoc = await getDoc(
-                    doc(db, "costAllocationsQuarter", docId)
-                );
-                if (costAllocationDoc.exists()) {
-                    const data = costAllocationDoc.data();
-
-                    costAddedForGroupI = toNum(data.totalSurplusThiCong);
-                    costOverForGroupI = toNum(data.totalDeficitThiCong);
-                    costAddedForGroupII = toNum(data.totalSurplusNhaMay); // Giữ nguyên cho CP CỘNG VÀO LN
-
-                    costOverForGroupIII = toNum(data.totalDeficitKHDT);
-
-                }
-            } catch (error) {
-                console.error("Lỗi khi lấy dữ liệu phân bổ chi phí:", error);
-            }
-
-            // ✅ THÊM MỚI: Lấy carryoverEnd cho II. SẢN XUẤT từ công trình cụ thể
-            try {
-                const sanXuatDoc = await getDoc(
-                    doc(db, `projects/HKZyMDRhyXJzJiOauzVe/years/${targetYear}/quarters/${targetQuarter}`)
-                );
-
-                if (sanXuatDoc.exists()) {
-                    const data = sanXuatDoc.data();
-
-                    // Kiểm tra nếu có items và cộng dồn carryoverEnd của từng item
-                    if (Array.isArray(data.items) && data.items.length > 0) {
-                        const totalCarryoverEnd = data.items.reduce((sum, item) => {
-                            return sum + toNum(item.carryoverEnd || 0);
-                        }, 0);
-                        costOverForGroupII = -totalCarryoverEnd;
-                        console.log(
-                            `Đã cộng dồn carryoverEnd từ ${data.items.length} items cho Sản xuất: ${costOverForGroupII}`
-                        );
-                    } else {
-                        // Nếu không có items, lấy carryoverEnd ở cấp document (fallback)
-                        if (data.carryoverEnd !== undefined) {
-                            costOverForGroupII = -toNum(data.carryoverEnd);
-                            console.log(
-                                `Đã lấy carryoverEnd ở cấp document cho Sản xuất: ${costOverForGroupII}`
-                            );
-                        } else {
-                            costOverForGroupII = 0;
-                            console.log("Không tìm thấy carryoverEnd cho Sản xuất");
-                        }
-                    }
-                } else {
-                    costOverForGroupII = 0;
-                    console.log(
-                        `Không tìm thấy dữ liệu cho Sản xuất trong quý ${targetQuarter}/${targetYear}`
-                    );
-                }
-            } catch (error) {
-                console.error("Lỗi khi lấy carryoverEnd cho Sản xuất:", error);
-                costOverForGroupII = 0;
-            }
-
-            const projectsSnapshot = await getDocs(collection(db, "projects"));
-            const savedReportDoc = await getDoc(
-                doc(db, "profitReports", `${selectedYear}`)
-            );
-            const savedRowsData = savedReportDoc.exists()
+            const savedRowsData = savedReportDoc.exists && savedReportDoc.exists()
                 ? savedReportDoc.data().rows
                 : [];
             // ======================================================================
@@ -692,6 +645,7 @@ const useProfitReportData = (selectedYear) => {
             // ✅ SAO CHÉP VÀ THAY THẾ TOÀN BỘ KHỐI CODE BÊN DƯỚI
             // =================================================================
 
+            // ✅ TỐI ƯU: Load tất cả các quý cho tất cả projects song song
             const projects = await Promise.all(
                 projectsSnapshot.docs.map(async (d) => {
                     const data = d.data();
@@ -701,74 +655,71 @@ const useProfitReportData = (selectedYear) => {
                         profits: {},
                     };
 
-                    for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                        try {
-                            const qSnap = await getDoc(
-                                doc(
-                                    db,
-                                    `projects/${d.id}/years/${selectedYear}/quarters/${quarter}`
-                                )
-                            );
+                    // Load tất cả 4 quý song song thay vì tuần tự
+                    const quarterSnaps = await Promise.all(
+                        quarters.map(quarter =>
+                            getDoc(doc(db, `projects/${d.id}/years/${selectedYear}/quarters/${quarter}`))
+                                .catch(err => {
+                                    console.error(`Lỗi khi lấy dữ liệu quý ${quarter} cho dự án ${d.id}:`, err);
+                                    return { exists: () => false };
+                                })
+                        )
+                    );
 
-                            if (qSnap.exists()) {
-                                const qData = qSnap.data();
-                                const revenue = toNum(qData.overallRevenue);
-                                let cost = 0; // Khởi tạo chi phí cho quý này
+                    quarterSnaps.forEach((qSnap, index) => {
+                        const quarter = quarters[index];
+                        if (qSnap.exists && qSnap.exists()) {
+                            const qData = qSnap.data();
+                            const revenue = toNum(qData.overallRevenue);
+                            let cost = 0;
 
-                                // ==========================================================
-                                // ✅ LOGIC TÍNH CHI PHÍ MỚI ĐƯỢC ÁP DỤNG TẠI ĐÂY
-                                // ==========================================================
-                                const projectType = (data.type || "").toLowerCase();
+                            // ==========================================================
+                            // ✅ LOGIC TÍNH CHI PHÍ MỚI ĐƯỢC ÁP DỤNG TẠI ĐÂY
+                            // ==========================================================
+                            const projectType = (data.type || "").toLowerCase();
 
-                                if (projectType.includes("nhà máy")) {
-                                    // TRƯỜNG HỢP 1: NẾU LÀ CÔNG TRÌNH SẢN XUẤT (NHÀ MÁY)
-                                    // -> Luôn tính chi phí bằng tổng của `totalCost`
-                                    if (Array.isArray(qData.items) && qData.items.length > 0) {
-                                        cost = qData.items.reduce(
-                                            (sum, item) => sum + toNum(item.totalCost || 0),
-                                            0
-                                        );
-                                    }
-                                } else {
-                                    // TRƯỜNG HỢP 2: CÁC LOẠI CÔNG TRÌNH CÒN LẠI
-                                    // -> Áp dụng logic tính toán phức tạp
-                                    if (Array.isArray(qData.items) && qData.items.length > 0) {
-                                        const totalItemsRevenue = qData.items.reduce(
-                                            (sum, item) => sum + toNum(item.revenue || 0),
-                                            0
-                                        );
-
-                                        if (totalItemsRevenue === 0 && revenue === 0) {
-                                            cost = 0;
-                                        } else {
-                                            if (totalItemsRevenue === 0) {
-                                                cost = qData.items.reduce(
-                                                    (sum, item) => sum + toNum(item.cpSauQuyetToan || 0),
-                                                    0
-                                                );
-                                            } else {
-                                                cost = qData.items.reduce(
-                                                    (sum, item) => sum + toNum(item.totalCost || 0),
-                                                    0
-                                                );
-                                            }
-                                        }
-                                    } else if (revenue === 0) {
-                                        cost = 0;
-                                    }
+                            if (projectType.includes("nhà máy")) {
+                                if (Array.isArray(qData.items) && qData.items.length > 0) {
+                                    cost = qData.items.reduce(
+                                        (sum, item) => sum + toNum(item.totalCost || 0),
+                                        0
+                                    );
                                 }
-                                // ==========================================================
-                                // ✅ KẾT THÚC LOGIC TÍNH CHI PHÍ MỚI
-                                // ==========================================================
+                            } else {
+                                if (Array.isArray(qData.items) && qData.items.length > 0) {
+                                    const totalItemsRevenue = qData.items.reduce(
+                                        (sum, item) => sum + toNum(item.revenue || 0),
+                                        0
+                                    );
 
-                                quarterlyData.revenues[quarter] = revenue;
-                                quarterlyData.costs[quarter] = cost;
-                                quarterlyData.profits[quarter] = revenue - cost;
+                                    if (totalItemsRevenue === 0 && revenue === 0) {
+                                        cost = 0;
+                                    } else {
+                                        if (totalItemsRevenue === 0) {
+                                            cost = qData.items.reduce(
+                                                (sum, item) => sum + toNum(item.cpSauQuyetToan || 0),
+                                                0
+                                            );
+                                        } else {
+                                            cost = qData.items.reduce(
+                                                (sum, item) => sum + toNum(item.totalCost || 0),
+                                                0
+                                            );
+                                        }
+                                    }
+                                } else if (revenue === 0) {
+                                    cost = 0;
+                                }
                             }
-                        } catch (error) {
-                            console.error(`Lỗi khi lấy dữ liệu quý ${quarter} cho dự án ${d.id}:`, error);
+                            // ==========================================================
+                            // ✅ KẾT THÚC LOGIC TÍNH CHI PHÍ MỚI
+                            // ==========================================================
+
+                            quarterlyData.revenues[quarter] = revenue;
+                            quarterlyData.costs[quarter] = cost;
+                            quarterlyData.profits[quarter] = revenue - cost;
                         }
-                    }
+                    });
 
                     const totalRevenue = Object.values(quarterlyData.revenues).reduce((s, v) => s + v, 0);
                     const totalCost = Object.values(quarterlyData.costs).reduce((s, v) => s + v, 0);
@@ -794,7 +745,6 @@ const useProfitReportData = (selectedYear) => {
                             ? ((totalRevenue - totalCost) / totalRevenue) * 100
                             : null,
                         plannedProfitMargin: data.estimatedProfitMargin || null,
-
                     };
                 })
             );
@@ -850,23 +800,24 @@ const useProfitReportData = (selectedYear) => {
                 rowTemplate = template.map((name) => ({ name }));
             }
 
+            // ✅ TỐI ƯU: Load profitChanges song song
+            const profitChangeDocs = await Promise.all(
+                quarters.map(q => 
+                    getDoc(doc(db, "profitChanges", `${selectedYear}_${q}`))
+                        .catch(() => ({ exists: () => false }))
+                )
+            );
+
             const decreaseProfitData = {};
             const increaseProfitData = {};
-            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                const docId = `${selectedYear}_${quarter}`;
-                const profitChangeDoc = await getDoc(
-                    doc(db, "profitChanges", docId)
-                );
-                if (profitChangeDoc.exists()) {
+            profitChangeDocs.forEach((profitChangeDoc, index) => {
+                const quarter = quarters[index];
+                if (profitChangeDoc.exists && profitChangeDoc.exists()) {
                     const data = profitChangeDoc.data();
-                    decreaseProfitData[`profit${quarter}`] = toNum(
-                        data.totalDecreaseProfit
-                    );
-                    increaseProfitData[`profit${quarter}`] = toNum(
-                        data.totalIncreaseProfit
-                    );
+                    decreaseProfitData[`profit${quarter}`] = toNum(data.totalDecreaseProfit);
+                    increaseProfitData[`profit${quarter}`] = toNum(data.totalIncreaseProfit);
                 }
-            }
+            });
             decreaseProfitData.profit = Object.values(
                 decreaseProfitData
             ).reduce((s, v) => s + v, 0);
@@ -890,34 +841,19 @@ const useProfitReportData = (selectedYear) => {
                     ...increaseProfitData,
                 };
 
-            // Lấy dữ liệu cho hàng "TRÍCH LN TRỪ LÃI DỰ ÁN"
+            // ✅ TỐI ƯU: Lấy dữ liệu cho hàng "TRÍCH LN TRỪ LÃI DỰ ÁN" từ cache
             const projectInterestData = {};
-            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                try {
-                    const docId = `${selectedYear}_${quarter}`;
-                    const profitReportSnap = await getDoc(
-                        doc(db, "profitReports", docId)
+            quarters.forEach(quarter => {
+                const reportData = quarterlyReportsCache[quarter];
+                if (reportData && Array.isArray(reportData.rows)) {
+                    const interestRow = reportData.rows.find(
+                        (row) => row.name === "VIII. GIẢM LÃI ĐT DỰ ÁN"
                     );
-                    if (profitReportSnap.exists()) {
-                        const reportData = profitReportSnap.data();
-                        if (Array.isArray(reportData.rows)) {
-                            const interestRow = reportData.rows.find(
-                                (row) => row.name === "VIII. GIẢM LÃI ĐT DỰ ÁN"
-                            );
-                            if (interestRow) {
-                                projectInterestData[`profit${quarter}`] = toNum(
-                                    interestRow.profit
-                                );
-                            }
-                        }
+                    if (interestRow) {
+                        projectInterestData[`profit${quarter}`] = toNum(interestRow.profit);
                     }
-                } catch (error) {
-                    console.error(
-                        `Lỗi khi lấy dữ liệu "GIẢM LÃI ĐT DỰ ÁN" cho ${quarter}/${selectedYear}:`,
-                        error
-                    );
                 }
-            }
+            });
             projectInterestData.profit = Object.values(
                 projectInterestData
             ).reduce((s, v) => s + v, 0);
@@ -932,35 +868,19 @@ const useProfitReportData = (selectedYear) => {
                 };
             }
 
-            // Lấy dữ liệu cho hàng "GIẢM GIÁ TRỊ TÀI SẢN"
+            // ✅ TỐI ƯU: Lấy dữ liệu cho hàng "GIẢM GIÁ TRỊ TÀI SẢN" từ cache
             const assetDepreciationData = {};
-            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                try {
-                    const docId = `${selectedYear}_${quarter}`;
-                    const profitReportSnap = await getDoc(
-                        doc(db, "profitReports", docId)
+            quarters.forEach(quarter => {
+                const reportData = quarterlyReportsCache[quarter];
+                if (reportData && Array.isArray(reportData.rows)) {
+                    const assetRow = reportData.rows.find(
+                        (row) => row.name === `VII. KHTSCĐ NĂM ${selectedYear}`
                     );
-                    if (profitReportSnap.exists()) {
-                        const reportData = profitReportSnap.data();
-                        if (Array.isArray(reportData.rows)) {
-                            const assetRow = reportData.rows.find(
-                                (row) =>
-                                    row.name ===
-                                    `VII. KHTSCĐ NĂM ${selectedYear}`
-                            );
-                            if (assetRow) {
-                                assetDepreciationData[`profit${quarter}`] =
-                                    toNum(assetRow.profit);
-                            }
-                        }
+                    if (assetRow) {
+                        assetDepreciationData[`profit${quarter}`] = toNum(assetRow.profit);
                     }
-                } catch (error) {
-                    console.error(
-                        `Lỗi khi lấy dữ liệu "KHTSCĐ" cho ${quarter}/${selectedYear}:`,
-                        error
-                    );
                 }
-            }
+            });
             assetDepreciationData.profit = Object.values(
                 assetDepreciationData
             ).reduce((s, v) => s + v, 0);
@@ -989,42 +909,22 @@ const useProfitReportData = (selectedYear) => {
                 "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)"
             ];
 
+            // ✅ TỐI ƯU: Sử dụng cache thay vì đọc lại từ Firestore
             for (const rowName of rowsToAggregate) {
                 const aggregatedData = {};
-                for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                    try {
-                        const docId = `${selectedYear}_${quarter}`;
-                        const profitReportSnap = await getDoc(
-                            doc(db, "profitReports", docId)
+                quarters.forEach(quarter => {
+                    const reportData = quarterlyReportsCache[quarter];
+                    if (reportData && Array.isArray(reportData.rows)) {
+                        const sourceRow = reportData.rows.find(
+                            (row) => row.name === rowName
                         );
-
-                        if (profitReportSnap.exists()) {
-                            const reportData = profitReportSnap.data();
-                            if (Array.isArray(reportData.rows)) {
-                                const sourceRow = reportData.rows.find(
-                                    (row) => row.name === rowName
-                                );
-                                if (sourceRow) {
-                                    // Lấy số liệu từ báo cáo quý và gán vào đúng trường của năm
-                                    aggregatedData[`revenue${quarter}`] = toNum(
-                                        sourceRow.revenue
-                                    );
-                                    aggregatedData[`cost${quarter}`] = toNum(
-                                        sourceRow.cost
-                                    );
-                                    aggregatedData[`profit${quarter}`] = toNum(
-                                        sourceRow.profit
-                                    );
-                                }
-                            }
+                        if (sourceRow) {
+                            aggregatedData[`revenue${quarter}`] = toNum(sourceRow.revenue);
+                            aggregatedData[`cost${quarter}`] = toNum(sourceRow.cost);
+                            aggregatedData[`profit${quarter}`] = toNum(sourceRow.profit);
                         }
-                    } catch (error) {
-                        console.error(
-                            `Lỗi khi lấy dữ liệu cho "${rowName}" từ quý ${quarter}/${selectedYear}:`,
-                            error
-                        );
                     }
-                }
+                });
 
                 // Tính tổng cả năm từ dữ liệu các quý vừa lấy
                 aggregatedData.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce(
@@ -1057,69 +957,32 @@ const useProfitReportData = (selectedYear) => {
             // ======================================================================
             // LOAD DỮ LIỆU CHO I.4. XÍ NGHIỆP XD II
             // ======================================================================
-            // Biến để lưu các công trình chi tiết của Xí nghiệp XD II
+            // ✅ TỐI ƯU: Sử dụng cache thay vì đọc lại từ Firestore
             const xiNghiepXD2Projects = [];
-
-            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                try {
-                    const docId = `${selectedYear}_${quarter}`;
-                    const profitReportSnap = await getDoc(
-                        doc(db, "profitReports", docId)
-                    );
-
-                    if (profitReportSnap.exists()) {
-                        const reportData = profitReportSnap.data();
-                        if (Array.isArray(reportData.rows)) {
-                            // Lọc các dự án có type = "xnxd2"
-                            const xnxd2Rows = reportData.rows.filter(
-                                (row) => row.type === "xnxd2"
-                            );
-
-                            // Xử lý từng dự án
-                            xnxd2Rows.forEach((projectRow) => {
-                                // Tìm xem dự án này đã tồn tại trong danh sách chưa
-                                let existingProject = xiNghiepXD2Projects.find(
-                                    (p) => p.name === projectRow.name
-                                );
-
-                                if (!existingProject) {
-                                    // Nếu chưa tồn tại, tạo mới
-                                    existingProject = {
-                                        name: projectRow.name,
-                                        type: "xnxd2",
-                                        revenue: 0,
-                                        revenueQ1: 0,
-                                        revenueQ2: 0,
-                                        revenueQ3: 0,
-                                        revenueQ4: 0,
-                                        cost: 0,
-                                        costQ1: 0,
-                                        costQ2: 0,
-                                        costQ3: 0,
-                                        costQ4: 0,
-                                        profit: 0,
-                                        profitQ1: 0,
-                                        profitQ2: 0,
-                                        profitQ3: 0,
-                                        profitQ4: 0,
-                                    };
-                                    xiNghiepXD2Projects.push(existingProject);
-                                }
-
-                                // Cập nhật dữ liệu cho quý tương ứng
-                                existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
-                                existingProject[`cost${quarter}`] = toNum(projectRow.cost);
-                                existingProject[`profit${quarter}`] = toNum(projectRow.profit);
-                            });
+            quarters.forEach(quarter => {
+                const reportData = quarterlyReportsCache[quarter];
+                if (reportData && Array.isArray(reportData.rows)) {
+                    const xnxd2Rows = reportData.rows.filter((row) => row.type === "xnxd2");
+                    xnxd2Rows.forEach((projectRow) => {
+                        let existingProject = xiNghiepXD2Projects.find(
+                            (p) => p.name === projectRow.name
+                        );
+                        if (!existingProject) {
+                            existingProject = {
+                                name: projectRow.name,
+                                type: "xnxd2",
+                                revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
+                                cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
+                                profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
+                            };
+                            xiNghiepXD2Projects.push(existingProject);
                         }
-                    }
-                } catch (error) {
-                    console.error(
-                        `Lỗi khi lấy dữ liệu Xí nghiệp XD II cho ${quarter}/${selectedYear}:`,
-                        error
-                    );
+                        existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
+                        existingProject[`cost${quarter}`] = toNum(projectRow.cost);
+                        existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                    });
                 }
-            }
+            });
 
             // Tính tổng cả năm cho từng dự án
             xiNghiepXD2Projects.forEach((project) => {
@@ -1158,68 +1021,32 @@ const useProfitReportData = (selectedYear) => {
                     rowTemplate.splice(insertPosition + index, 0, project);
                 });
             }
+            // ✅ TỐI ƯU: Sử dụng cache thay vì đọc lại từ Firestore
             const nhaMayProjects = [];
-
-            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                try {
-                    const docId = `${selectedYear}_${quarter}`;
-                    const profitReportSnap = await getDoc(
-                        doc(db, "profitReports", docId)
-                    );
-
-                    if (profitReportSnap.exists()) {
-                        const reportData = profitReportSnap.data();
-                        if (Array.isArray(reportData.rows)) {
-                            // Lọc các dự án có type = "Nhà máy"
-                            const nhaMayRows = reportData.rows.filter(
-                                (row) => row.type === "Nhà máy"
-                            );
-
-                            // Xử lý từng dự án
-                            nhaMayRows.forEach((projectRow) => {
-                                // Tìm xem dự án này đã tồn tại trong danh sách chưa
-                                let existingProject = nhaMayProjects.find(
-                                    (p) => p.name === projectRow.name
-                                );
-
-                                if (!existingProject) {
-                                    // Nếu chưa tồn tại, tạo mới
-                                    existingProject = {
-                                        name: projectRow.name,
-                                        type: "Nhà máy",
-                                        revenue: 0,
-                                        revenueQ1: 0,
-                                        revenueQ2: 0,
-                                        revenueQ3: 0,
-                                        revenueQ4: 0,
-                                        cost: 0,
-                                        costQ1: 0,
-                                        costQ2: 0,
-                                        costQ3: 0,
-                                        costQ4: 0,
-                                        profit: 0,
-                                        profitQ1: 0,
-                                        profitQ2: 0,
-                                        profitQ3: 0,
-                                        profitQ4: 0,
-                                    };
-                                    nhaMayProjects.push(existingProject);
-                                }
-
-                                // Cập nhật dữ liệu cho quý tương ứng
-                                existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
-                                existingProject[`cost${quarter}`] = toNum(projectRow.cost);
-                                existingProject[`profit${quarter}`] = toNum(projectRow.profit);
-                            });
+            quarters.forEach(quarter => {
+                const reportData = quarterlyReportsCache[quarter];
+                if (reportData && Array.isArray(reportData.rows)) {
+                    const nhaMayRows = reportData.rows.filter((row) => row.type === "Nhà máy");
+                    nhaMayRows.forEach((projectRow) => {
+                        let existingProject = nhaMayProjects.find(
+                            (p) => p.name === projectRow.name
+                        );
+                        if (!existingProject) {
+                            existingProject = {
+                                name: projectRow.name,
+                                type: "Nhà máy",
+                                revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
+                                cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
+                                profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
+                            };
+                            nhaMayProjects.push(existingProject);
                         }
-                    }
-                } catch (error) {
-                    console.error(
-                        `Lỗi khi lấy dữ liệu Nhà máy cho ${quarter}/${selectedYear}:`,
-                        error
-                    );
+                        existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
+                        existingProject[`cost${quarter}`] = toNum(projectRow.cost);
+                        existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                    });
                 }
-            }
+            });
 
             // Tính tổng cả năm cho từng dự án
             nhaMayProjects.forEach((project) => {
@@ -1263,45 +1090,30 @@ const useProfitReportData = (selectedYear) => {
             // ======================================================================
             const dauTuProjects = []; // Mảng chứa các dự án đầu tư
 
-            // Vòng lặp để lấy dữ liệu từ nguồn mới (ví dụ: báo cáo quý)
-            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                try {
-                    const docId = `${selectedYear}_${quarter}`;
-                    const profitReportSnap = await getDoc(
-                        doc(db, "profitReports", docId)
-                    );
-
-                    if (profitReportSnap.exists()) {
-                        const reportData = profitReportSnap.data();
-                        if (Array.isArray(reportData.rows)) {
-                            // Lọc các dự án có type = "KH-ĐT"
-                            const dauTuRows = reportData.rows.filter(
-                                (row) => row.type === "KH-ĐT"
-                            );
-
-                            // Xử lý và tổng hợp dữ liệu (tương tự logic của "Nhà máy")
-                            dauTuRows.forEach((projectRow) => {
-                                let existingProject = dauTuProjects.find(
-                                    (p) => p.name === projectRow.name
-                                );
-
-                                if (!existingProject) {
-                                    existingProject = {
-                                        name: projectRow.name, type: "KH-ĐT",
-                                        revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
-                                        cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
-                                        profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
-                                    };
-                                    dauTuProjects.push(existingProject);
-                                }
-                                existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
-                                existingProject[`cost${quarter}`] = toNum(projectRow.cost);
-                                existingProject[`profit${quarter}`] = toNum(projectRow.profit);
-                            });
+            // ✅ TỐI ƯU: Sử dụng cache thay vì đọc lại từ Firestore
+            quarters.forEach(quarter => {
+                const reportData = quarterlyReportsCache[quarter];
+                if (reportData && Array.isArray(reportData.rows)) {
+                    const dauTuRows = reportData.rows.filter((row) => row.type === "KH-ĐT");
+                    dauTuRows.forEach((projectRow) => {
+                        let existingProject = dauTuProjects.find(
+                            (p) => p.name === projectRow.name
+                        );
+                        if (!existingProject) {
+                            existingProject = {
+                                name: projectRow.name, type: "KH-ĐT",
+                                revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
+                                cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
+                                profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
+                            };
+                            dauTuProjects.push(existingProject);
                         }
-                    }
-                } catch (error) { /*...*/ }
-            }
+                        existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
+                        existingProject[`cost${quarter}`] = toNum(projectRow.cost);
+                        existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                    });
+                }
+            });
 
             // Tính tổng năm cho từng dự án
             dauTuProjects.forEach((project) => {
@@ -1326,52 +1138,30 @@ const useProfitReportData = (selectedYear) => {
             // ======================================================================
             const cdtProjects = []; // Mảng chứa các dự án CĐT
 
-            // Vòng lặp qua 4 quý để lấy dữ liệu từ profitReports
-            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                try {
-                    const docId = `${selectedYear}_${quarter}`;
-                    const profitReportSnap = await getDoc(
-                        doc(db, "profitReports", docId)
-                    );
-
-                    if (profitReportSnap.exists()) {
-                        const reportData = profitReportSnap.data();
-                        if (Array.isArray(reportData.rows)) {
-                            // Lọc ra các dự án có type = "CĐT" trong báo cáo quý
-                            const cdtRows = reportData.rows.filter(
-                                (row) => row.type === "CĐT"
-                            );
-
-                            // Xử lý và tổng hợp dữ liệu cho từng dự án tìm thấy
-                            cdtRows.forEach((projectRow) => {
-                                let existingProject = cdtProjects.find(
-                                    (p) => p.name === projectRow.name
-                                );
-
-                                if (!existingProject) {
-                                    // Nếu dự án chưa có trong danh sách, tạo mới
-                                    existingProject = {
-                                        name: projectRow.name, type: "CĐT",
-                                        revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
-                                        cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
-                                        profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
-                                    };
-                                    cdtProjects.push(existingProject);
-                                }
-                                // Cập nhật dữ liệu cho quý tương ứng
-                                existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
-                                existingProject[`cost${quarter}`] = toNum(projectRow.cost);
-                                existingProject[`profit${quarter}`] = toNum(projectRow.profit);
-                            });
+            // ✅ TỐI ƯU: Sử dụng cache thay vì đọc lại từ Firestore
+            quarters.forEach(quarter => {
+                const reportData = quarterlyReportsCache[quarter];
+                if (reportData && Array.isArray(reportData.rows)) {
+                    const cdtRows = reportData.rows.filter((row) => row.type === "CĐT");
+                    cdtRows.forEach((projectRow) => {
+                        let existingProject = cdtProjects.find(
+                            (p) => p.name === projectRow.name
+                        );
+                        if (!existingProject) {
+                            existingProject = {
+                                name: projectRow.name, type: "CĐT",
+                                revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
+                                cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
+                                profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
+                            };
+                            cdtProjects.push(existingProject);
                         }
-                    }
-                } catch (error) {
-                    console.error(
-                        `Lỗi khi lấy dữ liệu CĐT cho ${quarter}/${selectedYear}:`,
-                        error
-                    );
+                        existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
+                        existingProject[`cost${quarter}`] = toNum(projectRow.cost);
+                        existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                    });
                 }
-            }
+            });
 
             // Tính tổng cả năm cho từng dự án CĐT
             cdtProjects.forEach((project) => {
@@ -1433,41 +1223,34 @@ const useProfitReportData = (selectedYear) => {
             // Object để tổng hợp dữ liệu thủ công chỉ từ nhóm I.1
             const manualI1Data = {};
 
-            // Bước 1: Quét qua 4 quý để tìm dữ liệu thủ công trong nhóm I.1
-            for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                try {
-                    const quarterlyReportDoc = await getDoc(
-                        doc(db, "profitReports", `${selectedYear}_${quarter}`)
-                    );
+            // ✅ TỐI ƯU: Sử dụng cache thay vì đọc lại từ Firestore
+            quarters.forEach(quarter => {
+                const reportData = quarterlyReportsCache[quarter];
+                if (reportData) {
+                    const quarterlyRows = reportData.rows || [];
+                    const groupI1Index = quarterlyRows.findIndex(r => (r.name || "").trim().toUpperCase() === "I.1. DÂN DỤNG + GIAO THÔNG");
 
-                    if (quarterlyReportDoc.exists()) {
-                        const quarterlyRows = quarterlyReportDoc.data().rows || [];
-                        const groupI1Index = quarterlyRows.findIndex(r => (r.name || "").trim().toUpperCase() === "I.1. DÂN DỤNG + GIAO THÔNG");
+                    if (groupI1Index === -1) return;
 
-                        if (groupI1Index === -1) continue;
+                    let endIndex = quarterlyRows.findIndex((r, idx) => idx > groupI1Index && (r.name || "").trim().toUpperCase().startsWith("I.2"));
+                    if (endIndex === -1) endIndex = quarterlyRows.findIndex((r, idx) => idx > groupI1Index && r.name && r.name.match(/^[IVX]+\./));
+                    if (endIndex === -1) endIndex = quarterlyRows.length;
 
-                        let endIndex = quarterlyRows.findIndex((r, idx) => idx > groupI1Index && (r.name || "").trim().toUpperCase().startsWith("I.2"));
-                        if (endIndex === -1) endIndex = quarterlyRows.findIndex((r, idx) => idx > groupI1Index && r.name && r.name.match(/^[IVX]+\./));
-                        if (endIndex === -1) endIndex = quarterlyRows.length;
+                    const childRows = quarterlyRows.slice(groupI1Index + 1, endIndex);
+                    const manualRowsInGroup = childRows.filter(row => !row.projectId && row.name);
 
-                        const childRows = quarterlyRows.slice(groupI1Index + 1, endIndex);
-                        const manualRowsInGroup = childRows.filter(row => !row.projectId && row.name);
-
-                        manualRowsInGroup.forEach(row => {
-                            if (!manualI1Data[row.name]) {
-                                manualI1Data[row.name] = { name: row.name, type: "Thi công" };
-                            }
-                            manualI1Data[row.name][quarter] = {
-                                revenue: toNum(row.revenue),
-                                cost: toNum(row.cost),
-                                profit: toNum(row.profit),
-                            };
-                        });
-                    }
-                } catch (error) {
-                    console.error(`Lỗi khi đọc báo cáo quý ${quarter}/${selectedYear}:`, error);
+                    manualRowsInGroup.forEach(row => {
+                        if (!manualI1Data[row.name]) {
+                            manualI1Data[row.name] = { name: row.name, type: "Thi công" };
+                        }
+                        manualI1Data[row.name][quarter] = {
+                            revenue: toNum(row.revenue),
+                            cost: toNum(row.cost),
+                            profit: toNum(row.profit),
+                        };
+                    });
                 }
-            }
+            });
 
             // Bước 2: Hợp nhất dữ liệu thủ công vào danh sách `projects` gốc
             const manualI1Names = Object.keys(manualI1Data);
@@ -1681,8 +1464,9 @@ const useProfitReportData = (selectedYear) => {
 };
 
 export default function ProfitReportYear() {
+    const theme = useTheme(); // ✅ Thêm useTheme để đảm bảo theme được load
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-    const [tvMode, setTvMode] = useState(true);
+    const [tvMode, setTvMode] = useState(false); // ✅ Mặc định false cho PC/laptop
     // ✅ BƯỚC 1: THÊM CÁC STATE VÀ REF CẦN THIẾT
     const [congTrinhColWidth, setCongTrinhColWidth] = useState(350); // Độ rộng ban đầu
 
@@ -1795,13 +1579,15 @@ export default function ProfitReportYear() {
             costOverDauTu: investmentRow.costOverCumulative,
         };
     }, [rows]);
+    // ✅ TỐI ƯU CHO TV MÀN HÌNH LỚN
     const cellStyle = {
-        minWidth: tvMode ? 90 : 110,
-        fontSize: tvMode ? 16 : { xs: 12, sm: 14 },
-        padding: tvMode ? "6px 8px" : "8px 12px",
+        minWidth: tvMode ? 140 : 110,
+        fontSize: tvMode ? 20 : { xs: 12, sm: 14 },
+        padding: tvMode ? "12px 16px" : "8px 12px",
         whiteSpace: "nowrap",
         verticalAlign: "middle",
-        border: "1px solid #ddd",
+        border: tvMode ? "2px solid #ddd" : "1px solid #ddd",
+        fontWeight: tvMode ? 500 : 400,
     };
 
     const format = (v, field = "") => {
@@ -1894,25 +1680,28 @@ export default function ProfitReportYear() {
                 />
             );
         }
-
+        
         return (
             <Box
                 onClick={handleClick}
                 sx={{
                     cursor: "pointer",
-                    padding: "4px 8px",
-                    minHeight: "24px",
+                    padding: tvMode ? "8px 12px" : "4px 8px",
+                    minHeight: tvMode ? "36px" : "24px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "flex-end",
                     "&:hover": {
                         backgroundColor: "rgba(0, 0, 0, 0.04)",
                         borderRadius: "4px",
+                        ...(tvMode ? {} : { transition: "background-color 0.2s" }), // ✅ Bỏ transition trong TV mode
                     },
                     border: "1px dashed transparent",
                     "&:hover .edit-hint": {
                         opacity: 1,
+                        ...(tvMode ? {} : { transition: "opacity 0.2s" }), // ✅ Bỏ transition trong TV mode
                     },
+                    fontSize: tvMode ? "1.1rem" : undefined,
                 }}
             >
                 {formatDisplayValue(localValue)}
@@ -1920,8 +1709,8 @@ export default function ProfitReportYear() {
                     className="edit-hint"
                     sx={{
                         opacity: 0,
-                        transition: "opacity 0.2s",
-                        fontSize: "10px",
+                        transition: tvMode ? "none" : "opacity 0.2s", // ✅ Bỏ transition trong TV mode, giữ hover
+                        fontSize: tvMode ? "14px" : "10px",
                         color: "#666",
                         ml: 1,
                     }}
@@ -1937,75 +1726,185 @@ export default function ProfitReportYear() {
     const visibleCostCols = Object.keys(columnVisibility).filter(k => k.startsWith('costQ') && columnVisibility[k]).length;
     const visibleProfitCols = Object.keys(columnVisibility).filter(k => k.startsWith('profitQ') && columnVisibility[k]).length;
     return (
-
-        <Box sx={{ p: 3, bgcolor: "#f7faff", minHeight: "100vh" }}>
-
+        <Box sx={{ 
+            p: tvMode ? 4 : 3, 
+            bgcolor: tvMode ? "#f0f4f8" : "#f7faff", 
+            minHeight: "100vh",
+            ...(tvMode && {
+                background: "linear-gradient(135deg, #f0f4f8 0%, #e8f0f7 100%)",
+            })
+        }}>
             {loading && (
                 <CircularProgress
+                    size={tvMode ? 80 : 40}
+                    thickness={tvMode ? 5 : 4}
                     sx={{
                         position: "fixed",
                         top: "50%",
                         left: "50%",
+                        transform: "translate(-50%, -50%)",
                         zIndex: 2000,
+                        color: "primary.main",
                     }}
                 />
             )}
-            <Paper elevation={3} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+            <Paper 
+                elevation={tvMode ? 6 : 3} 
+                sx={{ 
+                    p: tvMode ? 4 : { xs: 2, md: 3 }, 
+                    borderRadius: tvMode ? 4 : 3,
+                    ...(tvMode && {
+                        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
+                        border: "1px solid rgba(255, 255, 255, 0.8)",
+                    })
+                }}
+            >
                 <Box
                     sx={{
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        mb: 3,
+                        mb: tvMode ? 4 : 3,
                         flexWrap: "wrap",
-                        gap: 2,
+                        gap: tvMode ? 3 : 2,
                     }}
                 >
-                    <Typography variant="h5" fontWeight={700} color="primary">
+                    <Typography 
+                        variant={tvMode ? "h3" : "h5"} 
+                        fontWeight={700} 
+                        color="primary"
+                        sx={{
+                            fontSize: tvMode ? "2.5rem" : undefined,
+                            textShadow: tvMode ? "0 2px 4px rgba(0,0,0,0.1)" : "none",
+                        }}
+                    >
                         Báo cáo Lợi nhuận Năm: {selectedYear}
                     </Typography>
                     <Stack
                         direction="row"
-                        spacing={1.5}
+                        spacing={tvMode ? 2 : 1.5}
                         useFlexGap
                         flexWrap="wrap"
                     >
                         <TextField
-                            size="small"
+                            size={tvMode ? "medium" : "small"}
                             label="Năm"
                             type="number"
                             value={selectedYear}
                             onChange={(e) =>
                                 setSelectedYear(Number(e.target.value))
                             }
-                            sx={{ minWidth: 100 }}
+                            sx={{ 
+                                minWidth: tvMode ? 140 : 100,
+                                "& .MuiInputBase-root": {
+                                    fontSize: tvMode ? "1.25rem" : undefined,
+                                    height: tvMode ? "48px" : undefined,
+                                },
+                                "& .MuiInputLabel-root": {
+                                    fontSize: tvMode ? "1rem" : undefined,
+                                }
+                            }}
                         />
                         <Button
                             variant="contained"
                             color="success"
-                            startIcon={<Save size={18} />}
+                            size={tvMode ? "large" : "medium"}
+                            startIcon={<Save size={tvMode ? 24 : 18} />}
                             onClick={saveEditableData}
+                            sx={{
+                                fontSize: tvMode ? "1.1rem" : undefined,
+                                px: tvMode ? 3 : undefined,
+                                py: tvMode ? 1.5 : undefined,
+                                fontWeight: tvMode ? 600 : undefined,
+                            }}
                         >
                             Lưu thủ công
                         </Button>
                         <Button
                             variant="outlined"
                             color="primary"
-                            startIcon={<FileDown size={18} />}
+                            size={tvMode ? "large" : "medium"}
+                            startIcon={<FileDown size={tvMode ? 24 : 18} />}
+                            sx={{
+                                fontSize: tvMode ? "1.1rem" : undefined,
+                                px: tvMode ? 3 : undefined,
+                                py: tvMode ? 1.5 : undefined,
+                                fontWeight: tvMode ? 600 : undefined,
+                            }}
                         >
                             Xuất Excel
                         </Button>
+                        {/* ✅ NÚT TOGGLE TV MODE */}
+                        <Tooltip title={tvMode ? "Chuyển sang chế độ PC/Laptop" : "Chuyển sang chế độ TV màn hình lớn"}>
+                            <Button 
+                                variant={tvMode ? "contained" : "outlined"}
+                                size={tvMode ? "large" : "medium"}
+                                onClick={() => setTvMode(!tvMode)}
+                                startIcon={tvMode ? <TvIcon sx={{ fontSize: tvMode ? 24 : undefined }} /> : <ComputerIcon sx={{ fontSize: 20 }} />}
+                                sx={{
+                                    fontSize: tvMode ? "1.1rem" : undefined,
+                                    px: tvMode ? 3 : undefined,
+                                    py: tvMode ? 1.5 : undefined,
+                                    fontWeight: tvMode ? 600 : undefined,
+                                    minWidth: tvMode ? 160 : 140,
+                                    ...(tvMode && {
+                                        backgroundColor: theme.palette?.primary?.main || '#2081ED',
+                                        color: theme.palette?.primary?.contrastText || '#FFFFFF',
+                                        '&:hover': {
+                                            backgroundColor: theme.palette?.primary?.dark || '#105AB8', // ✅ Giữ hover nhưng bỏ transition
+                                        },
+                                    }),
+                                }}
+                            >
+                                {tvMode ? "Chế độ TV" : "Chế độ PC"}
+                            </Button>
+                        </Tooltip>
                         {/* ✅ 3. THÊM NÚT VÀ MENU TẠI ĐÂY */}
                         <Tooltip title="Ẩn/Hiện cột">
-                            <Button variant="outlined" onClick={handleColumnMenuClick} startIcon={<ViewColumnIcon />}>
+                            <Button 
+                                variant="outlined" 
+                                size={tvMode ? "large" : "medium"}
+                                onClick={handleColumnMenuClick} 
+                                startIcon={<ViewColumnIcon sx={{ fontSize: tvMode ? 24 : undefined }} />}
+                                sx={{
+                                    fontSize: tvMode ? "1.1rem" : undefined,
+                                    px: tvMode ? 3 : undefined,
+                                    py: tvMode ? 1.5 : undefined,
+                                    fontWeight: tvMode ? 600 : undefined,
+                                }}
+                            >
                                 Các cột
                             </Button>
                         </Tooltip>
-                        <Menu anchorEl={anchorEl} open={open} onClose={handleColumnMenuClose}>
+                        <Menu 
+                            anchorEl={anchorEl} 
+                            open={open} 
+                            onClose={handleColumnMenuClose}
+                            PaperProps={{
+                                sx: {
+                                    ...(tvMode && {
+                                        minWidth: 280,
+                                        "& .MuiMenuItem-root": {
+                                            fontSize: "1.1rem",
+                                            padding: "12px 16px",
+                                        },
+                                        "& .MuiCheckbox-root": {
+                                            fontSize: "1.2rem",
+                                        },
+                                    })
+                                }
+                            }}
+                        >
                             {Object.keys(columnVisibility).map((key) => (
                                 <MenuItem key={key} onClick={() => handleToggleColumn(key)}>
                                     <Checkbox checked={columnVisibility[key]} />
-                                    <ListItemText primary={columnLabels[key] || key.toUpperCase()} />
+                                    <ListItemText 
+                                        primary={columnLabels[key] || key.toUpperCase()}
+                                        primaryTypographyProps={{
+                                            fontSize: tvMode ? "1.1rem" : undefined,
+                                            fontWeight: tvMode ? 500 : undefined,
+                                        }}
+                                    />
                                 </MenuItem>
                             ))}
                         </Menu>
@@ -2015,24 +1914,56 @@ export default function ProfitReportYear() {
                     data={summaryData}
                     targets={summaryTargets}
                     onTargetChange={handleTargetChange}
-                    isYearlyReport={true} // <--- Đã thêm lại prop này
+                    isYearlyReport={true}
+                    tvMode={tvMode} // ✅ Truyền tvMode vào component
                 />
 
                 <TableContainer
                     sx={{
-                        maxHeight: "75vh",
-                        border: "1px solid #e0e0e0",
-                        borderRadius: 2,
+                        maxHeight: tvMode ? "80vh" : "75vh",
+                        border: tvMode ? "3px solid #1565c0" : "1px solid #e0e0e0",
+                        borderRadius: tvMode ? 3 : 2,
+                        boxShadow: tvMode ? "0 4px 20px rgba(0, 0, 0, 0.1)" : "none",
                     }}
                 >
-                    <Table stickyHeader size="small" sx={{ minWidth: 3800, tableLayout: 'fixed' }}>
+                    <Table 
+                        stickyHeader 
+                        size={tvMode ? "medium" : "small"} 
+                        sx={{ 
+                            minWidth: tvMode ? 4200 : 3800, 
+                            tableLayout: 'fixed',
+                            "& .MuiTableCell-root": {
+                                fontSize: tvMode ? "1.1rem" : undefined,
+                            }
+                        }}
+                    >
                         <TableHead>
-                            <TableRow sx={{ "& th": { backgroundColor: "#1565c0", color: "#fff", fontWeight: 700, border: "1px solid #004c8f" } }}>
+                            <TableRow sx={{ 
+                                "& th": { 
+                                    backgroundColor: tvMode ? "#0d47a1" : "#1565c0", 
+                                    color: "#fff", 
+                                    fontWeight: tvMode ? 800 : 700, 
+                                    border: tvMode ? "2px solid #004c8f" : "1px solid #004c8f",
+                                    fontSize: tvMode ? "1.2rem" : undefined,
+                                    padding: tvMode ? "16px" : undefined,
+                                } 
+                            }}>
                                 {/* CỘT CÔNG TRÌNH (Luôn hiển thị) */}
                                 <ResizableHeader
-                                    width={congTrinhColWidth}
+                                    width={tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth}
                                     onResize={handleColumnResize}
-                                    style={{ ...cellStyle, width: congTrinhColWidth, position: "sticky", left: 0, zIndex: 110, backgroundColor: "#1565c0", textAlign: 'center' }}
+                                    style={{ 
+                                        ...cellStyle, 
+                                        width: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth, 
+                                        position: "sticky", 
+                                        left: 0, 
+                                        zIndex: 110, 
+                                        backgroundColor: tvMode ? "#0d47a1" : "#1565c0", 
+                                        textAlign: 'center',
+                                        fontSize: tvMode ? "1.3rem" : cellStyle.fontSize,
+                                        fontWeight: tvMode ? 800 : 700,
+                                        padding: tvMode ? "16px" : cellStyle.padding,
+                                    }}
                                     rowSpan={2}
                                 >
                                     CÔNG TRÌNH
@@ -2055,22 +1986,31 @@ export default function ProfitReportYear() {
                                 {columnVisibility.note && <TableCell rowSpan={2} align="center" sx={{ minWidth: 200 }}>GHI CHÚ</TableCell>}
                             </TableRow>
 
-                            <TableRow sx={{ "& th": { backgroundColor: "#1565c0", color: "#fff", fontWeight: 600, border: "1px solid #004c8f" } }}>
+                            <TableRow sx={{ 
+                                "& th": { 
+                                    backgroundColor: tvMode ? "#0d47a1" : "#1565c0", 
+                                    color: "#fff", 
+                                    fontWeight: tvMode ? 700 : 600, 
+                                    border: tvMode ? "2px solid #004c8f" : "1px solid #004c8f",
+                                    fontSize: tvMode ? "1.1rem" : undefined,
+                                    padding: tvMode ? "14px" : undefined,
+                                } 
+                            }}>
                                 {/* TIÊU ĐỀ PHỤ (THEO QUÝ) */}
-                                {columnVisibility.revenueQ1 && <TableCell align="center">QUÝ 1</TableCell>}
-                                {columnVisibility.revenueQ2 && <TableCell align="center">QUÝ 2</TableCell>}
-                                {columnVisibility.revenueQ3 && <TableCell align="center">QUÝ 3</TableCell>}
-                                {columnVisibility.revenueQ4 && <TableCell align="center">QUÝ 4</TableCell>}
+                                {columnVisibility.revenueQ1 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>QUÝ 1</TableCell>}
+                                {columnVisibility.revenueQ2 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>QUÝ 2</TableCell>}
+                                {columnVisibility.revenueQ3 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>QUÝ 3</TableCell>}
+                                {columnVisibility.revenueQ4 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>QUÝ 4</TableCell>}
 
-                                {columnVisibility.costQ1 && <TableCell align="center">CP Q1</TableCell>}
-                                {columnVisibility.costQ2 && <TableCell align="center">CP Q2</TableCell>}
-                                {columnVisibility.costQ3 && <TableCell align="center">CP Q3</TableCell>}
-                                {columnVisibility.costQ4 && <TableCell align="center">CP Q4</TableCell>}
+                                {columnVisibility.costQ1 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>CP Q1</TableCell>}
+                                {columnVisibility.costQ2 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>CP Q2</TableCell>}
+                                {columnVisibility.costQ3 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>CP Q3</TableCell>}
+                                {columnVisibility.costQ4 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>CP Q4</TableCell>}
 
-                                {columnVisibility.profitQ1 && <TableCell align="center">LN Q1</TableCell>}
-                                {columnVisibility.profitQ2 && <TableCell align="center">LN Q2</TableCell>}
-                                {columnVisibility.profitQ3 && <TableCell align="center">LN Q3</TableCell>}
-                                {columnVisibility.profitQ4 && <TableCell align="center">LN Q4</TableCell>}
+                                {columnVisibility.profitQ1 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>LN Q1</TableCell>}
+                                {columnVisibility.profitQ2 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>LN Q2</TableCell>}
+                                {columnVisibility.profitQ3 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>LN Q3</TableCell>}
+                                {columnVisibility.profitQ4 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>LN Q4</TableCell>}
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -2084,8 +2024,39 @@ export default function ProfitReportYear() {
                                     return true;
                                 }
                             }).map((r, idx) => (
-                                <TableRow key={`${r.name}-${idx}`} sx={{ backgroundColor: r.name === "IV. TỔNG" ? "#e8f5e9" : r.name?.match(/^[IVX]+\./) ? "#fff9c4" : isEditableRow(r.name) ? "#f3e5f5" : idx % 2 === 0 ? "#ffffff" : "#f9f9f9", "&:hover": { bgcolor: "#f0f4ff" } }}>
-                                    <TableCell sx={{ ...cellStyle, fontWeight: r.name?.match(/^[IVX]+\./) || r.name?.includes("LỢI NHUẬN") ? 700 : 400, width: congTrinhColWidth, minWidth: congTrinhColWidth, backgroundColor: "inherit", position: "sticky", left: 0, zIndex: 99, borderRight: "2px solid #ccc", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                <TableRow key={`${r.name}-${idx}`} sx={{ 
+                                    backgroundColor: r.name === "IV. TỔNG" 
+                                        ? (tvMode ? "#c8e6c9" : "#e8f5e9") 
+                                        : r.name?.match(/^[IVX]+\./) 
+                                        ? (tvMode ? "#fff59d" : "#fff9c4") 
+                                        : isEditableRow(r.name) 
+                                        ? (tvMode ? "#e1bee7" : "#f3e5f5") 
+                                        : idx % 2 === 0 
+                                        ? "#ffffff" 
+                                        : (tvMode ? "#f5f5f5" : "#f9f9f9"), 
+                                    "&:hover": { 
+                                        bgcolor: tvMode ? "#e3f2fd" : "#f0f4ff",
+                                        ...(tvMode ? {} : { transition: "background-color 0.2s" }), // ✅ Bỏ transition trong TV mode
+                                    },
+                                    borderBottom: tvMode ? "2px solid #e0e0e0" : "1px solid #e0e0e0",
+                                }}>
+                                    <TableCell sx={{ 
+                                        ...cellStyle, 
+                                        fontWeight: r.name?.match(/^[IVX]+\./) || r.name?.includes("LỢI NHUẬN") 
+                                            ? (tvMode ? 800 : 700) 
+                                            : (tvMode ? 500 : 400), 
+                                        width: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth, 
+                                        minWidth: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth, 
+                                        backgroundColor: "inherit", 
+                                        position: "sticky", 
+                                        left: 0, 
+                                        zIndex: 99, 
+                                        borderRight: tvMode ? "3px solid #1565c0" : "2px solid #ccc", 
+                                        whiteSpace: 'nowrap', 
+                                        overflow: 'hidden', 
+                                        textOverflow: 'ellipsis',
+                                        fontSize: tvMode ? "1.15rem" : cellStyle.fontSize,
+                                    }}>
                                         {r.name}
                                     </TableCell>
                                     {/* DỮ LIỆU DOANH THU */}
@@ -2107,7 +2078,13 @@ export default function ProfitReportYear() {
                                     {columnVisibility.profitQ2 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ2)}</TableCell>}
                                     {columnVisibility.profitQ3 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ3)}</TableCell>}
                                     {columnVisibility.profitQ4 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ4)}</TableCell>}
-                                    {columnVisibility.totalProfit && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#d1c4e9", padding: "4px 8px" }}>{isEditableRow(r.name) ? <ClickableEditCell rowName={r.name} field="profit" value={editableRows[r.name]?.profit || r.profit || 0} /> : format(r.profit)}</TableCell>}
+                                    {columnVisibility.totalProfit && <TableCell align="right" sx={{ 
+                                        ...cellStyle, 
+                                        fontWeight: tvMode ? 700 : "bold", 
+                                        backgroundColor: tvMode ? "#b39ddb" : "#d1c4e9", 
+                                        padding: tvMode ? "12px 16px" : "4px 8px",
+                                        fontSize: tvMode ? "1.2rem" : cellStyle.fontSize,
+                                    }}>{isEditableRow(r.name) ? <ClickableEditCell rowName={r.name} field="profit" value={editableRows[r.name]?.profit || r.profit || 0} /> : format(r.profit)}</TableCell>}
 
                                     {/* DỮ LIỆU CÁC CỘT ĐẶC BIỆT */}
                                     {columnVisibility.plannedProfitMargin && <TableCell align="center" sx={cellStyle}>{format(r.plannedProfitMargin, "percent")}</TableCell>}

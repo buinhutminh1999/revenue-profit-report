@@ -17,6 +17,7 @@ import { RequestPrintTemplate } from "../components/RequestPrintTemplate";
 import { CheckCircleOutline, GroupWork } from "@mui/icons-material";
 import { ALL_STATUS, reportStatusConfig, reportWorkflows, requestStatusConfig, statusConfig } from "../utils/constants.jsx";
 import { AssetLabelPrintTemplate } from "../components/AssetLabelPrintTemplate";
+import { EmptyState, ErrorState } from "../components/common";
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import vi from 'date-fns/locale/vi'; // Import tiếng Việt cho lịch
@@ -461,6 +462,7 @@ export default function AssetTransferPage() {
     const [printType, setPrintType] = useState('department'); // 'department' hoặc 'summary'
     const [selectedDeptForPrint, setSelectedDeptForPrint] = useState('');
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null); // ✅ Thêm error state
     const [deleteReportConfirm, setDeleteReportConfirm] = useState(null);
 
     const [rejectConfirm, setRejectConfirm] = useState(null); // Lưu request cần từ chối
@@ -616,19 +618,63 @@ export default function AssetTransferPage() {
         return () => unsub()
     }, [auth]);
 
+    // ✅ Cải thiện: Thêm keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Ctrl/Cmd + K: Mở search
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                // Focus vào search field của tab hiện tại
+                const searchInput = document.querySelector('input[placeholder*="Tìm"]');
+                if (searchInput) searchInput.focus();
+            }
+            // Escape: Đóng drawer/dialog
+            if (e.key === 'Escape') {
+                if (drawerOpen) {
+                    setDrawerOpen(false);
+                }
+            }
+            // Ctrl/Cmd + N: Tạo mới (tùy theo tab)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+                e.preventDefault();
+                if (tabIndex === 1) handleOpenTransferModal();
+                else if (tabIndex === 2 && canManageAssets) handleOpenAddModal();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [drawerOpen, tabIndex, canManageAssets]);
+
     // src/pages/AssetTransferPage.jsx
 
-    // Data listeners (ĐÃ HỢP NHẤT)
+    // Data listeners (ĐÃ HỢP NHẤT) - ✅ Cải thiện: Thêm error handling
     useEffect(() => {
-        const unsubDepts = onSnapshot(query(collection(db, "departments"), fsOrderBy("name")), (qs) => setDepartments(qs.docs.map((d) => ({ id: d.id, ...d.data() }))));
-        const unsubAssets = onSnapshot(query(collection(db, "assets")), (qs) => setAssets(qs.docs.map((d) => ({ id: d.id, ...d.data() }))));
-        const unsubTransfers = onSnapshot(query(collection(db, "transfers"), fsOrderBy("date", "desc")), (qs) => { setTransfers(qs.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoading(false) });
-        const unsubRequests = onSnapshot(query(collection(db, "asset_requests"), fsOrderBy("createdAt", "desc")), (qs) => {
-            setAssetRequests(qs.docs.map((d) => ({ id: d.id, ...d.data() })));
-        });
-        const unsubReports = onSnapshot(query(collection(db, "inventory_reports"), fsOrderBy("createdAt", "desc")), (qs) => {
-            setInventoryReports(qs.docs.map((d) => ({ id: d.id, ...d.data() })));
-        });
+        const unsubDepts = onSnapshot(
+            query(collection(db, "departments"), fsOrderBy("name")), 
+            (qs) => setDepartments(qs.docs.map((d) => ({ id: d.id, ...d.data() }))),
+            (err) => { console.error("Error loading departments:", err); setError(err); setLoading(false); }
+        );
+        const unsubAssets = onSnapshot(
+            query(collection(db, "assets")), 
+            (qs) => setAssets(qs.docs.map((d) => ({ id: d.id, ...d.data() }))),
+            (err) => { console.error("Error loading assets:", err); setError(err); }
+        );
+        const unsubTransfers = onSnapshot(
+            query(collection(db, "transfers"), fsOrderBy("date", "desc")), 
+            (qs) => { setTransfers(qs.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoading(false); },
+            (err) => { console.error("Error loading transfers:", err); setError(err); setLoading(false); }
+        );
+        const unsubRequests = onSnapshot(
+            query(collection(db, "asset_requests"), fsOrderBy("createdAt", "desc")), 
+            (qs) => { setAssetRequests(qs.docs.map((d) => ({ id: d.id, ...d.data() }))); },
+            (err) => { console.error("Error loading requests:", err); setError(err); }
+        );
+        const unsubReports = onSnapshot(
+            query(collection(db, "inventory_reports"), fsOrderBy("createdAt", "desc")), 
+            (qs) => { setInventoryReports(qs.docs.map((d) => ({ id: d.id, ...d.data() }))); },
+            (err) => { console.error("Error loading reports:", err); setError(err); }
+        );
 
         // Lắng nghe document cấu hình quyền lãnh đạo
         const unsubConfig = onSnapshot(doc(db, "app_config", "leadership"), (docSnap) => {
@@ -2514,6 +2560,24 @@ export default function AssetTransferPage() {
         );
     }
 
+    // ✅ Cải thiện: Hiển thị error state nếu có lỗi
+    if (error) {
+        return (
+            <Box sx={{ p: { xs: 2, sm: 4 }, bgcolor: "grey.50", minHeight: "100vh" }}>
+                <ErrorState
+                    error={error}
+                    title="Lỗi tải dữ liệu"
+                    onRetry={() => {
+                        setError(null);
+                        setLoading(true);
+                        // Retry logic sẽ được xử lý bởi useEffect listeners
+                    }}
+                    retryLabel="Thử lại"
+                />
+            </Box>
+        );
+    }
+
     return (
         <Box sx={{ p: { xs: 2, sm: 4 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
             {/* Header */}
@@ -2640,14 +2704,13 @@ export default function AssetTransferPage() {
                 {tabIndex === 0 && (
                     <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
                         {actionableItems.total === 0 ? (
-                            // Trạng thái rỗng (Giữ nguyên)
-                            <Box sx={{ textAlign: 'center', py: 8 }}>
-                                <Stack alignItems="center" spacing={1.5} sx={{ color: 'text.secondary' }}>
-                                    <CheckCircleOutline sx={{ fontSize: 48, color: 'success.main' }} />
-                                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Tuyệt vời!</Typography>
-                                    <Typography>Bạn không có công việc nào cần xử lý ngay bây giờ.</Typography>
-                                </Stack>
-                            </Box>
+                            // ✅ Cải thiện: Sử dụng EmptyState component
+                            <EmptyState
+                                icon={<CheckCircleOutline sx={{ fontSize: 64, color: 'success.main' }} />}
+                                title="Tuyệt vời!"
+                                description="Bạn không có công việc nào cần xử lý ngay bây giờ. Tất cả các phiếu đã được xử lý hoặc đang chờ người khác."
+                                size="large"
+                            />
                         ) : isMobile ? (
                             // ✅ CHẾ ĐỘ MOBILE: Dùng Card View
                             <Stack spacing={2.5}>
@@ -2805,15 +2868,28 @@ export default function AssetTransferPage() {
                         {/* Thanh công cụ với Bộ lọc và Nút chuyển đổi View */}
                         <Paper variant="outlined" sx={{ p: 1.5, mb: 2.5, borderRadius: 2 }}>
                             <Toolbar disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
-                                <TextField
-                                    placeholder="🔎 Tìm mã phiếu, phòng ban..."
-                                    size="small"
-                                    sx={{ flex: "1 1 360px" }}
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                />
-                                <Button variant="outlined" startIcon={<Filter size={16} />} onClick={() => setDrawerOpen(true)}>
+                                <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
+                                    <TextField
+                                        placeholder="🔎 Tìm mã phiếu, phòng ban..."
+                                        size="small"
+                                        sx={{ flex: "1 1 360px" }}
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                    />
+                                </Tooltip>
+                                <Button 
+                                    variant="outlined" 
+                                    startIcon={<Filter size={16} />} 
+                                    onClick={() => setDrawerOpen(true)}
+                                >
                                     Bộ lọc
+                                    {(statusMulti.length > 0 || fromDeptIds.length > 0 || toDeptIds.length > 0 || createdByDeb.trim()) && (
+                                        <Badge 
+                                            badgeContent={statusMulti.length + fromDeptIds.length + toDeptIds.length + (createdByDeb.trim() ? 1 : 0)} 
+                                            color="primary" 
+                                            sx={{ ml: 1, '& .MuiBadge-badge': { right: -8, top: -8 } }}
+                                        />
+                                    )}
                                 </Button>
 
                             </Toolbar>
@@ -2926,14 +3002,19 @@ export default function AssetTransferPage() {
                                 </TableContainer>
                             )
                         )}
-                        {/* Trạng thái rỗng */}
+                        {/* ✅ Cải thiện: Sử dụng EmptyState component */}
                         {filteredTransfers.length === 0 && (
-                            <Box sx={{ textAlign: 'center', py: 8 }}>
-                                <Stack alignItems="center" spacing={1.5} sx={{ color: 'text.secondary' }}>
-                                    <Inbox size={32} />
-                                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Không có phiếu nào phù hợp</Typography>
-                                </Stack>
-                            </Box>
+                            <EmptyState
+                                icon={<Inbox size={64} />}
+                                title="Không có phiếu nào phù hợp"
+                                description={
+                                    (statusMulti.length > 0 || fromDeptIds.length > 0 || toDeptIds.length > 0 || debSearch.trim()) 
+                                        ? "Thử điều chỉnh bộ lọc để xem thêm kết quả."
+                                        : "Chưa có phiếu luân chuyển nào. Tạo phiếu mới để bắt đầu."
+                                }
+                                actionLabel={statusMulti.length === 0 && fromDeptIds.length === 0 && toDeptIds.length === 0 && !debSearch.trim() ? "Tạo Phiếu Mới" : undefined}
+                                onAction={statusMulti.length === 0 && fromDeptIds.length === 0 && toDeptIds.length === 0 && !debSearch.trim() ? handleOpenTransferModal : undefined}
+                            />
                         )}
                     </Box>
                 )}
@@ -2943,13 +3024,15 @@ export default function AssetTransferPage() {
                         {/* Toolbar chứa bộ lọc và các nút hành động (giữ nguyên) */}
                         <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 2 }}>
                             <Toolbar disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
-                                <TextField
-                                    placeholder="🔎 Tìm theo tên tài sản..."
-                                    size="small"
-                                    sx={{ flex: "1 1 320px" }}
-                                    value={assetSearch}
-                                    onChange={(e) => setAssetSearch(e.target.value)}
-                                />
+                                <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
+                                    <TextField
+                                        placeholder="🔎 Tìm theo tên tài sản..."
+                                        size="small"
+                                        sx={{ flex: "1 1 320px" }}
+                                        value={assetSearch}
+                                        onChange={(e) => setAssetSearch(e.target.value)}
+                                    />
+                                </Tooltip>
                                 <FormControl size="small" sx={{ minWidth: 220, maxWidth: 300 }}>
                                     <InputLabel>Lọc theo phòng ban</InputLabel>
                                     <Select
@@ -3134,14 +3217,19 @@ export default function AssetTransferPage() {
                             </TableContainer>
                         )}
 
-                        {/* Trạng thái không có dữ liệu */}
+                        {/* ✅ Cải thiện: Sử dụng EmptyState component */}
                         {filteredAssets.length === 0 && (
-                            <Box sx={{ textAlign: 'center', py: 8 }}>
-                                <Stack alignItems="center" spacing={1.5} sx={{ color: 'text.secondary' }}>
-                                    <Inbox size={32} />
-                                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Không có tài sản nào phù hợp.</Typography>
-                                </Stack>
-                            </Box>
+                            <EmptyState
+                                icon={<Warehouse size={64} />}
+                                title="Không có tài sản nào phù hợp"
+                                description={
+                                    (assetSearch.trim() || filterDeptsForAsset.length > 0)
+                                        ? "Thử điều chỉnh bộ lọc hoặc từ khóa tìm kiếm để xem thêm kết quả."
+                                        : "Chưa có tài sản nào trong hệ thống. Thêm tài sản mới để bắt đầu quản lý."
+                                }
+                                actionLabel={(assetSearch.trim() || filterDeptsForAsset.length > 0) ? undefined : (canManageAssets ? "Thêm Tài Sản" : undefined)}
+                                onAction={(assetSearch.trim() || filterDeptsForAsset.length > 0) ? undefined : (canManageAssets ? handleOpenAddModal : undefined)}
+                            />
                         )}
 
                         {/* ✅ THÊM NÚT TẢI THÊM NÀY VÀO */}
@@ -3164,13 +3252,15 @@ export default function AssetTransferPage() {
                         {/* Thanh công cụ với Bộ lọc và Nút chuyển đổi View */}
                         <Paper variant="outlined" sx={{ p: 1.5, mb: 2.5, borderRadius: 2 }}>
                             <Toolbar disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
-                                <TextField
-                                    placeholder="🔎 Tìm tên tài sản, người yêu cầu..."
-                                    size="small"
-                                    sx={{ flex: "1 1 360px" }}
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                />
+                                <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
+                                    <TextField
+                                        placeholder="🔎 Tìm tên tài sản, người yêu cầu..."
+                                        size="small"
+                                        sx={{ flex: "1 1 360px" }}
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                    />
+                                </Tooltip>
                             </Toolbar>
                         </Paper>
 
@@ -3185,15 +3275,16 @@ export default function AssetTransferPage() {
                                 ))}
                             </Grid>
                         ) : filteredRequests.length === 0 ? (
-                            // 2. Trạng thái không có dữ liệu
-                            <Box sx={{ textAlign: 'center', py: 8 }}>
-                                <Stack alignItems="center" spacing={1.5} sx={{ color: 'text.secondary' }}>
-                                    <Inbox size={32} />
-                                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                                        Không có yêu cầu nào
-                                    </Typography>
-                                </Stack>
-                            </Box>
+                            // ✅ Cải thiện: Sử dụng EmptyState component
+                            <EmptyState
+                                icon={<History size={64} />}
+                                title="Không có yêu cầu nào"
+                                description={
+                                    search.trim()
+                                        ? "Không tìm thấy yêu cầu nào phù hợp với từ khóa tìm kiếm. Thử từ khóa khác hoặc xóa bộ lọc."
+                                        : "Chưa có yêu cầu thay đổi tài sản nào. Yêu cầu sẽ xuất hiện ở đây khi được tạo."
+                                }
+                            />
                         ) : (
                             // 3. Hiển thị dữ liệu (LOGIC ĐÚNG)
                             isMobile ? (
@@ -3319,25 +3410,31 @@ export default function AssetTransferPage() {
                         {/* Toolbar: Tìm kiếm */}
                         <Paper variant="outlined" sx={{ p: 1.5, mb: 2.5, borderRadius: 2 }}>
                             <Toolbar disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
-                                <TextField
-                                    placeholder="🔎 Tìm mã phiếu, tiêu đề, phòng ban, người yêu cầu..."
-                                    size="small"
-                                    sx={{ flex: "1 1 360px" }}
-                                    value={reportSearch}
-                                    onChange={(e) => setReportSearch(e.target.value)}
-                                />
+                                <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
+                                    <TextField
+                                        placeholder="🔎 Tìm mã phiếu, tiêu đề, phòng ban, người yêu cầu..."
+                                        size="small"
+                                        sx={{ flex: "1 1 360px" }}
+                                        value={reportSearch}
+                                        onChange={(e) => setReportSearch(e.target.value)}
+                                    />
+                                </Tooltip>
                             </Toolbar>
                         </Paper>
 
-                        {/* Danh sách */}
+                        {/* ✅ Cải thiện: Sử dụng EmptyState component */}
                         {filteredReports.length === 0 ? (
-                            // Trạng thái rỗng
-                            <Box sx={{ textAlign: 'center', py: 8 }}>
-                                <Stack alignItems="center" spacing={1.5} sx={{ color: 'text.secondary' }}>
-                                    <Inbox size={32} />
-                                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Không có báo cáo nào</Typography>
-                                </Stack>
-                            </Box>
+                            <EmptyState
+                                icon={<BookCheck size={64} />}
+                                title="Không có báo cáo nào"
+                                description={
+                                    reportSearch.trim()
+                                        ? "Không tìm thấy báo cáo nào phù hợp với từ khóa tìm kiếm. Thử từ khóa khác."
+                                        : "Chưa có báo cáo kiểm kê nào. Tạo báo cáo mới để bắt đầu."
+                                }
+                                actionLabel={reportSearch.trim() ? undefined : (canManageAssets ? "Tạo Báo Cáo" : undefined)}
+                                onAction={reportSearch.trim() ? undefined : (canManageAssets ? () => setIsPrintModalOpen(true) : undefined)}
+                            />
                         ) : isMobile ? (
                             // Giao diện cho mobile
                             <Box mt={2.5}>
@@ -3542,9 +3639,19 @@ export default function AssetTransferPage() {
                 {/* ... Tất cả các Dialog và Snackbar còn lại (giữ nguyên) ... */}
             </Paper>
 
-            {/* Drawer filter */}
-            <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(!1)}>
-                <Box sx={{ width: 340, p: 2.5 }}>
+            {/* ✅ Cải thiện: Drawer filter với responsive design */}
+            <Drawer 
+                anchor="right" 
+                open={drawerOpen} 
+                onClose={() => setDrawerOpen(!1)}
+                PaperProps={{
+                    sx: {
+                        width: { xs: '85vw', sm: 340 },
+                        maxWidth: 400
+                    }
+                }}
+            >
+                <Box sx={{ width: '100%', p: { xs: 2, sm: 2.5 } }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                         <Typography variant="h6" sx={{ fontWeight: 800 }}>Bộ lọc</Typography>
                         <IconButton onClick={() => setDrawerOpen(!1)}><X size={18} /></IconButton>
@@ -3588,8 +3695,20 @@ export default function AssetTransferPage() {
                 </Box>
             </Drawer>
 
-            {/* Paste from Excel Dialog */}
-            <Dialog open={isPasteModalOpen} onClose={() => setIsPasteModalOpen(false)} fullWidth maxWidth="md">
+            {/* ✅ Cải thiện: Paste from Excel Dialog với responsive design */}
+            <Dialog 
+                open={isPasteModalOpen} 
+                onClose={() => setIsPasteModalOpen(false)} 
+                fullWidth 
+                maxWidth="md"
+                PaperProps={{
+                    sx: {
+                        m: { xs: 1, sm: 2 },
+                        width: { xs: 'calc(100% - 16px)', sm: 'auto' },
+                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' }
+                    }
+                }}
+            >
                 <DialogTitle>Nhập Tài sản hàng loạt từ Excel</DialogTitle>
                 <DialogContent>
                     <DialogContentText sx={{ mb: 2 }}>
@@ -3623,8 +3742,20 @@ export default function AssetTransferPage() {
             </Dialog>
 
 
-            {/* Dialog Chi tiết Phiếu - GIAO DIỆN MỚI HIỆN ĐẠI */}
-            <Dialog open={detailViewOpen} onClose={handleCloseDetailView} fullWidth maxWidth="md">
+            {/* ✅ Cải thiện: Dialog Chi tiết Phiếu với responsive design */}
+            <Dialog 
+                open={detailViewOpen} 
+                onClose={handleCloseDetailView} 
+                fullWidth 
+                maxWidth="md"
+                PaperProps={{
+                    sx: {
+                        m: { xs: 1, sm: 2 },
+                        width: { xs: 'calc(100% - 16px)', sm: 'auto' },
+                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' }
+                    }
+                }}
+            >
                 {selectedTransfer && (
                     <>
                         {/* Component ẩn để in */}
@@ -3742,8 +3873,20 @@ export default function AssetTransferPage() {
                     </>
                 )}
             </Dialog>
-            {/* Create Transfer dialog */}
-            <Dialog open={isTransferModalOpen} onClose={() => { setIsTransferModalOpen(false); setAssetSearchInDialog("") }}>
+            {/* ✅ Cải thiện: Create Transfer dialog với responsive design */}
+            <Dialog 
+                open={isTransferModalOpen} 
+                onClose={() => { setIsTransferModalOpen(false); setAssetSearchInDialog("") }}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        m: { xs: 1, sm: 2 },
+                        width: { xs: 'calc(100% - 16px)', sm: 'auto' },
+                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' }
+                    }
+                }}
+            >
                 <DialogTitle sx={{ fontWeight: 700 }}>Tạo Phiếu Luân Chuyển Tài Sản</DialogTitle>
                 <DialogContent>
                     <Stepper activeStep={createStep} sx={{ my: 2 }}>
@@ -3845,9 +3988,27 @@ export default function AssetTransferPage() {
                 </DialogActions>
             </Dialog>
 
-            {/* Asset modal */}
-            <Dialog open={isAssetModalOpen} onClose={() => setIsAssetModalOpen(false)}>
-                <DialogTitle>{modalMode === "add" ? "Gửi Yêu Cầu Thêm Tài Sản" : "Chỉnh Sửa Tài Sản"}</DialogTitle>
+            {/* ✅ Cải thiện: Asset modal với responsive design */}
+            <Dialog 
+                open={isAssetModalOpen} 
+                onClose={() => setIsAssetModalOpen(false)}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        m: { xs: 1, sm: 2 },
+                        width: { xs: 'calc(100% - 16px)', sm: 'auto' },
+                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' }
+                    }
+                }}
+            >
+                <DialogTitle sx={{ 
+                    fontSize: { xs: '1.125rem', sm: '1.25rem' },
+                    p: { xs: 2, sm: 2.5 },
+                    pb: { xs: 1.5, sm: 2 }
+                }}>
+                    {modalMode === "add" ? "Gửi Yêu Cầu Thêm Tài Sản" : "Chỉnh Sửa Tài Sản"}
+                </DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1, minWidth: { sm: 420 } }}>
                         <TextField autoFocus label="Tên tài sản" fullWidth required
@@ -4013,8 +4174,20 @@ export default function AssetTransferPage() {
                 </DialogActions>
             </Dialog>
 
-            {/* --- Dialog Chi tiết Yêu cầu Thay đổi (ĐÃ CẬP NHẬT HOÀN CHỈNH) --- */}
-            <Dialog open={isRequestDetailOpen} onClose={handleCloseRequestDetail} fullWidth maxWidth="md">
+            {/* ✅ Cải thiện: Dialog Chi tiết Yêu cầu với responsive design */}
+            <Dialog 
+                open={isRequestDetailOpen} 
+                onClose={handleCloseRequestDetail} 
+                fullWidth 
+                maxWidth="md"
+                PaperProps={{
+                    sx: {
+                        m: { xs: 1, sm: 2 },
+                        width: { xs: 'calc(100% - 16px)', sm: 'auto' },
+                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' }
+                    }
+                }}
+            >
                 {selectedRequest && (
                     <>
                         {/* Component ẩn để in */}
@@ -4175,7 +4348,19 @@ export default function AssetTransferPage() {
                 )}
             </Dialog>
 
-            <Dialog open={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} fullWidth maxWidth="sm">
+            {/* ✅ Cải thiện: Dialog Tạo Báo cáo với responsive design */}
+            <Dialog 
+                open={isPrintModalOpen} 
+                onClose={() => setIsPrintModalOpen(false)} 
+                fullWidth 
+                maxWidth="sm"
+                PaperProps={{
+                    sx: {
+                        m: { xs: 1, sm: 2 },
+                        width: { xs: 'calc(100% - 16px)', sm: 'auto' }
+                    }
+                }}
+            >
                 <DialogTitle sx={{ fontWeight: 700 }}>Tạo Báo cáo Kiểm kê</DialogTitle>
                 <DialogContent>
                     <DialogContentText sx={{ mb: 3 }}>
@@ -4270,7 +4455,20 @@ export default function AssetTransferPage() {
                     </Button>
                 </DialogActions>
             </Dialog>
-            <Dialog open={isReportDetailOpen} onClose={handleCloseReportDetail} fullWidth maxWidth="md">
+            {/* ✅ Cải thiện: Dialog Chi tiết Báo cáo với responsive design */}
+            <Dialog 
+                open={isReportDetailOpen} 
+                onClose={handleCloseReportDetail} 
+                fullWidth 
+                maxWidth="md"
+                PaperProps={{
+                    sx: {
+                        m: { xs: 1, sm: 2 },
+                        width: { xs: 'calc(100% - 16px)', sm: 'auto' },
+                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' }
+                    }
+                }}
+            >
                 {selectedReport && (
                     <>
                         {/* Component ẩn để in - SẼ CHỌN TEMPLATE PHÙ HỢP */}

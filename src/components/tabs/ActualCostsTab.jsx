@@ -258,6 +258,7 @@ export default function ActualCostsTab({ projectId }) {
     const [costItems, setCostItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState(""); // Debounced search value
     const [year, setYear] = useState(String(new Date().getFullYear()));
     const [quarter, setQuarter] = useState("Q1");
     const [snackOpen, setSnackOpen] = useState(false);
@@ -705,56 +706,133 @@ export default function ActualCostsTab({ projectId }) {
         );
     }, [overallRevenue, projectTotalAmount, loading, projectData]);
 
+    // Debounce search để tránh filter quá nhiều lần
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 300); // 300ms debounce
+        return () => clearTimeout(handler);
+    }, [search]);
+
+    // Cache lowercase values để tối ưu filter
+    const costItemsWithSearchCache = useMemo(() => {
+        return costItems.map((item) => ({
+            ...item,
+            _searchProject: (item.project || "").toLowerCase(),
+            _searchDescription: (item.description || "").toLowerCase(),
+        }));
+    }, [costItems]);
+
     const sortedCostItems = useMemo(() => {
-        if (categories.length === 0 || costItems.length === 0) {
-            return costItems;
+        if (categories.length === 0 || costItemsWithSearchCache.length === 0) {
+            return costItemsWithSearchCache;
         }
         const categoryOrderMap = new Map(
             categories.map((cat, index) => [cat.label, index])
         );
 
-        return [...costItems].sort((a, b) => {
+        return [...costItemsWithSearchCache].sort((a, b) => {
             const orderA = categoryOrderMap.get(a.description) ?? Infinity;
             const orderB = categoryOrderMap.get(b.description) ?? Infinity;
             return orderA - orderB;
         });
-    }, [costItems, categories]);
+    }, [costItemsWithSearchCache, categories]);
 
+    // Tối ưu: Tách riêng cho text fields (không tính toán ngay)
+    const handleChangeTextField = useCallback((id, field, val) => {
+        setCostItems((prev) => {
+            const index = prev.findIndex((row) => row.id === id);
+            if (index === -1) return prev;
+            
+            // Tạo mảng mới chỉ với row được update
+            const newItems = [...prev];
+            newItems[index] = { ...newItems[index], [field]: val };
+            return newItems;
+        });
+    }, []);
+
+    // Tối ưu: Cho numeric fields (tính toán ngay nhưng optimize)
+    const handleChangeNumericField = useCallback(
+        (id, field, val) => {
+            setCostItems((prev) => {
+                const index = prev.findIndex((row) => row.id === id);
+                if (index === -1) return prev;
+
+                const row = prev[index];
+                let newVal;
+                if (field === "noPhaiTraCK") {
+                    newVal = String(val);
+                } else {
+                    newVal = parseNumber(val.trim() === "" ? "0" : val);
+                }
+
+                const newRow = { ...row, [field]: newVal };
+
+                if (field === "revenue") {
+                    newRow.isRevenueManual = true;
+                } else if (field === "hskh") {
+                    newRow.isRevenueManual = false;
+                }
+
+                calcAllFields(newRow, {
+                    isUserEditingNoPhaiTraCK: field === "noPhaiTraCK",
+                    overallRevenue,
+                    projectTotalAmount,
+                    projectType: projectData?.type,
+                });
+
+                // Tạo mảng mới chỉ với row được update
+                const newItems = [...prev];
+                newItems[index] = newRow;
+                return newItems;
+            });
+        },
+        [overallRevenue, projectTotalAmount, projectData]
+    );
+
+    // Wrapper function để backward compatibility
     const handleChangeField = useCallback(
         (id, field, val) => {
-            setCostItems((prev) =>
-                prev.map((row) => {
-                    if (row.id === id) {
-                        let newVal;
-                        if (field === "project" || field === "description") {
-                            newVal = val;
-                        } else if (field === "noPhaiTraCK") {
-                            newVal = String(val);
-                        } else {
-                            newVal = parseNumber(
-                                val.trim() === "" ? "0" : val
-                            );
-                        }
+            if (field === "project" || field === "description") {
+                // Text fields: chỉ update, không tính toán
+                handleChangeTextField(id, field, val);
+            } else {
+                // Numeric fields: tính toán ngay
+                handleChangeNumericField(id, field, val);
+            }
+        },
+        [handleChangeTextField, handleChangeNumericField]
+    );
 
-                        const newRow = { ...row, [field]: newVal };
+    // Hàm commit text field và tính toán (gọi khi blur hoặc Enter)
+    const handleCommitTextField = useCallback(
+        (id, field, val) => {
+            setCostItems((prev) => {
+                const index = prev.findIndex((row) => row.id === id);
+                if (index === -1) return prev;
 
-                        if (field === "revenue") {
-                            newRow.isRevenueManual = true;
-                        } else if (field === "hskh") {
-                            newRow.isRevenueManual = false;
-                        }
+                const row = prev[index];
+                // Xử lý đặc biệt cho project: uppercase và trim
+                let processedVal = val;
+                if (field === "project") {
+                    processedVal = (val || "").trim().toUpperCase();
+                } else {
+                    processedVal = val;
+                }
+                
+                const newRow = { ...row, [field]: processedVal };
 
-                        calcAllFields(newRow, {
-                            isUserEditingNoPhaiTraCK: field === "noPhaiTraCK",
-                            overallRevenue,
-                            projectTotalAmount,
-                            projectType: projectData?.type,
-                        });
-                        return newRow;
-                    }
-                    return row;
-                })
-            );
+                // Tính toán lại sau khi commit
+                calcAllFields(newRow, {
+                    overallRevenue,
+                    projectTotalAmount,
+                    projectType: projectData?.type,
+                });
+
+                const newItems = [...prev];
+                newItems[index] = newRow;
+                return newItems;
+            });
         },
         [overallRevenue, projectTotalAmount, projectData]
     );
@@ -1113,19 +1191,18 @@ export default function ActualCostsTab({ projectId }) {
         []
     );
 
-    const filtered = useMemo(
-        () =>
-            sortedCostItems.filter(
-                (x) =>
-                    (x.project || "")
-                        .toLowerCase()
-                        .includes(search.toLowerCase()) ||
-                    (x.description || "")
-                        .toLowerCase()
-                        .includes(search.toLowerCase())
-            ),
-        [sortedCostItems, search]
-    );
+    // Tối ưu filter: sử dụng cached lowercase values và debounced search
+    const filtered = useMemo(() => {
+        if (!debouncedSearch.trim()) {
+            return sortedCostItems;
+        }
+        const searchLower = debouncedSearch.toLowerCase();
+        return sortedCostItems.filter(
+            (x) =>
+                x._searchProject.includes(searchLower) ||
+                x._searchDescription.includes(searchLower)
+        );
+    }, [sortedCostItems, debouncedSearch]);
 
     const groupedData = useMemo(() => groupByProject(filtered), [filtered]);
     // Dòng code để debug
@@ -1210,12 +1287,14 @@ export default function ActualCostsTab({ projectId }) {
                     editingCell={editingCell}
                     setEditingCell={setEditingCell}
                     handleChangeField={handleChangeField}
+                    handleCommitTextField={handleCommitTextField}
                     handleRemoveRow={handleRemoveRow}
                     onToggleRevenueMode={handleToggleRevenueMode}
                     overallRevenue={overallRevenue}
                     projectTotalAmount={projectTotalAmount}
                     categories={categories}
                     projectData={projectData}
+                    search={search}
                 />
             </Box>
             <ColumnSelector

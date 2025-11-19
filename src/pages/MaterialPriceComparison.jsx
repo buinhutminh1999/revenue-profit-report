@@ -464,9 +464,21 @@ const canCreate = useMemo(() => {
             <Helmet>
                 <title>Danh Sách Bảng So Sánh Giá | Bách Khoa</title>
             </Helmet>
-            <Box sx={{ bgcolor: '#f8fafc', minHeight: '100vh', p: { xs: 2, sm: 4, md: 5 } }}>
+            <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', p: { xs: 2, sm: 4, md: 5 } }}>
 
-                {isDeleting && <LinearProgress sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999 }} color="error" />}
+                {isDeleting && (
+                    <LinearProgress 
+                        sx={{ 
+                            position: 'fixed', 
+                            top: 0, 
+                            left: 0, 
+                            right: 0, 
+                            zIndex: 9999,
+                            height: 4,
+                        }} 
+                        color="error" 
+                    />
+                )}
 
                 <Container maxWidth={false} sx={{ maxWidth: 1600 }}>
 
@@ -476,24 +488,22 @@ const canCreate = useMemo(() => {
                             p: { xs: 2, sm: 3, md: 4 },
                             mb: 4,
                             borderRadius: 3,
-                            background: 'linear-gradient(135deg, #eef5ff 0%, #ffffff 100%)',
-                            border: '1px solid #e0e8f4'
                         }}
                     >
                         <Typography
                             variant="h4"
                             component="h1"
-                            sx={{ fontWeight: 800, color: '#1a202c', mb: 0.5 }}
+                            sx={{ fontWeight: 800, color: 'text.primary', mb: 0.5 }}
                         >
                             Quản Lý Bảng So Sánh Giá Vật Tư
                         </Typography>
-                        <Typography variant="body1" sx={{ color: '#525f7f', maxWidth: 700 }}>
+                        <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: 700 }}>
                             Danh sách tổng hợp các bảng so sánh giá vật tư theo công trình.
                         </Typography>
                     </Paper>
 
                     {/* --- TOOLBAR: Áp dụng logic canCreate cho nút Tạo Bảng Mới --- */}
-                    <Paper elevation={1} sx={{ p: 2, mb: 4, borderRadius: 3, border: '1px solid #e0e8f4', bgcolor: 'white' }}>
+                    <Paper elevation={1} sx={{ p: 2, mb: 4, borderRadius: 3 }}>
                         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems="center">
                             
                             {/* NÚT TẠO BẢNG MỚI (CHỈ HIỂN THỊ KHI CÓ QUYỀN canCreate) */}
@@ -504,10 +514,8 @@ const canCreate = useMemo(() => {
                                         size="large"
                                         startIcon={<Plus size={20} />}
                                         onClick={handleAddNew}
-                                        disabled={isDeleting || !canCreate} // Vô hiệu hóa nếu không có quyền
+                                        disabled={isDeleting || !canCreate}
                                         sx={{
-                                            bgcolor: 'primary.main',
-                                            '&:hover': { bgcolor: 'primary.dark' },
                                             flexShrink: 0
                                         }}
                                     >
@@ -535,7 +543,13 @@ const canCreate = useMemo(() => {
                                 sx={{ minWidth: 250, width: { xs: '100%', sm: 'auto' } }}
                             />
 
-                            <FormControl size="small" sx={{ minWidth: 200, width: { xs: '100%', sm: 'auto' } }}>
+                            <FormControl 
+                                size="small" 
+                                sx={{ 
+                                    minWidth: 200, 
+                                    width: { xs: '100%', sm: 'auto' },
+                                }}
+                            >
                                 <InputLabel>Lọc Trạng Thái</InputLabel>
                                 <Select
                                     value={filterStatus}
@@ -584,13 +598,13 @@ const canCreate = useMemo(() => {
                             width: '100%',
                             borderRadius: 3,
                             overflow: 'hidden',
-                            border: '1px solid #e0e8f4',
                             display: 'flex',
                             flexDirection: 'column',
                             justifyContent: loading ? 'center' : 'flex-start',
                             alignItems: loading ? 'center' : 'stretch',
                             opacity: isDeleting ? 0.6 : 1,
                             pointerEvents: isDeleting ? 'none' : 'auto',
+                            transition: 'all 0.3s ease',
                         }}
                     >
                         {loading ? (
@@ -630,34 +644,49 @@ const canCreate = useMemo(() => {
                                     border: 0,
                                     '& .MuiDataGrid-root': { border: 'none' },
                                     '& .MuiDataGrid-row': {
+                                        transition: 'all 0.2s ease',
                                         '&:hover': {
                                             cursor: 'pointer',
-                                            backgroundColor: '#f8fafc'
+                                            backgroundColor: (theme) => theme.palette.action.hover,
                                         }
                                     },
                                     '& .MuiDataGrid-columnHeaders': {
-                                        backgroundColor: '#f1f5f9',
-                                        color: '#334155',
+                                        backgroundColor: (theme) => theme.palette.mode === 'light' ? theme.palette.grey[50] : theme.palette.grey[900],
+                                        color: (theme) => theme.palette.text.secondary,
                                         fontSize: '0.8rem',
                                         fontWeight: 700,
-                                        borderBottom: '1px solid #e2e8f0',
+                                        borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
                                     },
                                     '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 700 },
                                     '& .MuiDataGrid-cell': {
-                                        borderColor: '#f1f5f9',
-                                        alignItems: 'center', 
+                                        borderColor: (theme) => theme.palette.divider,
+                                        alignItems: 'center',
+                                        '&:focus': {
+                                            outline: 'none',
+                                        },
+                                        '&:focus-within': {
+                                            outline: 'none',
+                                        }
                                     },
                                     '& .MuiDataGrid-footerContainer': {
-                                        borderTop: '1px solid #e2e8f0',
-                                        backgroundColor: '#f8fafc',
+                                        borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+                                        backgroundColor: (theme) => theme.palette.background.paper,
                                     },
                                     '& .MuiDataGrid-virtualScroller': {
-                                        '&::-webkit-scrollbar': { width: '8px', height: '8px' },
-                                        '&::-webkit-scrollbar-thumb': { backgroundColor: '#cbd5e1', borderRadius: '10px' },
-                                        '&::-webkit-scrollbar-track': { backgroundColor: '#f1f5f9' },
+                                        '&::-webkit-scrollbar': { 
+                                            width: '8px', 
+                                            height: '8px' 
+                                        },
+                                        '&::-webkit-scrollbar-thumb': { 
+                                            backgroundColor: (theme) => theme.palette.mode === 'light' ? '#cbd5e1' : '#475569',
+                                            borderRadius: '10px',
+                                        },
+                                        '&::-webkit-scrollbar-track': { 
+                                            backgroundColor: (theme) => theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b',
+                                        },
                                     },
                                     '& .MuiDataGrid-overlay': {
-                                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                        backgroundColor: (theme) => theme.palette.background.paper,
                                     },
                                 }}
                                 density="comfortable"
@@ -680,7 +709,11 @@ const canCreate = useMemo(() => {
                 fullWidth
                 disableEscapeKeyDown={isCreating || isDeleting}
             >
-                <DialogTitle sx={{ fontWeight: 700, borderBottom: '1px solid #e0e0e0', color: 'primary.main' }}>
+                <DialogTitle sx={{ 
+                    fontWeight: 700, 
+                    borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+                    color: 'primary.main',
+                }}>
                     📝 Tạo Bảng So Sánh Vật Tư Mới
                 </DialogTitle>
                 <DialogContent>
@@ -698,6 +731,11 @@ const canCreate = useMemo(() => {
                             value={newProjectName}
                             onChange={(e) => setNewProjectName(e.target.value)}
                             disabled={isCreating}
+                            sx={{
+                                '& .MuiOutlinedInput-root': {
+                                    borderRadius: 2,
+                                }
+                            }}
                         />
                         <TextField
                             required
@@ -717,14 +755,23 @@ const canCreate = useMemo(() => {
                                     </InputAdornment>
                                 ),
                             }}
+                            sx={{
+                                '& .MuiOutlinedInput-root': {
+                                    borderRadius: 2,
+                                }
+                            }}
                         />
                         <Alert severity="info" sx={{ mt: 2 }}>
                             Bảng sẽ được tạo và có thể sử dụng ngay để nhập dữ liệu.
                         </Alert>
                     </Stack>
                 </DialogContent>
-                <DialogActions sx={{ p: 2, borderTop: '1px solid #e0e0e0' }}>
-                    <Button onClick={handleCloseCreateDialog} color="inherit" disabled={isCreating}>
+                <DialogActions sx={{ p: 2, borderTop: (theme) => `1px solid ${theme.palette.divider}` }}>
+                    <Button 
+                        onClick={handleCloseCreateDialog} 
+                        color="inherit" 
+                        disabled={isCreating}
+                    >
                         Hủy
                     </Button>
                     <Button
@@ -745,7 +792,12 @@ const canCreate = useMemo(() => {
                 onClose={() => setOpenDeleteConfirm(false)}
                 maxWidth="sm"
             >
-                <DialogTitle sx={{ color: 'error.main', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+                <DialogTitle sx={{ 
+                    color: 'error.main', 
+                    fontWeight: 700, 
+                    display: 'flex', 
+                    alignItems: 'center',
+                }}>
                     <ShieldOff size={24} style={{ marginRight: 8 }} />
                     Xác nhận XÓA VĨNH VIỄN
                 </DialogTitle>

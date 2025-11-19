@@ -3,11 +3,13 @@ import {
   TableContainer, Paper, Table, TableHead, TableRow, TableCell,
   TableBody, Skeleton, Box
 } from "@mui/material";
+import { TableChart } from "@mui/icons-material";
 import EditableRow from "./EditableRow";
 import GroupHeader from "./GroupHeader";
 import { sumColumnOfGroup } from "../utils/groupingUtils";
 import { formatNumber } from "../utils/numberUtils";
 import { getHiddenColumnsForProject } from "../utils/calcUtils";
+import EmptyState from "./common/EmptyState";
 
 const LEFT1_WIDTH = 150;
 const LEFT2_WIDTH = 220;
@@ -22,12 +24,14 @@ export default function CostTable({
   editingCell,
   setEditingCell,
   handleChangeField,
+  handleCommitTextField, // Thêm prop mới
   handleRemoveRow,
   onToggleRevenueMode,
   overallRevenue,
   projectTotalAmount,
   categories,
   projectData,
+  search = "", // Thêm prop search để hiển thị message phù hợp
 }) {
   // Chỉ lấy cột đang hiển thị (header)
   const visibleCols = React.useMemo(
@@ -172,9 +176,20 @@ export default function CostTable({
                 <TableCell
                   colSpan={visibleCols.length + 1}
                   align="center"
-                  sx={{ py: 4 }}
+                  sx={{ py: 0, border: "none" }}
                 >
-                  Không có dữ liệu
+                  <Box sx={{ py: 8 }}>
+                    <EmptyState
+                      icon={<TableChart fontSize="large" color="disabled" />}
+                      title="Không có dữ liệu"
+                      description={
+                        search
+                          ? "Không tìm thấy dữ liệu phù hợp với từ khóa tìm kiếm. Thử điều chỉnh bộ lọc hoặc từ khóa."
+                          : "Chưa có dữ liệu chi phí nào. Thêm dòng mới hoặc import từ Excel để bắt đầu."
+                      }
+                      size="medium"
+                    />
+                  </Box>
                 </TableCell>
               </TableRow>
             ) : (
@@ -195,6 +210,7 @@ export default function CostTable({
                       visibleCols={visibleCols}
                       widths={{ left1: LEFT1_WIDTH, left2: LEFT2_WIDTH, rightDel: RIGHT_DELETE_WIDTH }}
                       handleChangeField={handleChangeField}
+                      handleCommitTextField={handleCommitTextField}
                       handleRemoveRow={handleRemoveRow}
                       editingCell={editingCell}
                       setEditingCell={setEditingCell}
