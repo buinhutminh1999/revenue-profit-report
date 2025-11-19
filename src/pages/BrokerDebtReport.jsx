@@ -8,13 +8,14 @@ import {
 import {
     collection, getDocs, query, where, orderBy
 } from "firebase/firestore";
-import { useQuery } from "react-query";
+import { useQuery } from "@tanstack/react-query";
 import { db } from "../services/firebase-config";
 import {
     ExpandMore as ExpandMoreIcon, ChevronRight as ChevronRightIcon, Print as PrintIcon,
     Description as DescriptionIcon, UnfoldMore as UnfoldMoreIcon, UnfoldLess as UnfoldLessIcon,
     Search as SearchIcon
 } from '@mui/icons-material';
+import { ErrorState, SkeletonTable } from '../components/common';
 
 
 // ===== PHẦN CẤU HÌNH & LẤY DỮ LIỆU =====
@@ -22,22 +23,22 @@ const REPORT_DATE = "25/06/2025";
 
 // Hook lấy Hệ thống tài khoản (để biết quan hệ cha-con)
 const useAccounts = () => {
-    return useQuery(
-        "chartOfAccounts",
-        async () => {
+    return useQuery({
+        queryKey: ["chartOfAccounts"],
+        queryFn: async () => {
             const q = query(collection(db, "chartOfAccounts"), orderBy("accountId"));
             const snapshot = await getDocs(q);
             return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         },
-        { staleTime: 5 * 60 * 1000 }
-    );
+        staleTime: 5 * 60 * 1000
+    });
 };
 
 // Hook lấy Số dư các tài khoản chi tiết
 const useAccountBalances = (year, quarter) => {
-    return useQuery(
-        ["accountBalances", year, quarter],
-        async () => {
+    return useQuery({
+        queryKey: ["accountBalances", year, quarter],
+        queryFn: async () => {
             if (!year || !quarter) return {};
             const q = query(
                 collection(db, "accountBalances"),
@@ -60,8 +61,9 @@ const useAccountBalances = (year, quarter) => {
             });
             return balances;
         },
-        { staleTime: 5 * 60 * 1000, enabled: !!year && !!quarter }
-    );
+        staleTime: 5 * 60 * 1000,
+        enabled: !!year && !!quarter
+    });
 };
 
 const BASE_REPORT_STRUCTURE = [
@@ -820,13 +822,25 @@ const FinancialReport = () => {
     const handleCollapseAll = () => setExpanded([]);
 
     if (isLoadingAccounts || isLoadingBalances) {
-        return <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "80vh" }}>
-            <CircularProgress />
-            <Typography sx={{ ml: 2 }}>Đang tải dữ liệu...</Typography>
-        </Box>
+        return (
+            <Box sx={{ p: 3 }}>
+                <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 3 }}>
+                    <SkeletonTable rows={10} columns={4} />
+                </Paper>
+            </Box>
+        );
     }
     if (isAccountsError || isBalancesError) {
-        return <Alert severity="error">Lỗi: Không thể tải được dữ liệu từ Firebase.</Alert>;
+        return (
+            <Box sx={{ p: 3 }}>
+                <ErrorState
+                    error={isAccountsError ? "Lỗi tải hệ thống tài khoản" : "Lỗi tải số dư tài khoản"}
+                    title="Lỗi tải dữ liệu"
+                    onRetry={() => window.location.reload()}
+                    retryLabel="Tải lại"
+                />
+            </Box>
+        );
     }
 
     const availableYears = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);

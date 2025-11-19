@@ -16,6 +16,8 @@ import {
     collection, onSnapshot, query, addDoc, deleteDoc, writeBatch, where, getDocs, doc, setDoc, updateDoc
 } from "firebase/firestore";
 import { toNum } from "../utils/numberUtils";
+import { EmptyState, SkeletonTable } from "../components/common";
+import { Inbox } from "lucide-react";
 
 // =================================================================
 // START: INLINE EDITABLE CELL COMPONENT (PHIÊN BẢN SỬA LỖI CĂN LỀ)
@@ -161,10 +163,12 @@ const MetricCard = ({ title, value, icon, color, loading }) => (
     </Paper>
 );
 const NoRowsOverlay = () => (
-    <Stack height="100%" alignItems="center" justifyContent="center" sx={{ color: "text.secondary", p: 4 }}>
-        <ErrorOutline sx={{ mb: 1}} />
-        <Typography variant="body2"> Không có dữ liệu. </Typography>
-    </Stack>
+    <EmptyState
+        icon={<Inbox size={64} />}
+        title="Chưa có dữ liệu công nợ phải thu"
+        description="Không có dữ liệu công nợ phải thu cho quý và năm đã chọn. Hãy thêm dữ liệu mới hoặc chọn quý/năm khác."
+        size="small"
+    />
 );
 const CurrencyDisplay = ({ value }) => (
     <NumericFormat value={toNum(value)} displayType="text" thousandSeparator="," />
@@ -435,7 +439,11 @@ export default function AccountsReceivable() {
                             </TableHead>
                             <TableBody>
                                 {isLoading ? (
-                                    <TableRow><TableCell colSpan={tableColumns.length + 1} align="center"><Typography sx={{ p: 4 }}>Đang tải dữ liệu...</Typography></TableCell></TableRow>
+                                    <TableRow>
+                                        <TableCell colSpan={tableColumns.length + 1} sx={{ p: 0, border: 'none' }}>
+                                            <SkeletonTable rows={8} columns={tableColumns.length + 1} showHeader={false} />
+                                        </TableCell>
+                                    </TableRow>
                                 ) : displayRows.length > 1 ? (
                                     displayRows.map((row) => {
                                         const isDataRow = row.type === 'data';

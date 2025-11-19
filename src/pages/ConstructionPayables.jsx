@@ -57,6 +57,8 @@ import {
 import { toNum } from "../utils/numberUtils";
 import { getApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { ErrorState, EmptyState, SkeletonDataGrid } from "../components/common";
+import { AlertCircle, Inbox } from "lucide-react";
 
 const SORT_CONFIG = {
     "Thi công": { key: "orderThiCong" },
@@ -235,16 +237,12 @@ const DetailStatCard = ({ title, value, color }) => (
 );
 
 const NoRowsOverlay = () => (
-    <Stack
-        height="100%"
-        alignItems="center"
-        justifyContent="center"
-        sx={{ color: "text.secondary" }}
-    >
-        <Typography variant="body2">
-            Không có dữ liệu cho Quý và Năm đã chọn.
-        </Typography>
-    </Stack>
+    <EmptyState
+        icon={<Inbox size={64} />}
+        title="Chưa có dữ liệu công nợ"
+        description="Không có dữ liệu công nợ phải trả cho quý và năm đã chọn. Hãy chọn quý/năm khác hoặc thêm dữ liệu mới."
+        size="small"
+    />
 );
 
 const ConstructionPayables = () => {
@@ -1160,14 +1158,19 @@ const handleExportToExcel = () => {
             >
                 <Box sx={{ width: "100%" }}>
                     {isError ? (
-                        <Alert
-                            severity="error"
-                            icon={<ErrorOutline />}
-                            sx={{ m: 2 }}
-                        >
-                            Đã có lỗi xảy ra khi tải dữ liệu.
-                        </Alert>
-                  ) : (
+                        <Box sx={{ p: 3 }}>
+                            <ErrorState
+                                error="Đã có lỗi xảy ra khi tải dữ liệu"
+                                title="Lỗi tải dữ liệu công nợ"
+                                onRetry={() => window.location.reload()}
+                                retryLabel="Tải lại"
+                            />
+                        </Box>
+                    ) : isLoading && payablesData.length === 0 ? (
+                        <Box sx={{ p: 3 }}>
+                            <SkeletonDataGrid rows={8} columns={6} />
+                        </Box>
+                    ) : (
                         <StyledDataGrid
                             rows={processedData}
                             columns={mainColumns}

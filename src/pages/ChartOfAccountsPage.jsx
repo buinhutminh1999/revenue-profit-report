@@ -11,9 +11,10 @@ import {
     ChevronRight as ChevronRightIcon, UnfoldMore as UnfoldMoreIcon, UnfoldLess as UnfoldLessIcon,
     Save as SaveIcon, Close as CloseIcon
 } from '@mui/icons-material';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFirestore, collection, getDocs, writeBatch, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { ErrorState, SkeletonTable } from '../components/common';
 
 // Khởi tạo Firestore
 const db = getFirestore();
@@ -24,18 +25,21 @@ const ACCOUNTS_COLLECTION = 'chartOfAccounts';
 // ===================================================================================
 
 const useAccounts = () => {
-    return useQuery('chartOfAccounts', async () => {
-        const snapshot = await getDocs(collection(db, ACCOUNTS_COLLECTION));
-        const accounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        return accounts.sort((a, b) => a.accountId.localeCompare(b.accountId));
+    return useQuery({
+        queryKey: ['chartOfAccounts'],
+        queryFn: async () => {
+            const snapshot = await getDocs(collection(db, ACCOUNTS_COLLECTION));
+            const accounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            return accounts.sort((a, b) => a.accountId.localeCompare(b.accountId));
+        }
     });
 };
 
 const useMutateAccounts = () => {
     const queryClient = useQueryClient();
 
-    const addBatchMutation = useMutation(
-        async (newAccounts) => {
+    const addBatchMutation = useMutation({
+        mutationFn: async (newAccounts) => {
             const batch = writeBatch(db);
             newAccounts.forEach(acc => {
                 const docRef = doc(db, ACCOUNTS_COLLECTION, acc.accountId);
@@ -43,31 +47,27 @@ const useMutateAccounts = () => {
             });
             await batch.commit();
         },
-        {
-            onSuccess: () => {
-                toast.success('Thêm tài khoản thành công!');
-                queryClient.invalidateQueries('chartOfAccounts');
-            },
-            onError: (error) => toast.error(`Lỗi: ${error.message}`),
-        }
-    );
+        onSuccess: () => {
+            toast.success('Thêm tài khoản thành công!');
+            queryClient.invalidateQueries({ queryKey: ['chartOfAccounts'] });
+        },
+        onError: (error) => toast.error(`Lỗi: ${error.message}`),
+    });
 
-    const updateMutation = useMutation(
-        async ({ id, data }) => {
+    const updateMutation = useMutation({
+        mutationFn: async ({ id, data }) => {
             const docRef = doc(db, ACCOUNTS_COLLECTION, id);
             await updateDoc(docRef, data);
         },
-        {
-            onSuccess: () => {
-                toast.success('Cập nhật tên thành công!');
-                queryClient.invalidateQueries('chartOfAccounts');
-            },
-            onError: (error) => toast.error(`Lỗi: ${error.message}`),
-        }
-    );
+        onSuccess: () => {
+            toast.success('Cập nhật tên thành công!');
+            queryClient.invalidateQueries({ queryKey: ['chartOfAccounts'] });
+        },
+        onError: (error) => toast.error(`Lỗi: ${error.message}`),
+    });
     
-    const renameAccountMutation = useMutation(
-        async ({ oldAccount, newAccountId, allAccounts }) => {
+    const renameAccountMutation = useMutation({
+        mutationFn: async ({ oldAccount, newAccountId, allAccounts }) => {
             const newDocRef = doc(db, ACCOUNTS_COLLECTION, newAccountId);
             const newDocSnap = await getDoc(newDocRef);
             if (newDocSnap.exists()) {
@@ -94,29 +94,25 @@ const useMutateAccounts = () => {
 
             await batch.commit();
         },
-        {
-            onSuccess: () => {
-                toast.success('Đổi mã tài khoản thành công!');
-                toast('Lưu ý: Dữ liệu số dư cũ không được di dời tự động.', { icon: '⚠️', duration: 6000 });
-                queryClient.invalidateQueries('chartOfAccounts');
-            },
-            onError: (error) => toast.error(`Lỗi khi đổi mã: ${error.message}`),
-        }
-    );
+        onSuccess: () => {
+            toast.success('Đổi mã tài khoản thành công!');
+            toast('Lưu ý: Dữ liệu số dư cũ không được di dời tự động.', { icon: '⚠️', duration: 6000 });
+            queryClient.invalidateQueries({ queryKey: ['chartOfAccounts'] });
+        },
+        onError: (error) => toast.error(`Lỗi khi đổi mã: ${error.message}`),
+    });
 
-    const deleteMutation = useMutation(
-        async (id) => {
+    const deleteMutation = useMutation({
+        mutationFn: async (id) => {
             const docRef = doc(db, ACCOUNTS_COLLECTION, id);
             await deleteDoc(docRef);
         },
-        {
-            onSuccess: () => {
-                toast.success('Xóa thành công!');
-                queryClient.invalidateQueries('chartOfAccounts');
-            },
-            onError: (error) => toast.error(`Lỗi: ${error.message}`),
-        }
-    );
+        onSuccess: () => {
+            toast.success('Xóa thành công!');
+            queryClient.invalidateQueries({ queryKey: ['chartOfAccounts'] });
+        },
+        onError: (error) => toast.error(`Lỗi: ${error.message}`),
+    });
 
     return { addBatchMutation, updateMutation, deleteMutation, renameAccountMutation };
 };
@@ -542,10 +538,25 @@ const ChartOfAccountsPage = () => {
     };
     
     if (isLoading) {
-        return <Box sx={{ display: 'flex', justifyContent: 'center', my: 10 }}><CircularProgress /></Box>;
+        return (
+            <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+                <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 3 }}>
+                    <SkeletonTable rows={10} columns={3} />
+                </Paper>
+            </Container>
+        );
     }
     if (isError) {
-        return <Container maxWidth="xl" sx={{ mt: 4 }}><Alert severity="error">Lỗi khi tải dữ liệu: {error.message}</Alert></Container>;
+        return (
+            <Container maxWidth="xl" sx={{ mt: 4 }}>
+                <ErrorState
+                    error={error}
+                    title="Lỗi tải dữ liệu"
+                    onRetry={() => window.location.reload()}
+                    retryLabel="Tải lại"
+                />
+            </Container>
+        );
     }
 
     return (

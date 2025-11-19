@@ -18,6 +18,8 @@ import {
   Skeleton,
   Stack,
 } from '@mui/material';
+import { EmptyState, ErrorState } from '../components/common';
+import { Building2, AlertCircle } from 'lucide-react';
 import HomeIcon from '@mui/icons-material/Home';
 import FolderIcon from '@mui/icons-material/Folder';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -146,9 +148,20 @@ export default function ProjectsList() {
 
       {/* Danh sách */}
       {loading ? (
-        [...Array(5)].map((_, i) => (
-          <Skeleton key={i} variant="rectangular" height={60} sx={{ mb: 1, borderRadius: 2 }} />
-        ))
+        <Stack spacing={1}>
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} variant="rectangular" height={60} sx={{ borderRadius: 2 }} />
+          ))}
+        </Stack>
+      ) : filteredProjects.length === 0 ? (
+        <EmptyState
+          icon={<Building2 size={64} />}
+          title={projects.length === 0 ? "Chưa có công trình nào" : "Không tìm thấy công trình"}
+          description={projects.length === 0 
+            ? "Bắt đầu bằng cách tạo công trình mới để quản lý dự án của bạn."
+            : "Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc để tìm công trình khác."}
+          size="medium"
+        />
       ) : (
         <Paper>
           <List>

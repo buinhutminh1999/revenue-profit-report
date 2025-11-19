@@ -5,7 +5,7 @@ import {
     FormControl, InputLabel, Select, MenuItem, Grid, Button, Tooltip, Card, CardContent, CardHeader, Divider, TextField,
     Dialog, DialogTitle, DialogContent, DialogActions, Menu, ListItemIcon, Skeleton
 } from '@mui/material';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFirestore, collection, getDocs, query, orderBy, where, writeBatch, doc, setDoc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx'; // Import thư viện để xuất Excel
@@ -25,6 +25,7 @@ import {
     Close as CloseIcon // Thêm icon đóng
 } from '@mui/icons-material';
 import PasteDataDialog from '../components/PasteDataDialog';
+import { ErrorState } from '../components/common';
 
 // Khởi tạo Firestore và các hằng số
 const db = getFirestore();
@@ -203,15 +204,39 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
         </Dialog>
     );
 };
-const useAccountsStructure = () => { return useQuery('accountsStructure', async () => { const q = query(collection(db, ACCOUNTS_COLLECTION), orderBy('accountId')); const snapshot = await getDocs(q); return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); }, { staleTime: Infinity }); };
-const useAccountBalances = (year, quarter) => { return useQuery(['accountBalances', year, quarter], async () => { const balancesObject = {}; const q = query(collection(db, BALANCES_COLLECTION), where("year", "==", year), where("quarter", "==", quarter)); const querySnapshot = await getDocs(q); querySnapshot.forEach((doc) => { balancesObject[doc.data().accountId] = doc.data(); }); return balancesObject; }, { keepPreviousData: true }); };
+const useAccountsStructure = () => { 
+    return useQuery({
+        queryKey: ['accountsStructure'],
+        queryFn: async () => {
+            const q = query(collection(db, ACCOUNTS_COLLECTION), orderBy('accountId'));
+            const snapshot = await getDocs(q);
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        },
+        staleTime: Infinity
+    });
+};
+const useAccountBalances = (year, quarter) => { 
+    return useQuery({
+        queryKey: ['accountBalances', year, quarter],
+        queryFn: async () => {
+            const balancesObject = {};
+            const q = query(collection(db, BALANCES_COLLECTION), where("year", "==", year), where("quarter", "==", quarter));
+            const querySnapshot = await getDocs(q);
+            querySnapshot.forEach((doc) => {
+                balancesObject[doc.data().accountId] = doc.data();
+            });
+            return balancesObject;
+        },
+        placeholderData: (previousData) => previousData
+    });
+};
 // Dán và thay thế toàn bộ hook này
 
 const useMutateBalances = () => {
   const queryClient = useQueryClient();
 
-  const updateBalanceMutation = useMutation(
-    async ({ accountId, year, quarter, field, value }) => {
+  const updateBalanceMutation = useMutation({
+    mutationFn: async ({ accountId, year, quarter, field, value }) => {
       const docId   = `${accountId}_${year}_${quarter}`;
       const docRef  = doc(db, BALANCES_COLLECTION, docId);
 
@@ -264,18 +289,16 @@ const useMutateBalances = () => {
 });
 
     },
-    {
-      onSuccess: (_, v) => {
-        queryClient.invalidateQueries(['accountBalances', v.year, v.quarter]);
-        if (v.field === 'cuoiKyNo' || v.field === 'cuoiKyCo') {
-          let ny=v.year, nq=v.quarter+1; if (nq>4){nq=1; ny=v.year+1;}
-          queryClient.invalidateQueries(['accountBalances', ny, nq]);
-        }
-        toast.success(`Đã cập nhật [${v.field}] cho TK ${v.accountId}`);
-      },
-      onError: (e) => toast.error(`Lỗi cập nhật: ${e.message}`)
-    }
-  );
+    onSuccess: (_, v) => {
+      queryClient.invalidateQueries({ queryKey: ['accountBalances', v.year, v.quarter] });
+      if (v.field === 'cuoiKyNo' || v.field === 'cuoiKyCo') {
+        let ny=v.year, nq=v.quarter+1; if (nq>4){nq=1; ny=v.year+1;}
+        queryClient.invalidateQueries({ queryKey: ['accountBalances', ny, nq] });
+      }
+      toast.success(`Đã cập nhật [${v.field}] cho TK ${v.accountId}`);
+    },
+    onError: (e) => toast.error(`Lỗi cập nhật: ${e.message}`)
+  });
 
   return { updateBalanceMutation };
 };
@@ -833,7 +856,18 @@ const BalanceSheet = () => {
     }, []);
 
 
-    if (isAccountsError || balancesError) return <Box sx={{ p: 3 }}><Alert severity="error">Lỗi: {accountsError?.message || balancesError?.message}</Alert></Box>;
+    if (isAccountsError || balancesError) {
+        return (
+            <Box sx={{ p: 3 }}>
+                <ErrorState
+                    error={accountsError || balancesError}
+                    title="Lỗi tải dữ liệu"
+                    onRetry={() => window.location.reload()}
+                    retryLabel="Tải lại"
+                />
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>

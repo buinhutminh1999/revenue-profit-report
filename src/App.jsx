@@ -1,7 +1,7 @@
 // src/App.jsx — Điểm khởi đầu của ứng dụng
 
 import React from "react";
-import { QueryClientProvider } from "react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 

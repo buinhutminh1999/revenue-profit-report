@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -121,22 +121,20 @@ export default function DocumentDetail() {
   );
 
   // --- Mutation để xóa văn bản ---
-  const deleteMutation = useMutation(
-    (idToDelete) => deleteDoc(doc(db, 'publishedDocuments', idToDelete)),
-    {
-      onSuccess: () => {
-        toast.success(`Đã xóa văn bản "${document?.title || ''}"`);
-        queryClient.invalidateQueries('publishedDocuments');
-        navigate('/admin/document-list');
-      },
-      onError: (err) => {
-        toast.error(`Lỗi khi xóa văn bản: ${err.message}`);
-      },
-      onSettled: () => {
-        setOpenDeleteConfirm(false);
-      }
+  const deleteMutation = useMutation({
+    mutationFn: (idToDelete) => deleteDoc(doc(db, 'publishedDocuments', idToDelete)),
+    onSuccess: () => {
+      toast.success(`Đã xóa văn bản "${document?.title || ''}"`);
+      queryClient.invalidateQueries({ queryKey: ['publishedDocuments'] });
+      navigate('/admin/document-list');
+    },
+    onError: (err) => {
+      toast.error(`Lỗi khi xóa văn bản: ${err.message}`);
+    },
+    onSettled: () => {
+      setOpenDeleteConfirm(false);
     }
-  );
+  });
 
   const handleDelete = () => {
     if (documentId) {

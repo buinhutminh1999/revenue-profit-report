@@ -2,7 +2,7 @@ import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { db } from '../services/firebase-config'; // HOẶC import { db } from '../contexts/AuthContext';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
@@ -28,6 +28,8 @@ import ListAltIcon from '@mui/icons-material/ListAlt';
 import CircularProgress from '@mui/material/CircularProgress';
 import AddIcon from '@mui/icons-material/Add';
 import InboxIcon from '@mui/icons-material/Inbox';
+import { EmptyState, ErrorState } from '../components/common';
+import { Inbox } from 'lucide-react';
 
 // Đường dẫn file trên server (qua proxy)
 const FILE_BASE_URL = '/api/files';
@@ -221,18 +223,26 @@ export default function DocumentList() {
 
           {/* Data Grid */}
           <Box sx={{ height: '75vh', width: '100%' }}>
-            {error && (
+            {error ? (
               <Box sx={{ p: 3 }}>
-                <Alert severity="error">
-                  <AlertTitle>Lỗi</AlertTitle>
-                  Không thể tải được danh sách văn bản. Vui lòng thử lại.
-                  <br />
-                  <small>{error.message}</small>
-                </Alert>
+                <ErrorState
+                  error={error}
+                  title="Lỗi tải danh sách văn bản"
+                  onRetry={() => window.location.reload()}
+                  retryLabel="Tải lại"
+                />
               </Box>
-            )}
-
-            {!error && (
+            ) : !isLoading && (!documents || documents.length === 0) ? (
+              <Box sx={{ p: 3 }}>
+                <EmptyState
+                  icon={<Inbox size={64} />}
+                  title="Chưa có văn bản nào"
+                  description="Bắt đầu bằng cách tạo văn bản mới để chia sẻ với nhân viên."
+                  actionLabel="Tạo Văn Bản Mới"
+                  onAction={handleAddNew}
+                />
+              </Box>
+            ) : (
               <DataGrid
                 rows={documents || []}
                 columns={columns}

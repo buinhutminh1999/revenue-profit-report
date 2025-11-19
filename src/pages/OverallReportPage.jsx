@@ -44,13 +44,15 @@ import {
     Save as SaveIcon,
     CloudDone as CloudDoneIcon,
 } from "@mui/icons-material";
+import SkeletonTable from "../components/common/SkeletonTable";
+import ErrorState from "../components/common/ErrorState";
 import {
     useQuery,
     useMutation,
     useQueryClient,
     QueryClient,
     QueryClientProvider,
-} from "react-query";
+} from "@tanstack/react-query";
 import {
     collection,
     getDocs,
@@ -76,9 +78,9 @@ const PROFIT_REPORTS_COLLECTION = 'profitReports'; // <-- Thêm dòng này
 
 const useCapitalUtilizationReportData = (year, quarter) => {
     const docId = `${year}_Q${quarter}`;
-    return useQuery(
-        ["capitalUtilizationReportData", docId],
-        async () => {
+    return useQuery({
+        queryKey: ["capitalUtilizationReportData", docId],
+        queryFn: async () => {
             if (!year || !quarter) return null;
             const docRef = doc(
                 db,
@@ -88,17 +90,15 @@ const useCapitalUtilizationReportData = (year, quarter) => {
             const docSnap = await getDoc(docRef);
             return docSnap.exists() ? docSnap.data() : null;
         },
-        {
-            staleTime: 1000 * 60 * 5,
-            keepPreviousData: true,
-        }
-    );
+        staleTime: 1000 * 60 * 5,
+        placeholderData: (previousData) => previousData,
+    });
 };
 
 const useChartOfAccounts = () => {
-    return useQuery(
-        "chartOfAccounts",
-        async () => {
+    return useQuery({
+        queryKey: ["chartOfAccounts"],
+        queryFn: async () => {
             const snapshot = await getDocs(
                 collection(db, CHART_OF_ACCOUNTS_COLLECTION)
             );
@@ -109,14 +109,14 @@ const useChartOfAccounts = () => {
             });
             return accountsMap;
         },
-        { staleTime: Infinity }
-    );
+        staleTime: Infinity
+    });
 };
 
 const useAccountBalances = (year, quarter) => {
-    return useQuery(
-        ["accountBalances", year, quarter],
-        async () => {
+    return useQuery({
+        queryKey: ["accountBalances", year, quarter],
+        queryFn: async () => {
             const balancesObject = {};
             const q = query(
                 collection(db, BALANCES_COLLECTION),
@@ -130,65 +130,65 @@ const useAccountBalances = (year, quarter) => {
             });
             return balancesObject;
         },
-        { keepPreviousData: true }
-    );
+        placeholderData: (previousData) => previousData
+    });
 };
 
 const useOverallReport = (year, quarter) => {
     const docId = `${year}_Q${quarter}`;
-    return useQuery(
-        ["overallReport", docId],
-        async () => {
+    return useQuery({
+        queryKey: ["overallReport", docId],
+        queryFn: async () => {
             const docRef = doc(db, OVERALL_REPORTS_COLLECTION, docId);
             const docSnap = await getDoc(docRef);
             return docSnap.exists() ? docSnap.data() : null;
         },
-        {
-            keepPreviousData: true,
-            staleTime: 1000 * 60 * 5,
-        }
-    );
+        placeholderData: (previousData) => previousData,
+        staleTime: 1000 * 60 * 5,
+    });
 };
 
 const useMutateOverallReport = () => {
     const queryClient = useQueryClient();
-    return useMutation(
-        async ({ year, quarter, dataToSave }) => {
+    return useMutation({
+        mutationFn: async ({ year, quarter, dataToSave }) => {
             const docId = `${year}_Q${quarter}`;
             const docRef = doc(db, OVERALL_REPORTS_COLLECTION, docId);
             await setDoc(docRef, dataToSave, { merge: true });
         },
-        {
-            onMutate: () => {
-                const toastId = toast.loading("Đang lưu...");
-                return { toastId };
-            },
-            onSuccess: (_, variables, context) => {
-                // cập nhật toast loading -> success
-                toast.success("Lưu thành công!", { id: context?.toastId });
-                queryClient.invalidateQueries([
+        onMutate: () => {
+            const toastId = toast.loading("Đang lưu...");
+            return { toastId };
+        },
+        onSuccess: (_, variables, context) => {
+            // cập nhật toast loading -> success
+            toast.success("Lưu thành công!", { id: context?.toastId });
+            queryClient.invalidateQueries({
+                queryKey: [
                     "overallReport",
                     `${variables.year}_Q${variables.quarter}`,
-                ]);
-            },
-            onError: (error, _vars, context) => {
-                toast.error(`Lỗi khi lưu: ${error.message}`, { id: context?.toastId });
-            },
-        }
-    );
+                ],
+            });
+        },
+        onError: (error, _vars, context) => {
+            toast.error(`Lỗi khi lưu: ${error.message}`, { id: context?.toastId });
+        },
+    });
 };
 
 // ✅ BẠN HÃY DÁN HOOK MỚI NÀY VÀO ĐÂY
 const useProfitReport = (year, quarter) => {
     const docId = `${year}_Q${quarter}`;
-    return useQuery(['profitReport', docId], async () => {
-        if (!year || !quarter) return null;
-        const docRef = doc(db, PROFIT_REPORTS_COLLECTION, docId);
-        const docSnap = await getDoc(docRef);
-        return docSnap.exists() ? docSnap.data() : null;
-    }, {
+    return useQuery({
+        queryKey: ['profitReport', docId],
+        queryFn: async () => {
+            if (!year || !quarter) return null;
+            const docRef = doc(db, PROFIT_REPORTS_COLLECTION, docId);
+            const docSnap = await getDoc(docRef);
+            return docSnap.exists() ? docSnap.data() : null;
+        },
         staleTime: 1000 * 60 * 5, // 5 minutes
-        keepPreviousData: true,
+        placeholderData: (previousData) => previousData,
     });
 };
 // --- CÁC HÀM TIỆN ÍCH ---
@@ -505,24 +505,26 @@ const OverallReportPageContent = () => {
         return { previousYear: year, previousQuarter: quarter - 1 };
     }, [year, quarter]);
 
-    const { data: chartOfAccounts, isLoading: isChartLoading } =
+    const { data: chartOfAccounts, isLoading: isChartLoading, isError: isChartError, error: chartError } =
         useChartOfAccounts();
-    const { data: balances, isLoading: isBalancesLoading } = useAccountBalances(
+    const { data: balances, isLoading: isBalancesLoading, isError: isBalancesError, error: balancesError } = useAccountBalances(
         year,
         quarter
     );
-    const { data: fetchedReportData, isLoading: isReportLoading } =
+    const { data: fetchedReportData, isLoading: isReportLoading, isError: isReportError, error: reportError } =
         useOverallReport(year, quarter);
     const { mutate: saveReport, isLoading: isSaving } =
         useMutateOverallReport();
 
-    const { data: capitalReportData, isLoading: isCapitalReportLoading } =
+    const { data: capitalReportData, isLoading: isCapitalReportLoading, isError: isCapitalError, error: capitalError } =
         useCapitalUtilizationReportData(year, quarter);
     const {
         data: previousCapitalReportData,
         isLoading: isPrevCapitalReportLoading,
+        isError: isPrevCapitalError,
+        error: prevCapitalError,
     } = useCapitalUtilizationReportData(previousYear, previousQuarter);
-    const { data: profitReportData, isLoading: isProfitReportLoading } = useProfitReport(year, quarter);
+    const { data: profitReportData, isLoading: isProfitReportLoading, isError: isProfitError, error: profitError } = useProfitReport(year, quarter);
 
     const getInitialData1 = () => ({
         dauKyCalculated: {},
@@ -1048,8 +1050,131 @@ const OverallReportPageContent = () => {
         }));
     };
 
+    // Loading state với skeleton
     if (isChartLoading || isBalancesLoading || isReportLoading || isCapitalReportLoading || isPrevCapitalReportLoading || isProfitReportLoading) {
-        return <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>;
+        return (
+            <Container
+                maxWidth="xl"
+                sx={{
+                    py: 3,
+                    backgroundColor: theme.palette.grey[50],
+                    minHeight: "100vh",
+                }}
+            >
+                <Stack spacing={3}>
+                    <Paper
+                        sx={{
+                            p: 2,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            borderRadius: 2,
+                        }}
+                    >
+                        <Box sx={{ display: "flex", alignItems: "center" }}>
+                            <Box
+                                sx={{
+                                    backgroundColor: "primary.light",
+                                    borderRadius: "50%",
+                                    p: 1,
+                                    mr: 2,
+                                    display: "flex",
+                                }}
+                            >
+                                <AssessmentIcon sx={{ color: "primary.main" }} />
+                            </Box>
+                            <Box>
+                                <Typography variant="h5" fontWeight="bold">
+                                    Báo Cáo Tổng Quan
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    Đang tải dữ liệu...
+                                </Typography>
+                            </Box>
+                        </Box>
+                    </Paper>
+                    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                        <CardHeader
+                            avatar={<FilterListIcon color="action" />}
+                            title="Tùy chọn Báo cáo"
+                            titleTypographyProps={{ fontWeight: 600 }}
+                            sx={{
+                                borderBottom: "1px solid",
+                                borderColor: "divider",
+                            }}
+                        />
+                        <CardContent>
+                            <SkeletonTable rows={2} columns={2} showHeader={false} />
+                        </CardContent>
+                    </Card>
+                    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                        <CardHeader
+                            title="Tổng Quát 1 (Báo Cáo HĐQT)"
+                            titleTypographyProps={{
+                                variant: "h6",
+                                fontWeight: 600,
+                            }}
+                            sx={{
+                                borderBottom: "1px solid",
+                                borderColor: "divider",
+                            }}
+                        />
+                        <SkeletonTable rows={15} columns={7} showHeader={true} />
+                    </Card>
+                    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                        <CardHeader
+                            title="Tổng Quát 2 (Báo Cáo HĐQT)"
+                            titleTypographyProps={{
+                                variant: "h6",
+                                fontWeight: 600,
+                            }}
+                            sx={{
+                                borderBottom: "1px solid",
+                                borderColor: "divider",
+                            }}
+                        />
+                        <SkeletonTable rows={20} columns={2} showHeader={true} />
+                    </Card>
+                </Stack>
+            </Container>
+        );
+    }
+
+    // Error handling
+    const hasError = 
+        isChartError ||
+        isBalancesError ||
+        isReportError ||
+        isCapitalError ||
+        isPrevCapitalError ||
+        isProfitError;
+
+    if (hasError) {
+        const error = 
+            chartError ||
+            balancesError ||
+            reportError ||
+            capitalError ||
+            prevCapitalError ||
+            profitError;
+        
+        return (
+            <Container
+                maxWidth="xl"
+                sx={{
+                    py: 3,
+                    backgroundColor: theme.palette.grey[50],
+                    minHeight: "100vh",
+                }}
+            >
+                <ErrorState
+                    error={error}
+                    title="Lỗi tải dữ liệu báo cáo"
+                    onRetry={() => window.location.reload()}
+                    retryLabel="Tải lại trang"
+                />
+            </Container>
+        );
     }
 
     return (
@@ -1711,8 +1836,15 @@ const OverallReportPageContent = () => {
                                 <TableRow><TableCell sx={{ pl: 4 }}>G. CHO MƯỢN (ĐỐI TÁC)</TableCell><TableCell><ReadOnlyCell value={data2.choMuonDoiTac} /></TableCell></TableRow>
                             </TableBody>
                         </Table>
-                        <Divider sx={{ my: 1.5 }}>
-                            <Chip label="V. TIỀN VAY" size="small" />
+                        <Divider sx={{ my: 2 }}>
+                            <Chip 
+                                label="V. TIỀN VAY" 
+                                size="small" 
+                                sx={{ 
+                                    fontWeight: 600,
+                                    px: 1
+                                }} 
+                            />
                         </Divider>
                         <Table size="small">
                             <TableHead>
@@ -1790,8 +1922,15 @@ const OverallReportPageContent = () => {
                                 ))}
                             </TableBody>
                         </Table>
-                        <Divider sx={{ my: 1.5 }}>
-                            <Chip label="VI. NỢ 01" size="small" />
+                        <Divider sx={{ my: 2 }}>
+                            <Chip 
+                                label="VI. NỢ 01" 
+                                size="small" 
+                                sx={{ 
+                                    fontWeight: 600,
+                                    px: 1
+                                }} 
+                            />
                         </Divider>
                         <Table size="small">
                             <TableHead>

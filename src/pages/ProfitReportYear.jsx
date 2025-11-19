@@ -36,32 +36,36 @@ const ResizableHeader = ({ onResize, width, children, ...restProps }) => {
     }
 
     // Tạo một component riêng cho nút kéo
-    const CustomHandle = React.forwardRef((props, ref) => (
-        <span
-            ref={ref}
-            {...props}
-            style={{
-                position: 'absolute',
-                width: '10px',
-                height: '100%',
-                bottom: 0,
-                right: '-5px',
-                cursor: 'col-resize',
-                zIndex: 1,
-            }}
-        >
-            {/* Đây là đường kẻ dọc */}
-            <span style={{
-                position: 'absolute',
-                right: '5px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                height: '50%',
-                width: '2px',
-                backgroundColor: 'rgba(255, 255, 255, 0.5)',
-            }} />
-        </span>
-    ));
+    const CustomHandle = React.forwardRef((props, ref) => {
+        // Loại bỏ các props không hợp lệ cho DOM element
+        const { handleAxis, ...validProps } = props;
+        return (
+            <span
+                ref={ref}
+                {...validProps}
+                style={{
+                    position: 'absolute',
+                    width: '10px',
+                    height: '100%',
+                    bottom: 0,
+                    right: '-5px',
+                    cursor: 'col-resize',
+                    zIndex: 1,
+                }}
+            >
+                {/* Đây là đường kẻ dọc */}
+                <span style={{
+                    position: 'absolute',
+                    right: '5px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    height: '50%',
+                    width: '2px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                }} />
+            </span>
+        );
+    });
 
     return (
         <Resizable

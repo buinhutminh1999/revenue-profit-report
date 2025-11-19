@@ -10,19 +10,39 @@ export const PROTECTED_ROUTES = [
     { path: 'construction-plan', name: 'Kế Hoạch Thi Công', group: 'Modules chính' },
     { path: 'project-manager', name: 'Quản Lý Công Trình', group: 'Modules chính' },
     { path: 'asset-transfer', name: 'QL Luân chuyển Tài sản', group: 'Modules chính' },
-    
+
     // === ROUTE MỚI ĐƯỢC THÊM VÀO (QUYỀN TRUY CẬP CHUNG) ===
     { path: 'material-price-comparison', name: 'So Sánh Giá Vật Tư', group: 'Modules chính' },
     // ===============================
-    
+
     // === QUYỀN HẠN TẠO BẢNG RIÊNG ===
-    { 
+    {
         path: 'material-price-comparison/create', // Key mới để kiểm tra quyền tạo
-        name: 'So Sánh Giá Vật Tư (Tạo Bảng)', 
+        name: 'So Sánh Giá Vật Tư (Tạo Bảng)',
         group: 'Quyền Hạn Chức Năng Đặc Biệt' // Đặt vào nhóm đặc biệt để dễ quản lý
     },
     // ===============================
     
+    // === QUYỀN HẠN GHI/CHỈNH SỬA DỮ LIỆU KẾ HOẠCH ===
+    { 
+        path: 'material-price-comparison/edit-ke-hoach', // Quyền Ghi Kế Hoạch
+        name: 'So Sánh Giá Vật Tư (Ghi Kế Hoạch/Copy)', 
+        group: 'Quyền Hạn Chức Năng Đặc Biệt'
+    },
+    
+    // === QUYỀN HẠN GHI/CHỈNH SỬA DỮ LIỆU PHÒNG CUNG ỨNG (KEY MỚI) ===
+    { 
+        path: 'material-price-comparison/edit-phong-cung-ung', // <-- KEY MỚI ĐÃ THÊM
+        name: 'So Sánh Giá Vật Tư (Ghi Phòng Cung Ứng)', 
+        group: 'Quyền Hạn Chức Năng Đặc Biệt'
+    },
+    // ================================================================
+    // === QUYỀN HẠN GHI/CHỈNH SỬA BÁO GIÁ (KEY MỚI) ===
+    { 
+        path: 'material-price-comparison/edit-bao-gia', 
+        name: 'So Sánh Giá Vật Tư (Ghi Báo Giá NCC)', 
+        group: 'Quyền Hạn Chức Năng Đặc Biệt'
+    },
     {
         name: 'Chức năng Quản lý Tài sản (Nhập/Thêm/In)',
         path: 'asset_management_functions', // Đây là key quan trọng

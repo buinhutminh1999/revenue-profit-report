@@ -16,7 +16,7 @@ import {
 } from "@mui/material";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { db } from "../services/firebase-config";
-import { useSnackbar } from "notistack";
+import toast from "react-hot-toast";
 import { isTimeString, isLate, isEarly } from "../utils/timeUtils";
 
 const LATE_COLLECTION = "lateReasons";
@@ -112,10 +112,9 @@ export default forwardRef(function AttendanceTable(
   { rows = [], includeSaturday = false, onReasonSave, isMobile, company = "BKXD" },
   ref
 ) {
-  const [reasons, setReasons] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState({ rowId: null, field: null, value: "" });
-  const { enqueueSnackbar } = useSnackbar();
+  const [reasons, setReasons] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState({ rowId: null, field: null, value: "" });
 
   useEffect(() => {
     // (Không thay đổi gì trong useEffect)
@@ -124,14 +123,14 @@ export default forwardRef(function AttendanceTable(
         const snap = await getDocs(collection(db, LATE_COLLECTION));
         const map = {};
         snap.forEach((d) => (map[d.id] = d.data()));
-        setReasons(map);
-      } catch {
-        enqueueSnackbar("Lỗi khi tải lý do", { variant: "error" });
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [enqueueSnackbar, rows]);
+        setReasons(map);
+      } catch {
+        toast.error("Lỗi khi tải lý do");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [rows]);
 
   const saveReason = useCallback(
     // (Không thay đổi gì trong saveReason)
@@ -144,15 +143,15 @@ export default forwardRef(function AttendanceTable(
       }));
       onReasonSave?.(rowId, field, newVal);
       setEditing({ rowId: null, field: null, value: "" });
-      try {
-        await setDoc(doc(db, LATE_COLLECTION, rowId), { [field]: newVal }, { merge: true });
-        enqueueSnackbar("Lưu lý do thành công", { variant: "success" });
-      } catch {
-        enqueueSnackbar("Lỗi khi lưu lý do", { variant: "error" });
-      }
-    },
-    [editing, enqueueSnackbar, onReasonSave]
-  );
+      try {
+        await setDoc(doc(db, LATE_COLLECTION, rowId), { [field]: newVal }, { merge: true });
+        toast.success("Lưu lý do thành công");
+      } catch {
+        toast.error("Lỗi khi lưu lý do");
+      }
+    },
+    [editing, onReasonSave]
+  );
 
   if (loading) {
     // (Không thay đổi gì)

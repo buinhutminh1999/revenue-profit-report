@@ -44,12 +44,23 @@ const FRONTEND_URL =
     process.env.FRONTEND_URL || "https://revenue-profit-report.vercel.app";
 // Khi test local, tạm đặt FRONTEND_URL=http://localhost:3000
 
-// Transporter Gmail (App Password)
+// Transporter Gmail (App Password) với cấu hình tối ưu
 const gmailTransporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465, // SSL
     secure: true,
     auth: { user: gmailUser, pass: gmailPass },
+    tls: {
+        // Không reject unauthorized để tránh lỗi certificate
+        rejectUnauthorized: false,
+    },
+    // Cấu hình connection pool để tăng hiệu suất
+    pool: true,
+    maxConnections: 1,
+    maxMessages: 3,
+    // Rate limiting
+    rateDelta: 1000,
+    rateLimit: 5,
 });
 
 // ActionCodeSettings: nơi người dùng quay về sau khi reset/verify
@@ -81,7 +92,9 @@ function createModernInviteEmailHtml(displayName, actionLink) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="color-scheme" content="light dark">
         <meta name="supported-color-schemes" content="light dark">
-        <title>Lời mời tham gia hệ thống</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="format-detection" content="telephone=no" />
+        <title>Lời mời tham gia hệ thống - ${companyName}</title>
         <style>
             /* General Styles */
             body {
@@ -116,14 +129,17 @@ function createModernInviteEmailHtml(displayName, actionLink) {
                         
                         <tr>
                             <td align="center" style="padding-bottom: 20px; border-bottom: 1px solid #dddddd;" class="divider-line">
-                                <img src="${logoUrl}" alt="${companyName} Logo" width="140" style="max-width: 140px;" />
+                                <img src="${logoUrl}" alt="${companyName} Logo" width="140" style="max-width: 140px; height: auto; display: block;" />
+                                <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 10px;">${companyName}</div>
                             </td>
                         </tr>
 
                         <tr>
                             <td style="padding: 30px 0;">
                                 <h1>Chào mừng bạn, ${displayName}!</h1>
-                                <p>Một tài khoản đã được tạo cho bạn tại hệ thống của <strong>${companyName}</strong>. Để hoàn tất thiết lập, vui lòng nhấn vào nút bên dưới để tạo mật khẩu đầu tiên.</p>
+                                <p>Xin chào,</p>
+                                <p>Bạn đã được mời tham gia hệ thống quản lý của <strong>${companyName}</strong>. Tài khoản của bạn đã được tạo sẵn và bạn chỉ cần thiết lập mật khẩu để bắt đầu sử dụng.</p>
+                                <p>Vui lòng nhấn vào nút bên dưới để thiết lập mật khẩu và đăng nhập vào hệ thống:</p>
                             </td>
                         </tr>
 
@@ -170,21 +186,95 @@ async function createActionLink(type, email, acs = DEFAULT_ACS) {
     throw new HttpsError("invalid-argument", "type phải là VERIFY hoặc RESET");
 }
 
-// Gửi mail qua Gmail
-async function sendWithGmail({ to, subject, html, fromName = "Bách Khoa" }) {
+// Tạo plain text version tốt hơn từ HTML
+function htmlToPlainText(html) {
+    return html
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "") // Remove style tags
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "") // Remove script tags
+        .replace(/<[^>]+>/g, "") // Remove all HTML tags
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, "\"")
+        .replace(/&#39;/g, "'")
+        .replace(/\s+/g, " ") // Multiple spaces to single
+        .replace(/\n\s*\n/g, "\n\n") // Multiple newlines to double
+        .trim();
+}
+
+// Gửi mail qua Gmail với cấu hình tối ưu để tránh spam
+async function sendWithGmail({ to, subject, html, fromName = "Bách Khoa", plainText = null, retries = 2 }) {
     if (!gmailUser || !gmailPass) {
         throw new HttpsError("failed-precondition", "Chưa cấu hình GMAIL_SMTP_USER / GMAIL_SMTP_APP_PASSWORD");
     }
+
+    // Tạo plain text version nếu chưa có
+    const textContent = plainText || htmlToPlainText(html);
+
+    // Tạo Message-ID duy nhất
+    const messageId = `<${Date.now()}-${Math.random().toString(36).substring(2, 15)}@${gmailUser.split("@")[1]}>`;
+
     const from = `"${fromName}" <${gmailUser}>`;
-    return gmailTransporter.sendMail({
+
+    // Tạo Return-Path header (quan trọng cho deliverability)
+    const returnPath = gmailUser;
+
+    const mailOptions = {
         from,
         to,
         subject,
         html,
-        text: html.replace(/<[^>]*>/g, ""),
+        text: textContent,
         replyTo: gmailUser,
-        headers: { "X-Priority": "1 (Highest)", "X-MSMail-Priority": "High", "Importance": "High" },
-    });
+        returnPath: returnPath,
+        encoding: "UTF-8",
+        headers: {
+            // Headers chuẩn RFC 5322
+            "Message-ID": messageId,
+            "Date": new Date().toUTCString(),
+            "MIME-Version": "1.0",
+            "Content-Type": "text/html; charset=UTF-8",
+            "Content-Transfer-Encoding": "quoted-printable",
+
+            // Headers để cải thiện deliverability
+            "X-Mailer": "Bach Khoa System",
+            "X-Priority": "3", // Normal priority (1=Highest, 3=Normal, 5=Lowest)
+            "Importance": "Normal",
+            "Return-Path": returnPath,
+
+            // Headers để tránh spam filters (transactional email)
+            "X-Auto-Response-Suppress": "All", // Tránh auto-reply
+            "X-Entity-Ref-ID": messageId, // Tracking ID
+
+            // Headers để cải thiện reputation (transactional email)
+            "X-Google-Original-From": from,
+        },
+        // Cấu hình bổ sung cho nodemailer
+        priority: "normal",
+        disableUrlAccess: false,
+        disableFileAccess: false,
+    };
+
+    // Retry logic với exponential backoff
+    let lastError;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            return await gmailTransporter.sendMail(mailOptions);
+        } catch (error) {
+            lastError = error;
+            if (attempt < retries) {
+                // Exponential backoff: 1s, 2s, 4s
+                const delay = Math.pow(2, attempt) * 1000;
+                logger.warn(`Gửi email thất bại (lần thử ${attempt + 1}/${retries + 1}), thử lại sau ${delay}ms:`, error.message);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+            }
+        }
+    }
+
+    // Nếu tất cả retry đều thất bại
+    logger.error("Gửi email thất bại sau tất cả các lần thử:", lastError);
+    throw lastError;
 }
 
 // ==== REPLACE UNTIL HERE ====
@@ -500,14 +590,37 @@ exports.inviteUser = onCall(async (request) => {
         // 4) GỌI HÀM TEMPLATE MỚI
         const emailHtml = createModernInviteEmailHtml(displayName, actionLink);
 
-        // 5) Gửi mail bằng transporter của bạn (Gmail)
+        // 5) Tạo plain text version tốt hơn
+        const companyName = "Công ty Cổ phần Xây dựng Bách Khoa";
+        const plainTextContent = `Chào mừng bạn, ${displayName}!
+
+Xin chào,
+
+Bạn đã được mời tham gia hệ thống quản lý của ${companyName}. Tài khoản của bạn đã được tạo sẵn và bạn chỉ cần thiết lập mật khẩu để bắt đầu sử dụng.
+
+Vui lòng truy cập link sau để thiết lập mật khẩu và đăng nhập vào hệ thống:
+
+${actionLink}
+
+Nếu link trên không hoạt động, bạn có thể sao chép toàn bộ link trên và dán vào thanh địa chỉ trình duyệt web của bạn.
+
+Link này sẽ hết hạn sau 24 giờ. Nếu bạn gặp vấn đề, vui lòng liên hệ với quản trị viên hệ thống.
+
+Trân trọng,
+Đội ngũ ${companyName}
+Hệ thống Quản lý`.trim();
+
+        // 6) Gửi mail bằng transporter với cấu hình tối ưu
+        // Subject line không dùng dấu ngoặc vuông để tránh spam filter
         await sendWithGmail({
             to: email,
-            subject: `[Bách Khoa] Lời mời tham gia hệ thống và tạo mật khẩu`, // Tiêu đề rõ ràng, chuyên nghiệp hơn
+            subject: `Bách Khoa - Lời mời tham gia hệ thống và tạo mật khẩu`,
             html: emailHtml,
+            plainText: plainTextContent,
+            fromName: "Bách Khoa - Hệ thống Quản lý",
         });
 
-        // 6) Ghi log kiểm toán
+        // 7) Ghi log kiểm toán
         await writeAuditLog(
             "USER_CREATED_AND_INVITED",
             request.auth.uid,

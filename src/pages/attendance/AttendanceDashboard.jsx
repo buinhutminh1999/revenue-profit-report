@@ -43,7 +43,7 @@ import { printStyledAttendance } from "../../utils/printUtils";
 
 import { collection, getDocs, setDoc, doc, query, orderBy } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
-import { useSnackbar } from "notistack";
+import toast from "react-hot-toast";
 import { useFileUpload } from "../../hooks/useFileUpload";
 
 // (Giữ nguyên các hàm toDateString, parseDMY, isValidTimeString, getPreviousWeek)
@@ -132,11 +132,10 @@ export default function Home() {
     const [selectedCompany, setSelectedCompany] = useState(
         () => localStorage.getItem("defaultCompany") || "BKXD" // Lấy "defaultCompany" từ localStorage, nếu không có thì mặc định là "BKXD"
     );
-    const [isLoading, setIsLoading] = useState(true);
-    const [isUploading, setIsUploading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isUploading, setIsUploading] = useState(false);
 
-    const { enqueueSnackbar } = useSnackbar();
-    const Picker = isMobile ? MobileDatePicker : DatePicker;
+    const Picker = isMobile ? MobileDatePicker : DatePicker;
 
     // (Các hàm loadAttendanceData, useEffect, useMemo, handleFileUploadData, handleReasonSave... 
     // ... KHÔNG CÓ THAY ĐỔI)
@@ -165,17 +164,17 @@ export default function Home() {
 
             setRows(all);
             setDepts(Array.from(new Set(all.map((r) => r["Tên bộ phận"]))));
-        } catch (err) {
-            console.error("Lỗi khi tải dữ liệu:", err);
-            if (err.code === 'failed-precondition') {
-                enqueueSnackbar("Lỗi: Cần tạo chỉ mục trong Firestore. Kiểm tra console (F12) để xem link tạo.", { variant: "error", autoHideDuration: 10000 });
-            } else {
-                enqueueSnackbar("Lỗi khi tải dữ liệu", { variant: "error" });
-            }
-        } finally {
-            setIsLoading(false);
-        }
-    }, [enqueueSnackbar]);
+        } catch (err) {
+            console.error("Lỗi khi tải dữ liệu:", err);
+            if (err.code === 'failed-precondition') {
+                toast.error("Lỗi: Cần tạo chỉ mục trong Firestore. Kiểm tra console (F12) để xem link tạo.", { duration: 10000 });
+            } else {
+                toast.error("Lỗi khi tải dữ liệu");
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => { loadAttendanceData(); }, [loadAttendanceData]);
 
@@ -246,48 +245,48 @@ export default function Home() {
         console.log("2. Dữ liệu đã format (formattedData):", formattedData);
         console.log("3. Kiểm tra các lỗi (errors):", errors);
 
-            if (errors.length > 0) {
-                const errorMessage = `Phát hiện ${errors.length} lỗi trong file. Vui lòng sửa lại và thử lại:\n\n${errors.join('\n')}`;
-                enqueueSnackbar(errorMessage, { variant: "error", style: { whiteSpace: 'pre-line' }, autoHideDuration: 15000 });
-                return;
-            }
+            if (errors.length > 0) {
+                const errorMessage = `Phát hiện ${errors.length} lỗi trong file. Vui lòng sửa lại và thử lại:\n\n${errors.join('\n')}`;
+                toast.error(errorMessage, { duration: 15000 });
+                return;
+            }
 
-            await Promise.all(
-                formattedData.map((row) => setDoc(doc(db, "attendance", row.id), row, { merge: true }))
-            );
+            await Promise.all(
+                formattedData.map((row) => setDoc(doc(db, "attendance", row.id), row, { merge: true }))
+            );
 
-            enqueueSnackbar("Tải & lưu dữ liệu chấm công thành công!", { variant: "success" });
-            await loadAttendanceData();
-        } catch (err) {
-            console.error("Lỗi hệ thống khi xử lý file:", err);
-            enqueueSnackbar("Lỗi hệ thống khi xử lý file. Vui lòng kiểm tra console.", { variant: "error" });
-        } finally {
-            setIsUploading(false);
-        }
-    }, [enqueueSnackbar, loadAttendanceData]);
+            toast.success("Tải & lưu dữ liệu chấm công thành công!");
+            await loadAttendanceData();
+        } catch (err) {
+            console.error("Lỗi hệ thống khi xử lý file:", err);
+            toast.error("Lỗi hệ thống khi xử lý file. Vui lòng kiểm tra console.");
+        } finally {
+            setIsUploading(false);
+        }
+    }, [loadAttendanceData]);
 
-    const handleReasonSave = useCallback(async (rowId, field, value) => {
-        try {
-            await setDoc(doc(db, "lateReasons", rowId), { [field]: value }, { merge: true });
-            enqueueSnackbar("Đã lưu lý do", { variant: "success" });
+    const handleReasonSave = useCallback(async (rowId, field, value) => {
+        try {
+            await setDoc(doc(db, "lateReasons", rowId), { [field]: value }, { merge: true });
+            toast.success("Đã lưu lý do");
 
-            setRows(prevRows => prevRows.map(row =>
-                row.id === rowId ? { ...row, [field]: value } : row
-            ));
-        } catch {
-            enqueueSnackbar("Lỗi khi lưu lý do", { variant: "error" });
-        }
-    }, [enqueueSnackbar]);
+            setRows(prevRows => prevRows.map(row =>
+                row.id === rowId ? { ...row, [field]: value } : row
+            ));
+        } catch {
+            toast.error("Lỗi khi lưu lý do");
+        }
+    }, []);
 
     const { handleFileUpload } = useFileUpload(handleFileUploadData);
 
     // Bên trong src/pages/Home.js
 
-    const handlePrint = () => {
-        if (!fromDate || !toDate) {
-            enqueueSnackbar("Chọn đủ Từ ngày và Đến ngày để in", { variant: "warning" });
-            return;
-        }
+    const handlePrint = () => {
+        if (!fromDate || !toDate) {
+            toast("Chọn đủ Từ ngày và Đến ngày để in", { icon: '⚠️' });
+            return;
+        }
 
         // --- THAY ĐỔI DUY NHẤT Ở ĐÂY ---
         printStyledAttendance(

@@ -41,9 +41,10 @@ import {
     FilterList as FilterListIcon,
     Search as SearchIcon,
 } from "@mui/icons-material";
-import { useQuery, useMutation, useQueryClient } from "react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { doc, getDoc, setDoc, getDocs, collection } from "firebase/firestore";
 import toast from "react-hot-toast";
+import { ErrorState, SkeletonTable } from "../components/common";
 import { db } from "../services/firebase-config";
 import { useAccountBalances } from "../hooks/useFinanceData";
 import { debounce } from "lodash";
@@ -53,9 +54,9 @@ const REPORT_COLLECTION = "capitalUtilizationReports";
 const CHART_OF_ACCOUNTS_COLLECTION = "chartOfAccounts";
 
 const useChartOfAccounts = () => {
-    return useQuery(
-        "chartOfAccounts",
-        async () => {
+    return useQuery({
+        queryKey: ["chartOfAccounts"],
+        queryFn: async () => {
             const snapshot = await getDocs(
                 collection(db, CHART_OF_ACCOUNTS_COLLECTION)
             );
@@ -66,17 +67,15 @@ const useChartOfAccounts = () => {
             });
             return accountsMap;
         },
-        {
-            staleTime: Infinity,
-        }
-    );
+        staleTime: Infinity
+    });
 };
 
 const useCapitalReport = (year, quarter) => {
     const docId = `${year}_Q${quarter}`;
-    return useQuery(
-        ["capitalReport", docId],
-        async () => {
+    return useQuery({
+        queryKey: ["capitalReport", docId],
+        queryFn: async () => {
             const initialReportData = {
                 production: [
                     { id: 1, stt: "1", codes: [], item: "Hàng tồn kho NVL", plan: 0, actual: 0, advantages: "", notes: "" },
@@ -163,29 +162,30 @@ const useCapitalReport = (year, quarter) => {
             }
             return initialReportData;
         },
-        { keepPreviousData: true, staleTime: 5 * 60 * 1000 }
-    );
+        placeholderData: (previousData) => previousData,
+        staleTime: 5 * 60 * 1000
+    });
 };
 
 const useMutateCapitalReport = () => {
     const queryClient = useQueryClient();
-    return useMutation(
-        async ({ year, quarter, data }) => {
+    return useMutation({
+        mutationFn: async ({ year, quarter, data }) => {
             const docId = `${year}_Q${quarter}`;
             const docRef = doc(db, REPORT_COLLECTION, docId);
             await setDoc(docRef, data, { merge: true });
         },
-        {
-            onSuccess: (_, variables) => {
-                toast.success("Lưu thành công!");
-                queryClient.invalidateQueries([
+        onSuccess: (_, variables) => {
+            toast.success("Lưu thành công!");
+            queryClient.invalidateQueries({
+                queryKey: [
                     "capitalReport",
                     `${variables.year}_Q${variables.quarter}`,
-                ]);
-            },
-            onError: (error) => toast.error(`Lỗi khi lưu: ${error.message}`),
-        }
-    );
+                ],
+            });
+        },
+        onError: (error) => toast.error(`Lỗi khi lưu: ${error.message}`),
+    });
 };
 
 const formatCurrency = (value) => {
@@ -618,17 +618,22 @@ const CapitalUtilizationReport = () => {
     }, [reportData]); // Phụ thuộc vào reportData
     if (isReportLoading || isBalancesLoading || isChartLoading || !reportData) {
         return (
-            <Box sx={{ display: "flex", justifyContent: "center", p: 5 }}>
-                <CircularProgress />
-            </Box>
+            <Container sx={{ py: 3 }}>
+                <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 3 }}>
+                    <SkeletonTable rows={12} columns={6} />
+                </Paper>
+            </Container>
         );
     }
     if (isError) {
         return (
             <Container sx={{ py: 3 }}>
-                <Alert severity="error">
-                    Lỗi khi tải dữ liệu báo cáo: {error.message}
-                </Alert>
+                <ErrorState
+                    error={error}
+                    title="Lỗi tải dữ liệu báo cáo"
+                    onRetry={() => window.location.reload()}
+                    retryLabel="Tải lại"
+                />
             </Container>
         );
     }

@@ -1,4 +1,4 @@
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 
 // ✅ LƯU Ý: Đảm bảo đường dẫn này trỏ đúng đến file cấu hình firebase của bạn
@@ -16,15 +16,15 @@ const BALANCES_COLLECTION = 'accountBalances';
  * - Ví dụ: { "152": { accountId: "152", cuoiKyNo: 500000, ... }, "131": { ... } }
  */
 export const useAccountBalances = (year, quarter) => {
-    return useQuery(
+    return useQuery({
         // 1. Khóa truy vấn (Query Key):
         // React-Query sẽ tự động cache và cập nhật dữ liệu dựa trên key này.
         // Khi year hoặc quarter thay đổi, key sẽ thay đổi và hook sẽ tự động fetch lại dữ liệu mới.
-        ['accountBalances', year, quarter], 
+        queryKey: ['accountBalances', year, quarter], 
         
         // 2. Hàm lấy dữ liệu (Fetcher Function):
         // Một hàm async để thực hiện truy vấn tới Firestore.
-        async () => {
+        queryFn: async () => {
             // Hiển thị log để kiểm tra xem hook có đang chạy không
             console.log(`Fetching balances for Q${quarter}/${year}...`);
 
@@ -51,16 +51,14 @@ export const useAccountBalances = (year, quarter) => {
         },
         
         // 3. Tùy chọn (Options):
-        {
-            // Giữ lại dữ liệu của lần fetch trước đó trong khi đang fetch dữ liệu mới.
-            // Giúp UI không bị chớp tắt về trạng thái loading khi đổi quý hoặc năm.
-            keepPreviousData: true,
+        // Giữ lại dữ liệu của lần fetch trước đó trong khi đang fetch dữ liệu mới.
+        // Giúp UI không bị chớp tắt về trạng thái loading khi đổi quý hoặc năm.
+        placeholderData: (previousData) => previousData,
 
-            // Dữ liệu sẽ được coi là "cũ" (stale) sau 5 phút.
-            // Trong khoảng thời gian này, react-query sẽ không tự động fetch lại khi focus vào cửa sổ.
-            staleTime: 5 * 60 * 1000, 
-        }
-    );
+        // Dữ liệu sẽ được coi là "cũ" (stale) sau 5 phút.
+        // Trong khoảng thời gian này, react-query sẽ không tự động fetch lại khi focus vào cửa sổ.
+        staleTime: 5 * 60 * 1000, 
+    });
 };
 
 // Bạn có thể thêm các hook liên quan đến tài chính khác vào file này trong tương lai.

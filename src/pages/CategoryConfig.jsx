@@ -19,14 +19,41 @@ import {
 import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from "@dnd-kit/core";
+import {
+    SortableContext,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // --- TÁI CẤU TRÚC: Component con cho từng dòng ---
-const CategoryRow = ({ row, index, provided, snapshot, isDragDisabled, activeSortLabel, onCheckboxChange, onEdit, onDelete }) => {
+const CategoryRow = ({ row, isDragDisabled, activeSortLabel, onCheckboxChange, onEdit, onDelete }) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: row.id, disabled: isDragDisabled });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.9 : 1,
+    };
+
     return (
         <Paper
-            ref={provided.innerRef}
-            {...provided.draggableProps}
+            ref={setNodeRef}
+            style={style}
             elevation={0}
             sx={{
                 display: 'grid',
@@ -38,8 +65,8 @@ const CategoryRow = ({ row, index, provided, snapshot, isDragDisabled, activeSor
                 borderRadius: 2.5,
                 border: '1px solid',
                 borderColor: 'divider',
-                backgroundColor: snapshot.isDragging ? alpha("#90CAF9", 0.3) : 'background.paper',
-                boxShadow: snapshot.isDragging ? '0 8px 20px rgba(0,0,0,0.15)' : 'none',
+                backgroundColor: isDragging ? alpha("#90CAF9", 0.3) : 'background.paper',
+                boxShadow: isDragging ? '0 8px 20px rgba(0,0,0,0.15)' : 'none',
                 transition: 'background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease',
                 '&:hover': {
                     borderColor: 'primary.main',
@@ -47,11 +74,10 @@ const CategoryRow = ({ row, index, provided, snapshot, isDragDisabled, activeSor
                     boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
                 },
                 opacity: (row.allowAllocation === false) ? 0.75 : 1,
-                ...provided.draggableProps.style,
             }}
         >
             <Tooltip title={isDragDisabled ? "" : `Kéo để sắp xếp theo ${activeSortLabel}`}>
-                <Box {...provided.dragHandleProps} sx={{ display: 'flex', alignItems: 'center', cursor: isDragDisabled ? 'not-allowed' : 'grab', color: isDragDisabled ? 'text.disabled' : 'text.secondary' }}>
+                <Box {...attributes} {...listeners} sx={{ display: 'flex', alignItems: 'center', cursor: isDragDisabled ? 'not-allowed' : 'grab', color: isDragDisabled ? 'text.disabled' : 'text.secondary', touchAction: 'none' }}>
                     <DragIndicatorIcon />
                 </Box>
             </Tooltip>
@@ -179,13 +205,26 @@ export default function CategoryConfig() {
         });
     };
 
-    const handleDragEnd = async (result) => {
-        const { source, destination } = result;
-        if (!destination) return;
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        })
+    );
+
+    const handleDragEnd = async (event) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = filteredCategories.findIndex(item => item.id === active.id);
+        const newIndex = filteredCategories.findIndex(item => item.id === over.id);
+        
+        if (oldIndex === -1 || newIndex === -1) return;
 
         const reorderedList = Array.from(filteredCategories);
-        const [movedItem] = reorderedList.splice(source.index, 1);
-        reorderedList.splice(destination.index, 0, movedItem);
+        const [movedItem] = reorderedList.splice(oldIndex, 1);
+        reorderedList.splice(newIndex, 0, movedItem);
         
         const reorderedMap = new Map(reorderedList.map((item, index) => [item.id, index]));
         const newMasterList = categories
@@ -423,42 +462,36 @@ export default function CategoryConfig() {
                                     )}
                                 </Box>
                                 
-                                <DragDropContext onDragEnd={handleDragEnd}>
-                                    <Droppable droppableId="categoriesList" isDropDisabled={isDragDisabled}>
-                                        {(provided) => (
-                                            <Box {...provided.droppableProps} ref={provided.innerRef} sx={{ p: 2, pt: 0 }}>
-                                                <Box sx={{ display: { xs: 'none', md: 'grid' }, gridTemplateColumns: '50px 1fr 100px 100px 100px 110px 120px', gap: 2, p: '8px 16px', mb: 1, fontWeight: 'bold', color: 'text.secondary', borderBottom: '1px solid', borderColor: 'divider' }}>
-                                                    <Box></Box>
-                                                    <Box>Tên Khoản Mục</Box>
-                                                    <Box sx={{ textAlign: 'center' }}>Thi công</Box>
-                                                    <Box sx={{ textAlign: 'center' }}>Nhà máy</Box>
-                                                    <Box sx={{ textAlign: 'center' }}>KH-ĐT</Box>
-                                                    <Box sx={{ textAlign: 'center' }}>Phân bổ</Box>
-                                                    <Box sx={{ textAlign: 'center' }}>Hành Động</Box>
-                                                </Box>
-
-                                                {filteredCategories.map((row, index) => (
-                                                    <Draggable key={row.id} draggableId={row.id} index={index} isDragDisabled={isDragDisabled}>
-                                                        {(provided, snapshot) => (
-                                                           <CategoryRow
-                                                                row={row}
-                                                                index={index}
-                                                                provided={provided}
-                                                                snapshot={snapshot}
-                                                                isDragDisabled={isDragDisabled}
-                                                                activeSortLabel={activeSort.label}
-                                                                onCheckboxChange={handleFieldChange}
-                                                                onEdit={setEditRow}
-                                                                onDelete={setDelId}
-                                                           />
-                                                        )}
-                                                    </Draggable>
-                                                ))}
-                                                {provided.placeholder}
+                                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                                    <SortableContext 
+                                        items={filteredCategories.map(item => item.id)} 
+                                        strategy={verticalListSortingStrategy}
+                                    >
+                                        <Box sx={{ p: 2, pt: 0 }}>
+                                            <Box sx={{ display: { xs: 'none', md: 'grid' }, gridTemplateColumns: '50px 1fr 100px 100px 100px 110px 120px', gap: 2, p: '8px 16px', mb: 1, fontWeight: 'bold', color: 'text.secondary', borderBottom: '1px solid', borderColor: 'divider' }}>
+                                                <Box></Box>
+                                                <Box>Tên Khoản Mục</Box>
+                                                <Box sx={{ textAlign: 'center' }}>Thi công</Box>
+                                                <Box sx={{ textAlign: 'center' }}>Nhà máy</Box>
+                                                <Box sx={{ textAlign: 'center' }}>KH-ĐT</Box>
+                                                <Box sx={{ textAlign: 'center' }}>Phân bổ</Box>
+                                                <Box sx={{ textAlign: 'center' }}>Hành Động</Box>
                                             </Box>
-                                        )}
-                                    </Droppable>
-                                </DragDropContext>
+
+                                            {filteredCategories.map((row) => (
+                                                <CategoryRow
+                                                    key={row.id}
+                                                    row={row}
+                                                    isDragDisabled={isDragDisabled}
+                                                    activeSortLabel={activeSort.label}
+                                                    onCheckboxChange={handleFieldChange}
+                                                    onEdit={setEditRow}
+                                                    onDelete={setDelId}
+                                                />
+                                            ))}
+                                        </Box>
+                                    </SortableContext>
+                                </DndContext>
                             </>
                         )}
                     </Box>

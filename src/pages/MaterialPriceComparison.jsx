@@ -16,11 +16,12 @@ import {
 import { db } from '../services/firebase-config';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays, isPast } from 'date-fns';
-import { useSnackbar } from 'notistack';
+import toast from 'react-hot-toast';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { vi } from 'date-fns/locale';
-import { useAuth } from '../contexts/AuthContext'; 
+import { useAuth } from '../contexts/AuthContext';
+import { EmptyState, ErrorState, SkeletonDataGrid } from '../components/common'; 
 
 // --- Key Whitelist cho chức năng Tạo bảng ---
 const CREATE_PATH_KEY = 'material-price-comparison/create';
@@ -154,7 +155,6 @@ const canCreate = useMemo(() => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
-    const { enqueueSnackbar, closeSnackbar } = useSnackbar();
 
     // --- State cho Dialog tạo mới ---
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -296,7 +296,7 @@ const canCreate = useMemo(() => {
             console.error("Lỗi Realtime khi tải danh sách bảng:", err);
             setError(err.message);
             setLoading(false);
-            enqueueSnackbar(`Lỗi tải dữ liệu Realtime: ${err.message}`, { variant: 'error' });
+            toast.error(`Lỗi tải dữ liệu Realtime: ${err.message}`);
         });
         return unsubscribe;
     };
@@ -351,7 +351,7 @@ const canCreate = useMemo(() => {
     // --- Dialog Tạo Mới (Thêm kiểm tra canCreate) ---
     const handleAddNew = () => {
         if (!canCreate) { // Kiểm tra quyền trước khi mở
-             enqueueSnackbar('Bạn không có quyền tạo bảng so sánh giá.', { variant: 'error' });
+             toast.error('Bạn không có quyền tạo bảng so sánh giá.');
              return;
         }
         setNewProjectName('');
@@ -372,18 +372,16 @@ const canCreate = useMemo(() => {
         if (!tableId) return;
 
         setIsDeleting(true);
-        const persistKey = enqueueSnackbar(`Đang xóa bảng của "${projectName}" và tất cả vật tư...`, { variant: 'info', persist: true });
+        const loadingToast = toast.loading(`Đang xóa bảng của "${projectName}" và tất cả vật tư...`);
 
         try {
             const tableDocRef = doc(db, 'priceComparisonTables', tableId);
             await deleteSubCollection(db, tableDocRef, 'items');
             await deleteDoc(tableDocRef);
-            closeSnackbar(persistKey);
-            enqueueSnackbar(`Đã xóa thành công bảng của "${projectName}"`, { variant: 'success' });
+            toast.success(`Đã xóa thành công bảng của "${projectName}"`, { id: loadingToast });
         } catch (err) {
             console.error("Lỗi khi xóa bảng và vật tư:", err);
-            closeSnackbar(persistKey);
-            enqueueSnackbar(`Lỗi khi xóa: ${err.message}`, { variant: 'error' });
+            toast.error(`Lỗi khi xóa: ${err.message}`, { id: loadingToast });
         } finally {
             setIsDeleting(false);
             setDeleteTarget({ id: null, name: '' });
@@ -398,7 +396,7 @@ const canCreate = useMemo(() => {
         
         // Kiểm tra quyền lần cuối khi submit
         if (!newProjectName.trim() || isNaN(duration) || duration <= 0 || !currentUser || !canCreate) {
-             enqueueSnackbar('Lỗi quyền hoặc thiếu thông tin.', { variant: 'error' });
+             toast.error('Lỗi quyền hoặc thiếu thông tin.');
              return;
         }
 
@@ -425,11 +423,11 @@ const canCreate = useMemo(() => {
                 approvedAt: now
             });
 
-            enqueueSnackbar(`Tạo bảng "${trimmedProjectName}" thành công!`, { variant: 'success' });
+            toast.success(`Tạo bảng "${trimmedProjectName}" thành công!`);
             setOpenCreateDialog(false);
         } catch (err) {
             console.error("Lỗi khi tạo bảng mới:", err);
-            enqueueSnackbar(`Lỗi khi tạo bảng: ${err.message}`, { variant: 'error' });
+            toast.error(`Lỗi khi tạo bảng: ${err.message}`);
         } finally {
             setIsCreating(false);
         }
@@ -449,9 +447,13 @@ const canCreate = useMemo(() => {
     if (!currentUser) {
         return (
             <Container maxWidth="sm" sx={{ pt: 10 }}>
-                <Alert severity="error">
-                    Truy cập bị từ chối: Vui lòng đăng nhập lại.
-                </Alert>
+                <ErrorState
+                    error="Truy cập bị từ chối"
+                    title="Yêu cầu đăng nhập"
+                    description="Vui lòng đăng nhập lại để tiếp tục sử dụng hệ thống."
+                    onRetry={() => window.location.href = '/login'}
+                    retryLabel="Đăng nhập"
+                />
             </Container>
         );
     }
@@ -592,27 +594,27 @@ const canCreate = useMemo(() => {
                         }}
                     >
                         {loading ? (
-                            <CircularProgress />
-                        ) : tables.length === 0 && !error ? (
-                            <Box sx={{ textAlign: 'center', py: 5, m: 'auto' }}>
-                                <AlertCircle size={48} color="#94a3b8" />
-                                <Typography variant="h6" color="text.secondary" mt={2}>
-                                    Không có dữ liệu bảng so sánh.
-                                </Typography>
-                                {/* Nút Tạo Bảng ở đây cũng phải được kiểm tra quyền */}
-                                <Tooltip title={canCreate ? "Tạo bảng so sánh vật tư mới" : "Bạn không có quyền tạo bảng"}>
-                                    <span>
-                                        <Button
-                                            variant="outlined"
-                                            startIcon={<Plus size={18} />}
-                                            sx={{ mt: 3 }}
-                                            onClick={handleAddNew}
-                                            disabled={!canCreate}
-                                        >
-                                            Tạo Bảng Mới
-                                        </Button>
-                                    </span>
-                                </Tooltip>
+                            <Box sx={{ p: 3, width: '100%' }}>
+                                <SkeletonDataGrid rows={8} columns={5} />
+                            </Box>
+                        ) : error ? (
+                            <Box sx={{ p: 3 }}>
+                                <ErrorState
+                                    error={error}
+                                    title="Lỗi tải dữ liệu"
+                                    onRetry={() => window.location.reload()}
+                                    retryLabel="Tải lại"
+                                />
+                            </Box>
+                        ) : tables.length === 0 ? (
+                            <Box sx={{ p: 3 }}>
+                                <EmptyState
+                                    icon={<AlertCircle size={64} />}
+                                    title="Chưa có bảng so sánh giá"
+                                    description="Bắt đầu bằng cách tạo bảng so sánh giá vật tư mới cho công trình của bạn."
+                                    actionLabel={canCreate ? "Tạo Bảng Mới" : undefined}
+                                    onAction={canCreate ? handleAddNew : undefined}
+                                />
                             </Box>
                         ) : (
                             <DataGrid
