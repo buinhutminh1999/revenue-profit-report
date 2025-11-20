@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import React, { useContext } from 'react';
 import { ThemeSettingsContext } from '../styles/ThemeContext'; // <-- Nhớ kiểm tra lại đường dẫn này
 import { IconButton } from '@mui/material';
 import ViewCompactIcon from '@mui/icons-material/ViewCompact';

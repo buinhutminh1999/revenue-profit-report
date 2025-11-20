@@ -19,7 +19,7 @@ import { format, addDays, isPast } from 'date-fns';
 import toast from 'react-hot-toast';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { vi } from 'date-fns/locale';
+import { vi } from 'date-fns/locale/vi';
 import { useAuth } from '../contexts/AuthContext';
 import { EmptyState, ErrorState, SkeletonDataGrid } from '../components/common'; 
 
@@ -571,6 +571,7 @@ const canCreate = useMemo(() => {
                                 value={filterDate}
                                 onChange={(newValue) => setFilterDate(newValue)}
                                 disabled={isDeleting}
+                                enableAccessibleFieldDOMStructure={false}
                                 slots={{
                                     textField: (params) => (
                                         <TextField

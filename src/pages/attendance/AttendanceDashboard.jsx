@@ -22,12 +22,10 @@ import {
     LocalizationProvider, 
     DatePicker, 
     MobileDatePicker,
-    // ⭐ SỬA 1: Import gói ngôn ngữ MUI cho tiếng Việt ⭐
-    viVN, 
 } from "@mui/x-date-pickers";
 
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-// import { vi } from 'date-fns/locale'; // Giữ lại nếu bạn cần locale của date-fns ở chỗ khác
+import { vi } from 'date-fns/locale/vi'; // Import locale tiếng Việt từ date-fns
 
 import { startOfDay, endOfDay } from "date-fns";
 import { Print, UploadFile, Search, Clear } from "@mui/icons-material";
@@ -393,35 +391,35 @@ export default function Home() {
                             {/* --------------------------- */}
 
                             <Grid item xs={12} sm={6}>
-                                {/* ⭐ SỬA 2: Thêm localeText={viVN.components.MuiLocalizationProvider.defaultProps.localeText} ⭐ */}
-                                <LocalizationProvider 
-                                    dateAdapter={AdapterDateFns} 
-                                    localeText={viVN.components.MuiLocalizationProvider.defaultProps.localeText}
-                                >
-                                    <Picker
-                                        label="Từ ngày"
-                                        value={fromDate}
-                                        onChange={setFromDate}
-                                     format="dd/MM/yyyy"
-                                        slots={{ textField: TextField }}
-                                        slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                                    />
+                            <LocalizationProvider 
+                                dateAdapter={AdapterDateFns}
+                                adapterLocale={vi}
+                            >
+                            <Picker
+                                label="Từ ngày"
+                                value={fromDate}
+                                onChange={setFromDate}
+                                format="dd/MM/yyyy"
+                                enableAccessibleFieldDOMStructure={false}
+                                slots={{ textField: TextField }}
+                                slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                            />
                                 </LocalizationProvider>
                             </Grid>
                             <Grid item xs={12} sm={6}>
-                                {/* ⭐ SỬA 2: Thêm localeText={viVN.components.MuiLocalizationProvider.defaultProps.localeText} ⭐ */}
-                                <LocalizationProvider 
-                                    dateAdapter={AdapterDateFns}
-                                    localeText={viVN.components.MuiLocalizationProvider.defaultProps.localeText}
-                                >
-                                    <Picker
-                                        label="Đến ngày"
-                                        value={toDate}
-                                        onChange={setToDate}
-                                     format="dd/MM/yyyy"
-                                        slots={{ textField: TextField }}
-                                        slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                                    />
+                            <LocalizationProvider 
+                                dateAdapter={AdapterDateFns}
+                                adapterLocale={vi}
+                            >
+                            <Picker
+                                label="Đến ngày"
+                                value={toDate}
+                                onChange={setToDate}
+                                format="dd/MM/yyyy"
+                                enableAccessibleFieldDOMStructure={false}
+                                slots={{ textField: TextField }}
+                                slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                            />
                                 </LocalizationProvider>
                             </Grid>
                         </Grid>

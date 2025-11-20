@@ -1,72 +1,132 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-
-// --- CÁC HOOK VÀ CẤU HÌNH ---
-import { useAuth } from '../contexts/AuthContext'; // Hook để lấy thông tin người dùng
-import { db } from '../services/firebase-config'; // Import db instance
-import { doc, getDoc } from 'firebase/firestore'; // Firestore functions
-
-// --- CÁC COMPONENT TỪ MUI (Đã thêm Paper, TextField, InputAdornment) ---
-import { Box, Card, CardContent, Typography, Grid, Badge, CircularProgress, Paper, TextField, InputAdornment } from '@mui/material';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
+import { db } from '../services/firebase-config';
+import { doc, getDoc } from 'firebase/firestore';
+import {
+    Box, Card, CardContent, Typography, Grid, Badge, CircularProgress, 
+    Paper, TextField, InputAdornment, Chip, Avatar, Stack, IconButton,
+    Tooltip, Skeleton, alpha, useTheme
+} from '@mui/material';
 import { styled } from '@mui/material/styles';
-
-// --- CÁC ICON (Đã thêm Search) ---
 import {
     Construction, Building, BookCheck, FileSpreadsheet, BarChart3,
     Landmark, ClipboardList, BookUser, PieChart, LineChart, TrendingUp,
     FileCheck2, FileBarChart2, ArrowRightLeft, ShieldOff,
-    UserCheck, Search, // Thêm icon Search
-    ClipboardCheck
+    UserCheck, Search, ClipboardCheck, X, Filter, Sparkles, Star,
+    TrendingDown, Activity, Zap
 } from 'lucide-react';
 
-// Styled Card với hiệu ứng ERP hiện đại
-const StyledCard = styled(Card)(({ theme }) => ({
+// Enhanced Styled Card với glassmorphism
+const StyledCard = styled(Card)(({ theme, color }) => ({
     height: '100%',
     borderRadius: 20,
-    transition: 'all 0.3s ease',
-    border: `1px solid ${theme.palette.divider}`,
-    background: 'linear-gradient(180deg, #fff 0%, #f9fafb 100%)',
-    boxShadow: '0 4px 10px rgba(0,0,0,0.06)',
+    transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+    border: `1.5px solid ${alpha(theme.palette.divider, 0.1)}`,
+    background: `linear-gradient(135deg, #ffffff 0%, ${alpha('#f8fafc', 0.8)} 100%)`,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+    position: 'relative',
+    overflow: 'hidden',
+    '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '4px',
+        background: `linear-gradient(90deg, ${color || theme.palette.primary.main}, ${alpha(color || theme.palette.primary.main, 0.5)})`,
+        transform: 'scaleX(0)',
+        transformOrigin: 'left',
+        transition: 'transform 0.4s ease',
+    },
     '&:hover': {
-        transform: 'translateY(-6px) scale(1.01)',
-        boxShadow: '0 12px 24px rgba(0,0,0,0.12)',
+        transform: 'translateY(-8px) scale(1.02)',
+        boxShadow: `0 16px 40px ${alpha(color || theme.palette.primary.main, 0.2)}`,
+        borderColor: color || theme.palette.primary.main,
+        '&::before': {
+            transform: 'scaleX(1)',
+        },
     },
 }));
 
-// Animation cho card
+// Glassmorphism Header
+const GlassHeader = styled(Paper)(({ theme }) => ({
+    background: `linear-gradient(135deg, ${alpha('#ffffff', 0.9)} 0%, ${alpha('#f8fafc', 0.95)} 100%)`,
+    backdropFilter: 'blur(20px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+    boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+    position: 'relative',
+    overflow: 'hidden',
+    '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '1px',
+        background: 'linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.5), transparent)',
+    },
+}));
+
+// Stats Card
+const StatCard = styled(Paper)(({ theme, color }) => ({
+    padding: theme.spacing(2.5),
+    borderRadius: 16,
+    background: `linear-gradient(135deg, ${alpha(color || theme.palette.primary.main, 0.1)} 0%, ${alpha(color || theme.palette.primary.main, 0.05)} 100%)`,
+    border: `1.5px solid ${alpha(color || theme.palette.primary.main, 0.2)}`,
+    transition: 'all 0.3s ease',
+    '&:hover': {
+        transform: 'translateY(-4px)',
+        boxShadow: `0 12px 24px ${alpha(color || theme.palette.primary.main, 0.15)}`,
+    },
+}));
+
+// Animation variants
+const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.08,
+            delayChildren: 0.1,
+        },
+    },
+};
+
 const cardVariants = {
-    hidden: { opacity: 0, y: 20 },
+    hidden: { opacity: 0, y: 30, scale: 0.9 },
     visible: (i) => ({
         opacity: 1,
         y: 0,
-        transition: { delay: i * 0.05, duration: 0.45, ease: "easeOut" },
-    })
+        scale: 1,
+        transition: {
+            delay: i * 0.05,
+            duration: 0.5,
+            type: "spring",
+            stiffness: 100,
+            damping: 15,
+        },
+    }),
 };
 
 const Home = () => {
+    const theme = useTheme();
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [allowedModules, setAllowedModules] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    // State mới cho thanh tìm kiếm
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('Tất cả');
 
-    // Danh sách TẤT CẢ các module trong hệ thống (ĐÃ THÊM THUỘC TÍNH 'category')
+    // All modules
     const allModules = [
-        // --- NHÓM 1: CHỨC NĂNG CHÍNH ---
         { category: 'Chức Năng Chính', icon: <UserCheck size={26} />, title: "Quản Lý Chấm Công", to: "/attendance", desc: "Theo dõi, quản lý và in bảng chấm công", color: '#16a34a', isNew: true },
         { category: 'Chức Năng Chính', icon: <Construction size={26} />, title: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ công việc", color: '#3b82f6' },
         { category: 'Chức Năng Chính', icon: <Building size={26} />, title: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết thông tin các công trình", color: '#8b5cf6' },
         { category: 'Chức Năng Chính', icon: <ArrowRightLeft size={26} />, title: "QL Luân chuyển Tài sản", to: "/asset-transfer", desc: "Theo dõi và luân chuyển tài sản", color: '#0891b2', isNew: true },
-        { 
-            category: 'Chức Năng Chính', 
-            icon: <ClipboardCheck size={26} />, 
-            title: "So Sánh Báo Giá Vật Tư", 
-            to: "/material-price-comparison", // Đường dẫn bạn đã tạo ở Router
-            desc: "Tổng hợp, so sánh giá từ nhà cung cấp", 
-            color: '#f97316', // (Một màu cam mới)
-            isNew: true 
-        },
+        { category: 'Chức Năng Chính', icon: <ClipboardCheck size={26} />, title: "So Sánh Báo Giá Vật Tư", to: "/material-price-comparison", desc: "Tổng hợp, so sánh giá từ nhà cung cấp", color: '#f97316', isNew: true },
         { category: 'Chức Năng Chính', icon: <BookCheck size={26} />, title: "Phân Bổ Chi Phí", to: "/allocations", desc: "Quản lý và phân bổ chi phí dự án", color: '#10b981' },
         { category: 'Chức Năng Chính', icon: <FileSpreadsheet size={26} />, title: "Công Nợ Phải Trả", to: "/construction-payables", desc: "Theo dõi và quản lý các khoản công nợ", color: '#f59e0b' },
         { category: 'Chức Năng Chính', icon: <FileCheck2 size={26} />, title: "Công Nợ Phải Thu", to: "/accounts-receivable", desc: "Theo dõi các khoản phải thu từ khách hàng", color: '#ec4899' },
@@ -75,8 +135,6 @@ const Home = () => {
         { category: 'Chức Năng Chính', icon: <FileSpreadsheet size={26} />, title: "Quản Lý Danh Mục", to: "/categories", desc: "Theo dõi công nợ", color: '#f59e0b' },
         { category: 'Chức Năng Chính', icon: <PieChart size={26} />, title: 'Chi Phí Theo Quý', to: '/cost-allocation-quarter', desc: 'Theo dõi phân bổ chi phí', color: '#8b5cf6' },
         { category: 'Chức Năng Chính', icon: <TrendingUp size={26} />, title: 'Tăng Giảm Lợi Nhuận', to: '/profit-change', desc: 'Phân tích các yếu tố ảnh hưởng', color: '#f59e0b' },
-
-        // --- NHÓM 2: BÁO CÁO ---
         { category: 'Báo Cáo', icon: <Landmark size={26} />, title: "Báo Cáo Sử Dụng Vốn", to: "/reports/capital-utilization", desc: "Đối chiếu kế hoạch và thực tế sử dụng", color: '#6366f1' },
         { category: 'Báo Cáo', icon: <BookUser size={26} />, title: "Báo Cáo Nợ Có", to: "/reports/broker-debt", desc: "Theo dõi và đối chiếu số dư nợ có", color: '#ef4444' },
         { category: 'Báo Cáo', icon: <BarChart3 size={26} />, title: 'Báo Cáo Lợi Nhuận Quý', to: '/reports/profit-quarter', desc: 'Phân tích theo từng quý', color: '#3b82f6' },
@@ -113,202 +171,459 @@ const Home = () => {
         fetchPermissionsAndFilterModules();
     }, [user]);
 
-    // Lọc các module dựa trên searchQuery
-    const filteredModules = allowedModules.filter(module =>
-        module.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        module.desc.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    // Get unique categories
+    const categories = useMemo(() => {
+        const cats = ['Tất cả', ...new Set(allowedModules.map(m => m.category))];
+        return cats;
+    }, [allowedModules]);
 
-    // Gom nhóm các module đã được lọc theo category
-    const groupedModules = filteredModules.reduce((acc, module) => {
-        const category = module.category || 'Khác';
-        if (!acc[category]) {
-            acc[category] = [];
+    // Filter modules
+    const filteredModules = useMemo(() => {
+        let filtered = allowedModules;
+        
+        // Filter by search
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter(module =>
+                module.title.toLowerCase().includes(query) ||
+                module.desc.toLowerCase().includes(query) ||
+                module.category.toLowerCase().includes(query)
+            );
         }
-        acc[category].push(module);
-        return acc;
-    }, {});
+        
+        // Filter by category
+        if (selectedCategory !== 'Tất cả') {
+            filtered = filtered.filter(module => module.category === selectedCategory);
+        }
+        
+        return filtered;
+    }, [allowedModules, searchQuery, selectedCategory]);
+
+    // Group modules by category
+    const groupedModules = useMemo(() => {
+        return filteredModules.reduce((acc, module) => {
+            const category = module.category || 'Khác';
+            if (!acc[category]) {
+                acc[category] = [];
+            }
+            acc[category].push(module);
+            return acc;
+        }, {});
+    }, [filteredModules]);
+
+    // Stats
+    const stats = useMemo(() => {
+        const total = allowedModules.length;
+        const newCount = allowedModules.filter(m => m.isNew).length;
+        const mainFeatures = allowedModules.filter(m => m.category === 'Chức Năng Chính').length;
+        const reports = allowedModules.filter(m => m.category === 'Báo Cáo').length;
+        return { total, newCount, mainFeatures, reports };
+    }, [allowedModules]);
+
+    // Clear search
+    const handleClearSearch = useCallback(() => {
+        setSearchQuery('');
+    }, []);
+
+    // Highlight search term
+    const highlightText = useCallback((text, query) => {
+        if (!query) return text;
+        const parts = text.split(new RegExp(`(${query})`, 'gi'));
+        return parts.map((part, i) =>
+            part.toLowerCase() === query.toLowerCase() ? (
+                <mark key={i} style={{ background: alpha(theme.palette.primary.main, 0.2), padding: '0 2px', borderRadius: 3 }}>
+                    {part}
+                </mark>
+            ) : (
+                part
+            )
+        );
+    }, [theme]);
 
     if (isLoading) {
         return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                <CircularProgress />
+            <Box sx={{ bgcolor: '#f4f6f8', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>
+                <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
+                    <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 3, mb: 4 }} />
+                    <Grid container spacing={3}>
+                        {[...Array(6)].map((_, i) => (
+                            <Grid item xs={12} sm={6} md={4} lg={3} key={i}>
+                                <Skeleton variant="rectangular" height={180} sx={{ borderRadius: 3 }} />
+                            </Grid>
+                        ))}
+                    </Grid>
+                </Box>
             </Box>
         );
     }
 
     return (
-        // Tối ưu hóa background: Giữ nền sáng, sạch.
         <Box sx={{ bgcolor: '#f4f6f8', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>
             <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
-                
-                {/* --- (1) HEADER VÀ THANH TÌM KIẾM TỐI ƯU --- */}
-                <Paper
-                    elevation={1} // Nâng elevation nhẹ để tạo độ sâu
-                    sx={{ 
-                        p: { xs: 2, sm: 3, md: 4 }, 
-                        mb: 5, 
-                        borderRadius: 3, // Giảm nhẹ độ cong của border
-                        background: 'white', // Nền trắng tinh khôi
-                        border: '1px solid #e0e8f4',
-                    }}
+                {/* Enhanced Header */}
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
                 >
-                    <Grid container spacing={3} alignItems="center">
-                        <Grid item xs={12} md={6} sx={{ mb: { xs: 2, md: 0 } }}>
-                            <Typography variant="h4" component="h1" sx={{ fontWeight: 800, color: '#1e293b' }}>
-                                🚀 Trung Tâm Điều Hành ERP
-                            </Typography>
-                            <Typography sx={{ color: '#64748b', mt: 0.5 }}>
-                                Chào mừng, **{user?.displayName || user?.email || 'bạn'}**! Khởi động công việc của bạn.
-                            </Typography>
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                            <TextField
-                                fullWidth
-                                variant="outlined"
-                                placeholder="Tìm kiếm chức năng (ví dụ: Công nợ, Kế hoạch...)"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Search size={20} color="#64748b" />
-                                        </InputAdornment>
-                                    ),
-                                    sx: { borderRadius: '12px', bgcolor: '#f9fafb', '& fieldset': { borderColor: '#cbd5e1' } } // Nâng cấp màu sắc và border
-                                }}
-                            />
-                        </Grid>
-                    </Grid>
-                </Paper>
+                    <GlassHeader elevation={0} sx={{ p: { xs: 3, sm: 4, md: 5 }, mb: 5, borderRadius: 4 }}>
+                        <Stack spacing={3}>
+                            {/* Welcome Section */}
+                            <Box>
+                                <Stack direction="row" alignItems="center" spacing={2} mb={1}>
+                                    <motion.div
+                                        animate={{ rotate: [0, 10, -10, 0] }}
+                                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                                    >
+                                        <Sparkles size={32} color={theme.palette.primary.main} />
+                                    </motion.div>
+                                    <Typography variant="h4" component="h1" sx={{ fontWeight: 800, color: '#1e293b' }}>
+                                        Trung Tâm Điều Hành ERP
+                                    </Typography>
+                                </Stack>
+                                <Typography sx={{ color: '#64748b', mt: 0.5, fontSize: '1.05rem' }}>
+                                    Chào mừng, <strong>{user?.displayName || user?.email || 'bạn'}</strong>! Khởi động công việc của bạn.
+                                </Typography>
+                            </Box>
 
-                {/* --- (2) HIỂN THỊ CÁC MODULE THEO NHÓM --- */}
-                {Object.entries(groupedModules).map(([category, modules]) => (
-                    <Box key={category} sx={{ mb: 6 }}>
-                        {/* Cải tiến tiêu đề nhóm */}
-                        <Typography 
-                            variant="h5" 
-                            sx={{ 
-                                fontWeight: 700, 
-                                color: '#0f172a', // Màu chữ đậm hơn
-                                mb: 3, 
-                                pb: 1,
-                                borderBottom: '2px solid #e2e8f0', // Dải phân cách nhẹ nhàng
-                                display: 'inline-block', // Để borderBottom chỉ chạy dưới chữ
-                            }}
-                        >
-                            {category} <span style={{ color: '#6366f1', fontWeight: 600, fontSize: '1rem' }}>({modules.length})</span>
-                        </Typography>
-
-                        {/* Tối ưu hóa Grid: Hiển thị 5 cột trên màn hình XL và 6 cột trên màn hình lớn */}
-                        <Grid container spacing={3}>
-                            {modules.map((module, index) => (
-                                <Grid 
-                                    item 
-                                    xs={12} 
-                                    sm={6} 
-                                    md={4} 
-                                    lg={3} 
-                                    xl={2.4} // (12/5 = 2.4 để có 5 cột trên màn hình XL)
-                                    key={module.to}
-                                >
-                                    <motion.div custom={index} initial="hidden" animate="visible" variants={cardVariants} style={{ height: '100%' }}>
-                                        <Link to={module.to} style={{ textDecoration: 'none' }}>
-                                            <StyledCard>
-                                                {module.isNew && (
-                                                    // Sử dụng Badge hiện đại hơn, màu xanh nổi bật
-                                                    <Badge 
-                                                        badgeContent="NEW" 
-                                                        sx={{ 
-                                                            '& .MuiBadge-badge': { 
-                                                                bgcolor: '#f97316', 
-                                                                color: 'white', 
-                                                                fontWeight: 700,
-                                                                fontSize: '0.65rem',
-                                                                p: '0 8px',
-                                                                height: 20,
-                                                                borderRadius: '10px'
-                                                            },
-                                                            position: 'absolute', 
-                                                            top: 16, 
-                                                            right: 16 
-                                                        }} 
-                                                    />
-                                                )}
-                                                <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
-                                                    {/* Tối ưu hóa Icon Box */}
-                                                    <Box 
-                                                        sx={{ 
-                                                            width: 50, 
-                                                            height: 50, 
-                                                            borderRadius: '12px', 
-                                                            display: 'flex', 
-                                                            alignItems: 'center', 
-                                                            justifyContent: 'center', 
-                                                            backgroundColor: module.color, 
-                                                            color: 'white', 
-                                                            mb: 2, 
-                                                            flexShrink: 0, 
-                                                            boxShadow: (theme) => `0 4px 12px ${module.color + '40'}` // Thêm shadow nhẹ cùng màu
-                                                        }}
-                                                    >
-                                                        {module.icon}
-                                                    </Box>
-                                                    <Box sx={{ flexGrow: 1 }}>
-                                                         {/* Tối ưu hóa Tiêu đề: Giữ chiều cao cố định */}
-                                                         <Typography 
-                                                            variant="subtitle1" 
-                                                            component="h3" 
-                                                            sx={{ 
-                                                                fontWeight: 700, 
-                                                                color: '#1e293b', // Tiêu đề chính màu đen đậm
-                                                                fontSize: '1.05rem', 
-                                                                lineHeight: 1.3,
-                                                                minHeight: '2.6rem', // Đủ cho 2 dòng
-                                                            }}
-                                                        >
-                                                            {module.title}
-                                                        </Typography>
-                                                         {/* Tối ưu hóa Mô tả: Nhỏ và màu xám rõ ràng */}
-                                                        <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5, fontSize: '0.85rem' }}>
-                                                            {module.desc}
-                                                        </Typography>
-                                                    </Box>
-                                                </CardContent>
-                                            </StyledCard>
-                                        </Link>
+                            {/* Stats Cards */}
+                            <Grid container spacing={2}>
+                                <Grid item xs={6} sm={3}>
+                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <StatCard color={theme.palette.primary.main}>
+                                            <Stack direction="row" spacing={2} alignItems="center">
+                                                <Avatar sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
+                                                    <Activity size={20} />
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography variant="h5" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
+                                                        {stats.total}
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                                        Tổng chức năng
+                                                    </Typography>
+                                                </Box>
+                                            </Stack>
+                                        </StatCard>
                                     </motion.div>
                                 </Grid>
-                            ))}
-                        </Grid>
-                    </Box>
-                ))}
+                                <Grid item xs={6} sm={3}>
+                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <StatCard color="#f97316">
+                                            <Stack direction="row" spacing={2} alignItems="center">
+                                                <Avatar sx={{ bgcolor: alpha('#f97316', 0.1), color: '#f97316' }}>
+                                                    <Zap size={20} />
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#f97316' }}>
+                                                        {stats.newCount}
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                                        Mới
+                                                    </Typography>
+                                                </Box>
+                                            </Stack>
+                                        </StatCard>
+                                    </motion.div>
+                                </Grid>
+                                <Grid item xs={6} sm={3}>
+                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <StatCard color="#10b981">
+                                            <Stack direction="row" spacing={2} alignItems="center">
+                                                <Avatar sx={{ bgcolor: alpha('#10b981', 0.1), color: '#10b981' }}>
+                                                    <TrendingUp size={20} />
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#10b981' }}>
+                                                        {stats.mainFeatures}
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                                        Chức năng chính
+                                                    </Typography>
+                                                </Box>
+                                            </Stack>
+                                        </StatCard>
+                                    </motion.div>
+                                </Grid>
+                                <Grid item xs={6} sm={3}>
+                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <StatCard color="#6366f1">
+                                            <Stack direction="row" spacing={2} alignItems="center">
+                                                <Avatar sx={{ bgcolor: alpha('#6366f1', 0.1), color: '#6366f1' }}>
+                                                    <BarChart3 size={20} />
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#6366f1' }}>
+                                                        {stats.reports}
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                                        Báo cáo
+                                                    </Typography>
+                                                </Box>
+                                            </Stack>
+                                        </StatCard>
+                                    </motion.div>
+                                </Grid>
+                            </Grid>
 
-                {/* --- (3) TRẠNG THÁI KHÔNG TÌM THẤY TỐI ƯU --- */}
+                            {/* Search and Filter */}
+                            <Stack spacing={2}>
+                                <TextField
+                                    fullWidth
+                                    variant="outlined"
+                                    placeholder="Tìm kiếm chức năng (ví dụ: Công nợ, Kế hoạch, Báo cáo...)"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <Search size={20} color={theme.palette.primary.main} />
+                                            </InputAdornment>
+                                        ),
+                                        endAdornment: searchQuery && (
+                                            <InputAdornment position="end">
+                                                <IconButton size="small" onClick={handleClearSearch} edge="end">
+                                                    <X size={18} />
+                                                </IconButton>
+                                            </InputAdornment>
+                                        ),
+                                        sx: {
+                                            borderRadius: '14px',
+                                            bgcolor: alpha(theme.palette.primary.main, 0.05),
+                                            '& fieldset': {
+                                                borderColor: alpha(theme.palette.primary.main, 0.2),
+                                                borderWidth: 1.5,
+                                            },
+                                            '&:hover fieldset': {
+                                                borderColor: alpha(theme.palette.primary.main, 0.4),
+                                            },
+                                            '&.Mui-focused fieldset': {
+                                                borderColor: theme.palette.primary.main,
+                                                borderWidth: 2,
+                                            },
+                                        },
+                                    }}
+                                />
+
+                                {/* Category Filter */}
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    {categories.map((cat) => (
+                                        <Chip
+                                            key={cat}
+                                            label={cat}
+                                            onClick={() => setSelectedCategory(cat)}
+                                            icon={cat === selectedCategory ? <Filter size={16} /> : undefined}
+                                            sx={{
+                                                bgcolor: cat === selectedCategory
+                                                    ? theme.palette.primary.main
+                                                    : alpha(theme.palette.primary.main, 0.1),
+                                                color: cat === selectedCategory ? '#fff' : theme.palette.primary.main,
+                                                fontWeight: cat === selectedCategory ? 700 : 500,
+                                                '&:hover': {
+                                                    bgcolor: cat === selectedCategory
+                                                        ? alpha(theme.palette.primary.main, 0.9)
+                                                        : alpha(theme.palette.primary.main, 0.15),
+                                                },
+                                            }}
+                                        />
+                                    ))}
+                                </Stack>
+                            </Stack>
+                        </Stack>
+                    </GlassHeader>
+                </motion.div>
+
+                {/* Modules Grid */}
+                <motion.div
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
+                >
+                    {Object.entries(groupedModules).map(([category, modules]) => (
+                        <Box key={category} sx={{ mb: 6 }}>
+                            <motion.div
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.4 }}
+                            >
+                                <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+                                    <Box
+                                        sx={{
+                                            width: 4,
+                                            height: 32,
+                                            borderRadius: 2,
+                                            background: `linear-gradient(180deg, ${theme.palette.primary.main}, ${alpha(theme.palette.primary.main, 0.5)})`,
+                                        }}
+                                    />
+                                    <Typography
+                                        variant="h5"
+                                        sx={{
+                                            fontWeight: 700,
+                                            color: '#0f172a',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                        }}
+                                    >
+                                        {category}
+                                        <Chip
+                                            label={modules.length}
+                                            size="small"
+                                            sx={{
+                                                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                color: theme.palette.primary.main,
+                                                fontWeight: 700,
+                                                height: 24,
+                                            }}
+                                        />
+                                    </Typography>
+                                </Stack>
+                            </motion.div>
+
+                            <Grid container spacing={3}>
+                                <AnimatePresence>
+                                    {modules.map((module, index) => (
+                                        <Grid
+                                            item
+                                            xs={12}
+                                            sm={6}
+                                            md={4}
+                                            lg={3}
+                                            xl={2.4}
+                                            key={module.to}
+                                        >
+                                            <motion.div
+                                                custom={index}
+                                                initial="hidden"
+                                                animate="visible"
+                                                variants={cardVariants}
+                                                style={{ height: '100%' }}
+                                                whileHover={{ scale: 1.02 }}
+                                            >
+                                                <Link to={module.to} style={{ textDecoration: 'none' }}>
+                                                    <StyledCard color={module.color}>
+                                                        {module.isNew && (
+                                                            <Badge
+                                                                badgeContent="NEW"
+                                                                sx={{
+                                                                    position: 'absolute',
+                                                                    top: 12,
+                                                                    right: 12,
+                                                                    zIndex: 1,
+                                                                    '& .MuiBadge-badge': {
+                                                                        bgcolor: '#f97316',
+                                                                        color: 'white',
+                                                                        fontWeight: 700,
+                                                                        fontSize: '0.65rem',
+                                                                        p: '0 8px',
+                                                                        height: 20,
+                                                                        borderRadius: '10px',
+                                                                        boxShadow: `0 2px 8px ${alpha('#f97316', 0.4)}`,
+                                                                    },
+                                                                }}
+                                                            />
+                                                        )}
+                                                        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                                            <Box
+                                                                sx={{
+                                                                    width: 56,
+                                                                    height: 56,
+                                                                    borderRadius: '16px',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    background: `linear-gradient(135deg, ${module.color} 0%, ${alpha(module.color, 0.8)} 100%)`,
+                                                                    color: 'white',
+                                                                    mb: 2,
+                                                                    flexShrink: 0,
+                                                                    boxShadow: `0 8px 24px ${alpha(module.color, 0.3)}`,
+                                                                    transition: 'all 0.3s ease',
+                                                                }}
+                                                            >
+                                                                {module.icon}
+                                                            </Box>
+                                                            <Box sx={{ flexGrow: 1 }}>
+                                                                <Typography
+                                                                    variant="subtitle1"
+                                                                    component="h3"
+                                                                    sx={{
+                                                                        fontWeight: 700,
+                                                                        color: '#1e293b',
+                                                                        fontSize: '1.05rem',
+                                                                        lineHeight: 1.3,
+                                                                        minHeight: '2.6rem',
+                                                                        mb: 0.5,
+                                                                    }}
+                                                                >
+                                                                    {searchQuery ? highlightText(module.title, searchQuery) : module.title}
+                                                                </Typography>
+                                                                <Typography
+                                                                    variant="body2"
+                                                                    sx={{
+                                                                        color: '#64748b',
+                                                                        fontSize: '0.85rem',
+                                                                        lineHeight: 1.5,
+                                                                    }}
+                                                                >
+                                                                    {searchQuery ? highlightText(module.desc, searchQuery) : module.desc}
+                                                                </Typography>
+                                                            </Box>
+                                                        </CardContent>
+                                                    </StyledCard>
+                                                </Link>
+                                            </motion.div>
+                                        </Grid>
+                                    ))}
+                                </AnimatePresence>
+                            </Grid>
+                        </Box>
+                    ))}
+                </motion.div>
+
+                {/* Empty State */}
                 {!isLoading && filteredModules.length === 0 && (
-                    <Box 
-                        sx={{ 
-                            mt: 5, 
-                            p: 6, 
-                            bgcolor: 'white', 
-                            borderRadius: 4, 
-                            textAlign: 'center', 
-                            border: '2px dashed #94a3b8', 
-                            maxWidth: 600, 
-                            mx: 'auto' 
-                        }}
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.4 }}
                     >
-                        <ShieldOff size={64} color="#94a3b8" style={{ margin: '0 auto' }} />
-                        <Typography variant="h5" sx={{ mt: 3, fontWeight: 700, color: '#334155' }}>
-                            {allowedModules.length > 0 ? 'Không tìm thấy chức năng' : 'Truy cập bị Hạn chế'}
-                        </Typography>
-                        <Typography sx={{ color: '#64748b', mt: 1.5, fontSize: '1rem' }}>
-                            {allowedModules.length > 0 
-                                ? 'Không có module nào khớp với từ khóa tìm kiếm của bạn. Vui lòng kiểm tra lại.' 
-                                : 'Tài khoản của bạn chưa được cấp quyền truy cập. Vui lòng liên hệ bộ phận hỗ trợ hoặc quản trị viên hệ thống.'
-                            }
-                        </Typography>
-                    </Box>
+                        <Box
+                            sx={{
+                                mt: 5,
+                                p: 6,
+                                bgcolor: 'white',
+                                borderRadius: 4,
+                                textAlign: 'center',
+                                border: `2px dashed ${alpha(theme.palette.divider, 0.5)}`,
+                                maxWidth: 600,
+                                mx: 'auto',
+                            }}
+                        >
+                            <motion.div
+                                animate={{ y: [0, -10, 0] }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                            >
+                                <ShieldOff size={64} color={theme.palette.text.secondary} />
+                            </motion.div>
+                            <Typography variant="h5" sx={{ mt: 3, fontWeight: 700, color: '#334155' }}>
+                                {allowedModules.length > 0 ? 'Không tìm thấy chức năng' : 'Truy cập bị Hạn chế'}
+                            </Typography>
+                            <Typography sx={{ color: '#64748b', mt: 1.5, fontSize: '1rem' }}>
+                                {allowedModules.length > 0
+                                    ? 'Không có module nào khớp với từ khóa tìm kiếm của bạn. Vui lòng thử lại với từ khóa khác.'
+                                    : 'Tài khoản của bạn chưa được cấp quyền truy cập. Vui lòng liên hệ bộ phận hỗ trợ hoặc quản trị viên hệ thống.'}
+                            </Typography>
+                            {allowedModules.length > 0 && (
+                                <Button
+                                    variant="outlined"
+                                    onClick={handleClearSearch}
+                                    sx={{ mt: 3 }}
+                                >
+                                    Xóa bộ lọc
+                                </Button>
+                            )}
+                        </Box>
+                    </motion.div>
                 )}
             </Box>
         </Box>

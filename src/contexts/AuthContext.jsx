@@ -1,171 +1,118 @@
-import React, {
-    useState,
-    useEffect,
-    createContext,
-    useContext,
-    useMemo,
-} from "react";
-import { onAuthStateChanged, getIdTokenResult } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
-import { auth, db } from "../services/firebase-config";
-import LoadingScreen from "../components/common/LoadingScreen";
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { auth, db } from '../services/firebase-config';
 
-// ---------- Helper Function (Giữ nguyên) ----------
-async function ensureUserProfile(user) {
-    const userRef = doc(db, "users", user.uid);
-    const snap = await getDoc(userRef);
-
-    const baseProfile = {
-        displayName:
-            user.displayName ||
-            (user.email ? user.email.split("@")[0] : `User-${user.uid.slice(0, 6)}`),
-        email: user.email || "",
-        photoURL: user.photoURL || "",
-    };
-
-    if (snap.exists()) {
-        await setDoc(userRef, { 
-            lastLogin: serverTimestamp(),
-            emailVerified: user.emailVerified 
-        }, { merge: true });
-        return { ...baseProfile, ...snap.data() };
-    } else {
-        const newProfile = {
-            ...baseProfile,
-            role: "user",
-            createdAt: serverTimestamp(),
-            lastLogin: serverTimestamp(),
-            emailVerified: user.emailVerified,
-        };
-        await setDoc(userRef, newProfile, { merge: true });
-        return newProfile;
-    }
-}
-
-// ---------- Auth Context ----------
+// Tạo Context
 const AuthContext = createContext(null);
 
-export const useAuth = () => useContext(AuthContext);
+// AuthProvider Component
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [accessRules, setAccessRules] = useState({});
+  const [userData, setUserData] = useState(null);
 
-// ---------- Auth Provider Component (Giữ nguyên) ----------
-export const AuthProvider = ({ children }) => {
-    const [userInfo, setUserInfo] = useState(null);
-    const [authLoading, setAuthLoading] = useState(true);
-    const [accessRules, setAccessRules] = useState({}); 
+  // Lắng nghe thay đổi trạng thái đăng nhập
+  useEffect(() => {
+    let unsubscribeUser = null;
 
-    // useEffect để tải Access Rules (Whitelist)
-    useEffect(() => {
-        const accessControlRef = doc(db, 'configuration', 'accessControl');
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
         
-        const unsubscribeRules = onSnapshot(accessControlRef, (docSnap) => {
-            setAccessRules(docSnap.exists() ? docSnap.data() : {});
-        }, (error) => {
-            console.error("Lỗi khi tải Access Control Rules:", error);
-            setAccessRules({});
-        });
-
-        return () => unsubscribeRules();
-    }, []);
-
-
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            try {
-                if (user) {
-                    await user.reload();
-
-                    const [profile, tokenResult] = await Promise.all([
-                        ensureUserProfile(user),
-                        getIdTokenResult(user, true),
-                    ]);
-
-                    const claims = tokenResult?.claims || {};
-                    
-                    const enrichedUserInfo = { ...profile, ...user, claims };
-                    
-                    setUserInfo(enrichedUserInfo);
-                } else {
-                    setUserInfo(null);
-                }
-            } catch (error) {
-                console.error("Lỗi xác thực:", error);
-                setUserInfo(null);
-            } finally {
-                setAuthLoading(false);
+        // Lấy thông tin user từ Firestore
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        unsubscribeUser = onSnapshot(
+          userDocRef,
+          (docSnap) => {
+            if (docSnap.exists()) {
+              setUserData({ uid: docSnap.id, ...docSnap.data() });
+            } else {
+              setUserData(null);
             }
-        });
+          },
+          (error) => {
+            console.error('Error fetching user data:', error);
+            setUserData(null);
+          }
+        );
+      } else {
+        setUser(null);
+        setUserData(null);
+        if (unsubscribeUser) {
+          unsubscribeUser();
+          unsubscribeUser = null;
+        }
+      }
+      setLoading(false);
+    });
 
-        return () => unsubscribe();
-    }, []);
+    return () => {
+      unsubscribe();
+      if (unsubscribeUser) {
+        unsubscribeUser();
+      }
+    };
+  }, []);
 
-    const authValue = useMemo(
-        () => ({ 
-            currentUser: userInfo, 
-            user: userInfo, 
-            isAuthenticated: !!userInfo, 
-            loading: authLoading,
-            accessRules: accessRules // CUNG CẤP ACCESS RULES
-        }),
-        [userInfo, authLoading, accessRules]
+  // Lắng nghe thay đổi accessRules từ Firestore
+  useEffect(() => {
+    const accessControlRef = doc(db, 'configuration', 'accessControl');
+    const unsubscribeRules = onSnapshot(
+      accessControlRef,
+      (docSnap) => {
+        setAccessRules(docSnap.exists() ? docSnap.data() : {});
+      },
+      (error) => {
+        console.error('Error fetching access rules:', error);
+        setAccessRules({});
+      }
     );
 
-    if (authLoading) {
-        return <LoadingScreen />;
-    }
+    return () => unsubscribeRules();
+  }, []);
 
-    return (
-        <AuthContext.Provider value={authValue}>{children}</AuthContext.Provider>
-    );
-};
+  // Merge user và userData để có đầy đủ thông tin
+  const currentUser = user && userData ? { ...user, ...userData } : user;
+  const isAuthenticated = !!user;
 
-// ------------------------------------
-// ---------- CẬP NHẬT PERMISSIONS HOOK ----------
-// ------------------------------------
+  const value = {
+    user: currentUser,
+    currentUser, // Alias để tương thích với code cũ
+    loading,
+    accessRules,
+    isAuthenticated,
+  };
 
-export const usePermissions = () => {
-    const { currentUser, accessRules, isAuthenticated } = useAuth();
-    
-    // ... (hàm canAccess giữ nguyên)
-    const canAccess = useMemo(() => {
-        // ... (logic canAccess)
-        if (!isAuthenticated || !currentUser?.email) { return () => false; }
-        const userEmail = currentUser.email;
-        
-        return (path) => {
-            if (currentUser?.role === 'admin' || currentUser?.claims?.role === 'admin') { return true; }
-            const emailsAllowed = accessRules[path];
-            if (emailsAllowed && Array.isArray(emailsAllowed)) { return emailsAllowed.includes(userEmail); }
-            return false;
-        };
-    }, [isAuthenticated, currentUser, accessRules]);
-    
-    
-    // Kiểm tra quyền cụ thể cho tính năng Copy/Ghi Kế hoạch
-    const canEditKeHoach = useMemo(() => {
-        return canAccess('material-price-comparison/edit-ke-hoach');
-    }, [canAccess]);
-    
-    // Kiểm tra quyền cụ thể cho tính năng Ghi Phòng Cung Ứng
-    const canEditPhongCungUng = useMemo(() => {
-        return canAccess('material-price-comparison/edit-phong-cung-ung');
-    }, [canAccess]);
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
 
-    // ✨ KIỂM TRA QUYỀN CỤ THỂ CHO TÍNH NĂNG GHI BÁO GIÁ (MỚI)
-    const canEditBaoGia = useMemo(() => {
-        return canAccess('material-price-comparison/edit-bao-gia');
-    }, [canAccess]);
+// useAuth Hook
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
 
+// usePermissions Hook (nếu cần)
+export function usePermissions() {
+  const { user, accessRules } = useAuth();
+  
+  const canEditKeHoach = React.useMemo(() => {
+    if (!user || !accessRules) return false;
+    // Logic kiểm tra quyền edit kế hoạch
+    // Có thể kiểm tra role hoặc accessRules
+    if (user.role === 'admin') return true;
+    // Thêm logic khác nếu cần
+    return false;
+  }, [user, accessRules]);
 
-    const checkRole = (requiredRole) => {
-        return currentUser?.role === requiredRole;
-    };
+  return {
+    canEditKeHoach,
+    // Thêm các quyền khác nếu cần
+  };
+}
 
-
-    return {
-        canAccess, 
-        canEditKeHoach,
-        canEditPhongCungUng,
-        canEditBaoGia, // ✨ TRẢ VỀ CỜ MỚI
-        checkRole, 
-    };
-};

@@ -16,10 +16,9 @@ import { collection, query, onSnapshot, where, orderBy } from 'firebase/firestor
 import { ref, onValue } from 'firebase/database';
 import { db, rtdb } from '../../services/firebase-config';
 import { format, formatDistanceToNow, isSameDay, startOfDay, endOfDay } from 'date-fns';
-import { vi } from 'date-fns/locale';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { vi } from 'date-fns/locale/vi';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 // Icons
 import SearchIcon from '@mui/icons-material/Search';
@@ -483,7 +482,7 @@ export default function DeviceMonitoringDashboard() {
             <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '12px', position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(8px)', backgroundColor: 'rgba(255,255,255,0.8)' }}>
                 <Grid container spacing={2} alignItems="center">
                     <Grid item xs={12} md={4}><TextField fullWidth size="small" placeholder="Tìm kiếm theo tên máy…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon /></InputAdornment>) }} /></Grid>
-                    <Grid item xs={12} sm={6} md={3}><LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}><DatePicker label="Chọn ngày" value={selectedDate} onChange={(d) => d && setSelectedDate(d)} slotProps={{ textField: { size: 'small', fullWidth: true } }} format="dd/MM/yyyy" /></LocalizationProvider></Grid>
+                    <Grid item xs={12} sm={6} md={3}><LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}><DatePicker label="Chọn ngày" value={selectedDate} onChange={(d) => d && setSelectedDate(d)} enableAccessibleFieldDOMStructure={false} slotProps={{ textField: { size: 'small', fullWidth: true } }} format="dd/MM/yyyy" /></LocalizationProvider></Grid>
                     <Grid item xs={12} sm={6} md={5}>
                         <Stack direction="row" spacing={2} justifyContent="flex-end" flexWrap="wrap">
                             <ToggleButtonGroup size="small" value={timeFilter} exclusive onChange={(e, v) => v && setTimeFilter(v)}>

@@ -20,7 +20,7 @@ import { AssetLabelPrintTemplate } from "../components/AssetLabelPrintTemplate";
 import { EmptyState, ErrorState } from "../components/common";
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import vi from 'date-fns/locale/vi'; // Import tiếng Việt cho lịch
+import { vi } from 'date-fns/locale/vi'; // Import tiếng Việt cho lịch
 import { Calendar } from "lucide-react"; // Có thể bạn đã có
 const shortId = (id) => (id ? id.slice(0, 6) : "");
 
@@ -4675,7 +4675,10 @@ export default function AssetTransferPage() {
                             label="Ngày kiểm kê mới"
                             value={newCheckDate}
                             onChange={(newValue) => setNewCheckDate(newValue)}
-                            renderInput={(params) => <TextField {...params} fullWidth autoFocus />}
+                            enableAccessibleFieldDOMStructure={false}
+                            slots={{
+                                textField: (params) => <TextField {...params} fullWidth autoFocus />
+                            }}
                         />
                     </LocalizationProvider>
                 </DialogContent>
