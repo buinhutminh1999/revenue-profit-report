@@ -53,7 +53,8 @@
     "scripts": {
         "dev": "vite",
         "start": "vite",
-        "build": "echo \"{\\\"version\\\": \\\"$VERCEL_GIT_COMMIT_SHA\\\"}\" > public/version.json && vite build",
+        "prebuild": "node scripts/generate-version.js",
+        "build": "vite build",
         "preview": "vite preview"
     },
     "engines": {
