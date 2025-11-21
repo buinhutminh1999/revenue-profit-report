@@ -53,7 +53,6 @@
     "scripts": {
         "dev": "vite",
         "start": "vite",
-        "prebuild": "node scripts/generate-version.js",
         "build": "vite build",
         "preview": "vite preview"
     },

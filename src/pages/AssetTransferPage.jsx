@@ -20,7 +20,7 @@ import { AssetLabelPrintTemplate } from "../components/AssetLabelPrintTemplate";
 import { EmptyState, ErrorState } from "../components/common";
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { vi } from 'date-fns/locale/vi'; // Import tiếng Việt cho lịch
+import vi from 'date-fns/locale/vi'; // Import tiếng Việt cho lịch
 import { Calendar } from "lucide-react"; // Có thể bạn đã có
 const shortId = (id) => (id ? id.slice(0, 6) : "");
 

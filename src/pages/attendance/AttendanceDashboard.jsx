@@ -25,7 +25,7 @@ import {
 } from "@mui/x-date-pickers";
 
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { vi } from 'date-fns/locale/vi'; // Import locale tiếng Việt từ date-fns
+import vi from 'date-fns/locale/vi'; // Import locale tiếng Việt từ date-fns
 
 import { startOfDay, endOfDay } from "date-fns";
 import { Print, UploadFile, Search, Clear } from "@mui/icons-material";

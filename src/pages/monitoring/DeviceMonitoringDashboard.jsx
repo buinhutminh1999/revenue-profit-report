@@ -16,7 +16,7 @@ import { collection, query, onSnapshot, where, orderBy } from 'firebase/firestor
 import { ref, onValue } from 'firebase/database';
 import { db, rtdb } from '../../services/firebase-config';
 import { format, formatDistanceToNow, isSameDay, startOfDay, endOfDay } from 'date-fns';
-import { vi } from 'date-fns/locale/vi';
+import vi from 'date-fns/locale/vi';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
