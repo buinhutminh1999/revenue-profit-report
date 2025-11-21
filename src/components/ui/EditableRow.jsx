@@ -1,276 +1,257 @@
-// src/components/EditableRow.jsx
-import React, { useMemo, useCallback, useState, useEffect } from "react";
+// src/components/ui/EditableRow.jsx - Modern, Optimized Version
+import React, { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import {
     TableRow, TableCell, TextField, Typography, IconButton, Tooltip,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { formatNumber, parseNumber } from "../../utils/numberUtils";
 import { getHiddenColumnsForProject } from "../../utils/calcUtils";
-import EditableSelect from "./EditableSelect";
 
 const DEFAULT_LEFT1 = 150;
 const DEFAULT_LEFT2 = 200;
 const DEFAULT_RIGHT_DEL = 72;
 
-// Component riêng cho ProjectCell để sử dụng local state
-const ProjectCell = React.memo(({
+// Helper để tìm dòng tiếp theo
+const findNextRow = (currentRowId, allRows, colKey) => {
+    if (!allRows || allRows.length === 0) return null;
+    const currentIndex = allRows.findIndex(r => r.id === currentRowId);
+    if (currentIndex === -1 || currentIndex === allRows.length - 1) return null;
+    const nextRow = allRows[currentIndex + 1];
+    return nextRow ? { rowId: nextRow.id, colKey } : null;
+};
+
+// Modern Editable Cell Component - Tối ưu performance
+const EditableCell = React.memo(({
     row,
-    editingCell,
-    setEditingCell,
-    handleChangeField,
-    handleCommitTextField,
-    visibleCols,
-    getNextEditableIndex,
+    col,
+    index,
+    isEditing,
+    onStartEdit,
+    onCommit,
+    onChange,
     alignment,
     cellSx,
-    index,
+    getNextEditableIndex,
+    visibleCols,
+    allRows,
+    isNumeric = false,
 }) => {
-    const isEditing = editingCell.id === row.id && editingCell.colKey === "project";
-    // Local state cho project để tránh re-render mỗi keystroke
-    const [localProject, setLocalProject] = useState(row.project || "");
-
-    // Sync local state khi row.project thay đổi từ bên ngoài
+    const inputRef = useRef(null);
+    const [localValue, setLocalValue] = useState(() => {
+        const val = row[col.key] ?? "";
+        return isNumeric ? parseNumber(val) : val;
+    });
+    
+    // Sync với row value khi không editing
     useEffect(() => {
         if (!isEditing) {
-            setLocalProject(row.project || "");
+            const val = row[col.key] ?? "";
+            setLocalValue(isNumeric ? parseNumber(val) : val);
         }
-    }, [row.project, isEditing]);
+    }, [row[col.key], isEditing, isNumeric]);
+
+    // Auto-select khi bắt đầu edit
+    useEffect(() => {
+        if (isEditing && inputRef.current) {
+            const timer = setTimeout(() => {
+                inputRef.current?.select();
+            }, 10);
+            return () => clearTimeout(timer);
+        }
+    }, [isEditing]);
 
     const handleBlur = () => {
-        // Commit giá trị khi blur
-        if (handleCommitTextField && localProject !== row.project) {
-            handleCommitTextField(row.id, "project", localProject.trim().toUpperCase());
+        // Chỉ commit khi có thay đổi
+        const currentValue = isNumeric ? parseNumber(row[col.key] ?? "") : (row[col.key] ?? "");
+        if (localValue !== currentValue) {
+            if (isNumeric) {
+                onChange(row.id, col.key, localValue);
+            } else {
+                onCommit(row.id, col.key, localValue);
+            }
         }
-        setEditingCell({ id: null, colKey: null });
+        onStartEdit(null, null);
     };
 
     const handleKeyDown = (e) => {
         if (e.key === "Escape") {
             e.preventDefault();
-            setLocalProject(row.project || ""); // Reset về giá trị gốc
-            setEditingCell({ id: null, colKey: null });
+            setLocalValue(isNumeric ? parseNumber(row[col.key] ?? "") : (row[col.key] ?? ""));
+            onStartEdit(null, null);
             return;
         }
-        if (e.key === "Enter" || e.key === "Tab") {
+        
+        if (e.key === "Enter") {
             e.preventDefault();
-            // Commit trước khi di chuyển
-            if (handleCommitTextField && localProject !== row.project) {
-                handleCommitTextField(row.id, "project", localProject.trim().toUpperCase());
+            if (isNumeric) {
+                onChange(row.id, col.key, localValue);
+            } else {
+                onCommit(row.id, col.key, localValue);
+            }
+            const nextRow = findNextRow(row.id, allRows, col.key);
+            if (nextRow) {
+                onStartEdit(nextRow.rowId, nextRow.colKey);
+            } else {
+                onStartEdit(null, null);
+            }
+            return;
+        }
+        
+        if (e.key === "Tab") {
+            e.preventDefault();
+            if (isNumeric) {
+                onChange(row.id, col.key, localValue);
+            } else {
+                onCommit(row.id, col.key, localValue);
             }
             const dir = e.shiftKey ? -1 : 1;
             const nextIdx = getNextEditableIndex(index, dir);
             if (nextIdx != null) {
-                setEditingCell({ id: row.id, colKey: visibleCols[nextIdx].key });
+                onStartEdit(row.id, visibleCols[nextIdx].key);
             } else {
-                setEditingCell({ id: null, colKey: null });
+                onStartEdit(null, null);
             }
         }
     };
 
-    return (
-        <TableCell
-            key="project"
-            align={alignment}
-            sx={cellSx}
-        >
-            {isEditing ? (
+    if (isEditing) {
+        return (
+            <TableCell 
+                align={alignment} 
+                sx={{
+                    ...cellSx,
+                    border: "2px solid #1976d2",
+                    backgroundColor: "#e3f2fd",
+                    padding: "4px 8px",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+            >
                 <TextField
-                    variant="outlined"
+                    inputRef={inputRef}
+                    variant="standard"
                     size="small"
                     fullWidth
-                    value={localProject}
+                    value={localValue}
                     autoFocus
                     onChange={(e) => {
-                        // Chỉ update local state, KHÔNG gọi handleChangeField để tránh re-render
-                        setLocalProject(e.target.value);
+                        const newVal = e.target.value;
+                        setLocalValue(newVal);
+                        // Chỉ update local state, không tính toán ngay để tránh lag
                     }}
                     onBlur={handleBlur}
                     inputProps={{
-                        style: { textAlign: alignment === "right" ? "right" : "left" },
+                        inputMode: isNumeric ? "decimal" : "text",
+                        style: { 
+                            textAlign: alignment === "right" ? "right" : "left",
+                            fontSize: "0.875rem",
+                            padding: "4px 0",
+                            fontWeight: 500,
+                        },
                     }}
                     onKeyDown={handleKeyDown}
                     sx={{
-                        border: "1px solid #0288d1",
-                        borderRadius: 1,
-                        "& .MuiInputBase-root.Mui-focused": {
-                            boxShadow: "0 0 0 2px rgba(2,136,209,0.15)",
+                        "& .MuiInput-underline:before": { borderBottom: "none" },
+                        "& .MuiInput-underline:hover:before": { borderBottom: "none" },
+                        "& .MuiInput-underline:after": { 
+                            borderBottom: "2px solid #1976d2",
+                            transition: "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                         },
                     }}
                 />
-            ) : (
-                <Typography
-                    variant="body2"
-                    onClick={() => setEditingCell({ id: row.id, colKey: "project" })}
-                    onDoubleClick={() => setEditingCell({ id: row.id, colKey: "project" })}
-                    sx={{
-                        cursor: 'pointer',
-                        minHeight: '22px'
-                    }}
-                    title="Nhấn để sửa"
-                >
-                    {row.project}
-                </Typography>
-            )}
-        </TableCell>
-    );
-});
+            </TableCell>
+        );
+    }
 
-// Component riêng cho DescriptionCell để sử dụng local state
-const DescriptionCell = React.memo(({
-    row,
-    editingCell,
-    setEditingCell,
-    handleChangeField,
-    handleCommitTextField,
-    visibleCols,
-    getNextEditableIndex,
-    alignment,
-    cellSx,
-}) => {
-    const isEditing = editingCell.id === row.id && editingCell.colKey === "description";
-    // Local state cho description để tránh re-render mỗi keystroke
-    const [localDescription, setLocalDescription] = useState(row.description || "");
-
-    // Sync local state khi row.description thay đổi từ bên ngoài
-    useEffect(() => {
-        if (!isEditing) {
-            setLocalDescription(row.description || "");
-        }
-    }, [row.description, isEditing]);
-
-    const projectIdentifier = (row.project || "").trim().toUpperCase();
-
-    // LOGIC CHO PHÉP SỬA KHOẢN MỤC
-    const isDescriptionEditable =
-        projectIdentifier === "" || // Dòng mới hoàn toàn
-        !projectIdentifier.includes("-CP") || // KHÔNG phải mã dự án chuẩn hóa
-        projectIdentifier.includes("-VT") ||
-        projectIdentifier.includes("-NC");
-
-    const currentColIndex = visibleCols.findIndex(c => c.key === "description");
-
-    const handleBlur = () => {
-        // Commit giá trị khi blur
-        if (handleCommitTextField && localDescription !== row.description) {
-            handleCommitTextField(row.id, "description", localDescription);
-        }
-        setEditingCell({ id: null, colKey: null });
-    };
-
-    const handleKeyDown = (e) => {
-        if (e.key === "Escape") {
-            e.preventDefault();
-            setLocalDescription(row.description || ""); // Reset về giá trị gốc
-            setEditingCell({ id: null, colKey: null });
-            return;
-        }
-        if (e.key === "Enter" || e.key === "Tab") {
-            e.preventDefault();
-            // Commit trước khi di chuyển
-            if (handleCommitTextField && localDescription !== row.description) {
-                handleCommitTextField(row.id, "description", localDescription);
-            }
-            const dir = e.shiftKey ? -1 : 1;
-            const nextIdx = getNextEditableIndex(currentColIndex, dir);
-            if (nextIdx != null) {
-                setEditingCell({ id: row.id, colKey: visibleCols[nextIdx].key });
-            } else {
-                setEditingCell({ id: null, colKey: null });
-            }
-        }
-    };
+    const displayValue = isNumeric 
+        ? (row[col.key] ? formatNumber(row[col.key]) : "0")
+        : (row[col.key] || "");
+    
+    const vNum = isNumeric ? Number(row[col.key] ?? 0) : 0;
+    const warn = (col.key === "cpVuot" && vNum > 0) || (col.key === "carryoverEnd" && vNum < 0);
 
     return (
-        <TableCell
-            key="description"
-            align={alignment}
+        <TableCell 
+            align={alignment} 
             sx={{
                 ...cellSx,
-                backgroundColor: isDescriptionEditable ? "inherit" : "#fafafa",
+                padding: "8px 12px",
+                border: "1px solid transparent",
+                transition: "all 0.15s ease",
+                '&:hover': {
+                    backgroundColor: '#f8f9fa',
+                    border: "1px solid #e0e0e0",
+                },
             }}
         >
-            {isEditing && isDescriptionEditable ? (
-                <TextField
-                    variant="outlined"
-                    size="small"
-                    fullWidth
-                    value={localDescription}
-                    autoFocus
-                    onChange={(e) => {
-                        // Chỉ update local state, KHÔNG gọi handleChangeField để tránh re-render
-                        // Chỉ commit khi blur hoặc Enter
-                        setLocalDescription(e.target.value);
-                    }}
-                    onBlur={handleBlur}
-                    inputProps={{
-                        style: { textAlign: alignment === "right" ? "right" : "left" },
-                    }}
-                    onKeyDown={handleKeyDown}
-                    sx={{
-                        border: "1px solid #0288d1",
-                        borderRadius: 1,
-                        "& .MuiInputBase-root.Mui-focused": {
-                            boxShadow: "0 0 0 2px rgba(2,136,209,0.15)",
-                        },
-                    }}
-                />
-            ) : (
-                <Typography
-                    variant="body2"
-                    onDoubleClick={() => {
-                        if (isDescriptionEditable) {
-                            setLocalDescription(row.description || "");
-                            setEditingCell({ id: row.id, colKey: "description" });
-                        }
-                    }}
-                    sx={{
-                        cursor: isDescriptionEditable ? 'pointer' : 'default',
-                        minHeight: '22px'
-                    }}
-                    title={isDescriptionEditable ? "Click đúp để sửa" : "Không thể sửa khoản mục này"}
-                >
-                    {row.description}
-                </Typography>
-            )}
+            <Typography
+                variant="body2"
+                onClick={() => onStartEdit(row.id, col.key)}
+                onDoubleClick={() => onStartEdit(row.id, col.key)}
+                sx={{
+                    cursor: 'pointer',
+                    minHeight: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: alignment === "right" ? "flex-end" : "flex-start",
+                    padding: '6px 8px',
+                    borderRadius: '6px',
+                    color: warn ? (vNum > 0 ? "#d32f2f" : "#2e7d32") : "inherit",
+                    fontWeight: warn ? 600 : 400,
+                    transition: "all 0.15s ease",
+                    '&:hover': {
+                        backgroundColor: '#e8f4fd',
+                        transform: 'translateY(-1px)',
+                    },
+                }}
+            >
+                {displayValue}
+            </Typography>
         </TableCell>
     );
+}, (prevProps, nextProps) => {
+    // Custom comparison để tránh re-render không cần thiết
+    return (
+        prevProps.row.id === nextProps.row.id &&
+        prevProps.row[prevProps.col.key] === nextProps.row[nextProps.col.key] &&
+        prevProps.isEditing === nextProps.isEditing &&
+        prevProps.col.key === nextProps.col.key
+    );
 });
+
+EditableCell.displayName = 'EditableCell';
 
 const EditableRow = ({
     row,
-    // hỗ trợ 2 kiểu props — ưu tiên visibleCols (từ CostTable)
     columnsAll,
     columnsVisibility,
     visibleCols: visibleColsProp,
-    widths, // { left1, left2, rightDel }
-
+    widths,
     handleChangeField,
-    handleCommitTextField, // Thêm prop mới
+    handleCommitTextField,
     handleRemoveRow,
     editingCell,
     setEditingCell,
     categories,
+    filtered,
 }) => {
     const hiddenCols = getHiddenColumnsForProject(row.project);
-    const catLabels = categories.map((c) => c.label ?? c);
 
-    // Sau (không lọc theo hiddenCols):
     const visibleCols = useMemo(() => {
         if (Array.isArray(visibleColsProp) && visibleColsProp.length) return visibleColsProp;
         const all = Array.isArray(columnsAll) ? columnsAll : [];
         const cv = columnsVisibility || {};
-        return all.filter((c) => cv[c.key]);   // chỉ theo switch hiển thị cột, không động chạm hidden
+        return all.filter((c) => cv[c.key]);
     }, [visibleColsProp, columnsAll, columnsVisibility]);
 
-    // width/sticky mặc định
     const W_LEFT1 = widths?.left1 ?? DEFAULT_LEFT1;
     const W_LEFT2 = widths?.left2 ?? DEFAULT_LEFT2;
     const W_RIGHT = widths?.rightDel ?? DEFAULT_RIGHT_DEL;
 
-    const isCellActuallyEditable = (col) =>
-        typeof col.isCellEditable === "function"
+    const isCellActuallyEditable = useCallback((col) => {
+        return typeof col.isCellEditable === "function"
             ? col.isCellEditable(row)
             : !!col.editable;
+    }, [row]);
 
     const getNextEditableIndex = useCallback(
         (fromIdx, dir = 1) => {
@@ -281,34 +262,44 @@ const EditableRow = ({
             }
             return null;
         },
-        [visibleCols]
+        [visibleCols, isCellActuallyEditable]
     );
+
+    const isRowEditing = editingCell.id === row.id;
+    const allRows = filtered || [];
+
+    const handleStartEdit = useCallback((rowId, colKey) => {
+        setEditingCell({ id: rowId, colKey });
+    }, [setEditingCell]);
 
     return (
         <TableRow
             sx={{
-                "&:nth-of-type(odd)": { backgroundColor: "#fafafa" },
-                "&:hover > .MuiTableCell-root": {
-                    backgroundColor: "#e8f4fd",
-                    transition: "background-color 0.2s",
+                backgroundColor: isRowEditing ? "#f0f7ff" : "inherit",
+                "&:nth-of-type(odd)": { 
+                    backgroundColor: isRowEditing ? "#f0f7ff" : "#fafafa",
                 },
+                "&:hover": {
+                    backgroundColor: isRowEditing ? "#f0f7ff" : "#f8f9fa",
+                    transition: "background-color 0.2s ease",
+                },
+                borderLeft: isRowEditing ? "3px solid #1976d2" : "none",
+                transition: "all 0.2s ease",
             }}
         >
             {visibleCols.map((col, index) => {
                 const isFirst = index === 0;
                 const isSecond = index === 1;
-                const alignment =
-                    isFirst || isSecond || col.key === "revenueMode" ? "left" : "right";
+                const alignment = isFirst || isSecond || col.key === "revenueMode" ? "left" : "right";
 
                 const cellSx = {
                     minWidth: index < 2 ? (index === 0 ? W_LEFT1 : W_LEFT2) : (col.minWidth ?? 140),
                 };
 
-                // sticky 2 cột trái
                 if (index < 2) {
                     Object.assign(cellSx, {
                         position: "sticky",
-                        backgroundColor: "white",
+                        backgroundColor: isRowEditing ? "#f0f7ff" : "white",
                         zIndex: 1,
                         left: index === 0 ? 0 : W_LEFT1,
                         boxShadow: index === 1 ? "2px 0 5px -2px rgba(0,0,0,0.08)" : undefined,
@@ -316,146 +307,56 @@ const EditableRow = ({
                     });
                 }
 
-                // 🔧 NEW: nếu là dòng -VT/-NC và cột này thuộc danh sách ẩn → vẫn render 1 cell rỗng
                 if (hiddenCols.includes(col.key)) {
                     return <TableCell key={col.key} align={alignment} sx={cellSx} />;
                 }
 
-                // Ô chỉ đọc cụ thể
                 if (col.key === "carryoverEnd") {
                     return (
                         <TableCell key={col.key} align={alignment} sx={cellSx}>
                             <Tooltip title="Chỉ đọc – Giá trị tự động">
-                                <Typography variant="body2">{formatNumber(row[col.key])}</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                    {formatNumber(row[col.key])}
+                                </Typography>
                             </Tooltip>
                         </TableCell>
                     );
                 }
 
                 const isEditing = editingCell.id === row.id && editingCell.colKey === col.key;
+                const isNumeric = !["project", "description"].includes(col.key);
+                const isEditable = isCellActuallyEditable(col);
 
-                // Tối ưu: Xử lý riêng cho cột project (tương tự description)
-                if (col.key === "project") {
-                    return (
-                        <ProjectCell
-                            key="project"
-                            row={row}
-                            editingCell={editingCell}
-                            setEditingCell={setEditingCell}
-                            handleChangeField={handleChangeField}
-                            handleCommitTextField={handleCommitTextField}
-                            visibleCols={visibleCols}
-                            getNextEditableIndex={getNextEditableIndex}
-                            alignment={alignment}
-                            cellSx={cellSx}
-                            index={index}
-                        />
-                    );
-                }
-
-                // Đang edit (ngoại trừ description và project)
-                if (isEditing && col.key !== "description" && col.key !== "project") {
-                    const isNumeric = !["project", "description"].includes(col.key);
-                    const val = row[col.key] ?? "";
-                    const parsed = parseNumber(val);
-                    const hasErr = isNumeric && val !== "" && isNaN(Number(parsed));
-
+                if (!isEditable && !isEditing) {
                     return (
                         <TableCell key={col.key} align={alignment} sx={cellSx}>
-                            <TextField
-                                variant="outlined"
-                                size="small"
-                                fullWidth
-                                value={val}
-                                autoFocus
-                                inputProps={{
-                                    inputMode: "decimal",
-                                    style: { textAlign: alignment === "right" ? "right" : "left" },
-                                }}
-                                onChange={(e) => handleChangeField(row.id, col.key, e.target.value)}
-                                onBlur={() => setEditingCell({ id: null, colKey: null })}
-                                onKeyDown={(e) => {
-                                    // ✅ Enter/Tab di chuyển, Shift+Enter/Shift+Tab lùi lại, Esc hủy
-                                    if (e.key === "Escape") {
-                                        e.preventDefault();
-                                        setEditingCell({ id: null, colKey: null });
-                                        return;
-                                    }
-                                    if (e.key === "Enter" || e.key === "Tab") {
-                                        e.preventDefault();
-                                        const dir = e.shiftKey ? -1 : 1;
-                                        const nextIdx = getNextEditableIndex(index, dir);
-                                        if (nextIdx != null) {
-                                            setEditingCell({ id: row.id, colKey: visibleCols[nextIdx].key });
-                                        } else {
-                                            setEditingCell({ id: null, colKey: null });
-                                        }
-                                    }
-                                }}
-                                error={hasErr}
-                                helperText={hasErr ? "Giá trị không hợp lệ" : ""}
-                                sx={{
-                                    border: "1px solid #0288d1",
-                                    borderRadius: 1,
-                                    "& .MuiInputBase-root.Mui-focused": {
-                                        boxShadow: "0 0 0 2px rgba(2,136,209,0.15)",
-                                    },
-                                }}
-                            />
+                            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                                {isNumeric ? formatNumber(row[col.key] ?? 0) : (row[col.key] || "")}
+                            </Typography>
                         </TableCell>
                     );
                 }
 
-                // Dòng 141 - Tối ưu: Sử dụng local state cho description để tránh lag
-                if (col.key === "description") {
-                    return (
-                        <DescriptionCell
-                            key="description"
-                            row={row}
-                            editingCell={editingCell}
-                            setEditingCell={setEditingCell}
-                            handleChangeField={handleChangeField}
-                            handleCommitTextField={handleCommitTextField}
-                            visibleCols={visibleCols}
-                            getNextEditableIndex={getNextEditableIndex}
-                            alignment={alignment}
-                            cellSx={cellSx}
-                        />
-                    );
-                }
-                // Hiển thị mặc định (1-click để edit)
-                const vNum = Number(row[col.key] ?? 0);
-                const warn =
-                    (col.key === "cpVuot" && vNum > 0) ||
-                    (col.key === "carryoverEnd" && vNum < 0);
-
                 return (
-                    <TableCell key={col.key} align={alignment} sx={cellSx}>
-                        <Tooltip title={isCellActuallyEditable(col) ? "Nhấn để chỉnh sửa" : "Chỉ đọc"}>
-                            <Typography
-                                variant="body2"
-                                sx={{
-                                    cursor: isCellActuallyEditable(col) ? "pointer" : "default",
-                                    color: warn ? (vNum > 0 ? "#b71c1c" : "#1b5e20") : undefined,
-                                    fontWeight: warn ? 600 : 400,
-                                }}
-                                onClick={() =>
-                                    isCellActuallyEditable(col) &&
-                                    setEditingCell({ id: row.id, colKey: col.key })
-                                }
-                                onDoubleClick={() =>
-                                    isCellActuallyEditable(col) &&
-                                    setEditingCell({ id: row.id, colKey: col.key })
-                                }
-                            >
-                                {row[col.key] ? formatNumber(row[col.key]) : 0}
-                            </Typography>
-                        </Tooltip>
-                    </TableCell>
+                    <EditableCell
+                        key={col.key}
+                        row={row}
+                        col={col}
+                        index={index}
+                        isEditing={isEditing}
+                        onStartEdit={handleStartEdit}
+                        onCommit={handleCommitTextField}
+                        onChange={handleChangeField}
+                        alignment={alignment}
+                        cellSx={cellSx}
+                        getNextEditableIndex={getNextEditableIndex}
+                        visibleCols={visibleCols}
+                        allRows={allRows}
+                        isNumeric={isNumeric}
+                    />
                 );
             })}
 
-            {/* Nút xoá — pin bên phải */}
             <TableCell
                 align="center"
                 sx={{
@@ -463,11 +364,24 @@ const EditableRow = ({
                     right: 0,
                     zIndex: 1,
                     minWidth: W_RIGHT,
-                    backgroundColor: "white",
+                    backgroundColor: isRowEditing ? "#f0f7ff" : "white",
                     boxShadow: "-2px 0 5px -2px rgba(0,0,0,0.08)",
+                    border: "1px solid transparent",
+                    transition: "all 0.2s ease",
                 }}
             >
-                <IconButton color="error" onClick={() => handleRemoveRow(row.id)} size="small">
+                <IconButton 
+                    color="error" 
+                    onClick={() => handleRemoveRow(row.id)} 
+                    size="small"
+                    sx={{
+                        transition: "all 0.2s ease",
+                        '&:hover': {
+                            backgroundColor: 'rgba(211, 47, 47, 0.08)',
+                            transform: 'scale(1.1)',
+                        },
+                    }}
+                >
                     <CloseIcon fontSize="small" />
                 </IconButton>
             </TableCell>
@@ -475,4 +389,12 @@ const EditableRow = ({
     );
 };
 
-export default React.memo(EditableRow);
+export default React.memo(EditableRow, (prevProps, nextProps) => {
+    // Chỉ re-render nếu row data thay đổi hoặc editing state thay đổi
+    return (
+        prevProps.row.id === nextProps.row.id &&
+        JSON.stringify(prevProps.row) === JSON.stringify(nextProps.row) &&
+        prevProps.editingCell.id === nextProps.editingCell.id &&
+        prevProps.editingCell.colKey === nextProps.editingCell.colKey
+    );
+});

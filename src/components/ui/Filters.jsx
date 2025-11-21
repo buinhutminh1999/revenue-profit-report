@@ -19,39 +19,61 @@ export default function Filters({
   onQuarterChange,
 }) {
   return (
-    // TỐI ƯU 1: Bỏ Paper, dùng Stack để có layout linh hoạt và hòa nhập
+    // Modern Filters with Glass Effect
     <Stack
       direction={{ xs: 'column', md: 'row' }}
       spacing={2}
       sx={{
-        p: 2.5,
-        mb: 3,
-        bgcolor: 'action.hover', // Một màu nền rất nhẹ để phân biệt
-        borderRadius: 3,
+        p: 3,
+        mb: 0,
+        background: "transparent",
       }}
     >
-      {/* TỐI ƯU 2: Search Input tối giản, có icon bên trong */}
+      {/* Modern Search Input */}
       <TextField
         fullWidth
         variant="outlined"
-        placeholder="Tìm kiếm theo công trình hoặc khoản mục..."
+        placeholder="🔍 Tìm kiếm theo công trình hoặc khoản mục..."
         value={search}
         onChange={onSearchChange}
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
-              <Search color="action" />
+              <Search sx={{ color: "primary.main" }} />
             </InputAdornment>
           ),
-          sx: { borderRadius: 2, bgcolor: 'background.paper' } // Nền trắng để nổi bật
+          sx: {
+            borderRadius: 2,
+            bgcolor: 'background.paper',
+            transition: "all 0.2s ease",
+            "&:hover": {
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+            },
+            "&.Mui-focused": {
+              boxShadow: "0 4px 16px rgba(25, 118, 210, 0.2)",
+            },
+          }
         }}
       />
-      {/* TỐI ƯU 3: Dùng TextField select để đồng nhất và gọn gàng */}
+      {/* Modern Select Fields */}
       <TextField
         select
         value={quarter}
         onChange={onQuarterChange}
-        sx={{ minWidth: 150, '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: 'background.paper' } }}
+        sx={{
+          minWidth: 150,
+          '& .MuiOutlinedInput-root': {
+            borderRadius: 2,
+            bgcolor: 'background.paper',
+            transition: "all 0.2s ease",
+            "&:hover": {
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+            },
+            "&.Mui-focused": {
+              boxShadow: "0 4px 16px rgba(25, 118, 210, 0.2)",
+            },
+          }
+        }}
       >
         {["Q1", "Q2", "Q3", "Q4"].map((q) => (
           <MenuItem key={q} value={q}>
@@ -64,7 +86,20 @@ export default function Filters({
         select
         value={year}
         onChange={onYearChange}
-        sx={{ minWidth: 150, '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: 'background.paper' } }}
+        sx={{
+          minWidth: 150,
+          '& .MuiOutlinedInput-root': {
+            borderRadius: 2,
+            bgcolor: 'background.paper',
+            transition: "all 0.2s ease",
+            "&:hover": {
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+            },
+            "&.Mui-focused": {
+              boxShadow: "0 4px 16px rgba(25, 118, 210, 0.2)",
+            },
+          }
+        }}
       >
         {Array.from({ length: 10 }, (_, i) => {
           const y = new Date().getFullYear() - 5 + i;

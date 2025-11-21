@@ -44,20 +44,33 @@ export default function CostTable({
   const LEFT2_KEY = visibleCols[1]?.key;
 
   return (
-    <Box sx={{ width: "100%", overflowX: "auto" }}>
+    <Box sx={{ width: "100%", overflowX: "auto", p: 2 }}>
       <TableContainer
         component={Paper}
         className="MuiTableContainer-root"
+        elevation={0}
         sx={{
           minWidth: 1000,
           borderRadius: 2,
-          border: "1px solid #e0e0e0",
-          maxHeight: "calc(100vh - 250px)",
-          bgcolor: "#fff",
-          "&::-webkit-scrollbar": { height: 8, width: 8 },
-          "&::-webkit-scrollbar-thumb": { backgroundColor: "#c1c1c1", borderRadius: 4 },
-          "&::-webkit-scrollbar-track": { backgroundColor: "#f1f1f1" },
-          scrollbarColor: "#c1c1c1 #f1f1f1",
+          border: "none",
+          maxHeight: "calc(100vh - 300px)",
+          bgcolor: "transparent",
+          "&::-webkit-scrollbar": { 
+            height: 10, 
+            width: 10,
+          },
+          "&::-webkit-scrollbar-thumb": { 
+            backgroundColor: "rgba(0, 0, 0, 0.2)", 
+            borderRadius: 5,
+            "&:hover": {
+              backgroundColor: "rgba(0, 0, 0, 0.3)",
+            },
+          },
+          "&::-webkit-scrollbar-track": { 
+            backgroundColor: "rgba(0, 0, 0, 0.05)",
+            borderRadius: 5,
+          },
+          scrollbarColor: "rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05)",
           scrollbarWidth: "thin",
         }}
       >
@@ -67,12 +80,17 @@ export default function CostTable({
           sx={{
             width: "100%",
             "& thead th": {
-              backgroundColor: "#f5f5f5",
-              borderBottom: "2px solid #ddd",
+              backgroundColor: "rgba(255, 255, 255, 0.95)",
+              backdropFilter: "blur(10px)",
+              borderBottom: "2px solid rgba(0, 0, 0, 0.08)",
               fontWeight: 700,
               whiteSpace: "nowrap",
               fontSize: "0.875rem",
               color: "#333",
+              position: "sticky",
+              top: 0,
+              zIndex: 10,
+              transition: "all 0.2s ease",
             },
             // class dùng chung cho header + body
             "& .bk-sticky-l1": {
@@ -217,6 +235,7 @@ export default function CostTable({
                       onToggleRevenueMode={onToggleRevenueMode}
                       categories={categories}
                       projectData={projectData}
+                      filtered={filtered}
                     />
                   ))}
 

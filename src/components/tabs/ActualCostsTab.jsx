@@ -750,7 +750,7 @@ export default function ActualCostsTab({ projectId }) {
         });
     }, []);
 
-    // Tối ưu: Cho numeric fields (tính toán ngay nhưng optimize)
+    // Tối ưu: Cho numeric fields - Debounce calculations để tránh lag
     const handleChangeNumericField = useCallback(
         (id, field, val) => {
             setCostItems((prev) => {
@@ -765,6 +765,7 @@ export default function ActualCostsTab({ projectId }) {
                     newVal = parseNumber(val.trim() === "" ? "0" : val);
                 }
 
+                // Chỉ update giá trị, tính toán sẽ được thực hiện khi blur hoặc debounce
                 const newRow = { ...row, [field]: newVal };
 
                 if (field === "revenue") {
@@ -773,6 +774,7 @@ export default function ActualCostsTab({ projectId }) {
                     newRow.isRevenueManual = false;
                 }
 
+                // Tính toán ngay nhưng chỉ cho row hiện tại
                 calcAllFields(newRow, {
                     isUserEditingNoPhaiTraCK: field === "noPhaiTraCK",
                     overallRevenue,
@@ -780,7 +782,6 @@ export default function ActualCostsTab({ projectId }) {
                     projectType: projectData?.type,
                 });
 
-                // Tạo mảng mới chỉ với row được update
                 const newItems = [...prev];
                 newItems[index] = newRow;
                 return newItems;
@@ -1234,84 +1235,159 @@ export default function ActualCostsTab({ projectId }) {
     }
     // --- KẾT THÚC ĐOẠN CODE GỠ LỖI ---
     return (
-        <Box>
-            <ActionBar
-                onAddRow={handleAddRow}
-                onFileUpload={(e, mode) =>
-                    handleFileUpload(
-                        e,
-                        costItems,
-                        setCostItems,
-                        setLoading,
-                        overallRevenue,
-                        projectTotalAmount,
-                        mode
-                    )
-                }
-                onExport={() =>
-                    exportToExcel(
-                        costItems,
-                        displayedColumns,
-                        projectData,
-                        year,
-                        quarter
-                    )
-                }
-                onSave={handleSave}
-                onSaveNextQuarter={handleSaveNextQuarter}
+        <Box
+            sx={{
+                pb: 4,
+            }}
+        >
+            {/* Modern Action Bar with Glass Effect */}
+            <Box
+                sx={{
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 100,
+                    backdropFilter: "blur(10px)",
+                    backgroundColor: "rgba(255, 255, 255, 0.9)",
+                    borderBottom: "1px solid rgba(0, 0, 0, 0.08)",
+                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.05)",
+                    mb: 3,
+                }}
+            >
+                <ActionBar
+                    onAddRow={handleAddRow}
+                    onFileUpload={(e, mode) =>
+                        handleFileUpload(
+                            e,
+                            costItems,
+                            setCostItems,
+                            setLoading,
+                            overallRevenue,
+                            projectTotalAmount,
+                            mode
+                        )
+                    }
+                    onExport={() =>
+                        exportToExcel(
+                            costItems,
+                            displayedColumns,
+                            projectData,
+                            year,
+                            quarter
+                        )
+                    }
+                    onSave={handleSave}
+                    onSaveNextQuarter={handleSaveNextQuarter}
 
-                // === THAY ĐỔI 3 DÒNG NÀY ===
-                onUndoFinalize={handleOpenUndoDialog}
-                onFinalizeProject={handleOpenFinalizeDialog}
-                onResetAllRevenue={handleOpenResetRevenueDialog}
-                // === KẾT THÚC THAY ĐỔI ===
+                    // === THAY ĐỔI 3 DÒNG NÀY ===
+                    onUndoFinalize={handleOpenUndoDialog}
+                    onFinalizeProject={handleOpenFinalizeDialog}
+                    onResetAllRevenue={handleOpenResetRevenueDialog}
+                    // === KẾT THÚC THAY ĐỔI ===
 
-                onToggleColumns={handleOpenColumnsDialog}
-                onBack={() => navigate("/construction-plan")}
-                costItems={costItems}
-                sx={{ mb: 2 }}
-                onShowFormulas={() => setFormulaDialogOpen(true)}
-            />
-            <Box sx={{ width: "100%", overflowX: "auto" }}>
-                <Filters
-                    search={search}
-                    onSearchChange={(e) => setSearch(e.target.value)}
-                    year={year}
-                    onYearChange={(e) => setYear(e.target.value)}
-                    quarter={quarter}
-                    onQuarterChange={(e) => setQuarter(e.target.value)}
+                    onToggleColumns={handleOpenColumnsDialog}
+                    onBack={() => navigate("/construction-plan")}
+                    costItems={costItems}
+                    sx={{ mb: 0, px: 3, py: 2 }}
+                    onShowFormulas={() => setFormulaDialogOpen(true)}
                 />
-                <SummaryPanel
-                    overallRevenue={overallRevenue}
-                    overallRevenueEditing={overallRevenueEditing}
-                    setOverallRevenue={setOverallRevenue}
-                    setOverallRevenueEditing={setOverallRevenueEditing}
-                    projectTotalAmount={projectTotalAmount}
-                    summarySumKeys={summarySumKeys}
-                    columnsAll={displayedColumns}
-                    groupedData={groupedData}
-                    projectData={projectData}
-                    year={year}
-                    quarter={quarter}
-                />
-                <CostTable
-                    columnsAll={displayedColumns}
-                    columnsVisibility={columnsVisibility}
-                    loading={loading}
-                    filtered={filtered}
-                    groupedData={groupedData}
-                    editingCell={editingCell}
-                    setEditingCell={setEditingCell}
-                    handleChangeField={handleChangeField}
-                    handleCommitTextField={handleCommitTextField}
-                    handleRemoveRow={handleRemoveRow}
-                    onToggleRevenueMode={handleToggleRevenueMode}
-                    overallRevenue={overallRevenue}
-                    projectTotalAmount={projectTotalAmount}
-                    categories={categories}
-                    projectData={projectData}
-                    search={search}
-                />
+            </Box>
+
+            {/* Main Content with Modern Layout */}
+            <Box
+                sx={{
+                    maxWidth: "100%",
+                    mx: "auto",
+                    px: { xs: 2, md: 4 },
+                }}
+            >
+                {/* Modern Filters Card */}
+                <Box
+                    sx={{
+                        mb: 3,
+                        borderRadius: 3,
+                        background: "rgba(255, 255, 255, 0.95)",
+                        backdropFilter: "blur(10px)",
+                        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08)",
+                        border: "1px solid rgba(255, 255, 255, 0.18)",
+                        overflow: "hidden",
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                        "&:hover": {
+                            boxShadow: "0 12px 40px rgba(0, 0, 0, 0.12)",
+                        },
+                    }}
+                >
+                    <Filters
+                        search={search}
+                        onSearchChange={(e) => setSearch(e.target.value)}
+                        year={year}
+                        onYearChange={(e) => setYear(e.target.value)}
+                        quarter={quarter}
+                        onQuarterChange={(e) => setQuarter(e.target.value)}
+                    />
+                </Box>
+
+                {/* Summary Panel with Modern Card */}
+                <Box
+                    sx={{
+                        mb: 3,
+                        borderRadius: 3,
+                        background: "rgba(255, 255, 255, 0.95)",
+                        backdropFilter: "blur(10px)",
+                        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08)",
+                        border: "1px solid rgba(255, 255, 255, 0.18)",
+                        overflow: "hidden",
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                    }}
+                >
+                    <SummaryPanel
+                        overallRevenue={overallRevenue}
+                        overallRevenueEditing={overallRevenueEditing}
+                        setOverallRevenue={setOverallRevenue}
+                        setOverallRevenueEditing={setOverallRevenueEditing}
+                        projectTotalAmount={projectTotalAmount}
+                        summarySumKeys={summarySumKeys}
+                        columnsAll={displayedColumns}
+                        groupedData={groupedData}
+                        projectData={projectData}
+                        year={year}
+                        quarter={quarter}
+                    />
+                </Box>
+
+                {/* Modern Table Container */}
+                <Box
+                    sx={{
+                        borderRadius: 3,
+                        background: "rgba(255, 255, 255, 0.95)",
+                        backdropFilter: "blur(10px)",
+                        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08)",
+                        border: "1px solid rgba(255, 255, 255, 0.18)",
+                        overflow: "hidden",
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                        "&:hover": {
+                            boxShadow: "0 12px 40px rgba(0, 0, 0, 0.12)",
+                        },
+                    }}
+                >
+                    <CostTable
+                        columnsAll={displayedColumns}
+                        columnsVisibility={columnsVisibility}
+                        loading={loading}
+                        filtered={filtered}
+                        groupedData={groupedData}
+                        editingCell={editingCell}
+                        setEditingCell={setEditingCell}
+                        handleChangeField={handleChangeField}
+                        handleCommitTextField={handleCommitTextField}
+                        handleRemoveRow={handleRemoveRow}
+                        onToggleRevenueMode={handleToggleRevenueMode}
+                        overallRevenue={overallRevenue}
+                        projectTotalAmount={projectTotalAmount}
+                        categories={categories}
+                        projectData={projectData}
+                        search={search}
+                    />
+                </Box>
             </Box>
             <ColumnSelector
                 columnsAll={columnsAll}
@@ -1320,27 +1396,83 @@ export default function ActualCostsTab({ projectId }) {
                 onClose={handleCloseColumnsDialog}
                 onToggleColumn={handleToggleColumn}
             />
+            {/* Modern Snackbar with Smooth Animation */}
             <Snackbar
                 open={snackOpen}
-                autoHideDuration={3000}
+                autoHideDuration={4000}
                 onClose={() => setSnackOpen(false)}
                 anchorOrigin={{ vertical: "top", horizontal: "center" }}
+                sx={{
+                    top: "80px !important",
+                }}
             >
                 <Alert
                     severity="success"
                     onClose={() => setSnackOpen(false)}
+                    sx={{
+                        borderRadius: 3,
+                        boxShadow: "0 8px 32px rgba(76, 175, 80, 0.25)",
+                        backdropFilter: "blur(12px)",
+                        backgroundColor: "rgba(255, 255, 255, 0.98)",
+                        border: "1px solid rgba(76, 175, 80, 0.2)",
+                        "& .MuiAlert-icon": {
+                            fontSize: 28,
+                        },
+                        animation: "slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                        "@keyframes slideDown": {
+                            from: {
+                                transform: "translateY(-100%)",
+                                opacity: 0,
+                            },
+                            to: {
+                                transform: "translateY(0)",
+                                opacity: 1,
+                            },
+                        },
+                    }}
                 >
-                    Lưu dữ liệu thành công!
+                    <Box sx={{ fontWeight: 600, fontSize: "0.95rem" }}>
+                        ✅ Lưu dữ liệu thành công!
+                    </Box>
                 </Alert>
             </Snackbar>
             <Snackbar
                 open={Boolean(error)}
-                autoHideDuration={3000}
+                autoHideDuration={5000}
                 onClose={() => setError(null)}
                 anchorOrigin={{ vertical: "top", horizontal: "center" }}
+                sx={{
+                    top: "80px !important",
+                }}
             >
-                <Alert severity="error" onClose={() => setError(null)}>
-                    {error}
+                <Alert
+                    severity="error"
+                    onClose={() => setError(null)}
+                    sx={{
+                        borderRadius: 3,
+                        boxShadow: "0 8px 32px rgba(211, 47, 47, 0.25)",
+                        backdropFilter: "blur(12px)",
+                        backgroundColor: "rgba(255, 255, 255, 0.98)",
+                        border: "1px solid rgba(211, 47, 47, 0.2)",
+                        "& .MuiAlert-icon": {
+                            fontSize: 28,
+                        },
+                        animation: "slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                        "@keyframes slideDown": {
+                            from: {
+                                transform: "translateY(-100%)",
+                                opacity: 0,
+                            },
+                            to: {
+                                transform: "translateY(0)",
+                                opacity: 1,
+                            },
+                        },
+                    }}
+                >
+                    <Box sx={{ fontWeight: 600, fontSize: "0.95rem" }}>
+                        ❌ {error}
+                    </Box>
                 </Alert>
             </Snackbar>
             <FormulaGuide
