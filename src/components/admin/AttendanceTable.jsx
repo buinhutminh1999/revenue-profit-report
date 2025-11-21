@@ -15,9 +15,9 @@ import {
   Box,
 } from "@mui/material";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
-import { db } from "../services/firebase-config";
+import { db } from "../../services/firebase-config";
 import toast from "react-hot-toast";
-import { isTimeString, isLate, isEarly } from "../utils/timeUtils";
+import { isTimeString, isLate, isEarly } from "../../utils/timeUtils";
 
 const LATE_COLLECTION = "lateReasons";
 const WEEKDAY = ["Chủ Nhật", "Hai", "Ba", "Tư", "Năm", "Sáu", "Bảy"];

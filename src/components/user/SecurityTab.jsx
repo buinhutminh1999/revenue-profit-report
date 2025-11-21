@@ -3,7 +3,7 @@ import {
   Box, Typography, Button, TextField, Stack, CircularProgress
 } from "@mui/material";
 import { updatePassword } from "firebase/auth";
-import { auth } from "../services/firebase-config";
+import { auth } from "../../services/firebase-config";
 import toast from "react-hot-toast";
 
 export default function SecurityTab() {

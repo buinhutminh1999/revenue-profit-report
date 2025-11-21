@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../../contexts/AuthContext";
 import {
   Box, Typography, Button, TextField, Stack, Alert,
   CircularProgress, IconButton, Paper, Card, CardContent,
@@ -10,7 +10,7 @@ import { Edit, Save, Cancel, CheckCircle, Email, VerifiedUser,
   Person, Fingerprint, Cloud, AdminPanelSettings } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 import { updateProfile, sendEmailVerification } from "firebase/auth";
-import { auth } from "../services/firebase-config";
+import { auth } from "../../services/firebase-config";
 import toast from "react-hot-toast";
 
 // Enhanced Styled Components
