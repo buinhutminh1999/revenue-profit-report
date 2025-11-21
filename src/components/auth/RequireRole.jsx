@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext'; // Chỉnh lại đường dẫn nếu cần
-import PermissionDenied from '../../pages/PermissionDenied'; // Import trang mới
+import PermissionDenied from '../../pages/auth/PermissionDenied'; // Import trang mới
 
 /**
  * Component bảo vệ route, kiểm tra vai trò của người dùng.
@@ -14,7 +14,7 @@ export default function RequireRole({ allowedRoles = [], children }) {
   // Component này chỉ render bên trong các route đã được xác thực,
   // nên 'user' sẽ luôn tồn tại. Dòng kiểm tra này để phòng ngừa các trường hợp ngoại lệ.
   if (!user) {
-    return null; 
+    return null;
   }
 
   // Kiểm tra xem mảng allowedRoles có được cung cấp và có chứa vai trò của user không.

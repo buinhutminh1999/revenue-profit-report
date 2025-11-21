@@ -17,15 +17,14 @@ import { generateUniqueId } from "../../utils/idUtils";
 import { calcAllFields } from "../../utils/calcUtils";
 import { exportToExcel } from "../../utils/excelUtils";
 import { groupByProject } from "../../utils/groupingUtils";
-import Filters from "../Filters";
-import ActionBar from "../ActionBar";
-import ColumnSelector from "../ColumnSelector";
-import CostTable from "../CostTable";
+import Filters from "../ui/Filters";
+import ActionBar from "../project/ActionBar";
+import ColumnSelector from "../ui/ColumnSelector";
+import CostTable from "../project/CostTable";
 import SummaryPanel from "../ui/SummaryPanel";
 import FormulaGuide from "../ui/FormulaGuide";
-import ConfirmDialog from "../ui/ConfirmDialog"; // <== ĐÃ CÓ
+import ConfirmDialog from "../ui/ConfirmDialog";
 
-// ---------- Cấu hình sắp xếp ----------
 const SORT_CONFIG = {
     "Thi công": { key: "orderThiCong" },
     "Nhà máy": { key: "orderNhaMay" },
@@ -41,7 +40,7 @@ export const defaultRow = {
     debt: "0",
     directCost: "0",
     allocated: "0",
-    payableDeductionThisQuarter: "0", // Thêm trường dữ liệu cho cột mới
+    payableDeductionThisQuarter: "0",
     carryover: "0",
     carryoverMinus: "0",
     carryoverEnd: "0",
@@ -53,7 +52,7 @@ export const defaultRow = {
     revenue: "0",
     hskh: "0",
     cpSauQuyetToan: 0,
-    baseForNptck: null, // <== Thêm dòng này
+    baseForNptck: null,
 };
 
 const transformProjectName = (name) => {
@@ -150,8 +149,8 @@ export const handleFileUpload = (
                     const key = `${(row["Công Trình"] || "")
                         .trim()
                         .toUpperCase()}|||${(
-                        row["Khoản Mục Chi Phí"] || ""
-                    ).trim()}`;
+                            row["Khoản Mục Chi Phí"] || ""
+                        ).trim()}`;
                     newDataMap[key] = row;
                 }
 
@@ -165,7 +164,7 @@ export const handleFileUpload = (
                         if (excelRow.hasOwnProperty(excelKey)) {
                             newRow[excelToField[excelKey]] = String(
                                 excelRow[excelKey] ??
-                                    oldRow[excelToField[excelKey]]
+                                oldRow[excelToField[excelKey]]
                             );
                         }
                     }
@@ -181,11 +180,11 @@ export const handleFileUpload = (
                         return !costItems.some(
                             (oldRow) =>
                                 oldRow.project ===
-                                    (row["Công Trình"] || "")
-                                        .trim()
-                                        .toUpperCase() &&
+                                (row["Công Trình"] || "")
+                                    .trim()
+                                    .toUpperCase() &&
                                 oldRow.description ===
-                                    (row["Khoản Mục Chi Phí"] || "").trim()
+                                (row["Khoản Mục Chi Phí"] || "").trim()
                         );
                     })
                     .map((row) => {
@@ -278,7 +277,7 @@ export default function ActualCostsTab({ projectId }) {
         open: false,
         title: "",
         content: "",
-        onConfirm: () => {}, // Hàm sẽ chạy khi bấm xác nhận
+        onConfirm: () => { }, // Hàm sẽ chạy khi bấm xác nhận
         confirmText: "Xác nhận",
         confirmColor: "primary",
     });
@@ -743,7 +742,7 @@ export default function ActualCostsTab({ projectId }) {
         setCostItems((prev) => {
             const index = prev.findIndex((row) => row.id === id);
             if (index === -1) return prev;
-            
+
             // Tạo mảng mới chỉ với row được update
             const newItems = [...prev];
             newItems[index] = { ...newItems[index], [field]: val };
@@ -819,7 +818,7 @@ export default function ActualCostsTab({ projectId }) {
                 } else {
                     processedVal = val;
                 }
-                
+
                 const newRow = { ...row, [field]: processedVal };
 
                 // Tính toán lại sau khi commit
@@ -903,7 +902,7 @@ export default function ActualCostsTab({ projectId }) {
     };
 
     // ---
-    
+
     // Phần 2: Logic thực thi
     const executeUndoFinalize = useCallback(() => {
         setCostItems((prevItems) =>
@@ -931,7 +930,7 @@ export default function ActualCostsTab({ projectId }) {
             confirmColor: "warning",
         });
     };
-    
+
     // ---
 
     const handleSave = async () => {
@@ -977,13 +976,30 @@ export default function ActualCostsTab({ projectId }) {
             const nextQuarter = isLastQuarter ? "Q1" : quarters[currIndex + 1];
             const nextYear = isLastQuarter ? String(Number(year) + 1) : year;
 
+            // Kiểm tra xem có phải quyết toán không (có items với isFinalized = true)
+            const isFinalizedQuarter = itemsToSave.some(item =>
+                item && (item.isFinalized === true || item.isFinalized === "true")
+            );
+
+            console.log(`💾 Saving quarter ${year}/${quarter} - isFinalizedQuarter:`, isFinalizedQuarter, 'items count:', itemsToSave.length);
+
+            const docData = {
+                items: itemsToSave,
+                overallRevenue: Number(overallRevenue),
+                updated_at: new Date().toISOString(),
+            };
+
+            // Nếu có quyết toán, thêm field isFinalized ở document level
+            if (isFinalizedQuarter) {
+                docData.isFinalized = true;
+                docData.finalizedAt = new Date().toISOString();
+                console.log(`✅ Đang lưu quyết toán cho ${year}/${quarter}`);
+            }
+
             await setDoc(
                 doc(db, "projects", id, "years", year, "quarters", quarter),
-                {
-                    items: itemsToSave,
-                    overallRevenue: Number(overallRevenue),
-                    updated_at: new Date().toISOString(),
-                }
+                docData,
+                { merge: false }
             );
 
             const nextQuarterDocRef = doc(
@@ -1015,15 +1031,15 @@ export default function ActualCostsTab({ projectId }) {
                     debt:
                         projectData?.type === "Nhà máy"
                             ? String(
-                                  Number(
-                                      parseNumber(currentItem.noPhaiTraCK || "0")
-                                  ) +
-                                      Number(
-                                          parseNumber(
-                                              currentItem.noPhaiTraCKNM || "0"
-                                          )
-                                      )
-                              )
+                                Number(
+                                    parseNumber(currentItem.noPhaiTraCK || "0")
+                                ) +
+                                Number(
+                                    parseNumber(
+                                        currentItem.noPhaiTraCKNM || "0"
+                                    )
+                                )
+                            )
                             : currentItem.noPhaiTraCK || "0",
                     carryover: currentItem.carryoverEnd || "0",
                 };
@@ -1243,7 +1259,7 @@ export default function ActualCostsTab({ projectId }) {
                 }
                 onSave={handleSave}
                 onSaveNextQuarter={handleSaveNextQuarter}
-                
+
                 // === THAY ĐỔI 3 DÒNG NÀY ===
                 onUndoFinalize={handleOpenUndoDialog}
                 onFinalizeProject={handleOpenFinalizeDialog}

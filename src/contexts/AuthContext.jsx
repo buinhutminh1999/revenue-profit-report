@@ -20,7 +20,7 @@ export function AuthProvider({ children }) {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-        
+
         // Lấy thông tin user từ Firestore
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         unsubscribeUser = onSnapshot(
@@ -31,10 +31,12 @@ export function AuthProvider({ children }) {
             } else {
               setUserData(null);
             }
+            setLoading(false); // Chỉ tắt loading khi đã lấy xong data từ Firestore
           },
           (error) => {
             console.error('Error fetching user data:', error);
             setUserData(null);
+            setLoading(false); // Tắt loading kể cả khi lỗi
           }
         );
       } else {
@@ -44,8 +46,8 @@ export function AuthProvider({ children }) {
           unsubscribeUser();
           unsubscribeUser = null;
         }
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => {
@@ -100,7 +102,7 @@ export function useAuth() {
 // usePermissions Hook (nếu cần)
 export function usePermissions() {
   const { user, accessRules } = useAuth();
-  
+
   const canEditKeHoach = React.useMemo(() => {
     if (!user || !accessRules) return false;
     // Logic kiểm tra quyền edit kế hoạch

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
     collection,
     onSnapshot,
@@ -10,6 +10,8 @@ import {
     query,
     orderBy as firestoreOrderBy,
     getDocs,
+    collectionGroup,
+    where,
 } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
 import toast from "react-hot-toast";
@@ -319,7 +321,9 @@ const ProjectActionsMenu = ({ onEdit, onDelete }) => {
 // --- COMPONENT CHÍNH: ConstructionPlan ---
 export default function ConstructionPlan() {
     const navigate = useNavigate();
+    const location = useLocation();
     const theme = useTheme();
+    const hasLoadedRef = useRef(false); // Để tránh reload khi mount lần đầu
     const [projects, setProjects] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -331,6 +335,9 @@ export default function ConstructionPlan() {
     const [isTimelineModalOpen, setTimelineModalOpen] = useState(false);
     const [projectForTimeline, setProjectForTimeline] = useState(null);
     const [projectToDelete, setProjectToDelete] = useState(null);
+    
+    // Lưu trữ quarters data khi listener chạy (trước khi projects load)
+    const [quartersCache, setQuartersCache] = useState(new Map());
 
     const [newProject, setNewProject] = useState({
         name: "",
@@ -361,6 +368,7 @@ export default function ConstructionPlan() {
                     }));
                     const projectsWithTotals = await Promise.all(
                         projectsData.map(async (project) => {
+                            // Lấy tổng HSKH
                             const planningItemsRef = collection(
                                 db,
                                 "projects",
@@ -375,10 +383,34 @@ export default function ConstructionPlan() {
                                     sum + (Number(doc.data().amount) || 0),
                                 0
                             );
-                            return { ...project, revenueHSKH: totalHSKH };
+
+                            // Không load quyết toán ở đây để tránh chậm - sẽ load sau bằng realtime listener
+                            return { 
+                                ...project, 
+                                revenueHSKH: totalHSKH,
+                                finalizedQuarters: [],
+                                latestFinalized: null,
+                            };
                         })
                     );
-                    setProjects(projectsWithTotals);
+                    // Nếu đã có quarters cache, apply ngay vào projects
+                    const projectsWithFinalized = projectsWithTotals.map(project => {
+                        const finalizedQuarters = quartersCache.get(project.id) || [];
+                        finalizedQuarters.sort((a, b) => {
+                            if (a.year !== b.year) return Number(b.year) - Number(a.year);
+                            const qOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
+                            return qOrder[b.quarter] - qOrder[a.quarter];
+                        });
+                        const latestFinalized = finalizedQuarters.length > 0 ? finalizedQuarters[0] : null;
+                        
+                        return {
+                            ...project,
+                            finalizedQuarters: finalizedQuarters,
+                            latestFinalized: latestFinalized,
+                        };
+                    });
+                    
+                    setProjects(projectsWithFinalized);
                 } catch (error) {
                     console.error("Lỗi khi lấy dữ liệu:", error);
                     toast.error("Không thể tải được dữ liệu công trình.");
@@ -393,7 +425,233 @@ export default function ConstructionPlan() {
             }
         );
         return () => unsub();
+    }, [quartersCache]); // Thêm quartersCache vào dependency để apply cache khi load projects
+
+    // Helper function để reload dữ liệu quyết toán cho một project
+    const reloadProjectFinalizedData = useCallback(async (project) => {
+        const finalizedQuarters = [];
+        try {
+            const yearsRef = collection(db, "projects", project.id, "years");
+            const yearsSnapshot = await getDocs(yearsRef);
+            
+            for (const yearDoc of yearsSnapshot.docs) {
+                const year = yearDoc.id;
+                const quartersRef = collection(
+                    db,
+                    "projects",
+                    project.id,
+                    "years",
+                    year,
+                    "quarters"
+                );
+                const quartersSnapshot = await getDocs(quartersRef);
+                
+                for (const quarterDoc of quartersSnapshot.docs) {
+                    const quarter = quarterDoc.id;
+                    const quarterData = quarterDoc.data();
+                    
+                    let isFinalized = false;
+                    
+                    // Kiểm tra document level trước
+                    if (quarterData.isFinalized === true || quarterData.isFinalized === "true") {
+                        isFinalized = true;
+                        console.log(`✅ [Reload] Found finalized at document level: ${project.name} (${project.id})/${year}/${quarter}`);
+                    } else {
+                        // Nếu không có ở document level, kiểm tra trong items
+                        const items = Array.isArray(quarterData.items) ? quarterData.items : [];
+                        if (items.length > 0) {
+                            // Đếm số items có isFinalized
+                            const finalizedItems = items.filter(item => {
+                                if (!item || typeof item !== 'object') return false;
+                                if (item.isFinalized === true || item.isFinalized === "true") return true;
+                                if (item.hasOwnProperty('isFinalized') && item.isFinalized) return true;
+                                return false;
+                            });
+                            
+                            if (finalizedItems.length > 0) {
+                                isFinalized = true;
+                                console.log(`✅ [Reload] Found ${finalizedItems.length} finalized items: ${project.name} (${project.id})/${year}/${quarter}`);
+                            } else {
+                                // Debug: kiểm tra một item mẫu
+                                if (items.length > 0 && process.env.NODE_ENV === 'development') {
+                                    const sampleItem = items[0];
+                                    console.log(`⚠️ [Reload] No finalized items found in ${project.name}/${year}/${quarter}:`, {
+                                        totalItems: items.length,
+                                        sampleItem: {
+                                            hasIsFinalized: sampleItem?.hasOwnProperty('isFinalized'),
+                                            isFinalizedValue: sampleItem?.isFinalized,
+                                            type: typeof sampleItem?.isFinalized
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (isFinalized) {
+                        finalizedQuarters.push({ quarter, year });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`❌ Lỗi khi reload quyết toán cho project ${project.id}:`, error);
+        }
+        
+        finalizedQuarters.sort((a, b) => {
+            if (a.year !== b.year) return Number(b.year) - Number(a.year);
+            const qOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
+            return qOrder[b.quarter] - qOrder[a.quarter];
+        });
+        
+        const latestFinalized = finalizedQuarters.length > 0 ? finalizedQuarters[0] : null;
+        
+        if (finalizedQuarters.length > 0) {
+            console.log(`📌 [Reload] Project ${project.name}: ${finalizedQuarters.length} quarters finalized, latest: ${latestFinalized.quarter}/${latestFinalized.year}`);
+        }
+        
+        return {
+            ...project,
+            finalizedQuarters: finalizedQuarters,
+            latestFinalized: latestFinalized,
+        };
     }, []);
+
+    // Không cần reload riêng nữa vì đã có realtime listener
+    
+    // Listener realtime cho quarters - load ngay và tự động cập nhật khi có thay đổi
+    useEffect(() => {
+        if (location.pathname !== '/construction-plan') return;
+        
+        console.log('👂 Setting up realtime listener for quarters...');
+        const quartersQuery = collectionGroup(db, "quarters");
+        const unsubQuarters = onSnapshot(
+            quartersQuery,
+            (quartersSnapshot) => {
+                console.log(`📢 Quarters snapshot: ${quartersSnapshot.docs.length} quarters found`);
+                
+                // Nhóm quarters theo projectId
+                const quartersByProject = new Map();
+                
+                quartersSnapshot.docs.forEach((quarterDoc) => {
+                    const quarterData = quarterDoc.data();
+                    const pathParts = quarterDoc.ref.path.split('/');
+                    const projectIdIndex = pathParts.indexOf('projects') + 1;
+                    const yearIndex = pathParts.indexOf('years') + 1;
+                    const quarterIndex = pathParts.indexOf('quarters') + 1;
+                    
+                    if (projectIdIndex > 0 && yearIndex > 0 && quarterIndex > 0) {
+                        const projectId = pathParts[projectIdIndex];
+                        const year = pathParts[yearIndex];
+                        const quarter = pathParts[quarterIndex];
+                        
+                        // Kiểm tra có finalized không - ưu tiên document level
+                        let isFinalized = false;
+                        if (quarterData.isFinalized === true || quarterData.isFinalized === "true") {
+                            isFinalized = true;
+                        } else {
+                            // Nếu không có ở document level, kiểm tra trong items
+                            const items = Array.isArray(quarterData.items) ? quarterData.items : [];
+                            if (items.length > 0) {
+                                isFinalized = items.some(item => 
+                                    item && (item.isFinalized === true || item.isFinalized === "true")
+                                );
+                            }
+                        }
+                        
+                        if (isFinalized) {
+                            if (!quartersByProject.has(projectId)) {
+                                quartersByProject.set(projectId, []);
+                            }
+                            quartersByProject.get(projectId).push({ quarter, year });
+                        }
+                    }
+                });
+                
+                // Lưu cache để dùng sau khi projects load
+                setQuartersCache(quartersByProject);
+                
+                console.log(`📊 Found finalized quarters for ${quartersByProject.size} projects`);
+                
+                // Cập nhật projects với dữ liệu mới
+                setProjects(prevProjects => {
+                    if (prevProjects.length === 0) {
+                        // Nếu chưa có projects, chỉ lưu cache và return
+                        return prevProjects;
+                    }
+                    
+                    const updated = prevProjects.map(project => {
+                        const finalizedQuarters = quartersByProject.get(project.id) || [];
+                        finalizedQuarters.sort((a, b) => {
+                            if (a.year !== b.year) return Number(b.year) - Number(a.year);
+                            const qOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
+                            return qOrder[b.quarter] - qOrder[a.quarter];
+                        });
+                        const latestFinalized = finalizedQuarters.length > 0 ? finalizedQuarters[0] : null;
+                        
+                        return {
+                            ...project,
+                            finalizedQuarters: finalizedQuarters,
+                            latestFinalized: latestFinalized,
+                        };
+                    });
+                    
+                    // Debug: Log projects có quyết toán
+                    const withFinalized = updated.filter(p => p.latestFinalized);
+                    if (withFinalized.length > 0) {
+                        console.log('✅ Projects với quyết toán:', withFinalized.map(p => ({
+                            name: p.name,
+                            latestFinalized: `${p.latestFinalized.quarter}/${p.latestFinalized.year}`
+                        })));
+                    }
+                    
+                    return updated;
+                });
+            },
+            (error) => {
+                console.error('❌ Lỗi listener quarters:', error);
+            }
+        );
+        
+        return () => {
+            console.log('🔇 Cleaning up quarters listener');
+            unsubQuarters();
+        };
+    }, [location.pathname]); // Chỉ phụ thuộc vào location.pathname để setup ngay
+
+    // Khi projects load xong, apply cache từ quarters listener
+    useEffect(() => {
+        if (projects.length > 0 && quartersCache.size > 0) {
+            console.log('🔄 Applying quarters cache to projects...');
+            setProjects(prevProjects => {
+                const updated = prevProjects.map(project => {
+                    const finalizedQuarters = quartersCache.get(project.id) || [];
+                    finalizedQuarters.sort((a, b) => {
+                        if (a.year !== b.year) return Number(b.year) - Number(a.year);
+                        const qOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
+                        return qOrder[b.quarter] - qOrder[a.quarter];
+                    });
+                    const latestFinalized = finalizedQuarters.length > 0 ? finalizedQuarters[0] : null;
+                    
+                    return {
+                        ...project,
+                        finalizedQuarters: finalizedQuarters,
+                        latestFinalized: latestFinalized,
+                    };
+                });
+                
+                // Debug: Log projects có quyết toán
+                const withFinalized = updated.filter(p => p.latestFinalized);
+                if (withFinalized.length > 0) {
+                    console.log('✅ Applied cache - Projects với quyết toán:', withFinalized.map(p => ({
+                        name: p.name,
+                        latestFinalized: `${p.latestFinalized.quarter}/${p.latestFinalized.year}`
+                    })));
+                }
+                
+                return updated;
+            });
+        }
+    }, [projects.length, quartersCache.size]); // Chạy khi projects load xong hoặc cache có data
 
     // --- HANDLERS DỰA TRÊN USECALLBACK ---
     const handleOpenTimelineModal = useCallback((project) => {
@@ -660,6 +918,62 @@ export default function ConstructionPlan() {
                 },
             },
             {
+                field: "latestFinalized",
+                headerName: "Quyết Toán",
+                width: 160,
+                align: "center",
+                headerAlign: "center",
+                sortable: false,
+                renderCell: (params) => {
+                    const { latestFinalized, finalizedQuarters, id, name } = params.row;
+                    
+                    // Debug log
+                    if (process.env.NODE_ENV === 'development') {
+                        console.log(`🔍 Project ${name} (${id}):`, {
+                            latestFinalized,
+                            finalizedQuarters,
+                            finalizedQuartersLength: finalizedQuarters?.length || 0
+                        });
+                    }
+                    
+                    if (!latestFinalized || !finalizedQuarters || finalizedQuarters.length === 0) {
+                        return (
+                            <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ fontStyle: "italic" }}
+                            >
+                                Chưa quyết toán
+                            </Typography>
+                        );
+                    }
+                    const finalizedCount = finalizedQuarters.length;
+                    const displayText = `${latestFinalized.quarter}/${latestFinalized.year}`;
+                    return (
+                        <Tooltip 
+                            title={
+                                finalizedCount > 1 
+                                    ? `Đã quyết toán ${finalizedCount} quý. Quý mới nhất: ${displayText}`
+                                    : `Đã quyết toán quý ${displayText}`
+                            }
+                        >
+                            <Chip
+                                icon={<TaskAlt />}
+                                label={displayText}
+                                size="small"
+                                sx={{
+                                    fontWeight: 600,
+                                    borderRadius: "6px",
+                                    color: "success.dark",
+                                    backgroundColor: alpha(theme.palette.success.main, 0.2),
+                                    border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`,
+                                }}
+                            />
+                        </Tooltip>
+                    );
+                },
+            },
+            {
                 field: "actions",
                 headerName: "Thao Tác",
                 width: 100,
@@ -674,12 +988,7 @@ export default function ConstructionPlan() {
                 ),
             },
         ],
-        [
-            theme,
-            handleOpenEditDialog,
-            handleOpenDeleteDialog,
-            handleOpenTimelineModal,
-        ]
+        [theme]
     );
 
     return (

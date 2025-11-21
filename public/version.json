@@ -1,1 +1,3 @@
-"{\"version\": \"$VERCEL_GIT_COMMIT_SHA\"}"  
+{
+  "version": "dev"
+}

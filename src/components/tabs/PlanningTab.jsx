@@ -973,10 +973,10 @@ export default function PlanningTab({ projectId }) {
             align: "right",
             headerAlign: "right",
             valueGetter: (v, row) =>
-                row.rowType === "adjustment"
-                    ? row.type === "increase"
-                        ? row.amount
-                        : -row.amount
+                row?.rowType === "adjustment"
+                    ? row?.type === "increase"
+                        ? row?.amount || 0
+                        : -(row?.amount || 0)
                     : null,
             renderCell: (params) => {
                 if (params.value === null) return "";
@@ -1005,10 +1005,10 @@ export default function PlanningTab({ projectId }) {
             align: "right",
             headerAlign: "right",
             valueGetter: (v, row) =>
-                row.rowType === "groupHeader" || row.rowType === "parent"
-                    ? (row.amount || 0) +
-                      (row.increaseAmount || 0) -
-                      (row.decreaseAmount || 0)
+                row?.rowType === "groupHeader" || row?.rowType === "parent"
+                    ? (row?.amount || 0) +
+                      (row?.increaseAmount || 0) -
+                      (row?.decreaseAmount || 0)
                     : null,
             renderCell: (params) => {
                 if (params.value === null) return "";

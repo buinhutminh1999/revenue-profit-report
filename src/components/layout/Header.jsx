@@ -14,7 +14,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 // Context & Hooks
 import { ThemeSettingsContext } from "../../styles/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
-import DensityToggleButton from "../../components/DensityToggleButton";
+import DensityToggleButton from "../ui/DensityToggleButton";
 import { EmptyState, ErrorState } from "../common";
 
 // Firestore

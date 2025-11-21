@@ -30,9 +30,9 @@ import vi from 'date-fns/locale/vi'; // Import locale tiếng Việt từ date-f
 import { startOfDay, endOfDay } from "date-fns";
 import { Print, UploadFile, Search, Clear } from "@mui/icons-material";
 
-import FileUpload from "../../components/FileUpload";
-import DepartmentFilter from "../../components/DepartmentFilter";
-import AttendanceTable from "../../components/AttendanceTable";
+import FileUpload from "../../components/common/FileUpload";
+import DepartmentFilter from "../../components/common/DepartmentFilter";
+import AttendanceTable from "../../components/admin/AttendanceTable";
 import {
     convertExcelDateToJSDate,
     convertExcelTimeToTimeString,

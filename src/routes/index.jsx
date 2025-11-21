@@ -25,50 +25,52 @@ const lazyLoad = (Component) => (
 );
 
 // --- LAZY-LOAD CÁC TRANG ---
-const Home = lazy(() => import('../components/Home'));
-const LoginPage = lazy(() => import('../pages/LoginPage'));
-const NotFound = lazy(() => import('../components/NotFound'));
-const UserProfile = lazy(() => import('../pages/UserProfile'));
-const EventSlideshow = lazy(() => import('../pages/EventSlideshow'));
-const EventEditor = lazy(() => import('../pages/EventEditor'));
-const UnauthorizedPage = lazy(() => import('../pages/UnauthorizedPage'));
-const PleaseVerifyEmail = lazy(() => import('../pages/PleaseVerifyEmail'));
-const FinishSetupPage = lazy(() => import('../pages/FinishSetupPage'));
+const Home = lazy(() => import('../pages/general/Home'));
+const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
+const NotFound = lazy(() => import('../pages/general/NotFound'));
+const UserProfile = lazy(() => import('../pages/general/UserProfile'));
+const EventSlideshow = lazy(() => import('../pages/events/EventSlideshow'));
+const EventEditor = lazy(() => import('../pages/events/EventEditor'));
+const UnauthorizedPage = lazy(() => import('../pages/auth/UnauthorizedPage'));
+const PleaseVerifyEmail = lazy(() => import('../pages/auth/PleaseVerifyEmail'));
+const FinishSetupPage = lazy(() => import('../pages/auth/FinishSetupPage'));
 const ConstructionPlan = lazy(() => import('../components/ConstructionPlan/ConstructionPlan'));
-const ProjectsList = lazy(() => import('../pages/ProjectsList'));
-const AccountsReceivable = lazy(() => import('../pages/AccountsReceivable'));
-const ConstructionPayables = lazy(() => import('../pages/ConstructionPayables'));
-const CostAllocation = lazy(() => import('../pages/CostAllocation'));
-const BalanceSheet = lazy(() => import('../pages/BalanceSheet'));
-const ChartOfAccountsPage = lazy(() => import('../pages/ChartOfAccountsPage'));
-const CostAllocationQuarter = lazy(() => import('../pages/CostAllocationQuarter'));
-const CategoryConfig = lazy(() => import('../pages/CategoryConfig'));
-const ProjectDetailsLayout = lazy(() => import('../pages/ProjectDetailsLayout'));
-const ProfitChange = lazy(() => import('../pages/ProfitChange'));
-const AssetTransferPage = lazy(() => import('../pages/AssetTransferPage'));
-const TransferDetailPage = lazy(() => import('../pages/TransferDetailPage'));
-const InventoryReportPublicView = lazy(() => import('../pages/InventoryReportPublicView'));
-const AssetRequestDetailPage = lazy(() => import('../pages/AssetRequestDetailPage'));
-const AssetDetailPage = lazy(() => import('../pages/AssetDetailPage'));
-const ProfitReportQuarter = lazy(() => import('../pages/ProfitReportQuarter'));
-const ProfitReportYear = lazy(() => import('../pages/ProfitReportYear'));
-const BrokerDebtReport = lazy(() => import('../pages/BrokerDebtReport'));
-const OverallReportPage = lazy(() => import('../pages/OverallReportPage'));
-const CapitalUtilizationReport = lazy(() => import('../pages/CapitalUtilizationReport'));
-const QuarterlyCostAllocationReport = lazy(() => import('../pages/QuarterlyCostAllocationReport'));
-const AdminDashboard = lazy(() => import('../pages/AdminDashboard'));
-const AdminUserManager = lazy(() => import('../components/AdminUserManager'));
-const AdminDepartmentManager = lazy(() => import('../pages/AdminDepartmentManager'));
-const AdminAuditLog = lazy(() => import('../pages/AdminAuditLog'));
-const CloseQuarterPage = lazy(() => import('../pages/CloseQuarterPage'));
-const WhitelistManager = lazy(() => import('../pages/WhitelistManager'));
-const DocumentPublisher = lazy(() => import('../pages/DocumentPublisher'));
-const DocumentList = lazy(() => import('../pages/DocumentList'));
-const DocumentDetail = lazy(() => import('../pages/DocumentDetail'));
+const ProjectsList = lazy(() => import('../pages/project/ProjectsList'));
+const AccountsReceivable = lazy(() => import('../pages/finance/AccountsReceivable'));
+const ConstructionPayables = lazy(() => import('../pages/finance/ConstructionPayables'));
+const CostAllocation = lazy(() => import('../pages/finance/CostAllocation'));
+const BalanceSheet = lazy(() => import('../pages/finance/BalanceSheet'));
+const ChartOfAccountsPage = lazy(() => import('../pages/finance/ChartOfAccountsPage'));
+const CostAllocationQuarter = lazy(() => import('../pages/finance/CostAllocationQuarter'));
+const CategoryConfig = lazy(() => import('../pages/admin/CategoryConfig'));
+const ProjectDetailsLayout = lazy(() => import('../pages/project/ProjectDetailsLayout'));
+const ProfitChange = lazy(() => import('../pages/finance/ProfitChange'));
+const AssetTransferPage = lazy(() => import('../pages/assets/AssetTransferPage'));
+const TransferDetailPage = lazy(() => import('../pages/assets/TransferDetailPage'));
+const InventoryReportPublicView = lazy(() => import('../pages/finance/InventoryReportPublicView'));
+const AssetRequestDetailPage = lazy(() => import('../pages/assets/AssetRequestDetailPage'));
+const AssetDetailPage = lazy(() => import('../pages/assets/AssetDetailPage'));
+const ProfitReportQuarter = lazy(() => import('../pages/finance/ProfitReportQuarter'));
+const ProfitReportYear = lazy(() => import('../pages/finance/ProfitReportYear'));
+const BrokerDebtReport = lazy(() => import('../pages/finance/BrokerDebtReport'));
+const OverallReportPage = lazy(() => import('../pages/finance/OverallReportPage'));
+const CapitalUtilizationReport = lazy(() => import('../pages/finance/CapitalUtilizationReport'));
+const QuarterlyCostAllocationReport = lazy(() => import('../pages/finance/QuarterlyCostAllocationReport'));
+const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
+const AdminUserManager = lazy(() => import('../pages/admin/AdminUserManager'));
+const AdminDepartmentManager = lazy(() => import('../pages/admin/AdminDepartmentManager'));
+const AdminAuditLog = lazy(() => import('../pages/admin/AdminAuditLog'));
+const CloseQuarterPage = lazy(() => import('../pages/admin/CloseQuarterPage'));
+const WhitelistManager = lazy(() => import('../pages/admin/WhitelistManager'));
+const DocumentPublisher = lazy(() => import('../pages/admin/DocumentPublisher'));
+const DocumentList = lazy(() => import('../pages/documents/DocumentList'));
+const DocumentDetail = lazy(() => import('../pages/documents/DocumentDetail'));
 // THAY ĐỔI DÒNG NÀY:
-const MaterialPriceComparisonDetail = lazy(() => import('../pages/MaterialPriceComparisonDetail'));
+const MaterialPriceComparisonDetail = lazy(() => import('../pages/finance/MaterialPriceComparisonDetail'));
 // THÊM DÒNG MỚI NÀY (CHO TRANG DANH SÁCH):
-const MaterialPriceComparison = lazy(() => import('../pages/MaterialPriceComparison'));// --- LAZY-LOAD CÁC TRANG CỦA MODULE CHẤM CÔNG ---
+const MaterialPriceComparison = lazy(() => import('../pages/finance/MaterialPriceComparison'));
+
+// --- LAZY-LOAD CÁC TRANG CỦA MODULE CHẤM CÔNG ---
 const AttendanceDashboard = lazy(() => import('../pages/attendance/AttendanceDashboard'));
 
 // --- LAZY-LOAD CÁC TRANG CỦA MODULE GIÁM SÁT THIẾT BỊ ---
@@ -87,7 +89,7 @@ export default function Router() {
 }
 
 function AppRoutes() {
-   const { user: currentUser, isAuthenticated, loading } = useAuth();
+    const { user: currentUser, isAuthenticated, loading } = useAuth();
     const location = useLocation();
     const backTo = location.state?.from?.pathname || '/';
     // =========================================================
@@ -148,8 +150,8 @@ function AppRoutes() {
                         <Route
                             path="material-price-comparison/:tableId"
                             element={<RequireEmailAccess pathKey="material-price-comparison">{lazyLoad(MaterialPriceComparisonDetail)}</RequireEmailAccess>}
-                        />                       
-                         {/* === MODULE CHẤM CÔNG === */}
+                        />
+                        {/* === MODULE CHẤM CÔNG === */}
                         <Route path="attendance">
                             <Route index element={<RequireEmailAccess pathKey="attendance">{lazyLoad(AttendanceDashboard)}</RequireEmailAccess>} />
 

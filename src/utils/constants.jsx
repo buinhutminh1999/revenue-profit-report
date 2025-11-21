@@ -1,3 +1,4 @@
+import React from "react";
 import { Check, FilePen, Handshake, UserCheck, Users, X } from "lucide-react";
 
 // src/utils/constants.js
