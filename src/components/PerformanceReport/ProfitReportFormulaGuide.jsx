@@ -80,7 +80,7 @@ const ProfitReportFormulaGuide = ({ open, onClose }) => {
                 <SectionHeader icon={<DataObjectIcon color="action" />}>Công Thức Cốt Lõi (Dữ liệu gốc từ mỗi công trình)</SectionHeader>
                 <Grid container spacing={3}>
                     {/* // <-- SỬA ĐỔI TẠI ĐÂY */}
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <FormulaItem
                             title="Doanh Thu"
                             context="Cho từng công trình"
@@ -88,7 +88,7 @@ const ProfitReportFormulaGuide = ({ open, onClose }) => {
                         />
                     </Grid>
                     {/* // <-- SỬA ĐỔI TẠI ĐÂY */}
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <FormulaItem
                             title="Chi Phí Đã Chi"
                             context="Cho từng công trình"
@@ -111,14 +111,14 @@ END IF`}
                 {/* --- NHÓM CÔNG THỨC TỔNG HỢP --- */}
                 <SectionHeader icon={<SummarizeIcon color="action" />}>Công Thức Tổng Hợp Nhóm</SectionHeader>
                 <Grid container spacing={3}>
-                    <Grid item xs={12} lg={6}>
+                    <Grid size={{ xs: 12, lg: 6 }}>
                         <FormulaItem
                             title="Hàng Tổng Hợp (VD: I. XÂY DỰNG, TỔNG)"
                             context="Doanh thu & Chi phí"
                             formula="Giá trị tại hàng tổng hợp được tính bằng cách CỘNG DỒN (SUM) giá trị tương ứng của các hàng con hoặc các nhóm con trực thuộc nó."
                         />
                     </Grid>
-                    <Grid item xs={12} lg={6}>
+                    <Grid size={{ xs: 12, lg: 6 }}>
                         <FormulaItem
                             title="Hàng Tổng Hợp (VD: I. XÂY DỰNG, TỔNG)"
                             context="Lợi nhuận"
@@ -131,31 +131,31 @@ Lợi nhuận = SUM(Lợi nhuận của các nhóm con)`}
                     </Grid>
                 </Grid>
 
-                 {/* --- NHÓM CÔNG THỨC TÍNH TOÁN ĐẶC BIỆT --- */}
-                 <SectionHeader icon={<CalculateIcon color="action" />}>Công Thức Tính Toán Đặc Biệt (Hàng tự động)</SectionHeader>
-                 <Grid container spacing={3}>
-                     <Grid item xs={12} md={6}>
-                         <FormulaItem
-                             title="=> LỢI NHUẬN SAU GIẢM TRỪ [QUÝ].[NĂM]"
-                             context="Hàng tính toán"
-                             formula={`LN Quý (IV) - Giảm LN (V) + Thu Nhập Khác (VI) - KHTSCĐ (VII) - Giảm Lãi ĐT (VIII)`}
-                         />
-                     </Grid>
-                     <Grid item xs={12} md={6}>
-                         <FormulaItem
-                             title="VƯỢT [QUÝ]"
-                             context="Hàng tính toán"
-                             formula={`(+Vượt CP BPXD) + (+Vượt CP BPSX) + (+Vượt CP BPĐT) + Lợi nhuận của hàng '(+ Chi phí đã trả trước)'`}
-                         />
-                     </Grid>
-                     <Grid item xs={12} md={6}>
-                         <FormulaItem
-                             title="LỢI NHUẬN RÒNG"
-                             context="Hàng tính toán (Cuối cùng)"
-                             formula={`(Lợi Nhuận Sau Giảm Trừ) - (Vượt [QUÝ])`}
-                         />
-                     </Grid>
-                 </Grid>
+                {/* --- NHÓM CÔNG THỨC TÍNH TOÁN ĐẶC BIỆT --- */}
+                <SectionHeader icon={<CalculateIcon color="action" />}>Công Thức Tính Toán Đặc Biệt (Hàng tự động)</SectionHeader>
+                <Grid container spacing={3}>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                        <FormulaItem
+                            title="=> LỢI NHUẬN SAU GIẢM TRỪ [QUÝ].[NĂM]"
+                            context="Hàng tính toán"
+                            formula={`LN Quý (IV) - Giảm LN (V) + Thu Nhập Khác (VI) - KHTSCĐ (VII) - Giảm Lãi ĐT (VIII)`}
+                        />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                        <FormulaItem
+                            title="VƯỢT [QUÝ]"
+                            context="Hàng tính toán"
+                            formula={`(+Vượt CP BPXD) + (+Vượt CP BPSX) + (+Vượt CP BPĐT) + Lợi nhuận của hàng '(+ Chi phí đã trả trước)'`}
+                        />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                        <FormulaItem
+                            title="LỢI NHUẬN RÒNG"
+                            context="Hàng tính toán (Cuối cùng)"
+                            formula={`(Lợi Nhuận Sau Giảm Trừ) - (Vượt [QUÝ])`}
+                        />
+                    </Grid>
+                </Grid>
             </DialogContent>
 
             <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>

@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { doc, getDoc, onSnapshot, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase-config';
 import { Box, Typography, Paper, CircularProgress, Container, Divider, Chip, Button, Stack, Avatar, Grid, Tooltip } from '@mui/material'; // Thêm Grid và Tooltip
-import { ArrowLeft, Building, Calendar, CheckCircle, Tag, Warehouse, History, Send, ArrowRight, XCircle } from 'lucide-react';
+import { ArrowBack as ArrowLeft, Business as Building, CalendarToday as Calendar, CheckCircle, LocalOffer as Tag, Warehouse, History, Send, ArrowForward as ArrowRight, HighlightOff as XCircle } from '@mui/icons-material';
 import PageTransition from '../../components/common/PageTransition';
 
 // Helper function để định dạng ngày tháng
@@ -57,7 +57,7 @@ export default function AssetDetailPage() {
             setError('Không thể tải dữ liệu tài sản.');
             setLoading(false);
         });
-        
+
         // Lấy lịch sử luân chuyển của tài sản (ĐÃ SỬA LẠI QUERY CHO ĐÚNG)
         const fetchHistory = async () => {
             try {
@@ -68,7 +68,7 @@ export default function AssetDetailPage() {
                     where("status", "==", "COMPLETED"),
                     orderBy("date", "desc")
                 );
-                
+
                 const querySnapshot = await getDocs(transferQuery);
                 const transferHistory = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 setHistory(transferHistory);
@@ -79,12 +79,12 @@ export default function AssetDetailPage() {
                 // Vẫn hiển thị trang, chỉ là không có lịch sử
             }
         };
-        
+
         fetchHistory();
 
         return () => unsubscribeAsset();
     }, [assetId]);
-    
+
     // ❌ Component InfoRow đã bị xóa vì không còn dùng
 
     if (loading) {
@@ -96,7 +96,7 @@ export default function AssetDetailPage() {
             <Box sx={{ bgcolor: '#f4f6f8', minHeight: '100vh', py: { xs: 3, sm: 6 } }}>
                 <Container maxWidth="sm">
                     <Stack direction="row" justifyContent="space-between" sx={{ mb: 2, px: 1 }}>
-                        <Button startIcon={<ArrowLeft size={16} />} onClick={() => navigate(-1)}>
+                        <Button startIcon={<ArrowLeft sx={{ fontSize: 16 }} />} onClick={() => navigate(-1)}>
                             Quay lại
                         </Button>
                         <Button component={Link} to="/asset-transfer" variant="outlined" size="small">
@@ -108,7 +108,7 @@ export default function AssetDetailPage() {
                         // Trạng thái Lỗi (Giữ nguyên, đã tốt)
                         <Paper elevation={3} sx={{ borderRadius: 4, overflow: 'hidden' }}>
                             <Box sx={{ p: 4, textAlign: 'center' }}>
-                                <XCircle size={48} color="#f44336" style={{ marginBottom: '16px' }}/>
+                                <XCircle sx={{ fontSize: 48, color: "#f44336", marginBottom: '16px' }} />
                                 <Typography variant="h5" sx={{ fontWeight: 'bold' }}>Không tìm thấy tài sản</Typography>
                                 <Typography color="text.secondary">{error || 'Tài sản có thể đã bị xóa khỏi hệ thống.'}</Typography>
                             </Box>
@@ -119,36 +119,36 @@ export default function AssetDetailPage() {
                             {/* 1. Phần Tiêu đề chính */}
                             <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
                                 <Avatar sx={{ bgcolor: 'primary.main', color: 'white', width: 52, height: 52, borderRadius: 3 }}>
-                                    <Warehouse size={28} />
+                                    <Warehouse sx={{ fontSize: 28 }} />
                                 </Avatar>
                                 <Box sx={{ minWidth: 0 }}>
                                     <Typography variant="h4" component="h1" sx={{ fontWeight: 800, lineHeight: 1.2, wordBreak: 'break-word' }}>
                                         {asset.name}
                                     </Typography>
                                     <Tooltip title="Sao chép Mã">
-                                        <Chip 
-                                            label={`Mã: ${asset.id}`} 
-                                            size="small" 
-                                            variant="outlined" 
+                                        <Chip
+                                            label={`Mã: ${asset.id}`}
+                                            size="small"
+                                            variant="outlined"
                                             // ✅ SỬA LỖI: Bỏ chữ 'm' bị thừa ở đây
-                                            sx={{ mt: 0.5, cursor: 'pointer' }} 
+                                            sx={{ mt: 0.5, cursor: 'pointer' }}
                                             onClick={() => navigator.clipboard.writeText(asset.id)}
                                         />
                                     </Tooltip>
                                 </Box>
                             </Stack>
-                            <Chip icon={<CheckCircle size={16} />} label="Đang hoạt động" color="success" sx={{ mb: 2.5 }} />
-                            
+                            <Chip icon={<CheckCircle sx={{ fontSize: 16 }} />} label="Đang hoạt động" color="success" sx={{ mb: 2.5 }} />
+
                             <Divider sx={{ mb: 2.5 }} />
 
                             {/* 2. Lưới Thống kê (Stat Cards) */}
                             <Typography variant="overline" color="text.secondary">Thông tin Trạng thái</Typography>
                             <Grid container spacing={2} sx={{ mb: 3 }}>
                                 {/* Card 1: Phòng ban (Quan trọng nhất) */}
-                                <Grid item xs={12}>
+                                <Grid size={{ xs: 12 }}>
                                     <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'primary.lighter', borderColor: 'primary.light' }}>
                                         <Stack direction="row" spacing={1.5} alignItems="center">
-                                            <Avatar sx={{ bgcolor: 'primary.main', color: 'white', borderRadius: '8px' }}><Building size={20} /></Avatar>
+                                            <Avatar sx={{ bgcolor: 'primary.main', color: 'white', borderRadius: '8px' }}><Building sx={{ fontSize: 20 }} /></Avatar>
                                             <Box>
                                                 <Typography variant="caption" sx={{ textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 600, color: 'primary.dark' }}>Phòng ban hiện tại</Typography>
                                                 <Typography sx={{ fontWeight: 700, fontSize: '1.2rem', color: 'primary.dark' }}>
@@ -158,12 +158,12 @@ export default function AssetDetailPage() {
                                         </Stack>
                                     </Paper>
                                 </Grid>
-                                
+
                                 {/* Card 2: Số lượng */}
-                                <Grid item xs={6}>
+                                <Grid size={{ xs: 6 }}>
                                     <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, height: '100%' }}>
                                         <Stack direction="row" spacing={1.5} alignItems="center">
-                                            <Avatar sx={{ bgcolor: 'action.hover', color: 'text.secondary', borderRadius: '8px' }}><Tag size={20} /></Avatar>
+                                            <Avatar sx={{ bgcolor: 'action.hover', color: 'text.secondary', borderRadius: '8px' }}><Tag sx={{ fontSize: 20 }} /></Avatar>
                                             <Box>
                                                 <Typography variant="caption" sx={{ textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 600, color: 'text.secondary' }}>Số lượng</Typography>
                                                 <Typography sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
@@ -173,20 +173,20 @@ export default function AssetDetailPage() {
                                         </Stack>
                                     </Paper>
                                 </Grid>
-                                
+
                                 {/* Card 3: Ngày kiểm kê (Dùng màu động) */}
-                                <Grid item xs={6}>
+                                <Grid size={{ xs: 6 }}>
                                     <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, height: '100%' }}>
                                         <Stack direction="row" spacing={1.5} alignItems="center">
-                                            <Avatar sx={{ bgcolor: 'action.hover', color: 'text.secondary', borderRadius: '8px' }}><Calendar size={20} /></Avatar>
+                                            <Avatar sx={{ bgcolor: 'action.hover', color: 'text.secondary', borderRadius: '8px' }}><Calendar sx={{ fontSize: 20 }} /></Avatar>
                                             <Box>
                                                 <Typography variant="caption" sx={{ textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 600, color: 'text.secondary' }}>Kiểm kê</Typography>
-                                                <Typography sx={{ 
-                                                    fontWeight: 600, 
+                                                <Typography sx={{
+                                                    fontWeight: 600,
                                                     fontSize: '1.1rem',
-                                                    color: asset.lastChecked ? 'success.dark' : 'warning.dark' 
+                                                    color: asset.lastChecked ? 'success.dark' : 'warning.dark'
                                                 }}>
-                                                    {formatDate(asset.lastChecked)} 
+                                                    {formatDate(asset.lastChecked)}
                                                 </Typography>
                                             </Box>
                                         </Stack>
@@ -208,7 +208,7 @@ export default function AssetDetailPage() {
                             {history.length > 0 && (
                                 <>
                                     <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
-                                        <History size={20} />
+                                        <History sx={{ fontSize: 20 }} />
                                         <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Lịch sử Luân chuyển</Typography>
                                     </Stack>
                                     <Stack spacing={1}>
@@ -216,10 +216,10 @@ export default function AssetDetailPage() {
                                             <Paper key={t.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, bgcolor: 'grey.50' }}>
                                                 <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} flexWrap="wrap">
                                                     <Stack direction="row" alignItems="center" spacing={1}>
-                                                        <Avatar sx={{ bgcolor: 'action.hover', color: 'text.secondary', width: 28, height: 28 }}><Send size={14} /></Avatar>
+                                                        <Avatar sx={{ bgcolor: 'action.hover', color: 'text.secondary', width: 28, height: 28 }}><Send sx={{ fontSize: 14 }} /></Avatar>
                                                         <Typography variant="body2">
-                                                            {t.from} 
-                                                            <Box component="span" sx={{ mx: 0.5, verticalAlign: 'middle', display: 'inline-block' }}><ArrowRight size={14} /></Box> 
+                                                            {t.from}
+                                                            <Box component="span" sx={{ mx: 0.5, verticalAlign: 'middle', display: 'inline-block' }}><ArrowRight sx={{ fontSize: 14 }} /></Box>
                                                             <b>{t.to}</b>
                                                         </Typography>
                                                     </Stack>

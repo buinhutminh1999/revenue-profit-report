@@ -24,6 +24,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import Autocomplete from "@mui/material/Autocomplete";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { departmentFormSchema, managementBlockSchema, approvalSettingsSchema } from "../../schemas/adminSchema";
 
 const MANAGEMENT_BLOCKS = [
     "Hành chính", "Cung ứng", "Tổ Thầu", "Kế toán",
@@ -143,129 +146,199 @@ const UserAutocomplete = ({ users, label, value, onChange, placeholder }) => (
 );
 
 /* ================== Department Form Dialog ================== */
-const DepartmentFormDialog = ({ open, onClose, onSave, form, setForm, isEdit }) => {
+/* ================== Department Form Dialog ================== */
+const DepartmentFormDialog = ({ open, onClose, onSave, initialValues, isEdit }) => {
+    const { register, handleSubmit, control, reset, formState: { errors, isSubmitting } } = useForm({
+        resolver: zodResolver(departmentFormSchema),
+        defaultValues: { name: "", managementBlock: "Hành chính" }
+    });
+
+    useEffect(() => {
+        if (open) {
+            reset(initialValues || { name: "", managementBlock: "Hành chính" });
+        }
+    }, [open, initialValues, reset]);
+
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
             <DialogTitle>{isEdit ? "Chỉnh Sửa Phòng Ban" : "Thêm Phòng Ban Mới"}</DialogTitle>
             <DialogContent>
-                <Stack spacing={3} sx={{ mt: 2 }}>
-                    <FormControl fullWidth>
+                <Stack spacing={3} sx={{ mt: 2 }} component="form" onSubmit={handleSubmit(onSave)}>
+                    <FormControl fullWidth error={!!errors.managementBlock}>
                         <InputLabel id="management-block-label">Khối Quản lý</InputLabel>
-                        <Select
-                            labelId="management-block-label" value={form.managementBlock || ""}
-                            label="Khối Quản lý"
-                            onChange={(e) => setForm({ ...form, managementBlock: e.target.value })}
-                        >
-                            {MANAGEMENT_BLOCKS.map(block => (
-                                <MenuItem key={block} value={block}>{block}</MenuItem>
-                            ))}
-                        </Select>
+                        <Controller
+                            name="managementBlock"
+                            control={control}
+                            render={({ field }) => (
+                                <Select {...field} labelId="management-block-label" label="Khối Quản lý">
+                                    {MANAGEMENT_BLOCKS.map(block => (
+                                        <MenuItem key={block} value={block}>{block}</MenuItem>
+                                    ))}
+                                </Select>
+                            )}
+                        />
+                        {errors.managementBlock && <Typography variant="caption" color="error">{errors.managementBlock.message}</Typography>}
                     </FormControl>
-                    <TextField
-                        autoFocus label="Tên phòng ban" fullWidth
-                        value={form.name || ""}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    <Controller
+                        name="name"
+                        control={control}
+                        render={({ field }) => (
+                            <TextField
+                                {...field}
+                                autoFocus label="Tên phòng ban" fullWidth
+                                error={!!errors.name}
+                                helperText={errors.name?.message}
+                            />
+                        )}
                     />
                 </Stack>
             </DialogContent>
             <DialogActions sx={{ p: "16px 24px" }}>
                 <Button onClick={onClose}>Hủy</Button>
-                <Button onClick={onSave} variant="contained">{isEdit ? "Lưu thay đổi" : "Tạo mới"}</Button>
+                <Button onClick={handleSubmit(onSave)} variant="contained" disabled={isSubmitting}>
+                    {isEdit ? "Lưu thay đổi" : "Tạo mới"}
+                </Button>
             </DialogActions>
         </Dialog>
     );
 };
 
 /* ================== Management Block Form Dialog (ĐÃ CẬP NHẬT) ================== */
-const ManagementBlockFormDialog = ({ open, onClose, onSave, form, setForm, users }) => {
-    const handleAutocompleteChange = (field, newValue) => {
-        setForm({ ...form, [field]: newValue.map(user => user.uid) });
-    };
-    const getSelectedUsers = (field) => {
-        const ids = form[field] || [];
-        return users.filter(user => ids.includes(user.uid));
-    };
+/* ================== Management Block Form Dialog (ĐÃ CẬP NHẬT) ================== */
+const ManagementBlockFormDialog = ({ open, onClose, onSave, initialValues, users }) => {
+    const { control, handleSubmit, reset, formState: { isSubmitting } } = useForm({
+        resolver: zodResolver(managementBlockSchema),
+        defaultValues: { headIds: [], deputyIds: [], directorApproverIds: [] }
+    });
 
-    if (!form) return null;
+    useEffect(() => {
+        if (open) {
+            reset(initialValues || { headIds: [], deputyIds: [], directorApproverIds: [] });
+        }
+    }, [open, initialValues, reset]);
+
+    const getUserObjects = (ids) => (ids || []).map(id => users.find(u => u.uid === id)).filter(Boolean);
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-            <DialogTitle>Thiết lập Lãnh đạo & Phê duyệt cho Khối: {form.name}</DialogTitle>
+            <DialogTitle>Thiết lập Lãnh đạo & Phê duyệt cho Khối: {initialValues?.name}</DialogTitle>
             <DialogContent>
-                <Stack spacing={3} sx={{ mt: 2 }}>
-                    <UserAutocomplete
-                        users={users} label="Trưởng khối" placeholder="Chọn hoặc tìm trưởng khối..."
-                        value={getSelectedUsers("headIds")} onChange={(e, nv) => handleAutocompleteChange("headIds", nv)}
+                <Stack spacing={3} sx={{ mt: 2 }} component="form" onSubmit={handleSubmit(onSave)}>
+                    <Controller
+                        name="headIds"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                            <UserAutocomplete
+                                users={users} label="Trưởng khối" placeholder="Chọn hoặc tìm trưởng khối..."
+                                value={getUserObjects(value)}
+                                onChange={(e, nv) => onChange(nv.map(u => u.uid))}
+                            />
+                        )}
                     />
-                    <UserAutocomplete
-                        users={users} label="Phó khối" placeholder="Chọn hoặc tìm phó khối..."
-                        value={getSelectedUsers("deputyIds")} onChange={(e, nv) => handleAutocompleteChange("deputyIds", nv)}
+                    <Controller
+                        name="deputyIds"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                            <UserAutocomplete
+                                users={users} label="Phó khối" placeholder="Chọn hoặc tìm phó khối..."
+                                value={getUserObjects(value)}
+                                onChange={(e, nv) => onChange(nv.map(u => u.uid))}
+                            />
+                        )}
                     />
                     <Divider />
-                    <UserAutocomplete
-                        users={users} label="Người duyệt Ban TGĐ cho khối này" placeholder="Chọn người duyệt..."
-                        value={getSelectedUsers("directorApproverIds")} onChange={(e, nv) => handleAutocompleteChange("directorApproverIds", nv)}
+                    <Controller
+                        name="directorApproverIds"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                            <UserAutocomplete
+                                users={users} label="Người duyệt Ban TGĐ cho khối này" placeholder="Chọn người duyệt..."
+                                value={getUserObjects(value)}
+                                onChange={(e, nv) => onChange(nv.map(u => u.uid))}
+                            />
+                        )}
                     />
                 </Stack>
             </DialogContent>
             <DialogActions sx={{ p: "16px 24px" }}>
                 <Button onClick={onClose}>Hủy</Button>
-                <Button onClick={onSave} variant="contained">Lưu thay đổi</Button>
+                <Button onClick={handleSubmit(onSave)} variant="contained" disabled={isSubmitting}>Lưu thay đổi</Button>
             </DialogActions>
         </Dialog>
     );
 }
 
 /* ================== Approval Settings Dialog (ĐÃ CẬP NHẬT) ================== */
-const ApprovalSettingsDialog = ({ open, onClose, onSave, permissions, setPermissions, users }) => {
-    if (!permissions) return null;
+/* ================== Approval Settings Dialog (ĐÃ CẬP NHẬT) ================== */
+const ApprovalSettingsDialog = ({ open, onClose, onSave, initialValues, users }) => {
+    const { control, handleSubmit, reset, formState: { isSubmitting } } = useForm({
+        resolver: zodResolver(approvalSettingsSchema),
+        defaultValues: initialValues || {}
+    });
 
-    const handleAutocompleteChange = (group, field, newValue) => {
-        setPermissions(prev => ({
-            ...prev,
-            [group]: {
-                ...prev[group],
-                [field]: newValue.map(user => user.uid)
-            }
-        }));
-    };
+    useEffect(() => {
+        if (open && initialValues) {
+            reset(initialValues);
+        }
+    }, [open, initialValues, reset]);
 
-    const getSelectedUsers = (group, field) => {
-        const ids = permissions[group]?.[field] || [];
-        return users.filter(user => ids.includes(user.uid));
-    };
+    const getUserObjects = (ids) => (ids || []).map(id => users.find(u => u.uid === id)).filter(Boolean);
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
             <DialogTitle>Cài đặt Phân quyền Phê duyệt</DialogTitle>
             <DialogContent>
-                <Grid container spacing={4} sx={{ mt: 1 }}>
+                <Grid container spacing={4} sx={{ mt: 1 }} component="form" onSubmit={handleSubmit(onSave)}>
                     {/* Nhóm 1: Mặc định */}
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <Typography variant="h6" gutterBottom>Nhóm Chung</Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{mb: 2}}>Áp dụng cho: Hành chính, Cung ứng, Tổ thầu, Kế toán, XNXD1, XNXD2, KH-ĐT.</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Áp dụng cho: Hành chính, Cung ứng, Tổ thầu, Kế toán, XNXD1, XNXD2, KH-ĐT.</Typography>
                         <Stack spacing={3}>
-                            <UserAutocomplete users={users} label="Người duyệt P.HC" placeholder="Chọn người duyệt..." value={getSelectedUsers('default', 'hcApproverIds')} onChange={(e, nv) => handleAutocompleteChange('default', 'hcApproverIds', nv)} />
-                            <UserAutocomplete users={users} label="Người duyệt P. Kế toán" placeholder="Chọn người duyệt..." value={getSelectedUsers('default', 'ktApproverIds')} onChange={(e, nv) => handleAutocompleteChange('default', 'ktApproverIds', nv)} />
+                            <Controller
+                                name="default.hcApproverIds"
+                                control={control}
+                                render={({ field: { onChange, value } }) => (
+                                    <UserAutocomplete users={users} label="Người duyệt P.HC" placeholder="Chọn người duyệt..." value={getUserObjects(value)} onChange={(e, nv) => onChange(nv.map(u => u.uid))} />
+                                )}
+                            />
+                            <Controller
+                                name="default.ktApproverIds"
+                                control={control}
+                                render={({ field: { onChange, value } }) => (
+                                    <UserAutocomplete users={users} label="Người duyệt P. Kế toán" placeholder="Chọn người duyệt..." value={getUserObjects(value)} onChange={(e, nv) => onChange(nv.map(u => u.uid))} />
+                                )}
+                            />
                         </Stack>
                     </Grid>
-                    
+
                     <Divider orientation="vertical" flexItem sx={{ mr: "-1px", display: { xs: 'none', md: 'block' } }} />
 
                     {/* Nhóm 2: Nhà máy */}
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <Typography variant="h6" gutterBottom>Nhóm Nhà Máy</Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{mb: 2}}>Áp dụng riêng cho khối Nhà máy.</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Áp dụng riêng cho khối Nhà máy.</Typography>
                         <Stack spacing={3}>
-                            <UserAutocomplete users={users} label="Người duyệt P.HC" placeholder="Chọn người duyệt..." value={getSelectedUsers('Nhà máy', 'hcApproverIds')} onChange={(e, nv) => handleAutocompleteChange('Nhà máy', 'hcApproverIds', nv)} />
-                            <UserAutocomplete users={users} label="Người duyệt P. Kế toán" placeholder="Chọn người duyệt..." value={getSelectedUsers('Nhà máy', 'ktApproverIds')} onChange={(e, nv) => handleAutocompleteChange('Nhà máy', 'ktApproverIds', nv)} />
+                            <Controller
+                                name="Nhà máy.hcApproverIds"
+                                control={control}
+                                render={({ field: { onChange, value } }) => (
+                                    <UserAutocomplete users={users} label="Người duyệt P.HC" placeholder="Chọn người duyệt..." value={getUserObjects(value)} onChange={(e, nv) => onChange(nv.map(u => u.uid))} />
+                                )}
+                            />
+                            <Controller
+                                name="Nhà máy.ktApproverIds"
+                                control={control}
+                                render={({ field: { onChange, value } }) => (
+                                    <UserAutocomplete users={users} label="Người duyệt P. Kế toán" placeholder="Chọn người duyệt..." value={getUserObjects(value)} onChange={(e, nv) => onChange(nv.map(u => u.uid))} />
+                                )}
+                            />
                         </Stack>
                     </Grid>
                 </Grid>
             </DialogContent>
             <DialogActions sx={{ p: "16px 24px" }}>
                 <Button onClick={onClose}>Hủy</Button>
-                <Button onClick={onSave} variant="contained">Lưu Cài đặt</Button>
+                <Button onClick={handleSubmit(onSave)} variant="contained" disabled={isSubmitting}>Lưu Cài đặt</Button>
             </DialogActions>
         </Dialog>
     );
@@ -310,15 +383,15 @@ export default function AdminDepartmentManager() {
                     acc[blockName] = { headIds: [], deputyIds: [], directorApproverIds: [] }; // <-- ĐÃ THÊM
                     return acc;
                 }, {});
-                
+
                 const initialApprovalPermissions = {
                     "default": { hcApproverIds: [], ktApproverIds: [] }, // <-- ĐÃ XÓA
                     "Nhà máy": { hcApproverIds: [], ktApproverIds: [] } // <-- ĐÃ XÓA
                 };
 
-                await setDoc(leadershipDocRef, { 
+                await setDoc(leadershipDocRef, {
                     blockLeaders: initialBlockLeaders,
-                    approvalPermissions: initialApprovalPermissions 
+                    approvalPermissions: initialApprovalPermissions
                 });
                 console.log("Đã tạo document leadership thành công!");
                 leadershipDoc = await getDoc(leadershipDocRef);
@@ -327,12 +400,12 @@ export default function AdminDepartmentManager() {
             const docData = leadershipDoc.data() || {};
             setBlockLeaders(docData.blockLeaders || {});
             setApprovalPermissions(docData.approvalPermissions || {});
-            
+
             // 3. Fetch Departments
             const deptsSnapshot = await getDocs(query(collection(db, "departments"), fsOrderBy("name")));
             const deptsList = deptsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             setDepartments(deptsList);
-            
+
             // 4. Group Departments
             const grouped = MANAGEMENT_BLOCKS.reduce((acc, blockName) => {
                 acc[blockName] = deptsList.filter(d => d.managementBlock === blockName);
@@ -350,7 +423,7 @@ export default function AdminDepartmentManager() {
     };
 
     useEffect(() => { fetchData(); }, []);
-    
+
     const stats = useMemo(() => {
         const unmanagedBlocks = MANAGEMENT_BLOCKS.filter(blockName => {
             const leaders = blockLeaders[blockName];
@@ -369,15 +442,13 @@ export default function AdminDepartmentManager() {
     };
     const handleCloseDeptModal = () => setIsDeptModalOpen(false);
 
-    const handleSaveDepartment = async () => {
-        if (!currentDept.name || !currentDept.managementBlock) return;
+    const handleSaveDepartment = async (data) => {
         setLoading(true);
-        const { id, ...dataToSave } = currentDept;
         try {
             if (deptModalMode === "add") {
-                await addDoc(collection(db, "departments"), dataToSave);
+                await addDoc(collection(db, "departments"), data);
             } else {
-                await updateDoc(doc(db, "departments", id), dataToSave);
+                await updateDoc(doc(db, "departments", currentDept.id), data);
             }
             await fetchData();
             handleCloseDeptModal();
@@ -394,16 +465,16 @@ export default function AdminDepartmentManager() {
     };
     const handleCloseBlockModal = () => setIsBlockModalOpen(false);
 
-    const handleSaveBlock = async () => {
+    const handleSaveBlock = async (data) => {
         if (!currentBlock || !currentBlock.name) return;
         setLoading(true);
         const leadershipDocRef = doc(db, "app_config", "leadership");
         const fieldKey = `blockLeaders.${currentBlock.name}`;
         const dataToUpdate = {
             [fieldKey]: {
-                headIds: currentBlock.headIds || [],
-                deputyIds: currentBlock.deputyIds || [],
-                directorApproverIds: currentBlock.directorApproverIds || [], // <-- ĐÃ CẬP NHẬT
+                headIds: data.headIds || [],
+                deputyIds: data.deputyIds || [],
+                directorApproverIds: data.directorApproverIds || [],
             }
         };
         try {
@@ -422,14 +493,14 @@ export default function AdminDepartmentManager() {
     };
     const handleCloseApprovalModal = () => setIsApprovalModalOpen(false);
 
-    const handleSaveApprovalSettings = async () => {
+    const handleSaveApprovalSettings = async (data) => {
         setLoading(true);
         try {
             const leadershipDocRef = doc(db, "app_config", "leadership");
-            await updateDoc(leadershipDocRef, { approvalPermissions: currentPermissions });
+            await updateDoc(leadershipDocRef, { approvalPermissions: data });
             await fetchData();
             handleCloseApprovalModal();
-        } catch(error) {
+        } catch (error) {
             console.error("Lỗi cập nhật quyền phê duyệt:", error);
         }
         setLoading(false);
@@ -448,7 +519,7 @@ export default function AdminDepartmentManager() {
         const activeContainer = findContainer(active.id);
         const overContainer = findContainer(over.id) || over.id;
         if (!activeContainer || !overContainer || activeContainer === overContainer) return;
-        
+
         setGroupedDepartments(prev => {
             const newGroups = { ...prev };
             const activeItems = newGroups[activeContainer];
@@ -494,8 +565,8 @@ export default function AdminDepartmentManager() {
             </Stack>
 
             <Grid container spacing={3} mb={3}>
-                <Grid item xs={12} sm={6}><Card><CardContent>Tổng số Phòng ban: {stats.total}</CardContent></Card></Grid>
-                <Grid item xs={12} sm={6}><Card><CardContent>Khối chưa có lãnh đạo: {stats.unmanagedBlocks}</CardContent></Card></Grid>
+                <Grid size={{ xs: 12, sm: 6 }}><Card><CardContent>Tổng số Phòng ban: {stats.total}</CardContent></Card></Grid>
+                <Grid size={{ xs: 12, sm: 6 }}><Card><CardContent>Khối chưa có lãnh đạo: {stats.unmanagedBlocks}</CardContent></Card></Grid>
             </Grid>
 
             {loading ? (
@@ -504,7 +575,7 @@ export default function AdminDepartmentManager() {
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <Grid container spacing={3} alignItems="flex-start">
                         {[...MANAGEMENT_BLOCKS, "Chưa phân loại"].map(blockName => (
-                            <Grid item xs={12} md={6} lg={4} key={blockName}>
+                            <Grid size={{ xs: 12, md: 6, lg: 4 }} key={blockName}>
                                 <ManagementBlock
                                     blockName={blockName}
                                     leaders={getLeadersForBlock(blockName)}
@@ -521,18 +592,17 @@ export default function AdminDepartmentManager() {
 
             <DepartmentFormDialog
                 open={isDeptModalOpen} onClose={handleCloseDeptModal} onSave={handleSaveDepartment}
-                form={currentDept} setForm={setCurrentDept} isEdit={deptModalMode === "edit"}
+                initialValues={currentDept} isEdit={deptModalMode === "edit"}
             />
             <ManagementBlockFormDialog
                 open={isBlockModalOpen} onClose={handleCloseBlockModal} onSave={handleSaveBlock}
-                form={currentBlock} setForm={setCurrentBlock} users={users}
+                initialValues={currentBlock} users={users}
             />
-            <ApprovalSettingsDialog 
+            <ApprovalSettingsDialog
                 open={isApprovalModalOpen}
                 onClose={handleCloseApprovalModal}
                 onSave={handleSaveApprovalSettings}
-                permissions={currentPermissions}
-                setPermissions={setCurrentPermissions}
+                initialValues={currentPermissions}
                 users={users}
             />
         </Box>

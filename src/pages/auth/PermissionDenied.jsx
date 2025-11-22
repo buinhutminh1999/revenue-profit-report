@@ -3,7 +3,7 @@
 import React from 'react';
 import { Box, Button, Typography, Container, useTheme } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import { ShieldOff } from 'lucide-react';
+import { ShieldOutlined as ShieldOff } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 
 export default function PermissionDenied() {
@@ -30,7 +30,7 @@ export default function PermissionDenied() {
           transition={{ duration: 0.5, type: 'spring' }}
         >
           <Box sx={{ mb: 3, color: theme.palette.error.main }}>
-            <ShieldOff size={96} strokeWidth={1.5} />
+            <ShieldOff sx={{ fontSize: 96 }} />
           </Box>
 
           <Typography variant="h3" paragraph>

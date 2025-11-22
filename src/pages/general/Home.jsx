@@ -5,48 +5,54 @@ import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../services/firebase-config';
 import { doc, getDoc } from 'firebase/firestore';
 import {
-    Box, Card, CardContent, Typography, Grid, Badge, CircularProgress, 
+    Box, Card, CardContent, Typography, Grid, Badge, CircularProgress,
     Paper, TextField, InputAdornment, Chip, Avatar, Stack, IconButton,
     Tooltip, Skeleton, alpha, useTheme
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import {
-    Construction, Building, BookCheck, FileSpreadsheet, BarChart3,
-    Landmark, ClipboardList, BookUser, PieChart, LineChart, TrendingUp,
-    FileCheck2, FileBarChart2, ArrowRightLeft, ShieldOff,
-    UserCheck, Search, ClipboardCheck, X, Filter, Sparkles, Star,
-    TrendingDown, Activity, Zap
-} from 'lucide-react';
+    Construction, Business as Building, LibraryBooks as BookCheck, TableView as FileSpreadsheet, BarChart as BarChart3,
+    AccountBalance as Landmark, Assignment as ClipboardList, ImportContacts as BookUser, PieChart, ShowChart as LineChart, TrendingUp,
+    RuleFolder as FileCheck2, Assessment as FileBarChart2, SwapHoriz as ArrowRightLeft, GppBad as ShieldOff,
+    HowToReg as UserCheck, Search, AssignmentTurnedIn as ClipboardCheck, Close as X, FilterList as Filter, AutoAwesome as Sparkles, Star,
+    TrendingDown, MonitorHeart as Activity, Bolt as Zap
+} from '@mui/icons-material';
 
 // Enhanced Styled Card với glassmorphism
 const StyledCard = styled(Card)(({ theme, color }) => ({
     height: '100%',
-    borderRadius: 20,
+    borderRadius: 24,
     transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-    border: `1.5px solid ${alpha(theme.palette.divider, 0.1)}`,
-    background: `linear-gradient(135deg, #ffffff 0%, ${alpha('#f8fafc', 0.8)} 100%)`,
-    boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+    border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+    background: `linear-gradient(145deg, #ffffff 0%, ${alpha('#f8fafc', 0.6)} 100%)`,
+    backdropFilter: 'blur(10px)',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
     position: 'relative',
     overflow: 'hidden',
+    cursor: 'pointer',
     '&::before': {
         content: '""',
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
-        height: '4px',
-        background: `linear-gradient(90deg, ${color || theme.palette.primary.main}, ${alpha(color || theme.palette.primary.main, 0.5)})`,
-        transform: 'scaleX(0)',
-        transformOrigin: 'left',
-        transition: 'transform 0.4s ease',
+        height: '100%',
+        background: `linear-gradient(180deg, ${alpha(color || theme.palette.primary.main, 0.05)} 0%, transparent 100%)`,
+        opacity: 0,
+        transition: 'opacity 0.4s ease',
     },
     '&:hover': {
-        transform: 'translateY(-8px) scale(1.02)',
-        boxShadow: `0 16px 40px ${alpha(color || theme.palette.primary.main, 0.2)}`,
-        borderColor: color || theme.palette.primary.main,
+        transform: 'translateY(-8px)',
+        boxShadow: `0 20px 40px ${alpha(color || theme.palette.primary.main, 0.12)}`,
+        borderColor: alpha(color || theme.palette.primary.main, 0.3),
         '&::before': {
-            transform: 'scaleX(1)',
+            opacity: 1,
         },
+        '& .icon-box': {
+            transform: 'scale(1.1) rotate(5deg)',
+            background: `linear-gradient(135deg, ${color || theme.palette.primary.main} 0%, ${alpha(color || theme.palette.primary.main, 0.8)} 100%)`,
+            boxShadow: `0 8px 20px ${alpha(color || theme.palette.primary.main, 0.4)}`,
+        }
     },
 }));
 
@@ -122,25 +128,25 @@ const Home = () => {
 
     // All modules
     const allModules = [
-        { category: 'Chức Năng Chính', icon: <UserCheck size={26} />, title: "Quản Lý Chấm Công", to: "/attendance", desc: "Theo dõi, quản lý và in bảng chấm công", color: '#16a34a', isNew: true },
-        { category: 'Chức Năng Chính', icon: <Construction size={26} />, title: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ công việc", color: '#3b82f6' },
-        { category: 'Chức Năng Chính', icon: <Building size={26} />, title: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết thông tin các công trình", color: '#8b5cf6' },
-        { category: 'Chức Năng Chính', icon: <ArrowRightLeft size={26} />, title: "QL Luân chuyển Tài sản", to: "/asset-transfer", desc: "Theo dõi và luân chuyển tài sản", color: '#0891b2', isNew: true },
-        { category: 'Chức Năng Chính', icon: <ClipboardCheck size={26} />, title: "So Sánh Báo Giá Vật Tư", to: "/material-price-comparison", desc: "Tổng hợp, so sánh giá từ nhà cung cấp", color: '#f97316', isNew: true },
-        { category: 'Chức Năng Chính', icon: <BookCheck size={26} />, title: "Phân Bổ Chi Phí", to: "/allocations", desc: "Quản lý và phân bổ chi phí dự án", color: '#10b981' },
-        { category: 'Chức Năng Chính', icon: <FileSpreadsheet size={26} />, title: "Công Nợ Phải Trả", to: "/construction-payables", desc: "Theo dõi và quản lý các khoản công nợ", color: '#f59e0b' },
-        { category: 'Chức Năng Chính', icon: <FileCheck2 size={26} />, title: "Công Nợ Phải Thu", to: "/accounts-receivable", desc: "Theo dõi các khoản phải thu từ khách hàng", color: '#ec4899' },
-        { category: 'Chức Năng Chính', icon: <BarChart3 size={26} />, title: "Bảng Cân Đối Kế Toán", to: "/balance-sheet", desc: "Tình hình tài sản và nguồn vốn", color: '#14b8a6' },
-        { category: 'Chức Năng Chính', icon: <ClipboardList size={26} />, title: "Hệ Thống Tài Khoản", to: "/chart-of-accounts", desc: "Danh mục các tài khoản kế toán", color: '#64748b' },
-        { category: 'Chức Năng Chính', icon: <FileSpreadsheet size={26} />, title: "Quản Lý Danh Mục", to: "/categories", desc: "Theo dõi công nợ", color: '#f59e0b' },
-        { category: 'Chức Năng Chính', icon: <PieChart size={26} />, title: 'Chi Phí Theo Quý', to: '/cost-allocation-quarter', desc: 'Theo dõi phân bổ chi phí', color: '#8b5cf6' },
-        { category: 'Chức Năng Chính', icon: <TrendingUp size={26} />, title: 'Tăng Giảm Lợi Nhuận', to: '/profit-change', desc: 'Phân tích các yếu tố ảnh hưởng', color: '#f59e0b' },
-        { category: 'Báo Cáo', icon: <Landmark size={26} />, title: "Báo Cáo Sử Dụng Vốn", to: "/reports/capital-utilization", desc: "Đối chiếu kế hoạch và thực tế sử dụng", color: '#6366f1' },
-        { category: 'Báo Cáo', icon: <BookUser size={26} />, title: "Báo Cáo Nợ Có", to: "/reports/broker-debt", desc: "Theo dõi và đối chiếu số dư nợ có", color: '#ef4444' },
-        { category: 'Báo Cáo', icon: <BarChart3 size={26} />, title: 'Báo Cáo Lợi Nhuận Quý', to: '/reports/profit-quarter', desc: 'Phân tích theo từng quý', color: '#3b82f6' },
-        { category: 'Báo Cáo', icon: <FileBarChart2 size={26} />, title: "Báo cáo Phân bổ Chi phí", to: "/reports/quarterly-cost-allocation", desc: "Phân bổ chi phí theo doanh thu dự án", color: '#0d9488' },
-        { category: 'Báo Cáo', icon: <LineChart size={26} />, title: 'Báo Cáo Lợi Nhuận Năm', to: '/reports/profit-year', desc: 'Xem báo cáo tổng kết năm', color: '#10b981' },
-        { category: 'Báo Cáo', icon: <PieChart size={26} />, title: 'Báo Cáo Tổng Quát', to: '/reports/overall', desc: 'Tổng hợp tình hình hoạt động', color: '#6366f1' },
+        { category: 'Chức Năng Chính', icon: <UserCheck sx={{ fontSize: 26 }} />, title: "Quản Lý Chấm Công", to: "/attendance", desc: "Theo dõi, quản lý và in bảng chấm công", color: '#16a34a', isNew: true },
+        { category: 'Chức Năng Chính', icon: <Construction sx={{ fontSize: 26 }} />, title: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ công việc", color: '#3b82f6' },
+        { category: 'Chức Năng Chính', icon: <Building sx={{ fontSize: 26 }} />, title: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết thông tin các công trình", color: '#8b5cf6' },
+        { category: 'Chức Năng Chính', icon: <ArrowRightLeft sx={{ fontSize: 26 }} />, title: "QL Luân chuyển Tài sản", to: "/asset-transfer", desc: "Theo dõi và luân chuyển tài sản", color: '#0891b2', isNew: true },
+        { category: 'Chức Năng Chính', icon: <ClipboardCheck sx={{ fontSize: 26 }} />, title: "So Sánh Báo Giá Vật Tư", to: "/material-price-comparison", desc: "Tổng hợp, so sánh giá từ nhà cung cấp", color: '#f97316', isNew: true },
+        { category: 'Chức Năng Chính', icon: <BookCheck sx={{ fontSize: 26 }} />, title: "Phân Bổ Chi Phí", to: "/allocations", desc: "Quản lý và phân bổ chi phí dự án", color: '#10b981' },
+        { category: 'Chức Năng Chính', icon: <FileSpreadsheet sx={{ fontSize: 26 }} />, title: "Công Nợ Phải Trả", to: "/construction-payables", desc: "Theo dõi và quản lý các khoản công nợ", color: '#f59e0b' },
+        { category: 'Chức Năng Chính', icon: <FileCheck2 sx={{ fontSize: 26 }} />, title: "Công Nợ Phải Thu", to: "/accounts-receivable", desc: "Theo dõi các khoản phải thu từ khách hàng", color: '#ec4899' },
+        { category: 'Chức Năng Chính', icon: <BarChart3 sx={{ fontSize: 26 }} />, title: "Bảng Cân Đối Kế Toán", to: "/balance-sheet", desc: "Tình hình tài sản và nguồn vốn", color: '#14b8a6' },
+        { category: 'Chức Năng Chính', icon: <ClipboardList sx={{ fontSize: 26 }} />, title: "Hệ Thống Tài Khoản", to: "/chart-of-accounts", desc: "Danh mục các tài khoản kế toán", color: '#64748b' },
+        { category: 'Chức Năng Chính', icon: <FileSpreadsheet sx={{ fontSize: 26 }} />, title: "Quản Lý Danh Mục", to: "/categories", desc: "Theo dõi công nợ", color: '#f59e0b' },
+        { category: 'Chức Năng Chính', icon: <PieChart sx={{ fontSize: 26 }} />, title: 'Chi Phí Theo Quý', to: '/cost-allocation-quarter', desc: 'Theo dõi phân bổ chi phí', color: '#8b5cf6' },
+        { category: 'Chức Năng Chính', icon: <TrendingUp sx={{ fontSize: 26 }} />, title: 'Tăng Giảm Lợi Nhuận', to: '/profit-change', desc: 'Phân tích các yếu tố ảnh hưởng', color: '#f59e0b' },
+        { category: 'Báo Cáo', icon: <Landmark sx={{ fontSize: 26 }} />, title: "Báo Cáo Sử Dụng Vốn", to: "/reports/capital-utilization", desc: "Đối chiếu kế hoạch và thực tế sử dụng", color: '#6366f1' },
+        { category: 'Báo Cáo', icon: <BookUser sx={{ fontSize: 26 }} />, title: "Báo Cáo Nợ Có", to: "/reports/broker-debt", desc: "Theo dõi và đối chiếu số dư nợ có", color: '#ef4444' },
+        { category: 'Báo Cáo', icon: <BarChart3 sx={{ fontSize: 26 }} />, title: 'Báo Cáo Lợi Nhuận Quý', to: '/reports/profit-quarter', desc: 'Phân tích theo từng quý', color: '#3b82f6' },
+        { category: 'Báo Cáo', icon: <FileBarChart2 sx={{ fontSize: 26 }} />, title: "Báo cáo Phân bổ Chi phí", to: "/reports/quarterly-cost-allocation", desc: "Phân bổ chi phí theo doanh thu dự án", color: '#0d9488' },
+        { category: 'Báo Cáo', icon: <LineChart sx={{ fontSize: 26 }} />, title: 'Báo Cáo Lợi Nhuận Năm', to: '/reports/profit-year', desc: 'Xem báo cáo tổng kết năm', color: '#10b981' },
+        { category: 'Báo Cáo', icon: <PieChart sx={{ fontSize: 26 }} />, title: 'Báo Cáo Tổng Quát', to: '/reports/overall', desc: 'Tổng hợp tình hình hoạt động', color: '#6366f1' },
     ];
 
     useEffect(() => {
@@ -180,7 +186,7 @@ const Home = () => {
     // Filter modules
     const filteredModules = useMemo(() => {
         let filtered = allowedModules;
-        
+
         // Filter by search
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
@@ -190,12 +196,12 @@ const Home = () => {
                 module.category.toLowerCase().includes(query)
             );
         }
-        
+
         // Filter by category
         if (selectedCategory !== 'Tất cả') {
             filtered = filtered.filter(module => module.category === selectedCategory);
         }
-        
+
         return filtered;
     }, [allowedModules, searchQuery, selectedCategory]);
 
@@ -247,7 +253,7 @@ const Home = () => {
                     <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 3, mb: 4 }} />
                     <Grid container spacing={3}>
                         {[...Array(6)].map((_, i) => (
-                            <Grid item xs={12} sm={6} md={4} lg={3} key={i}>
+                            <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={i}>
                                 <Skeleton variant="rectangular" height={180} sx={{ borderRadius: 3 }} />
                             </Grid>
                         ))}
@@ -261,11 +267,7 @@ const Home = () => {
         <Box sx={{ bgcolor: '#f4f6f8', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>
             <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
                 {/* Enhanced Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
-                >
+                <Box>
                     <GlassHeader elevation={0} sx={{ p: { xs: 3, sm: 4, md: 5 }, mb: 5, borderRadius: 4 }}>
                         <Stack spacing={3}>
                             {/* Welcome Section */}
@@ -275,7 +277,7 @@ const Home = () => {
                                         animate={{ rotate: [0, 10, -10, 0] }}
                                         transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
                                     >
-                                        <Sparkles size={32} color={theme.palette.primary.main} />
+                                        <Sparkles sx={{ fontSize: 32 }} color={theme.palette.primary.main} />
                                     </motion.div>
                                     <Typography variant="h4" component="h1" sx={{ fontWeight: 800, color: '#1e293b' }}>
                                         Trung Tâm Điều Hành ERP
@@ -287,19 +289,20 @@ const Home = () => {
                             </Box>
 
                             {/* Stats Cards */}
+                            {/* Stats Cards */}
                             <Grid container spacing={2}>
-                                <Grid item xs={6} sm={3}>
-                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Grid size={{ xs: 6, sm: 3 }}>
+                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                                         <StatCard color={theme.palette.primary.main}>
                                             <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
-                                                    <Activity size={20} />
+                                                <Avatar sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main, borderRadius: '12px' }}>
+                                                    <Activity sx={{ fontSize: 20 }} />
                                                 </Avatar>
                                                 <Box>
-                                                    <Typography variant="h5" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
+                                                    <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>
                                                         {stats.total}
                                                     </Typography>
-                                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
                                                         Tổng chức năng
                                                     </Typography>
                                                 </Box>
@@ -307,18 +310,18 @@ const Home = () => {
                                         </StatCard>
                                     </motion.div>
                                 </Grid>
-                                <Grid item xs={6} sm={3}>
-                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Grid size={{ xs: 6, sm: 3 }}>
+                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                                         <StatCard color="#f97316">
                                             <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha('#f97316', 0.1), color: '#f97316' }}>
-                                                    <Zap size={20} />
+                                                <Avatar sx={{ bgcolor: alpha('#f97316', 0.1), color: '#f97316', borderRadius: '12px' }}>
+                                                    <Zap sx={{ fontSize: 20 }} />
                                                 </Avatar>
                                                 <Box>
-                                                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#f97316' }}>
+                                                    <Typography variant="h5" sx={{ fontWeight: 800, color: '#f97316' }}>
                                                         {stats.newCount}
                                                     </Typography>
-                                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
                                                         Mới
                                                     </Typography>
                                                 </Box>
@@ -326,18 +329,18 @@ const Home = () => {
                                         </StatCard>
                                     </motion.div>
                                 </Grid>
-                                <Grid item xs={6} sm={3}>
-                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Grid size={{ xs: 6, sm: 3 }}>
+                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                                         <StatCard color="#10b981">
                                             <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha('#10b981', 0.1), color: '#10b981' }}>
-                                                    <TrendingUp size={20} />
+                                                <Avatar sx={{ bgcolor: alpha('#10b981', 0.1), color: '#10b981', borderRadius: '12px' }}>
+                                                    <TrendingUp sx={{ fontSize: 20 }} />
                                                 </Avatar>
                                                 <Box>
-                                                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#10b981' }}>
+                                                    <Typography variant="h5" sx={{ fontWeight: 800, color: '#10b981' }}>
                                                         {stats.mainFeatures}
                                                     </Typography>
-                                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
                                                         Chức năng chính
                                                     </Typography>
                                                 </Box>
@@ -345,18 +348,18 @@ const Home = () => {
                                         </StatCard>
                                     </motion.div>
                                 </Grid>
-                                <Grid item xs={6} sm={3}>
-                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Grid size={{ xs: 6, sm: 3 }}>
+                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                                         <StatCard color="#6366f1">
                                             <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha('#6366f1', 0.1), color: '#6366f1' }}>
-                                                    <BarChart3 size={20} />
+                                                <Avatar sx={{ bgcolor: alpha('#6366f1', 0.1), color: '#6366f1', borderRadius: '12px' }}>
+                                                    <BarChart3 sx={{ fontSize: 20 }} />
                                                 </Avatar>
                                                 <Box>
-                                                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#6366f1' }}>
+                                                    <Typography variant="h5" sx={{ fontWeight: 800, color: '#6366f1' }}>
                                                         {stats.reports}
                                                     </Typography>
-                                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
                                                         Báo cáo
                                                     </Typography>
                                                 </Box>
@@ -377,13 +380,13 @@ const Home = () => {
                                     InputProps={{
                                         startAdornment: (
                                             <InputAdornment position="start">
-                                                <Search size={20} color={theme.palette.primary.main} />
+                                                <Search sx={{ fontSize: 20 }} color={theme.palette.primary.main} />
                                             </InputAdornment>
                                         ),
                                         endAdornment: searchQuery && (
                                             <InputAdornment position="end">
                                                 <IconButton size="small" onClick={handleClearSearch} edge="end">
-                                                    <X size={18} />
+                                                    <X sx={{ fontSize: 18 }} />
                                                 </IconButton>
                                             </InputAdornment>
                                         ),
@@ -412,7 +415,7 @@ const Home = () => {
                                             key={cat}
                                             label={cat}
                                             onClick={() => setSelectedCategory(cat)}
-                                            icon={cat === selectedCategory ? <Filter size={16} /> : undefined}
+                                            icon={cat === selectedCategory ? <Filter sx={{ fontSize: 16 }} /> : undefined}
                                             sx={{
                                                 bgcolor: cat === selectedCategory
                                                     ? theme.palette.primary.main
@@ -431,7 +434,7 @@ const Home = () => {
                             </Stack>
                         </Stack>
                     </GlassHeader>
-                </motion.div>
+                </Box>
 
                 {/* Modules Grid */}
                 <motion.div
@@ -484,12 +487,7 @@ const Home = () => {
                                 <AnimatePresence>
                                     {modules.map((module, index) => (
                                         <Grid
-                                            item
-                                            xs={12}
-                                            sm={6}
-                                            md={4}
-                                            lg={3}
-                                            xl={2.4}
+                                            size={{ xs: 12, sm: 6, md: 4, lg: 3 }}
                                             key={module.to}
                                         >
                                             <motion.div
@@ -525,6 +523,7 @@ const Home = () => {
                                                         )}
                                                         <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
                                                             <Box
+                                                                className="icon-box"
                                                                 sx={{
                                                                     width: 56,
                                                                     height: 56,
@@ -532,11 +531,10 @@ const Home = () => {
                                                                     display: 'flex',
                                                                     alignItems: 'center',
                                                                     justifyContent: 'center',
-                                                                    background: `linear-gradient(135deg, ${module.color} 0%, ${alpha(module.color, 0.8)} 100%)`,
-                                                                    color: 'white',
+                                                                    background: `linear-gradient(135deg, ${alpha(module.color, 0.1)} 0%, ${alpha(module.color, 0.2)} 100%)`,
+                                                                    color: module.color,
                                                                     mb: 2,
                                                                     flexShrink: 0,
-                                                                    boxShadow: `0 8px 24px ${alpha(module.color, 0.3)}`,
                                                                     transition: 'all 0.3s ease',
                                                                 }}
                                                             >
@@ -603,7 +601,7 @@ const Home = () => {
                                 animate={{ y: [0, -10, 0] }}
                                 transition={{ duration: 2, repeat: Infinity }}
                             >
-                                <ShieldOff size={64} color={theme.palette.text.secondary} />
+                                <ShieldOff sx={{ fontSize: 64 }} color={theme.palette.text.secondary} />
                             </motion.div>
                             <Typography variant="h5" sx={{ mt: 3, fontWeight: 700, color: '#334155' }}>
                                 {allowedModules.length > 0 ? 'Không tìm thấy chức năng' : 'Truy cập bị Hạn chế'}

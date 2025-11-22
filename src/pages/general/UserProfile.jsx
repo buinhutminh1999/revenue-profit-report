@@ -1,15 +1,15 @@
 import React, { useState } from "react";
-import { 
-    Box, 
-    Paper, 
-    Typography, 
-    Tabs, 
-    Tab, 
-    Avatar, 
-    Grid, 
-    useTheme, 
-    Stack, 
-    Divider 
+import {
+    Box,
+    Paper,
+    Typography,
+    Tabs,
+    Tab,
+    Avatar,
+    Grid,
+    useTheme,
+    Stack,
+    Divider
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useAuth } from "../../contexts/AuthContext";
@@ -20,7 +20,7 @@ import EmailIcon from "@mui/icons-material/Email"; // Thêm icon Email
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser"; // Thêm icon Role
 
 // Import các component con cho từng Tab 
-import ProfileTab from "../../components/user/ProfileTab"; 
+import ProfileTab from "../../components/user/ProfileTab";
 import SecurityTab from "../../components/user/SecurityTab";
 
 // Helper function cho TabPanel (Giữ nguyên)
@@ -57,15 +57,15 @@ export default function UserProfile() {
     }
 
     return (
-        <Box 
-            sx={{ 
-                p: { xs: 1, sm: 2, md: 4 }, 
+        <Box
+            sx={{
+                p: { xs: 1, sm: 2, md: 4 },
                 minHeight: '100%',
                 bgcolor: theme.palette.mode === 'light' ? theme.palette.grey[50] : theme.palette.grey[900]
             }}
         >
             <Box sx={{ maxWidth: 1000, mx: "auto" }}>
-                
+
                 {/* --- 1. HEADER (Thông tin tóm tắt) --- */}
                 <Box sx={{ mb: 4 }}>
                     <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5, color: theme.palette.text.primary }}>
@@ -78,12 +78,12 @@ export default function UserProfile() {
 
                 {/* --- 2. CONTAINER CHỨC NĂNG (TABS VÀ NỘI DUNG) --- */}
                 <Grid container spacing={{ xs: 2, md: 4 }}>
-                    
+
                     {/* Cột Trái: Thông tin tóm tắt & Thanh Điều hướng (Tabs) */}
-                    <Grid item xs={12} md={3}>
-                        <Paper 
-                            elevation={1} 
-                            sx={{ 
+                    <Grid size={{ xs: 12, md: 3 }}>
+                        <Paper
+                            elevation={1}
+                            sx={{
                                 p: 0, // Bỏ padding gốc
                                 borderRadius: 4,
                                 border: (t) => `1px solid ${t.palette.divider}`,
@@ -95,10 +95,10 @@ export default function UserProfile() {
                                 <Avatar
                                     alt={user.displayName || "User"}
                                     src={user.photoURL}
-                                    sx={{ 
-                                        width: 72, 
-                                        height: 72, 
-                                        mb: 1, 
+                                    sx={{
+                                        width: 72,
+                                        height: 72,
+                                        mb: 1,
                                         boxShadow: theme.shadows[3]
                                     }}
                                 >
@@ -111,7 +111,7 @@ export default function UserProfile() {
                                     {user.email}
                                 </Typography>
                             </Box>
-                            
+
                             <Divider sx={{ mb: 1 }} />
 
                             {/* THANH ĐIỀU HƯỚNG (TABS) */}
@@ -124,15 +124,15 @@ export default function UserProfile() {
                                     aria-label="User profile tabs"
                                     sx={{
                                         // Ẩn indicator khi không cần thiết
-                                        '& .MuiTabs-indicator': { 
-                                            left: 0, 
-                                            width: 4, 
-                                            borderRadius: '0 4px 4px 0', 
-                                            bgcolor: theme.palette.primary.main 
+                                        '& .MuiTabs-indicator': {
+                                            left: 0,
+                                            width: 4,
+                                            borderRadius: '0 4px 4px 0',
+                                            bgcolor: theme.palette.primary.main
                                         },
                                         // Đảm bảo tab không có border
-                                        '& .MuiButtonBase-root': { 
-                                            minHeight: 44, 
+                                        '& .MuiButtonBase-root': {
+                                            minHeight: 44,
                                             justifyContent: 'flex-start',
                                             borderRadius: 1.5,
                                             px: 1,
@@ -147,19 +147,19 @@ export default function UserProfile() {
                                         }
                                     }}
                                 >
-                                    <Tab 
-                                        label="Thông tin chung" 
-                                        icon={<PersonIcon />} 
+                                    <Tab
+                                        label="Thông tin chung"
+                                        icon={<PersonIcon />}
                                         iconPosition="start"
                                     />
-                                    <Tab 
-                                        label="Bảo mật" 
-                                        icon={<LockIcon />} 
+                                    <Tab
+                                        label="Bảo mật"
+                                        icon={<LockIcon />}
                                         iconPosition="start"
                                     />
-                                    <Tab 
-                                        label="Cài đặt hệ thống" 
-                                        icon={<SettingsIcon />} 
+                                    <Tab
+                                        label="Cài đặt hệ thống"
+                                        icon={<SettingsIcon />}
                                         iconPosition="start"
                                         disabled
                                     />
@@ -169,10 +169,10 @@ export default function UserProfile() {
                     </Grid>
 
                     {/* Cột Phải: Nội dung Tab */}
-                    <Grid item xs={12} md={9}>
-                         <Paper 
-                            elevation={1} 
-                            sx={{ 
+                    <Grid size={{ xs: 12, md: 9 }}>
+                        <Paper
+                            elevation={1}
+                            sx={{
                                 borderRadius: 4,
                                 minHeight: '400px',
                                 border: (t) => `1px solid ${t.palette.divider}`,

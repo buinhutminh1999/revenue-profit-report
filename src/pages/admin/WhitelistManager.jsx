@@ -1,7 +1,7 @@
 // src/pages/WhitelistManager.jsx
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '../../services/firebase-config'; 
+import { db } from '../../services/firebase-config';
 import { doc, onSnapshot, setDoc, arrayUnion, arrayRemove, collection, getDocs } from 'firebase/firestore';
 import { PROTECTED_ROUTES, groupRoutes } from '../../config/protectedRoutes';
 import toast, { Toaster } from 'react-hot-toast';
@@ -16,7 +16,10 @@ import {
 import { alpha, styled } from '@mui/material/styles';
 
 // Import các icon
-import { KeyRound, ShieldCheck, Trash2, UserPlus, ChevronDown } from 'lucide-react';
+import { VpnKey as KeyRound, VerifiedUser as ShieldCheck, Delete as Trash2, PersonAdd as UserPlus, ExpandMore as ChevronDown } from '@mui/icons-material';
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { whitelistSchema } from "../../schemas/adminSchema";
 
 
 // --- Styled Components ---
@@ -46,9 +49,12 @@ const StyledAccordion = styled(Accordion)(({ theme }) => ({
 const WhitelistManager = () => {
     const [accessRules, setAccessRules] = useState({});
     const [users, setUsers] = useState([]);
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [selectedPath, setSelectedPath] = useState(PROTECTED_ROUTES[0]?.path || '');
     const [loading, setLoading] = useState({ rules: true, users: true });
+
+    const { control, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
+        resolver: zodResolver(whitelistSchema),
+        defaultValues: { path: PROTECTED_ROUTES[0]?.path || '', user: null }
+    });
 
     const groupedRoutes = useMemo(() => groupRoutes(PROTECTED_ROUTES), []);
     const userMap = useMemo(() => new Map(users.map(u => [u.email, u])), [users]);
@@ -86,12 +92,10 @@ const WhitelistManager = () => {
         return () => unsubscribeRules();
     }, []);
 
-    const handleAddEmail = async (e) => {
-        e.preventDefault();
-        const emailToAdd = selectedUser?.email;
+    const handleAddEmail = async (data) => {
+        const emailToAdd = data.user?.email;
+        const selectedPath = data.path;
 
-        if (!selectedPath) return toast.error("Vui lòng chọn một trang chức năng.");
-        if (!emailToAdd) return toast.error("Vui lòng chọn một người dùng từ danh sách.");
         if (accessRules[selectedPath]?.includes(emailToAdd)) {
             return toast.error('Người dùng này đã có quyền truy cập trang này.');
         }
@@ -101,7 +105,7 @@ const WhitelistManager = () => {
         try {
             await setDoc(accessControlRef, { [selectedPath]: arrayUnion(emailToAdd) }, { merge: true });
             toast.success(`Đã cấp quyền thành công cho ${emailToAdd}`);
-            setSelectedUser(null);
+            reset({ path: selectedPath, user: null }); // Keep path, reset user
         } catch (err) {
             toast.error('Có lỗi xảy ra khi cấp quyền.');
         } finally {
@@ -136,7 +140,7 @@ const WhitelistManager = () => {
             <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
                 <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
                     <Stack direction="row" alignItems="center" spacing={2} mb={1}>
-                         <Avatar sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                        <Avatar sx={{ bgcolor: 'primary.main', color: 'white' }}>
                             <ShieldCheck />
                         </Avatar>
                         <Typography variant="h4" component="h1" fontWeight={800}>
@@ -149,7 +153,7 @@ const WhitelistManager = () => {
                 </motion.div>
 
                 <Grid container spacing={4}>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
                             <StyledCard component="aside" sx={{ position: 'sticky', top: '88px' }}>
                                 <CardHeader
@@ -158,53 +162,67 @@ const WhitelistManager = () => {
                                     titleTypographyProps={{ variant: 'h6', fontWeight: 700 }}
                                 />
                                 <CardContent>
-                                    <Box component="form" onSubmit={handleAddEmail} noValidate sx={{ mt: 1 }}>
-                                        <FormControl fullWidth margin="normal">
+                                    <Box component="form" onSubmit={handleSubmit(handleAddEmail)} noValidate sx={{ mt: 1 }}>
+                                        <FormControl fullWidth margin="normal" error={!!errors.path}>
                                             <InputLabel id="path-select-label">Trang chức năng</InputLabel>
-                                            <Select
-                                                labelId="path-select-label"
-                                                value={selectedPath}
-                                                label="Trang chức năng"
-                                                onChange={(e) => setSelectedPath(e.target.value)}
-                                            >
-                                                {Object.entries(groupedRoutes).map(([group, routes]) => [
-                                                    <ListSubheader key={group}>{group}</ListSubheader>,
-                                                    ...routes.map(route => (
-                                                        <MenuItem key={route.path} value={route.path}>{route.name}</MenuItem>
-                                                    ))
-                                                ])}
-                                            </Select>
+                                            <Controller
+                                                name="path"
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <Select
+                                                        {...field}
+                                                        labelId="path-select-label"
+                                                        label="Trang chức năng"
+                                                    >
+                                                        {Object.entries(groupedRoutes).map(([group, routes]) => [
+                                                            <ListSubheader key={group}>{group}</ListSubheader>,
+                                                            ...routes.map(route => (
+                                                                <MenuItem key={route.path} value={route.path}>{route.name}</MenuItem>
+                                                            ))
+                                                        ])}
+                                                    </Select>
+                                                )}
+                                            />
+                                            {errors.path && <Typography variant="caption" color="error">{errors.path.message}</Typography>}
                                         </FormControl>
 
-                                        <Autocomplete
-                                            fullWidth
-                                            options={users.sort((a, b) => a.displayName.localeCompare(b.displayName))}
-                                            getOptionLabel={(option) => option.displayName || option.email}
-                                            value={selectedUser}
-                                            onChange={(_, newValue) => setSelectedUser(newValue)}
-                                            isOptionEqualToValue={(option, value) => option.uid === value.uid}
-                                            renderInput={(params) => (
-                                                <TextField
-                                                    {...params}
-                                                    margin="normal"
-                                                    label="Tìm kiếm người dùng"
-                                                    placeholder="Nhập tên hoặc email..."
+                                        <Controller
+                                            name="user"
+                                            control={control}
+                                            render={({ field: { onChange, value } }) => (
+                                                <Autocomplete
+                                                    fullWidth
+                                                    options={users.sort((a, b) => a.displayName.localeCompare(b.displayName))}
+                                                    getOptionLabel={(option) => option.displayName || option.email}
+                                                    value={value}
+                                                    onChange={(_, newValue) => onChange(newValue)}
+                                                    isOptionEqualToValue={(option, val) => option.uid === val.uid}
+                                                    renderInput={(params) => (
+                                                        <TextField
+                                                            {...params}
+                                                            margin="normal"
+                                                            label="Tìm kiếm người dùng"
+                                                            placeholder="Nhập tên hoặc email..."
+                                                            error={!!errors.user}
+                                                            helperText={errors.user?.message}
+                                                        />
+                                                    )}
+                                                    renderOption={(props, option) => (
+                                                        <Box component="li" {...props}>
+                                                            <Avatar sx={{ width: 32, height: 32, mr: 1.5, fontSize: '0.875rem' }}>
+                                                                {option.displayName?.[0]}
+                                                            </Avatar>
+                                                            <Stack>
+                                                                <Typography variant="body2" fontWeight={500}>{option.displayName}</Typography>
+                                                                <Typography variant="caption" color="text.secondary">{option.email}</Typography>
+                                                            </Stack>
+                                                        </Box>
+                                                    )}
                                                 />
-                                            )}
-                                            renderOption={(props, option) => (
-                                                <Box component="li" {...props}>
-                                                    <Avatar sx={{ width: 32, height: 32, mr: 1.5, fontSize: '0.875rem' }}>
-                                                        {option.displayName?.[0]}
-                                                    </Avatar>
-                                                    <Stack>
-                                                        <Typography variant="body2" fontWeight={500}>{option.displayName}</Typography>
-                                                        <Typography variant="caption" color="text.secondary">{option.email}</Typography>
-                                                    </Stack>
-                                                </Box>
                                             )}
                                         />
 
-                                        <Button type="submit" fullWidth variant="contained" size="large" sx={{ mt: 3, mb: 2 }}>
+                                        <Button type="submit" fullWidth variant="contained" size="large" sx={{ mt: 3, mb: 2 }} disabled={isSubmitting}>
                                             Cấp Quyền
                                         </Button>
                                     </Box>
@@ -213,7 +231,7 @@ const WhitelistManager = () => {
                         </motion.div>
                     </Grid>
 
-                    <Grid item xs={12} md={8}>
+                    <Grid size={{ xs: 12, md: 8 }}>
                         <motion.div variants={{ visible: { transition: { staggerChildren: 0.1 } } }} initial="hidden" animate="visible">
                             {Object.entries(groupedRoutes).map(([group, routes]) => (
                                 <motion.div key={group} variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}>
@@ -235,7 +253,7 @@ const WhitelistManager = () => {
                                                                         avatar={<Avatar>{userDetails?.displayName?.[0]}</Avatar>}
                                                                         label={userDetails?.displayName || email}
                                                                         onDelete={() => handleRemoveEmail(route.path, email)}
-                                                                        deleteIcon={<Trash2 size={16} />}
+                                                                        deleteIcon={<Trash2 sx={{ fontSize: 16 }} />}
                                                                         variant="outlined"
                                                                     />
                                                                 )

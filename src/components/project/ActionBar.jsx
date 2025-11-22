@@ -15,7 +15,7 @@ import {
     TaskAlt,
     RestartAlt,
 } from "@mui/icons-material";
-import * as XLSX from "xlsx";
+import { getExcelSheetNames } from "../../utils/excelUtils";
 
 const ActionButton = ({ icon, label, onClick, color = "primary", tooltip, variant = "contained", disabled = false, sx, ...rest }) => {
     const theme = useTheme();
@@ -112,7 +112,7 @@ export default function EnhancedActionBar({
         requestAnimationFrame(() => fileInputRef.current?.click());
     };
 
-    const handleFile = (e) => {
+    const handleFile = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
         setFileName(file.name);
@@ -120,15 +120,17 @@ export default function EnhancedActionBar({
         setUploading(true);
 
         if (uploadMode === "multiSheet") {
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                const wb = XLSX.read(evt.target.result, { type: "array" });
-                setSheetNames(wb.SheetNames || []);
-                setSelectedSheet(wb.SheetNames?.[0] || "");
+            try {
+                const names = await getExcelSheetNames(file);
+                setSheetNames(names);
+                setSelectedSheet(names?.[0] || "");
                 setSheetDialogOpen(true);
+            } catch (error) {
+                console.error("Error reading sheet names:", error);
+                setSnackbar({ open: true, message: "Lỗi đọc file Excel", severity: "error" });
+            } finally {
                 setUploading(false);
-            };
-            reader.readAsArrayBuffer(file);
+            }
         } else {
             // Giữ nguyên API cũ: (event, mode)
             onFileUpload?.(e, uploadMode);
@@ -232,24 +234,30 @@ export default function EnhancedActionBar({
                         <ActionButton icon={<Description />} label="Reset DT" onClick={onResetAllRevenue} tooltip="Reset doanh thu (Shift + R)" variant="text" color="warning" />
 
                         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-                        <ActionButton
-                            icon={<RestartAlt />}
-                            label="Hủy quyết toán"
-                            color="warning"
-                            onClick={onUndoFinalize}
-                            disabled={saving}
-                            tooltip="Tính toán lại tất cả các dòng về trạng thái tự động ban đầu"
-                            variant="outlined"
-                        />
-                        <ActionButton
-                            icon={<TaskAlt />}
-                            label="Quyết toán"
-                            color="secondary"
-                            onClick={onFinalizeProject}
-                            disabled={saving}
-                            tooltip="Chốt sổ Nợ phải trả và đưa Cuối kỳ về 0"
-                            variant="contained"
-                        />
+                        {(() => {
+                            console.log('🎯 ActionBar render - isProjectFinalized:', isProjectFinalized);
+                            return isProjectFinalized ? (
+                                <ActionButton
+                                    icon={<RestartAlt />}
+                                    label="Hủy quyết toán"
+                                    color="warning"
+                                    onClick={onUndoFinalize}
+                                    disabled={saving}
+                                    tooltip="Tính toán lại tất cả các dòng về trạng thái tự động ban đầu"
+                                    variant="outlined"
+                                />
+                            ) : (
+                                <ActionButton
+                                    icon={<TaskAlt />}
+                                    label="Quyết toán"
+                                    color="secondary"
+                                    onClick={onFinalizeProject}
+                                    disabled={saving}
+                                    tooltip="Chốt sổ Nợ phải trả và đưa Cuối kỳ về 0"
+                                    variant="contained"
+                                />
+                            );
+                        })()}
                         <ActionButton
                             icon={saving ? <CircularProgress size={20} color="inherit" /> : <Save />}
                             label="Lưu"

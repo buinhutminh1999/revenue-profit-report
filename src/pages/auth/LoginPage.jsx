@@ -23,6 +23,9 @@ import {
 } from "firebase/auth";
 
 import logo from "../../assets/logo.png";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { loginSchema } from "../../schemas/authSchema";
 
 /* ====== BRAND ====== */
 const BRAND = {
@@ -111,23 +114,27 @@ const StyledButton = styled(Button)(({ theme }) => ({
   },
   "&:hover::before": {
     left: "100%",
-  },
+  }
 }));
 
 export default function LoginPage() {
   const theme = useTheme();
   // ====== State ======
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
   const [showPass, setShowPass] = useState(false);
-  const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [capsOn, setCapsOn] = useState(false);
   const [prefersReduced, setPrefersReduced] = useState(false);
-  const [emailError, setEmailError] = useState("");
-  const [emailTouched, setEmailTouched] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ====== React Hook Form ======
+  const { register, handleSubmit, formState: { errors, isSubmitting }, control, setValue } = useForm({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      remember: true
+    }
+  });
 
   // ====== Refs ======
   const emailInputRef = useRef(null);
@@ -159,28 +166,14 @@ export default function LoginPage() {
   };
   const onMouseLeave = () => { mouseX.set(0); mouseY.set(0); };
 
-  // ====== Email validation ======
-  useEffect(() => {
-    if (emailTouched && email) {
-      if (!isValidEmail(email)) {
-        setEmailError("Email không hợp lệ");
-      } else {
-        setEmailError("");
-      }
-    } else {
-      setEmailError("");
-    }
-  }, [email, emailTouched]);
-
   // ====== Init ======
   useEffect(() => {
     const rememberedEmail = localStorage.getItem("rememberedEmail");
     if (rememberedEmail) {
-      setEmail(rememberedEmail);
-      setEmailTouched(true);
+      setValue("email", rememberedEmail);
     }
     const remembered = localStorage.getItem("remember") === "1";
-    if (remembered) setRemember(true);
+    setValue("remember", remembered);
 
     const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     setPrefersReduced(!!mq?.matches);
@@ -206,38 +199,16 @@ export default function LoginPage() {
   }, [auth, navigate, safeRedirect]);
 
   // ====== Submit handler ======
-  const handleSubmit = useCallback(async (e) => {
-    e.preventDefault();
-    if (loading || isSubmitting) return;
-
-    setEmailTouched(true);
-
-    // Validate email
-    if (!email.trim()) {
-      setEmailError("Vui lòng nhập email");
-      emailInputRef.current?.focus();
-      return;
-    }
-    if (!isValidEmail(email.trim())) {
-      setEmailError("Email không hợp lệ");
-      emailInputRef.current?.focus();
-      return;
-    }
-    if (!pass) {
-      passwordInputRef.current?.focus();
-      return;
-    }
-
+  const onSubmit = async (data) => {
     setError("");
     setLoading(true);
-    setIsSubmitting(true);
 
     try {
-      await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
-      await signInWithEmailAndPassword(auth, email.trim(), pass);
+      await setPersistence(auth, data.remember ? browserLocalPersistence : browserSessionPersistence);
+      await signInWithEmailAndPassword(auth, data.email.trim(), data.password);
 
-      if (remember) {
-        localStorage.setItem("rememberedEmail", email.trim());
+      if (data.remember) {
+        localStorage.setItem("rememberedEmail", data.email.trim());
         localStorage.setItem("remember", "1");
       } else {
         localStorage.removeItem("rememberedEmail");
@@ -247,7 +218,6 @@ export default function LoginPage() {
       navigate(safeRedirect, { replace: true });
     } catch (err) {
       setError(mapAuthError(err?.code));
-      setIsSubmitting(false);
       // Auto focus password on wrong password
       if (err?.code === "auth/wrong-password" || err?.code === "auth/user-not-found") {
         setTimeout(() => passwordInputRef.current?.focus(), 100);
@@ -255,14 +225,14 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  }, [auth, email, pass, remember, loading, isSubmitting, navigate, safeRedirect]);
+  };
 
   // ====== Handle Enter key ======
   const handleKeyPress = useCallback((e) => {
     if (e.key === "Enter" && !loading) {
-      handleSubmit(e);
+      // handleSubmit(onSubmit)(e); // This is handled by form onSubmit
     }
-  }, [loading, handleSubmit]);
+  }, [loading]);
 
   // ====== Motion variants ======
   const containerVariants = useMemo(() => ({
@@ -538,7 +508,7 @@ export default function LoginPage() {
               >
                 <Box
                   component="form"
-                  onSubmit={handleSubmit}
+                  onSubmit={handleSubmit(onSubmit)}
                   noValidate
                   onKeyPress={handleKeyPress}
                 >
@@ -607,109 +577,125 @@ export default function LoginPage() {
 
                     {/* Email */}
                     <motion.div variants={itemVariants}>
-                      <StyledTextField
-                        inputRef={emailInputRef}
-                        label="Email công ty"
-                        type="email"
-                        fullWidth
-                        required
-                        autoComplete="username"
-                        value={email}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          setError("");
-                        }}
-                        onBlur={() => setEmailTouched(true)}
-                        error={!!emailError}
-                        success={emailTouched && email && !emailError}
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <MailOutline sx={{ color: emailError ? BRAND.accent : emailTouched && email && !emailError ? BRAND.success : alpha("#fff", 0.55) }} />
-                            </InputAdornment>
-                          ),
-                          endAdornment: emailTouched && email && !emailError && (
-                            <InputAdornment position="end">
-                              <CheckCircleOutline sx={{ color: BRAND.success, fontSize: 20 }} />
-                            </InputAdornment>
-                          ),
-                        }}
-                        helperText={emailError || " "}
-                        FormHelperTextProps={{
-                          sx: {
-                            color: emailError ? BRAND.accent : alpha("#fff", 0.4),
-                            fontSize: "0.75rem"
-                          }
-                        }}
+                      <Controller
+                        name="email"
+                        control={control}
+                        render={({ field }) => (
+                          <StyledTextField
+                            {...field}
+                            inputRef={(e) => {
+                              field.ref(e);
+                              emailInputRef.current = e;
+                            }}
+                            label="Email công ty"
+                            type="email"
+                            fullWidth
+                            required
+                            autoComplete="username"
+                            error={!!errors.email}
+                            success={!errors.email && field.value}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <MailOutline sx={{ color: errors.email ? BRAND.accent : (!errors.email && field.value) ? BRAND.success : alpha("#fff", 0.55) }} />
+                                </InputAdornment>
+                              ),
+                              endAdornment: !errors.email && field.value && (
+                                <InputAdornment position="end">
+                                  <CheckCircleOutline sx={{ color: BRAND.success, fontSize: 20 }} />
+                                </InputAdornment>
+                              ),
+                            }}
+                            helperText={errors.email?.message || " "}
+                            FormHelperTextProps={{
+                              sx: {
+                                color: errors.email ? BRAND.accent : alpha("#fff", 0.4),
+                                fontSize: "0.75rem"
+                              }
+                            }}
+                          />
+                        )}
                       />
                     </motion.div>
 
                     {/* Password */}
                     <motion.div variants={itemVariants}>
-                      <StyledTextField
-                        inputRef={passwordInputRef}
-                        label="Mật khẩu"
-                        type={showPass ? "text" : "password"}
-                        fullWidth
-                        required
-                        autoComplete="current-password"
-                        value={pass}
-                        onChange={(e) => {
-                          setPass(e.target.value);
-                          setError("");
-                        }}
-                        onKeyUp={(e) => setCapsOn(e.getModifierState?.("CapsLock") || false)}
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <VpnKeyOutlined sx={{ color: alpha("#fff", 0.55) }} />
-                            </InputAdornment>
-                          ),
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <Tooltip title={showPass ? "Ẩn mật khẩu" : "Hiện mật khẩu"}>
-                                <IconButton
-                                  aria-label={showPass ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                                  onClick={() => setShowPass(v => !v)}
-                                  edge="end"
-                                  sx={{ color: alpha("#fff", 0.8) }}
-                                >
-                                  {showPass ? <VisibilityOff /> : <Visibility />}
-                                </IconButton>
-                              </Tooltip>
-                            </InputAdornment>
-                          ),
-                        }}
-                        helperText={capsOn ? "⚠ Caps Lock đang bật" : " "}
-                        FormHelperTextProps={{
-                          sx: {
-                            color: capsOn ? BRAND.accent : alpha("#fff", 0.4),
-                            fontSize: "0.75rem"
-                          }
-                        }}
+                      <Controller
+                        name="password"
+                        control={control}
+                        render={({ field }) => (
+                          <StyledTextField
+                            {...field}
+                            inputRef={(e) => {
+                              field.ref(e);
+                              passwordInputRef.current = e;
+                            }}
+                            label="Mật khẩu"
+                            type={showPass ? "text" : "password"}
+                            fullWidth
+                            required
+                            autoComplete="current-password"
+                            onKeyUp={(e) => setCapsOn(e.getModifierState?.("CapsLock") || false)}
+                            error={!!errors.password}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <VpnKeyOutlined sx={{ color: alpha("#fff", 0.55) }} />
+                                </InputAdornment>
+                              ),
+                              endAdornment: (
+                                <InputAdornment position="end">
+                                  <Tooltip title={showPass ? "Ẩn mật khẩu" : "Hiện mật khẩu"}>
+                                    <IconButton
+                                      aria-label={showPass ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                                      onClick={() => setShowPass(v => !v)}
+                                      edge="end"
+                                      sx={{ color: alpha("#fff", 0.8) }}
+                                    >
+                                      {showPass ? <VisibilityOff /> : <Visibility />}
+                                    </IconButton>
+                                  </Tooltip>
+                                </InputAdornment>
+                              ),
+                            }}
+                            helperText={errors.password?.message || (capsOn ? "⚠ Caps Lock đang bật" : " ")}
+                            FormHelperTextProps={{
+                              sx: {
+                                color: errors.password ? BRAND.accent : (capsOn ? BRAND.accent : alpha("#fff", 0.4)),
+                                fontSize: "0.75rem"
+                              }
+                            }}
+                          />
+                        )}
                       />
                     </motion.div>
 
                     {/* Remember / Forgot */}
                     <motion.div variants={itemVariants}>
                       <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={remember}
-                              onChange={(e) => setRemember(e.target.checked)}
-                              sx={{
-                                color: alpha("#fff", 0.7),
-                                "&.Mui-checked": { color: BRAND.accent },
-                                "&:hover": { backgroundColor: alpha(BRAND.accent, 0.1) }
-                              }}
+                        <Controller
+                          name="remember"
+                          control={control}
+                          render={({ field }) => (
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  {...field}
+                                  checked={field.value}
+                                  sx={{
+                                    color: alpha("#fff", 0.7),
+                                    "&.Mui-checked": { color: BRAND.accent },
+                                    "&:hover": { backgroundColor: alpha(BRAND.accent, 0.1) }
+                                  }}
+                                />
+                              }
+                              label={
+                                <Typography color="#fff" variant="body2" sx={{ fontSize: "0.875rem" }}>
+                                  Ghi nhớ đăng nhập
+                                </Typography>
+                              }
                             />
-                          }
-                          label={
-                            <Typography color="#fff" variant="body2" sx={{ fontSize: "0.875rem" }}>
-                              Ghi nhớ đăng nhập
-                            </Typography>
-                          }
+                          )}
                         />
                         <MUILink
                           component="button"

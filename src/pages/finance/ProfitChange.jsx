@@ -23,7 +23,7 @@ import {
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SearchIcon from "@mui/icons-material/Search";
-import * as XLSX from "xlsx";
+import { readExcelFileAsArray } from "../../utils/excelUtils";
 import { db } from "../../services/firebase-config";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { toNum, formatNumber } from "../../utils/numberUtils";
@@ -58,15 +58,12 @@ export default function ProfitChange() {
     loadData();
   }, [year, quarter]);
 
-  const handleUpload = (e) => {
+  const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const bstr = evt.target.result;
-      const wb = XLSX.read(bstr, { type: "binary" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+    try {
+      const data = await readExcelFileAsArray(file);
       const parsed = data
         .slice(5)
         .filter((r) => r[2] || r[3] || r[4] || r[5])
@@ -82,33 +79,36 @@ export default function ProfitChange() {
         }));
       setRows(parsed);
       setIsEditMode(true);
-    };
-    reader.readAsBinaryString(file);
+    } catch (error) {
+      console.error("Error reading excel file:", error);
+    }
+
+    e.target.value = "";
   };
 
-const handleSave = async () => {
-  setSaving(true);
-  try {
-    const ref = doc(db, "profitChanges", `${year}_${quarter}`);
-    const totalIncrease = sumColumn("increase");
-    const totalDecrease = sumColumn("decrease");
-    await setDoc(ref, {
-      year,
-      quarter,
-      createdAt: new Date().toISOString(),
-      rows,
-      totalIncreaseProfit: totalIncrease,
-      totalDecreaseProfit: totalDecrease,
-    });
-    alert("Data saved successfully!");
-    setIsEditMode(false);
-  } catch (err) {
-    console.error("Error saving data:", err);
-    alert("Failed to save data!");
-  } finally {
-    setSaving(false);
-  }
-};
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const ref = doc(db, "profitChanges", `${year}_${quarter}`);
+      const totalIncrease = sumColumn("increase");
+      const totalDecrease = sumColumn("decrease");
+      await setDoc(ref, {
+        year,
+        quarter,
+        createdAt: new Date().toISOString(),
+        rows,
+        totalIncreaseProfit: totalIncrease,
+        totalDecreaseProfit: totalDecrease,
+      });
+      alert("Data saved successfully!");
+      setIsEditMode(false);
+    } catch (err) {
+      console.error("Error saving data:", err);
+      alert("Failed to save data!");
+    } finally {
+      setSaving(false);
+    }
+  };
 
 
   const handleAddRow = () => {
@@ -132,11 +132,11 @@ const handleSave = async () => {
       prev.map((row) =>
         row.id === id
           ? {
-              ...row,
-              [field]: ["decrease", "increase", "paid"].includes(field)
-                ? toNum(value)
-                : value,
-            }
+            ...row,
+            [field]: ["decrease", "increase", "paid"].includes(field)
+              ? toNum(value)
+              : value,
+          }
           : row
       )
     );

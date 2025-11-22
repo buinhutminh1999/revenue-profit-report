@@ -6,6 +6,9 @@ import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { ChromePicker } from 'react-color';
+import { useForm, useWatch, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { eventSchema } from "../../schemas/eventSchema";
 
 // --- Material-UI (MUI) Components ---
 import {
@@ -92,19 +95,25 @@ const toSavePayload = (c) => {
 };
 
 export default function EventEditor() {
-  const [content, setContent] = useState({
-    backgroundType: 'shader',
-    backgroundColor: '#001a1e',
-    companyNameColor: '#ffffff',
-    titleLine1: '', titleLine2: '', slogan: '', locationAndDate: '',
-    eventDateTime: '',
-    // THÊM CÁC TRƯỜNG CỠ CHỮ VÀO STATE BAN ĐẦU
-    titleLine1Size: 80,
-    titleLine2Size: 60,
-    statusTextSize: 24,
-    countdownSize: 48,
-    locationAndDateSize: 20,
+  const { register, control, setValue, reset, formState: { errors } } = useForm({
+    resolver: zodResolver(eventSchema),
+    defaultValues: {
+      backgroundType: 'shader',
+      backgroundColor: '#001a1e',
+      companyNameColor: '#ffffff',
+      titleLine1: '', titleLine2: '', slogan: '', locationAndDate: '',
+      eventDateTime: '',
+      titleLine1Size: 80,
+      titleLine2Size: 60,
+      statusTextSize: 24,
+      countdownSize: 48,
+      locationAndDateSize: 20,
+    }
   });
+
+  // Watch all fields for auto-save
+  const content = useWatch({ control });
+
   const [isLoading, setIsLoading] = useState(true);
   const [pickerAnchorEl, setPickerAnchorEl] = useState(null);
   const [companyColorPickerAnchorEl, setCompanyColorPickerAnchorEl] = useState(null);
@@ -132,7 +141,16 @@ export default function EventEditor() {
         const data = docSnap.data();
         const ui = toUIContent(data);
         lastServerDataRef.current = ui;
-        setContent((prev) => (deepEqual(prev, ui) ? prev : ui));
+
+        // Only reset if we are bootstrapping or if the data is significantly different 
+        // and we are not currently editing (this is a simplification, real-time collab might need more complex logic)
+        if (isBootstrappingRef.current) {
+          reset(ui);
+        } else if (!deepEqual(content, ui) && !savingRef.current) {
+          // Optional: Ask user or just update? For now, let's only update on bootstrap to avoid overwriting user input
+          // reset(ui); 
+        }
+
         isBootstrappingRef.current = false;
         setIsLoading(false);
       },
@@ -144,12 +162,9 @@ export default function EventEditor() {
       }
     );
     return () => unsubscribe();
-  }, [docRef]);
+  }, [docRef, reset]); // Removed content from deps to avoid loops
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setContent(prev => ({ ...prev, [name]: value }));
-  };
+  // Removed handleInputChange as register handles it
 
   const saveContent = useCallback(async (currentContent) => {
     try {
@@ -178,10 +193,10 @@ export default function EventEditor() {
 
   const handlePickerOpen = (event) => setPickerAnchorEl(event.currentTarget);
   const handlePickerClose = () => setPickerAnchorEl(null);
-  const handleColorChange = (color) => setContent(prev => ({ ...prev, backgroundColor: color.hex }));
+  const handleColorChange = (color) => setValue("backgroundColor", color.hex, { shouldDirty: true });
   const handleCompanyColorPickerOpen = (event) => setCompanyColorPickerAnchorEl(event.currentTarget);
   const handleCompanyColorPickerClose = () => setCompanyColorPickerAnchorEl(null);
-  const handleCompanyColorChange = (color) => setContent(prev => ({ ...prev, companyNameColor: color.hex }));
+  const handleCompanyColorChange = (color) => setValue("companyNameColor", color.hex, { shouldDirty: true });
 
   if (isLoading) {
     return (
@@ -203,25 +218,29 @@ export default function EventEditor() {
             <CardContent>
               <Grid container spacing={{ xs: 2, sm: 3 }}>
                 {/* --- Các trường cũ không đổi --- */}
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <FormControl fullWidth size="small">
                     <InputLabel>Loại nền</InputLabel>
-                    <Select
-                      label="Loại nền"
+                    <Controller
                       name="backgroundType"
-                      value={content.backgroundType}
-                      onChange={handleInputChange}
-                    >
-                      <MenuItem value="shader"><MovieFilterIcon style={{ marginRight: 8 }} />Hiệu ứng động</MenuItem>
-                      <MenuItem value="color"><ColorLensIcon style={{ marginRight: 8 }} />Màu nền tĩnh</MenuItem>
-                    </Select>
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          {...field}
+                          label="Loại nền"
+                        >
+                          <MenuItem value="shader"><MovieFilterIcon style={{ marginRight: 8 }} />Hiệu ứng động</MenuItem>
+                          <MenuItem value="color"><ColorLensIcon style={{ marginRight: 8 }} />Màu nền tĩnh</MenuItem>
+                        </Select>
+                      )}
+                    />
                   </FormControl>
                 </Grid>
                 {content.backgroundType === 'color' && (
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
-                      fullWidth label="Mã màu nền" value={content.backgroundColor}
-                      onChange={(e) => setContent(prev => ({ ...prev, backgroundColor: e.target.value }))}
+                      fullWidth label="Mã màu nền"
+                      {...register("backgroundColor")}
                       size="small"
                       InputProps={{
                         startAdornment: <InputAdornment position="start"><ColorLensIcon /></InputAdornment>,
@@ -239,10 +258,10 @@ export default function EventEditor() {
                     </Popover>
                   </Grid>
                 )}
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
-                    fullWidth label="Màu tên công ty" value={content.companyNameColor}
-                    onChange={(e) => setContent(prev => ({ ...prev, companyNameColor: e.target.value }))}
+                    fullWidth label="Màu tên công ty"
+                    {...register("companyNameColor")}
                     size="small"
                     InputProps={{
                       startAdornment: <InputAdornment position="start"><TitleIcon /></InputAdornment>,
@@ -259,16 +278,15 @@ export default function EventEditor() {
                     <ChromePicker color={content.companyNameColor} onChangeComplete={handleCompanyColorChange} />
                   </Popover>
                 </Grid>
-                <Grid item xs={12}><hr style={{ border: 'none', borderTop: '1px solid #e0e0e0' }} /></Grid>
+                <Grid size={{ xs: 12 }}><hr style={{ border: 'none', borderTop: '1px solid #e0e0e0' }} /></Grid>
                 {Object.keys(fieldConfig).map((key) => {
                   const config = fieldConfig[key];
                   return (
-                    <Grid item xs={12} key={key}>
+                    <Grid size={{ xs: 12 }} key={key}>
                       <TextField
-                        fullWidth id={key} name={key} label={config.label}
+                        fullWidth id={key} label={config.label}
                         type={config.type || 'text'}
-                        value={content[key] || ''}
-                        onChange={handleInputChange}
+                        {...register(key)}
                         variant="outlined" size="small"
                         InputProps={{ startAdornment: (<InputAdornment position="start">{config.icon}</InputAdornment>) }}
                         InputLabelProps={{ shrink: config.type === 'datetime-local' || content[key] ? true : undefined }}
@@ -278,21 +296,19 @@ export default function EventEditor() {
                 })}
 
                 {/* --- PHẦN MỚI: CÀI ĐẶT CỠ CHỮ --- */}
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <Typography variant="h6" component="h2" sx={{ mt: 2, mb: 1 }}>Cài đặt Cỡ chữ</Typography>
                 </Grid>
                 {Object.keys(fontSizeConfig).map((key) => {
                   const config = fontSizeConfig[key];
                   return (
-                    <Grid item xs={12} sm={6} key={key}>
+                    <Grid size={{ xs: 12, sm: 6 }} key={key}>
                       <TextField
                         fullWidth
                         type="number"
                         id={key}
-                        name={key}
                         label={config.label}
-                        value={content[key] || ''}
-                        onChange={handleInputChange}
+                        {...register(key)}
                         variant="outlined"
                         size="small"
                         InputProps={{

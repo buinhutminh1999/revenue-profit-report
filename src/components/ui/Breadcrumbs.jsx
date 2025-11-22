@@ -4,13 +4,13 @@ import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 // Icons
-import { Home, FolderGit2, FileText, Settings, ChevronRight } from 'lucide-react';
+import { Home, Folder as FolderGit2, Description as FileText, Settings, ChevronRight } from '@mui/icons-material';
 
 // TỐI ƯU 1: Mở rộng labelMap để chứa cả icon và text
 const breadcrumbNameMap = {
-  '/project-manager': { text: 'Quản Lý Công Trình', icon: <FolderGit2 size={16} /> },
-  '/construction-plan': { text: 'Kế Hoạch Thi Công', icon: <FileText size={16} /> },
-  '/settings': { text: 'Cài Đặt', icon: <Settings size={16} /> },
+  '/project-manager': { text: 'Quản Lý Công Trình', icon: <FolderGit2 sx={{ fontSize: 16 }} /> },
+  '/construction-plan': { text: 'Kế Hoạch Thi Công', icon: <FileText sx={{ fontSize: 16 }} /> },
+  '/settings': { text: 'Cài Đặt', icon: <Settings sx={{ fontSize: 16 }} /> },
   // Thêm các route khác của bạn ở đây
 };
 
@@ -60,16 +60,16 @@ export default function BreadcrumbsNav() {
     // TỐI ƯU 3: Bỏ Box bao ngoài, component giờ "chromeless" và sẵn sàng tích hợp vào Header
     <MUIBreadcrumbs
       aria-label="breadcrumb"
-      separator={<ChevronRight size={16} />}
+      separator={<ChevronRight sx={{ fontSize: 16 }} />}
       sx={{
         '& .MuiBreadcrumbs-ol': {
-            alignItems: 'center'
+          alignItems: 'center'
         }
       }}
     >
       {/* Link Trang chủ mặc định */}
-      <Crumb text="Trang chủ" to="/" icon={<Home size={16} />} isLast={pathnames.length === 0} />
-      
+      <Crumb text="Trang chủ" to="/" icon={<Home sx={{ fontSize: 16 }} />} isLast={pathnames.length === 0} />
+
       {/* Các link khác từ URL */}
       {pathnames.map((value, index) => {
         const last = index === pathnames.length - 1;

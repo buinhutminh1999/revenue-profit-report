@@ -32,7 +32,7 @@ import {
     Layers,
     FileDownload,
 } from "@mui/icons-material";
-import * as XLSX from "xlsx";
+import { createWorkbook, saveWorkbook } from "../../utils/excelUtils";
 import {
     doc,
     setDoc,
@@ -210,116 +210,116 @@ export default function CostAllocation() {
         setSnack({ open: true, msg, sev });
     }, []);
 
-  // ...
-useEffect(() => {
-    const q = query(collection(db, "categories"), orderBy("order", "asc"));
-    const unsub = onSnapshot(
-        q,
-        (snap) => {
-            const templates = snap.docs
-                // ✅ THÊM DÒNG NÀY ĐỂ LỌC
-                .filter(d => d.data().allowAllocation !== false)
-                .map((d) => { // Dòng map giữ nguyên
-                    const data = d.data();
-                    return {
-                        id: d.id,
-                        name: data.label,
-                        fixed: false,
-                        // Thêm allowAllocation để chắc chắn nó tồn tại trong template
-                        allowAllocation: data.allowAllocation, 
-                        isThiCong: data.isThiCong,
-                        isNhaMay: data.isNhaMay,
-                        isKhdt: data.isKhdt,
-                        order: data.order,
-                        orderThiCong: data.orderThiCong,
-                        orderNhaMay: data.orderNhaMay,
-                        orderKhdt: data.orderKhdt,
-                    };
-                });
-            setDynamicRowTemplates(templates);
-        },
-        (e) => showSnack(`Lỗi tải danh mục: ${e.message}`, "error")
-    );
-    return () => unsub();
-}, [showSnack]);
-// ...
-useEffect(() => {
-    const docId = `${year}_${quarter}`;
-    const unsub = onSnapshot(
-        doc(db, "costAllocations", docId),
-        (snap) => {
-            const savedRows =
-                (snap.exists() ? snap.data().mainRows : []) || [];
-
-            // 1. Xử lý các dòng cố định (fixed rows)
-            const finalFixedRows = fixedRows.map((template) => {
-                const savedData = savedRows.find(
-                    (d) => d.id === template.id
-                );
-                return normalizeRow({ ...template, ...(savedData || {}) });
-            });
-            setRows(finalFixedRows);
-
-            // 2. Xử lý các dòng động (dynamic rows) từ template
-            const finalDynamicRows = dynamicRowTemplates.map(
-                (structure) => {
-                    const savedData = savedRows.find(
-                        (d) => d.id === structure.id
-                    );
-                    return normalizeRow({
-                        ...structure,
-                        ...(savedData || {}),
+    // ...
+    useEffect(() => {
+        const q = query(collection(db, "categories"), orderBy("order", "asc"));
+        const unsub = onSnapshot(
+            q,
+            (snap) => {
+                const templates = snap.docs
+                    // ✅ THÊM DÒNG NÀY ĐỂ LỌC
+                    .filter(d => d.data().allowAllocation !== false)
+                    .map((d) => { // Dòng map giữ nguyên
+                        const data = d.data();
+                        return {
+                            id: d.id,
+                            name: data.label,
+                            fixed: false,
+                            // Thêm allowAllocation để chắc chắn nó tồn tại trong template
+                            allowAllocation: data.allowAllocation,
+                            isThiCong: data.isThiCong,
+                            isNhaMay: data.isNhaMay,
+                            isKhdt: data.isKhdt,
+                            order: data.order,
+                            orderThiCong: data.orderThiCong,
+                            orderNhaMay: data.orderNhaMay,
+                            orderKhdt: data.orderKhdt,
+                        };
                     });
-                }
-            );
+                setDynamicRowTemplates(templates);
+            },
+            (e) => showSnack(`Lỗi tải danh mục: ${e.message}`, "error")
+        );
+        return () => unsub();
+    }, [showSnack]);
+    // ...
+    useEffect(() => {
+        const docId = `${year}_${quarter}`;
+        const unsub = onSnapshot(
+            doc(db, "costAllocations", docId),
+            (snap) => {
+                const savedRows =
+                    (snap.exists() ? snap.data().mainRows : []) || [];
 
-            // --- Khối logic tự động cập nhật "Chi phí thưởng" đã được xóa khỏi đây ---
+                // 1. Xử lý các dòng cố định (fixed rows)
+                const finalFixedRows = fixedRows.map((template) => {
+                    const savedData = savedRows.find(
+                        (d) => d.id === template.id
+                    );
+                    return normalizeRow({ ...template, ...(savedData || {}) });
+                });
+                setRows(finalFixedRows);
 
-            // 3. Phân nhóm các dòng động để hiển thị
-            const groups = { nhaMay: [], thiCong: [], khdt: [], chung: [] };
-            finalDynamicRows.forEach((row) => {
-                const { isNhaMay, isThiCong, isKhdt } = row;
-                const typeCount =
-                    (isNhaMay ? 1 : 0) +
-                    (isThiCong ? 1 : 0) +
-                    (isKhdt ? 1 : 0);
+                // 2. Xử lý các dòng động (dynamic rows) từ template
+                const finalDynamicRows = dynamicRowTemplates.map(
+                    (structure) => {
+                        const savedData = savedRows.find(
+                            (d) => d.id === structure.id
+                        );
+                        return normalizeRow({
+                            ...structure,
+                            ...(savedData || {}),
+                        });
+                    }
+                );
 
-                if (typeCount === 1) {
-                    if (isNhaMay) groups.nhaMay.push(row);
-                    else if (isThiCong) groups.thiCong.push(row);
-                    else if (isKhdt) groups.khdt.push(row);
-                } else {
-                    groups.chung.push(row);
-                }
-            });
+                // --- Khối logic tự động cập nhật "Chi phí thưởng" đã được xóa khỏi đây ---
 
-            // 4. Sắp xếp các dòng trong mỗi nhóm theo thứ tự
-            groups.nhaMay.sort(
-                (a, b) =>
-                    (a.orderNhaMay ?? Infinity) -
-                    (b.orderNhaMay ?? Infinity)
-            );
-            groups.thiCong.sort(
-                (a, b) =>
-                    (a.orderThiCong ?? Infinity) -
-                    (b.orderThiCong ?? Infinity)
-            );
-            groups.khdt.sort(
-                (a, b) =>
-                    (a.orderKhdt ?? Infinity) - (b.orderKhdt ?? Infinity)
-            );
-            groups.chung.sort(
-                (a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)
-            );
+                // 3. Phân nhóm các dòng động để hiển thị
+                const groups = { nhaMay: [], thiCong: [], khdt: [], chung: [] };
+                finalDynamicRows.forEach((row) => {
+                    const { isNhaMay, isThiCong, isKhdt } = row;
+                    const typeCount =
+                        (isNhaMay ? 1 : 0) +
+                        (isThiCong ? 1 : 0) +
+                        (isKhdt ? 1 : 0);
 
-            // 5. Cập nhật state để giao diện hiển thị lại
-            setGroupedRows(groups);
-        },
-        (e) => showSnack(`Lỗi tải dữ liệu phân bổ: ${e.message}`, "error")
-    );
+                    if (typeCount === 1) {
+                        if (isNhaMay) groups.nhaMay.push(row);
+                        else if (isThiCong) groups.thiCong.push(row);
+                        else if (isKhdt) groups.khdt.push(row);
+                    } else {
+                        groups.chung.push(row);
+                    }
+                });
 
-    return () => unsub();
-}, [year, quarter, dynamicRowTemplates, showSnack]);
+                // 4. Sắp xếp các dòng trong mỗi nhóm theo thứ tự
+                groups.nhaMay.sort(
+                    (a, b) =>
+                        (a.orderNhaMay ?? Infinity) -
+                        (b.orderNhaMay ?? Infinity)
+                );
+                groups.thiCong.sort(
+                    (a, b) =>
+                        (a.orderThiCong ?? Infinity) -
+                        (b.orderThiCong ?? Infinity)
+                );
+                groups.khdt.sort(
+                    (a, b) =>
+                        (a.orderKhdt ?? Infinity) - (b.orderKhdt ?? Infinity)
+                );
+                groups.chung.sort(
+                    (a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)
+                );
+
+                // 5. Cập nhật state để giao diện hiển thị lại
+                setGroupedRows(groups);
+            },
+            (e) => showSnack(`Lỗi tải dữ liệu phân bổ: ${e.message}`, "error")
+        );
+
+        return () => unsub();
+    }, [year, quarter, dynamicRowTemplates, showSnack]);
 
     const handleChange = (id, field, val, subField = null) => {
         const updater = (prev) =>
@@ -414,11 +414,10 @@ useEffect(() => {
         }
     };
 
-    const handleExport = () => {
-        const dataForExport = [];
-        const merges = [];
-        let currentRowIndex = 0;
+    const handleExport = async () => {
+        const { workbook, worksheet } = createWorkbook("PhanBoChiPhi");
 
+        // Header
         const excelHeader = [
             "Khoản mục",
             ...monthLabels,
@@ -430,9 +429,10 @@ useEffect(() => {
             "% KH-ĐT",
             "KH-ĐT",
         ];
-        dataForExport.push(excelHeader);
-        currentRowIndex++;
+        const headerRow = worksheet.addRow(excelHeader);
+        headerRow.font = { bold: true };
 
+        // Main Rows
         rows.forEach((r) => {
             const qv = getQuarterValue(r);
             const nhaMayValue = Math.round(
@@ -456,10 +456,6 @@ useEffect(() => {
                     null,
                     null,
                 ];
-                merges.push({
-                    s: { r: currentRowIndex, c: 1 },
-                    e: { r: currentRowIndex, c: 3 },
-                });
             } else {
                 monthlyValues = [
                     parseValue(r.monthly.T1),
@@ -479,10 +475,15 @@ useEffect(() => {
                 parseValue(r.percentKHDT),
                 khdtValue,
             ];
-            dataForExport.push(rowData);
-            currentRowIndex++;
+
+            const row = worksheet.addRow(rowData);
+
+            if (r.name.toLowerCase().includes("thuê văn phòng")) {
+                worksheet.mergeCells(row.number, 2, row.number, 4);
+            }
         });
 
+        // Fixed Sum Row
         const fixedSumRow = [
             "Tổng chi phí lương",
             fixedSum.T1,
@@ -496,29 +497,32 @@ useEffect(() => {
             null,
             fixedSum.khdt,
         ];
-        dataForExport.push(fixedSumRow);
-        currentRowIndex++;
-        dataForExport.push([]);
-        currentRowIndex++;
+        const fsRow = worksheet.addRow(fixedSumRow);
+        fsRow.font = { bold: true };
+        fsRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF4F6F8' }
+        };
 
+        worksheet.addRow([]); // Empty row
+
+        // Calculate Grand Totals
         let grandTotalNhaMay = fixedSum.factory;
         let grandTotalThiCong = fixedSum.thiCong;
         let grandTotalKhdt = fixedSum.khdt;
 
+        // Grouped Rows
         Object.entries(groupedRows).forEach(([groupKey, groupItems]) => {
             if (groupItems.length === 0) return;
 
             const { label } = groupConfig[groupKey];
-            dataForExport.push([label]);
-            merges.push({
-                s: { r: currentRowIndex, c: 0 },
-                e: { r: currentRowIndex, c: excelHeader.length - 1 },
-            });
-            currentRowIndex++;
+            const groupRow = worksheet.addRow([label]);
+            groupRow.font = { bold: true };
+            worksheet.mergeCells(groupRow.number, 1, groupRow.number, excelHeader.length);
 
             groupItems.forEach((r) => {
                 const qv = getQuarterValue(r);
-
                 const isSalaryRow =
                     (r.name || "").trim().toLowerCase() === "chi phí lương";
 
@@ -531,6 +535,12 @@ useEffect(() => {
                 const khdtValue = isSalaryRow
                     ? fixedSum.khdt
                     : Math.round((qv * parseValue(r.percentKHDT)) / 100);
+
+                if (!isSalaryRow) {
+                    grandTotalNhaMay += nhaMayValue;
+                    grandTotalThiCong += thiCongValue;
+                    grandTotalKhdt += khdtValue;
+                }
 
                 const rowData = [
                     r.name,
@@ -545,77 +555,51 @@ useEffect(() => {
                     isSalaryRow ? 100 : parseValue(r.percentKHDT),
                     khdtValue,
                 ];
-                dataForExport.push(rowData);
-                currentRowIndex++;
+                worksheet.addRow(rowData);
             });
-            dataForExport.push([]);
-            currentRowIndex++;
+            worksheet.addRow([]);
         });
 
-        dataForExport.push(["TỔNG HỢP PHÂN BỔ"]);
-        merges.push({
-            s: { r: currentRowIndex, c: 0 },
-            e: { r: currentRowIndex, c: 10 },
-        });
-        currentRowIndex++;
+        // Totals
+        const totalTitleRow = worksheet.addRow(["TỔNG HỢP PHÂN BỔ"]);
+        totalTitleRow.font = { bold: true };
+        worksheet.mergeCells(totalTitleRow.number, 1, totalTitleRow.number, 11);
 
-        dataForExport.push([
+        worksheet.addRow([
             "Tổng phân bổ cho Nhà Máy",
-            null,
-            null,
-            null,
-            null,
-            null,
+            null, null, null, null, null,
             grandTotalNhaMay,
         ]);
-        currentRowIndex++;
-        dataForExport.push([
+        worksheet.addRow([
             "Tổng phân bổ cho Thi Công",
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
+            null, null, null, null, null, null, null,
             grandTotalThiCong,
         ]);
-        currentRowIndex++;
-        dataForExport.push([
+        worksheet.addRow([
             "Tổng phân bổ cho KH-ĐT",
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
+            null, null, null, null, null, null, null, null, null,
             grandTotalKhdt,
         ]);
-        currentRowIndex++;
 
-        const ws = XLSX.utils.aoa_to_sheet(dataForExport);
-        ws["!merges"] = merges;
-
-        ws["!cols"] = [
-            { wch: 35 },
-            { wch: 15 },
-            { wch: 15 },
-            { wch: 15 },
-            { wch: 18 },
-            { wch: 10 },
-            { wch: 18 },
-            { wch: 10 },
-            { wch: 18 },
-            { wch: 10 },
-            { wch: 18 },
+        // Formatting
+        worksheet.columns = [
+            { width: 35 }, { width: 15 }, { width: 15 }, { width: 15 },
+            { width: 18 }, { width: 10 }, { width: 18 }, { width: 10 },
+            { width: 18 }, { width: 10 }, { width: 18 },
         ];
 
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "PhanBoChiPhi");
-        XLSX.writeFile(wb, `PhanBoChiPhi_${year}_${quarter}.xlsx`);
+        // Number format
+        worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber > 1) {
+                row.eachCell((cell, colNumber) => {
+                    if (colNumber > 1 && typeof cell.value === 'number') {
+                        cell.numFmt = '#,##0';
+                    }
+                });
+            }
+        });
+
+        await saveWorkbook(workbook, `PhanBoChiPhi_${year}_${quarter}.xlsx`);
     };
 
     const renderRow = (r) => {

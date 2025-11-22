@@ -1,7 +1,35 @@
 // src/pages/AssetTransferPage.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback, } from "react";
 import { Box, Typography, Button, Card, CardContent, Grid, Select, MenuItem, FormControl, InputLabel, Paper, Tabs, Tab, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Checkbox, ListItemText, OutlinedInput, IconButton, TextField, DialogContentText, Toolbar, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Stack, Divider, Tooltip, Snackbar, Alert, Avatar, Skeleton, Drawer, Badge, ToggleButton, ToggleButtonGroup, Stepper, Step, StepLabel, Autocomplete, CardActions, Collapse, CardActionArea, useTheme, useMediaQuery, FormControlLabel, } from "@mui/material";
-import { ArrowRightLeft, Check, FilePen, Handshake, Send, UserCheck, Warehouse, PlusCircle, Edit, Trash2, X, Filter, Eye, TableProperties, Clock, Inbox, History, FilePlus, FileX, Users, Sheet, Printer, BookCheck, ChevronRight, QrCode, ArrowRight } from "lucide-react"; // NEW: Thêm icon
+import {
+    SwapHoriz as ArrowRightLeft,
+    Check,
+    Edit as FilePen,
+    Handshake,
+    Send,
+    HowToReg as UserCheck,
+    Warehouse,
+    AddCircle as PlusCircle,
+    Edit,
+    Delete as Trash2,
+    Close as X,
+    FilterList as Filter,
+    Visibility as Eye,
+    TableChart as TableProperties,
+    AccessTime as Clock,
+    Inbox,
+    History,
+    NoteAdd as FilePlus,
+    SpeakerNotesOff as FileX,
+    Group as Users,
+    Description as Sheet,
+    Print as Printer,
+    FactCheck as BookCheck,
+    ChevronRight,
+    QrCode,
+    ArrowForward as ArrowRight,
+    CalendarToday as Calendar
+} from "@mui/icons-material";
 import { motion } from "framer-motion";
 import { getAuth } from "firebase/auth";
 import { db, functions } from "../../services/firebase-config"; // UPDATED: import functions
@@ -20,8 +48,11 @@ import { AssetLabelPrintTemplate } from "../../components/print-templates/AssetL
 import { EmptyState, ErrorState } from "../../components/common";
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import vi from 'date-fns/locale/vi'; // Import tiếng Việt cho lịch
-import { Calendar } from "lucide-react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { assetSchema } from "../../schemas/assetSchema";
+import { vi } from 'date-fns/locale'; // Import tiếng Việt cho lịch
+
 import { shortId, normVn, toDateObj, formatTime, fullTime, formatDate, checkDuplicate, hi } from "../../utils/assetUtils";
 import SignatureTimeline from "../../components/timeline/SignatureTimeline";
 import RequestSignatureTimeline from "../../components/timeline/RequestSignatureTimeline";
@@ -111,8 +142,23 @@ export default function AssetTransferPage() {
     const [filterDeptsForAsset, setFilterDeptsForAsset] = useState([]); // <-- THAY ĐỔI Ở ĐÂY
     const [visibleAssetCount, setVisibleAssetCount] = useState(100); // Hiển thị 100 tài sản đầu tiên
     const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
-    const [modalMode, setModalMode] = useState("add");
-    const [currentAsset, setCurrentAsset] = useState(null);
+    const [modalMode, setModalMode] = useState("add"); // "add" | "edit"
+
+    // React Hook Form setup
+    const { register, handleSubmit, reset, control, formState: { errors }, setValue } = useForm({
+        resolver: zodResolver(assetSchema),
+        defaultValues: {
+            name: "",
+            size: "",
+            description: "",
+            quantity: 1,
+            unit: "",
+            notes: "",
+            departmentId: "",
+        }
+    });
+
+    // const [currentAsset, setCurrentAsset] = useState({}); // REMOVED: Replaced by RHF
     const [deleteConfirm, setDeleteConfirm] = useState(null);
     const [reduceQuantityTarget, setReduceQuantityTarget] = useState(null); // Lưu tài sản đang được thao tác
     const [quantityToDelete, setQuantityToDelete] = useState(1); // Lưu số lượng muốn xóa trong dialog
@@ -450,7 +496,7 @@ export default function AssetTransferPage() {
 
     // src/pages/AssetTransferPage.jsx
 
-    // TÌM VÀ THAY THẾ TOÀN BỘ HÀM NÀY
+    // TÌM VÀ THAY THAY THẾ TOÀN BỘ HÀM NÀY
     const canProcessRequest = useCallback((req) => {
         // Các điều kiện ban đầu để thoát sớm
         if (!currentUser || !req || !approvalPermissions || !departments || !blockLeaders) return false;
@@ -915,8 +961,35 @@ export default function AssetTransferPage() {
         setIsRequestDetailOpen(false);
     };
 
-    const handleOpenAddModal = () => { setModalMode("add"); setCurrentAsset({ name: "", size: "", description: "", quantity: 1, unit: "", notes: "", departmentId: "", }); setIsAssetModalOpen(true) };
-    const handleOpenEditModal = (asset) => { setModalMode("edit"); setCurrentAsset({ ...asset }); setIsAssetModalOpen(true) };
+    const handleOpenAddModal = () => {
+        setModalMode("add");
+        // setCurrentAsset({}); // REMOVED
+        reset({
+            name: "",
+            size: "",
+            description: "",
+            quantity: 1,
+            unit: "",
+            notes: "",
+            departmentId: "",
+        });
+        setIsAssetModalOpen(true);
+    };
+    const handleOpenEditModal = (asset) => {
+        setModalMode("edit");
+        // setCurrentAsset(asset); // REMOVED
+        reset({
+            id: asset.id, // Keep ID for update
+            name: asset.name,
+            size: asset.size || "",
+            description: asset.description || "",
+            quantity: asset.quantity,
+            unit: asset.unit,
+            notes: asset.notes || "",
+            departmentId: asset.departmentId,
+        });
+        setIsAssetModalOpen(true);
+    };
     const handleSign = async (t, role) => {
         if (!currentUser || signing[t.id]) return;
 
@@ -1423,30 +1496,25 @@ export default function AssetTransferPage() {
     };
 
     // ✅ THAY THẾ HÀM handleSaveAsset CŨ BẰNG HÀM MỚI NÀY
-    const handleSaveAsset = async () => {
-        if (!currentAsset?.name || !currentAsset?.departmentId || !currentAsset?.unit || !currentAsset?.quantity) {
-            return setToast({ open: true, msg: "Vui lòng điền đủ thông tin.", severity: "warning" });
-        }
-
-        // Tạm bật loading (nếu bạn có state loading cho modal)
-        // setCreating(true); 
-
+    // ✅ THAY THẾ HÀM handleSaveAsset CŨ BẰNG HÀM MỚI NÀY (SỬ DỤNG REACT HOOK FORM)
+    const onSubmitAsset = async (data) => {
+        // data đã được validate bởi Zod
         try {
             if (modalMode === "add") {
                 // BƯỚC 1: Kiểm tra trùng lặp
-                const existingDoc = await checkDuplicate(currentAsset);
+                const existingDoc = await checkDuplicate(data);
 
                 if (existingDoc) {
                     // BƯỚC 2A: ĐÃ TỒN TẠI -> Mở Dialog xác nhận
                     setConfirmation({
-                        newAsset: currentAsset,
+                        newAsset: data,
                         existingDoc: existingDoc.data(),
                         existingDocId: existingDoc.id
                     });
                     setIsAssetModalOpen(false); // Đóng modal thêm
                 } else {
                     // BƯỚC 2B: CHƯA TỒN TẠI -> Gửi yêu cầu "ADD" như cũ
-                    await callCreateAssetRequest("ADD", currentAsset);
+                    await callCreateAssetRequest("ADD", data);
                     setIsAssetModalOpen(false);
                 }
             } else {
@@ -1454,21 +1522,18 @@ export default function AssetTransferPage() {
                 if (currentUser?.role !== 'admin') {
                     throw new Error("Chỉ Admin mới được phép sửa trực tiếp.");
                 }
-                const selectedDept = departments.find(d => d.id === currentAsset.departmentId);
+                const selectedDept = departments.find(d => d.id === data.departmentId);
                 const updatedAssetData = {
-                    ...currentAsset,
+                    ...data,
                     managementBlock: selectedDept?.managementBlock || null,
                 };
-                await updateDoc(doc(db, "assets", currentAsset.id), updatedAssetData);
+                await updateDoc(doc(db, "assets", data.id), updatedAssetData);
                 setToast({ open: true, msg: "Đã cập nhật tài sản.", severity: "success" });
                 setIsAssetModalOpen(false);
             }
         } catch (e) {
             console.error(e);
             setToast({ open: true, msg: "Lỗi khi xử lý: " + e.message, severity: "error" });
-        } finally {
-            // Tắt loading (nếu có)
-            // setCreating(false);
         }
     };
     const handleConfirmReduceQuantity = async () => {
@@ -2170,12 +2235,12 @@ export default function AssetTransferPage() {
                 <Skeleton width={320} height={40} sx={{ mb: 4 }} />
                 <Grid container spacing={2}>
                     {[...Array(3)].map((_, i) => (
-                        <Grid key={i} item xs={12} sm={4}>
+                        <Grid key={i} size={{ xs: 12, sm: 4 }}>
                             <StatCardSkeleton />
                         </Grid>
                     ))}
                     {[...Array(6)].map((_, i) => (
-                        <Grid key={i} item xs={12} md={6} lg={4}>
+                        <Grid key={i} size={{ xs: 12, md: 6, lg: 4 }}>
                             <TransferSkeleton />
                         </Grid>
                     ))}
@@ -2234,7 +2299,7 @@ export default function AssetTransferPage() {
             {/* Stats Cards Động */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
                 {stats.map(stat => (
-                    <Grid item xs={12} md={4} key={stat.label}>
+                    <Grid size={{ xs: 12, md: 4 }} key={stat.label}>
                         <Paper variant="outlined" sx={{
                             p: 2.5,
                             borderRadius: 3,
@@ -2893,7 +2958,7 @@ export default function AssetTransferPage() {
                             // 1. Trạng thái đang tải
                             <Grid container spacing={2.5}>
                                 {[...Array(6)].map((_, i) => (
-                                    <Grid item xs={12} md={6} lg={4} key={i}>
+                                    <Grid size={{ xs: 12, md: 6, lg: 4 }} key={i}>
                                         <RequestCardSkeleton />
                                     </Grid>
                                 ))}
@@ -3413,9 +3478,9 @@ export default function AssetTransferPage() {
                             </Stack>
                         </DialogTitle>
                         <DialogContent dividers sx={{ bgcolor: 'grey.50' }}>
-                            <Grid container spacing={3}>
+                            <Grid container spacing={2}>
                                 {/* ===== CỘT TRÁI: QUY TRÌNH & HÀNH ĐỘNG ===== */}
-                                <Grid item xs={12} md={5}>
+                                <Grid size={{ xs: 12, md: 5 }}>
                                     <Typography variant="overline" color="text.secondary">Quy trình ký duyệt</Typography>
                                     <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper' }}>
                                         <SignatureTimeline signatures={selectedTransfer.signatures} status={selectedTransfer.status} />
@@ -3450,7 +3515,7 @@ export default function AssetTransferPage() {
                                 </Grid>
 
                                 {/* ===== CỘT PHẢI: THÔNG TIN CHI TIẾT ===== */}
-                                <Grid item xs={12} md={7}>
+                                <Grid size={{ xs: 12, md: 7 }}>
                                     <Typography variant="overline" color="text.secondary">Thông tin luân chuyển</Typography>
                                     <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 2, bgcolor: 'background.paper' }}>
                                         <Stack direction="row" alignItems="center" spacing={{ xs: 1, sm: 2 }} justifyContent="space-between">
@@ -3634,67 +3699,59 @@ export default function AssetTransferPage() {
                     {modalMode === "add" ? "Gửi Yêu Cầu Thêm Tài Sản" : "Chỉnh Sửa Tài Sản"}
                 </DialogTitle>
                 <DialogContent>
-                    <Stack spacing={2} sx={{ mt: 1, minWidth: { sm: 420 } }}>
+                    <Stack spacing={2} sx={{ mt: 1, minWidth: { sm: 420 } }} component="form" id="asset-form" onSubmit={handleSubmit(onSubmitAsset)}>
                         <TextField autoFocus label="Tên tài sản" fullWidth required
-                            value={currentAsset?.name || ""}
-                            onChange={(e) => setCurrentAsset({ ...currentAsset, name: e.target.value, })} />
-                        <TextField label="Kích thước" placeholder="VD: 80x80, 6.5cm x 1.05m..." fullWidth
-                            value={currentAsset?.size || ""}
-                            onChange={(e) => setCurrentAsset({ ...currentAsset, size: e.target.value, })} />
-                        <TextField label="Mô tả" fullWidth
-                            value={currentAsset?.description || ""}
-                            onChange={(e) => setCurrentAsset({ ...currentAsset, description: e.target.value, })} />
-                        <Grid container spacing={2}>
-                            <Grid item xs={6}>
+                            error={!!errors.name} helperText={errors.name?.message}
+                            {...register("name")} />
 
+                        <TextField label="Kích thước" placeholder="VD: 80x80, 6.5cm x 1.05m..." fullWidth
+                            {...register("size")} />
+
+                        <TextField label="Mô tả" fullWidth
+                            {...register("description")} />
+
+                        <Grid container spacing={2}>
+                            <Grid size={{ xs: 6 }}>
                                 <TextField
                                     label="Số lượng"
                                     type="number"
                                     fullWidth
                                     required
-                                    value={currentAsset?.quantity || ""} // Cho phép hiển thị chuỗi rỗng
-                                    onChange={(e) => {
-                                        const value = e.target.value;
-                                        // Cho phép người dùng xóa trống ô nhập để gõ lại
-                                        if (value === "") {
-                                            setCurrentAsset({ ...currentAsset, quantity: "" });
-                                            return;
-                                        }
-                                        const num = parseInt(value, 10);
-                                        // Chỉ cập nhật state nếu là một số hợp lệ và lớn hơn 0
-                                        if (!isNaN(num) && num > 0) {
-                                            setCurrentAsset({ ...currentAsset, quantity: num });
-                                        }
-                                    }}
-                                    onBlur={() => {
-                                        // Khi người dùng bấm ra ngoài, kiểm tra lại lần cuối
-                                        const quantity = parseInt(currentAsset?.quantity, 10);
-                                        if (isNaN(quantity) || quantity < 1) {
-                                            // Nếu giá trị không hợp lệ (trống, 0, âm), đặt lại là 1
-                                            setCurrentAsset({ ...currentAsset, quantity: 1 });
-                                        }
-                                    }}
-                                    inputProps={{ min: 1 }} // Giữ lại validation của trình duyệt
+                                    error={!!errors.quantity} helperText={errors.quantity?.message}
+                                    {...register("quantity")}
+                                    inputProps={{ min: 1 }}
                                 />
                             </Grid>
-                            <Grid item xs={6}>
+                            <Grid size={{ xs: 6 }}>
                                 <TextField label="Đơn vị tính" fullWidth required
-                                    value={currentAsset?.unit || ""}
-                                    onChange={(e) => setCurrentAsset({ ...currentAsset, unit: e.target.value, })} />
+                                    error={!!errors.unit} helperText={errors.unit?.message}
+                                    {...register("unit")} />
                             </Grid>
                         </Grid>
+
                         <TextField label="Ghi chú" fullWidth
-                            value={currentAsset?.notes || ""}
-                            onChange={(e) => setCurrentAsset({ ...currentAsset, notes: e.target.value, })} />
-                        <Autocomplete options={departments} getOptionLabel={(option) => option.name || ""}
-                            value={departments.find(d => d.id === currentAsset?.departmentId) || null}
-                            onChange={(event, newValue) => { setCurrentAsset({ ...currentAsset, departmentId: newValue ? newValue.id : "", }) }}
-                            renderInput={(params) => (<TextField{...params} label="Phòng ban" required />)} />
+                            {...register("notes")} />
+
+                        <Controller
+                            name="departmentId"
+                            control={control}
+                            render={({ field }) => (
+                                <Autocomplete
+                                    options={departments}
+                                    getOptionLabel={(option) => option.name || ""}
+                                    value={departments.find(d => d.id === field.value) || null}
+                                    onChange={(event, newValue) => { field.onChange(newValue ? newValue.id : ""); }}
+                                    renderInput={(params) => (
+                                        <TextField {...params} label="Phòng ban" required error={!!errors.departmentId} helperText={errors.departmentId?.message} />
+                                    )}
+                                />
+                            )}
+                        />
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ p: "0 24px 16px" }}>
                     <Button onClick={() => setIsAssetModalOpen(false)}>Hủy</Button>
-                    <Button onClick={handleSaveAsset} variant="contained">{modalMode === "add" ? "Gửi yêu cầu" : "Lưu thay đổi"}</Button>
+                    <Button type="submit" form="asset-form" variant="contained">{modalMode === "add" ? "Gửi yêu cầu" : "Lưu thay đổi"}</Button>
                 </DialogActions>
             </Dialog>
 
@@ -3843,9 +3900,9 @@ export default function AssetTransferPage() {
                             </Stack>
                         </DialogTitle>
                         <DialogContent dividers>
-                            <Grid container spacing={3}>
+                            <Grid container spacing={2}>
                                 {/* Cột trái: Thông tin duyệt */}
-                                <Grid item xs={12} md={5}>
+                                <Grid size={{ xs: 12, md: 5 }}>
                                     <Typography variant="overline" color="text.secondary">Quy trình ký duyệt</Typography>
                                     <RequestSignatureTimeline signatures={selectedRequest.signatures} status={selectedRequest.status} blockName={selectedRequest.managementBlock} />
                                     {/* ✅ BẮT ĐẦU THÊM MÃ QR TẠI ĐÂY */}
@@ -3907,7 +3964,7 @@ export default function AssetTransferPage() {
                                 </Grid>
 
                                 {/* Cột phải: Thông tin tài sản */}
-                                <Grid item xs={12} md={7}>
+                                <Grid size={{ xs: 12, md: 7 }}>
                                     <Typography variant="overline" color="text.secondary">Thông tin tài sản được yêu cầu</Typography>
                                     <Paper variant="outlined" sx={{ p: 0, borderRadius: 2, overflow: 'hidden' }}>
                                         <Table size="small">
@@ -3994,7 +4051,7 @@ export default function AssetTransferPage() {
                     {/* BỐ CỤC 2 LỰA CHỌN */}
                     <Grid container spacing={2}>
                         {/* Lựa chọn 1: Theo Khối */}
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <Card
                                 variant="outlined"
                                 sx={{
@@ -4020,7 +4077,7 @@ export default function AssetTransferPage() {
                         </Grid>
 
                         {/* Lựa chọn 2: Toàn công ty */}
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <Card
                                 variant="outlined"
                                 sx={{
@@ -4118,8 +4175,8 @@ export default function AssetTransferPage() {
                             </Stack>
                         </DialogTitle>
                         <DialogContent dividers>
-                            <Grid container spacing={3}>
-                                <Grid item xs={12} md={5}>
+                            <Grid container spacing={2}>
+                                <Grid size={{ xs: 12, md: 5 }}>
                                     <Typography variant="overline" color="text.secondary">Quy trình ký duyệt</Typography>
                                     <ReportSignatureTimeline signatures={selectedReport.signatures} status={selectedReport.status} type={selectedReport.type} />
                                     {/* ✅ BẮT ĐẦU THÊM MÃ QR TẠI ĐÂY */}
@@ -4181,7 +4238,7 @@ export default function AssetTransferPage() {
                                         {/* === THAY ĐỔI KẾT THÚC TẠI ĐÂY === */}
                                     </Stack>
                                 </Grid>
-                                <Grid item xs={12} md={7}>
+                                <Grid size={{ xs: 12, md: 7 }}>
                                     <Typography variant="overline" color="text.secondary">Danh sách tài sản kiểm kê</Typography>
                                     <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, mt: 1, maxHeight: 400 }}>
                                         <Table size="small" stickyHeader>

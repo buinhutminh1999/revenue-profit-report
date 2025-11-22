@@ -9,7 +9,6 @@ import {
   useMediaQuery,
   CssBaseline,
   AppBar as MuiAppBar,
-  useScrollTrigger,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -17,36 +16,36 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 
-const SIDEBAR_WIDTH_EXPANDED = 260;
-const SIDEBAR_WIDTH_COLLAPSED = 88;
+const SIDEBAR_WIDTH_EXPANDED = 240;
+const SIDEBAR_WIDTH_COLLAPSED = 64;
 
 // AppBar mờ + blur, đổi chiều rộng theo trạng thái
 const AppBar = styled(MuiAppBar, {
-    shouldForwardProp: (prop) => prop !== "open",
+  shouldForwardProp: (prop) => prop !== "open",
 })(({ theme, open }) => ({
-    zIndex: theme.zIndex.drawer + 1,
-    // Màu nền mờ hiện đại
-    backgroundColor: alpha(theme.palette.background.paper, 0.95),
-    backdropFilter: "blur(12px)", // Tăng độ mờ nhẹ
-    boxShadow: "none",
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    color: theme.palette.text.primary,
-    
-    // Tối ưu hóa tốc độ chuyển đổi chung
-    transition: theme.transitions.create(["width", "margin", "box-shadow"], { 
-        easing: theme.transitions.easing.easeInOut,
-        duration: 300, // Tăng nhẹ thời gian chuyển đổi cho cảm giác mượt mà
-    }),
+  zIndex: theme.zIndex.drawer + 1,
+  // Màu nền mờ hiện đại
+  backgroundColor: alpha(theme.palette.background.paper, 0.95),
+  backdropFilter: "blur(12px)", // Tăng độ mờ nhẹ
+  boxShadow: "none",
+  borderBottom: `1px solid ${theme.palette.divider}`,
+  color: theme.palette.text.primary,
 
-    ...(open && {
-        // Chỉ áp dụng margin/width khi sidebar mở trên màn hình lớn
-        marginLeft: `var(--sidebar-w, ${SIDEBAR_WIDTH_EXPANDED}px)`,
-        width: `calc(100% - var(--sidebar-w, ${SIDEBAR_WIDTH_EXPANDED}px))`,
-        transition: theme.transitions.create(["width", "margin", "box-shadow"], {
-            easing: theme.transitions.easing.easeInOut,
-            duration: 300,
-        }),
+  // Tối ưu hóa tốc độ chuyển đổi chung
+  transition: theme.transitions.create(["width", "margin", "box-shadow"], {
+    easing: theme.transitions.easing.easeInOut,
+    duration: 300, // Tăng nhẹ thời gian chuyển đổi cho cảm giác mượt mà
+  }),
+
+  ...(open && {
+    // Chỉ áp dụng margin/width khi sidebar mở trên màn hình lớn
+    marginLeft: `var(--sidebar-w, ${SIDEBAR_WIDTH_EXPANDED}px)`,
+    width: `calc(100% - var(--sidebar-w, ${SIDEBAR_WIDTH_EXPANDED}px))`,
+    transition: theme.transitions.create(["width", "margin", "box-shadow"], {
+      easing: theme.transitions.easing.easeInOut,
+      duration: 300,
     }),
+  }),
 }));
 
 const DrawerHeader = styled("div")(({ theme }) => ({
@@ -164,7 +163,7 @@ export default function ModernLayout() {
           tabIndex={-1}
           sx={{
             flexGrow: 1,
-            p: { xs: 2, sm: 3 },
+            p: { xs: 1, sm: 2 }, // Reduced padding for ERP density
             overflowY: "auto",
             overflowX: "hidden",
             scrollBehavior: "smooth",

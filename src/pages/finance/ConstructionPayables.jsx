@@ -45,8 +45,7 @@ import {
     LockClock as CloseQuarterIcon,
     FileDownloadOutlined,
 } from "@mui/icons-material";
-import * as XLSX from "xlsx-js-style";
-import { saveAs } from "file-saver"; // Thư viện để tải file xuống
+import { exportToExcel } from "../../utils/excelUtils";
 import { NumericFormat } from "react-number-format";
 import { db } from "../../services/firebase-config";
 import {
@@ -61,7 +60,7 @@ import { toNum } from "../../utils/numberUtils";
 import { getApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { ErrorState, EmptyState, SkeletonDataGrid } from "../../components/common";
-import { AlertCircle, Inbox } from "lucide-react";
+import { ErrorOutline as AlertCircle, Inbox } from "@mui/icons-material";
 
 const SORT_CONFIG = {
     "Thi công": { key: "orderThiCong" },
@@ -118,7 +117,7 @@ const StyledDataGrid = styled(DataGrid)(({ theme }) => ({
 }));
 
 const SummaryCard = ({ title, amount, icon, color, loading, index = 0 }) => (
-    <Grid item xs={12} sm={6} lg={3}>
+    <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -373,7 +372,7 @@ const DetailStatCard = ({ title, value, color, index = 0 }) => (
 
 const NoRowsOverlay = () => (
     <EmptyState
-        icon={<Inbox size={64} />}
+        icon={<Inbox sx={{ fontSize: 64 }} />}
         title="Chưa có dữ liệu công nợ"
         description="Không có dữ liệu công nợ phải trả cho quý và năm đã chọn. Hãy chọn quý/năm khác hoặc thêm dữ liệu mới."
         size="small"
@@ -543,229 +542,100 @@ const ConstructionPayables = () => {
         };
     }, [selectedYear, selectedQuarter]);
     const processedData = useMemo(() => {
-    // Đảm bảo cả payablesData và projects đều có sẵn
-    if (!payablesData || !projects) return []; 
+        // Đảm bảo cả payablesData và projects đều có sẵn
+        if (!payablesData || !projects) return [];
 
-    const projectsMap = new Map();
-    
-    // ✅ THAY ĐỔI: Tính grandTotalRevenue cho từng project riêng biệt
-    // Nhóm dữ liệu theo projectId trước
-    const itemsByProject = payablesData.reduce((acc, item) => {
-        if (!acc[item.projectId]) {
-            acc[item.projectId] = [];
-        }
-        acc[item.projectId].push(item);
-        return acc;
-    }, {});
+        const projectsMap = new Map();
 
-    // Tính grandTotalRevenue cho từng project
-    const grandTotalRevenueByProject = {};
-    Object.keys(itemsByProject).forEach(projectId => {
-        grandTotalRevenueByProject[projectId] = itemsByProject[projectId].reduce(
-            (sum, item) => sum + toNum(item.revenue || 0),
-            0
-        );
-    });
+        // ✅ THAY ĐỔI: Tính grandTotalRevenue cho từng project riêng biệt
+        // Nhóm dữ liệu theo projectId trước
+        const itemsByProject = payablesData.reduce((acc, item) => {
+            if (!acc[item.projectId]) {
+                acc[item.projectId] = [];
+            }
+            acc[item.projectId].push(item);
+            return acc;
+        }, {});
 
-    payablesData.forEach((item) => {
-        // --- 1. XÁC ĐỊNH LOẠI DỰ ÁN ---
-        const projectCode = (item.project || '').toUpperCase();
-        const projectDetails = projects.find(p => p.id === item.projectId);
-        const projectType = projectDetails?.type;
+        // Tính grandTotalRevenue cho từng project
+        const grandTotalRevenueByProject = {};
+        Object.keys(itemsByProject).forEach(projectId => {
+            grandTotalRevenueByProject[projectId] = itemsByProject[projectId].reduce(
+                (sum, item) => sum + toNum(item.revenue || 0),
+                0
+            );
+        });
 
-        // --- 2. XỬ LÝ GIÁ TRỊ ĐẦU KỲ GỐC ---
-        let dauKyNo = toNum(item.debt);
-        let dauKyCo = toNum(item.openingCredit);
+        payablesData.forEach((item) => {
+            // --- 1. XÁC ĐỊNH LOẠI DỰ ÁN ---
+            const projectCode = (item.project || '').toUpperCase();
+            const projectDetails = projects.find(p => p.id === item.projectId);
+            const projectType = projectDetails?.type;
 
-        // 💡 LOGIC ĐIỀU CHỈNH ĐẦU KỲ (cho Bảng Tổng Hợp):
-        if (
-            projectType === 'Nhà máy' &&
-            (projectCode.includes('-VT') || projectCode.includes('-NC'))
-        ) {
-            dauKyNo = 0; // Buộc Đầu Kỳ Nợ = 0
-            dauKyCo = 0; // Buộc Đầu Kỳ Có = 0
-        }
-        // ------------------------------------
-        
-        // ✅ THAY ĐỔI: Sử dụng grandTotalRevenue của từng project
-        const projectGrandTotalRevenue = grandTotalRevenueByProject[item.projectId] || 0;
-        
-        // Công thức PS Nợ (Giữ nguyên)
-        const psNo = projectGrandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
+            // --- 2. XỬ LÝ GIÁ TRỊ ĐẦU KỲ GỐC ---
+            let dauKyNo = toNum(item.debt);
+            let dauKyCo = toNum(item.openingCredit);
 
-        // ✅ THAY ĐỔI: Công thức PS Giảm giống như "Danh sách giao dịch chi tiết"
-        const psGiam = projectGrandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
+            // 💡 LOGIC ĐIỀU CHỈNH ĐẦU KỲ (cho Bảng Tổng Hợp):
+            if (
+                projectType === 'Nhà máy' &&
+                (projectCode.includes('-VT') || projectCode.includes('-NC'))
+            ) {
+                dauKyNo = 0; // Buộc Đầu Kỳ Nợ = 0
+                dauKyCo = 0; // Buộc Đầu Kỳ Có = 0
+            }
+            // ------------------------------------
 
-        // ✅ THAY ĐỔI: Tính Cuối Kỳ giống như "Danh sách giao dịch chi tiết"
-        let finalBalance;
-        if (projectType === 'Nhà máy') {
-            finalBalance = toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM || 0);
-        } else {
-            finalBalance = toNum(item.noPhaiTraCK);
-        }
+            // ✅ THAY ĐỔI: Sử dụng grandTotalRevenue của từng project
+            const projectGrandTotalRevenue = grandTotalRevenueByProject[item.projectId] || 0;
 
-        const cuoiKyNo = finalBalance > 0 ? finalBalance : 0;
-        const cuoiKyCo = finalBalance < 0 ? -finalBalance : 0;
+            // Công thức PS Nợ (Giữ nguyên)
+            const psNo = projectGrandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
 
-        if (!projectsMap.has(item.projectId)) {
-            projectsMap.set(item.projectId, {
-                _id: item.projectId,
-                projectId: item.projectId,
-                project: item.projectDisplayName,
-                debt: 0, 
-                openingCredit: 0, 
-                debit: 0,
-                credit: 0,
-                tonCuoiKy: 0,
-                carryover: 0,
-            });
-        }
+            // ✅ THAY ĐỔI: Công thức PS Giảm giống như "Danh sách giao dịch chi tiết"
+            const psGiam = projectGrandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
 
-        const projectSummary = projectsMap.get(item.projectId);
-
-        // CỘNG DỒN sử dụng dauKyNo và dauKyCo ĐÃ ĐIỀU CHỈNH
-        projectSummary.debt += dauKyNo;
-        projectSummary.openingCredit += dauKyCo;
-        projectSummary.debit += psGiam;      
-        projectSummary.credit += psNo;       
-        projectSummary.tonCuoiKy += cuoiKyNo;
-        projectSummary.carryover += cuoiKyCo;
-    });
-
-    return Array.from(projectsMap.values());
-    
-// Đảm bảo 'projects' có trong dependency array
-}, [payablesData, projects]);
-    // Thay thế toàn bộ hàm handleExportToExcel hiện có
-const handleExportToExcel = () => {
-    // 1. CHUẨN BỊ DỮ LIỆU ĐỊNH DẠNG SỐ (Sử dụng processedData)
-    const dataForSheet = processedData.map((row) => ({
-        // Chuẩn bị dữ liệu thô
-        "Tên Công Trình": row.project,
-        "Đầu Kỳ Nợ": toNum(row.debt),
-        "Đầu Kỳ Có": toNum(row.openingCredit),
-        "PS Nợ": toNum(row.credit),
-        "PS Giảm": toNum(row.debit),
-        "Cuối Kỳ Nợ": toNum(row.tonCuoiKy),
-        "Cuối Kỳ Có": toNum(row.carryover),
-    }));
-
-    // Thêm dòng TỔNG CỘNG
-    dataForSheet.push({
-        "Tên Công Trình": "TỔNG CỘNG",
-        "Đầu Kỳ Nợ": summaryData.opening,
-        "Đầu Kỳ Có": 0,
-        "PS Nợ": summaryData.credit,
-        "PS Giảm": summaryData.debit,
-        "Cuối Kỳ Nợ": summaryData.closing,
-        "Cuối Kỳ Có": 0,
-    });
-
-    // 2. TẠO WORKSHEET VÀ CÁC THÔNG SỐ CHUNG
-    const ws = XLSX.utils.json_to_sheet(dataForSheet);
-    const moneyFormat = '#,##0'; // Định dạng tiền tệ VNĐ không có đơn vị
-
-    // Định nghĩa Style
-    const baseStyle = {
-        font: { name: "Arial", sz: 10 },
-        border: {
-            top: { style: "thin" },
-            bottom: { style: "thin" },
-            left: { style: "thin" },
-            right: { style: "thin" },
-        },
-        alignment: { vertical: "center", horizontal: "right" },
-    };
-
-    const headerStyle = {
-        ...baseStyle,
-        font: { name: "Arial", sz: 12, bold: true, color: { rgb: "FFFFFF" } },
-        fill: { fgColor: { rgb: "007FFF" } }, // Màu Xanh Navy hiện đại
-        alignment: { vertical: "center", horizontal: "center", wrapText: true },
-    };
-    
-    const totalRowStyle = {
-        ...baseStyle,
-        font: { name: "Arial", sz: 11, bold: true, color: { rgb: "000000" } },
-        fill: { fgColor: { rgb: "F0F0F0" } }, // Màu xám nhạt cho dòng tổng cộng
-        alignment: { vertical: "center", horizontal: "right" },
-    };
-
-    // 3. APPLY STYLES VÀ FORMAT CHO TỪNG CELL
-    const range = XLSX.utils.decode_range(ws["!ref"]);
-
-    for (let R = range.s.r; R <= range.e.r; ++R) {
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-            const cell_address = XLSX.utils.encode_cell({ r: R, c: C });
-            const cell = ws[cell_address];
-            
-            if (!cell) continue;
-
-            // Header Row (R=0)
-            if (R === 0) {
-                cell.s = headerStyle;
-                continue;
+            // ✅ THAY ĐỔI: Tính Cuối Kỳ giống như "Danh sách giao dịch chi tiết"
+            let finalBalance;
+            if (projectType === 'Nhà máy') {
+                finalBalance = toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM || 0);
+            } else {
+                finalBalance = toNum(item.noPhaiTraCK);
             }
 
-            // Dòng dữ liệu (R > 0)
-            let currentStyle = { ...baseStyle };
-            
-            // Cột Tên Công Trình (C=0)
-            if (C === 0) {
-                currentStyle.alignment.horizontal = "left";
-                if (R === range.e.r) { // Dòng cuối cùng (Tổng cộng)
-                    currentStyle = { ...totalRowStyle, alignment: { vertical: "center", horizontal: "left" } };
-                    cell.v = dataForSheet[R-1]["Tên Công Trình"].toUpperCase();
-                }
-            }
-            
-            // Các cột dữ liệu tiền tệ (C > 0)
-            if (C > 0) {
-                cell.t = 'n'; // Ép kiểu là số
-                cell.z = moneyFormat; // Định dạng số tiền
-                
-                if (R === range.e.r) { // Dòng cuối cùng (Tổng cộng)
-                    currentStyle = totalRowStyle;
-                }
-                
-                // Tô màu cho PS Nợ (Warning/Orange)
-                if (C === 3 && cell.v > 0) { 
-                    currentStyle.fill = { fgColor: { rgb: "FFF8E1" } };
-                }
-                // Tô màu cho PS Giảm (Success/Green)
-                if (C === 4 && cell.v > 0) {
-                    currentStyle.fill = { fgColor: { rgb: "E8F5E9" } };
-                }
-                // Tô màu cho Cuối Kỳ Nợ (Error/Red)
-                if (C === 5 && cell.v > 0) {
-                    currentStyle.fill = { fgColor: { rgb: "FBE9E7" } };
-                }
+            const cuoiKyNo = finalBalance > 0 ? finalBalance : 0;
+            const cuoiKyCo = finalBalance < 0 ? -finalBalance : 0;
+
+            if (!projectsMap.has(item.projectId)) {
+                projectsMap.set(item.projectId, {
+                    _id: item.projectId,
+                    projectId: item.projectId,
+                    project: item.projectDisplayName,
+                    debt: 0,
+                    openingCredit: 0,
+                    debit: 0,
+                    credit: 0,
+                    tonCuoiKy: 0,
+                    carryover: 0,
+                });
             }
 
-            // Áp dụng style đã xác định
-            cell.s = currentStyle;
-        }
-    }
+            const projectSummary = projectsMap.get(item.projectId);
 
-    // Thiết lập độ rộng cột tối ưu
-    ws["!cols"] = [
-        { wch: 40 }, // Tên Công Trình
-        { wch: 18 }, // Đầu Kỳ Nợ
-        { wch: 18 }, // Đầu Kỳ Có
-        { wch: 18 }, // PS Nợ
-        { wch: 18 }, // PS Giảm
-        { wch: 18 }, // Cuối Kỳ Nợ (In đậm)
-        { wch: 18 }, // Cuối Kỳ Có
-    ];
+            // CỘNG DỒN sử dụng dauKyNo và dauKyCo ĐÃ ĐIỀU CHỈNH
+            projectSummary.debt += dauKyNo;
+            projectSummary.openingCredit += dauKyCo;
+            projectSummary.debit += psGiam;
+            projectSummary.credit += psNo;
+            projectSummary.tonCuoiKy += cuoiKyNo;
+            projectSummary.carryover += cuoiKyCo;
+        });
 
-    // 4. XUẤT FILE VÀ TẢI XUỐNG
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "CongNoTongHop");
-    
-    // Tạo file và tải xuống
-    const fileName = `BangTongHopCongNo_${selectedYear}_Q${selectedQuarter}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-};
+        return Array.from(projectsMap.values());
+
+        // Đảm bảo 'projects' có trong dependency array
+    }, [payablesData, projects]);
+
     const summaryData = useMemo(
         () =>
             processedData.reduce(
@@ -781,12 +651,46 @@ const handleExportToExcel = () => {
         [processedData]
     );
 
+    const handleExportToExcel = async () => {
+        // Prepare data with summary row
+        const dataWithSummary = [...processedData];
+        if (summaryData) {
+            dataWithSummary.push({
+                project: "TỔNG CỘNG",
+                debt: summaryData.opening,
+                openingCredit: 0,
+                credit: summaryData.credit,
+                debit: summaryData.debit,
+                tonCuoiKy: summaryData.closing,
+                carryover: 0,
+            });
+        }
+
+        const columnsForExport = [
+            { key: 'project', label: 'Tên Công Trình' },
+            { key: 'debt', label: 'Đầu Kỳ Nợ' },
+            { key: 'openingCredit', label: 'Đầu Kỳ Có' },
+            { key: 'credit', label: 'PS Nợ' },
+            { key: 'debit', label: 'PS Giảm' },
+            { key: 'tonCuoiKy', label: 'Cuối Kỳ Nợ' },
+            { key: 'carryover', label: 'Cuối Kỳ Có' },
+        ];
+
+        await exportToExcel(
+            dataWithSummary,
+            columnsForExport,
+            { name: "BangTongHopCongNo" },
+            selectedYear,
+            selectedQuarter
+        );
+    };
+
     const handleRowClick = (params) => {
         setSelectedProject(params.row);
         setDrawerOpen(true);
     };
     const handleDrawerClose = () => setDrawerOpen(false);
-// ✨ CODE BẠN CẦN THÊM ✨
+    // ✨ CODE BẠN CẦN THÊM ✨
     const getGridRowSpacing = React.useCallback(() => ({
         top: 8,
         bottom: 8,
@@ -949,42 +853,118 @@ const handleExportToExcel = () => {
             return orderA - orderB;
         });
     }, [detailItems, categories]);
-   const detailDataWithGroups = useMemo(() => {
-    // Nếu không có dữ liệu đầu vào, trả về mảng rỗng
-    if (sortedDetailItems.length === 0) return [];
+    const detailDataWithGroups = useMemo(() => {
+        // Nếu không có dữ liệu đầu vào, trả về mảng rỗng
+        if (sortedDetailItems.length === 0) return [];
 
-    // --- BƯỚC 1: LẤY CÁC THÔNG TIN CHUNG ---
-    const projectDetails = projects.find(
-        (p) => p.id === selectedProject.projectId
-    );
-    const projectType = projectDetails?.type; // Lấy type: 'Nhà máy', 'Thi công', v.v...
-    const grandTotalRevenue = sortedDetailItems.reduce(
-        (sum, item) => sum + toNum(item.revenue || 0),
-        0
-    );
+        // --- BƯỚC 1: LẤY CÁC THÔNG TIN CHUNG ---
+        const projectDetails = projects.find(
+            (p) => p.id === selectedProject.projectId
+        );
+        const projectType = projectDetails?.type; // Lấy type: 'Nhà máy', 'Thi công', v.v...
+        const grandTotalRevenue = sortedDetailItems.reduce(
+            (sum, item) => sum + toNum(item.revenue || 0),
+            0
+        );
 
-    // --- BƯỚC 2: XỬ LÝ VÀ NHÓM DỮ LIỆU ---
-    const result = [];
-    const groupedByProject = sortedDetailItems.reduce((acc, item) => {
-        const key = item.project;
-        (acc[key] = acc[key] || []).push(item);
-        return acc;
-    }, {});
+        // --- BƯỚC 2: XỬ LÝ VÀ NHÓM DỮ LIỆU ---
+        const result = [];
+        const groupedByProject = sortedDetailItems.reduce((acc, item) => {
+            const key = item.project;
+            (acc[key] = acc[key] || []).push(item);
+            return acc;
+        }, {});
 
-    for (const projectKey in groupedByProject) {
-        const itemsInGroup = groupedByProject[projectKey];
-        const summaryId = `summary-${projectKey}`;
+        for (const projectKey in groupedByProject) {
+            const itemsInGroup = groupedByProject[projectKey];
+            const summaryId = `summary-${projectKey}`;
 
-        // --- BƯỚC 3A: XỬ LÝ NHÓM CÓ NHIỀU GIAO DỊCH ---
-        if (itemsInGroup.length > 1) {
-            // ✅ THAY ĐỔI 1: Xử lý từng dòng chi tiết TRƯỚC
-            const processedItems = itemsInGroup.map((item) => {
-                
+            // --- BƯỚC 3A: XỬ LÝ NHÓM CÓ NHIỀU GIAO DỊCH ---
+            if (itemsInGroup.length > 1) {
+                // ✅ THAY ĐỔI 1: Xử lý từng dòng chi tiết TRƯỚC
+                const processedItems = itemsInGroup.map((item) => {
+
+                    // 💡 LOGIC MỚI: ĐIỀU CHỈNH ĐẦU KỲ CHO DÒNG CHI TIẾT
+                    const projectCode = (item.project || '').toUpperCase();
+                    let dauKyNo = toNum(item.debt);
+                    let dauKyCo = toNum(item.openingCredit);
+
+                    if (
+                        projectType === 'Nhà máy' &&
+                        (projectCode.includes('-VT') || projectCode.includes('-NC'))
+                    ) {
+                        dauKyNo = 0; // Buộc Đầu Kỳ Nợ = 0
+                        dauKyCo = 0; // Buộc Đầu Kỳ Có = 0
+                    }
+                    // -------------------------------------------------------------
+
+                    const psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
+                    // Giữ nguyên công thức PS Giảm theo logic cũ của bạn
+                    const psGiamValue = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
+
+                    let finalBalance;
+                    if (projectType === 'Nhà máy') {
+                        finalBalance = toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM);
+                    } else {
+                        finalBalance = toNum(item.noPhaiTraCK);
+                    }
+
+                    const closingDebt = finalBalance > 0 ? finalBalance : 0;
+                    const closingCredit = finalBalance < 0 ? -finalBalance : 0;
+
+                    return {
+                        ...item,
+                        parentId: summaryId,
+                        // ✅ CẬP NHẬT: Gán lại các giá trị Đầu Kỳ đã điều chỉnh
+                        debt: dauKyNo,          // <-- Đầu Kỳ Nợ đã điều chỉnh
+                        openingCredit: dauKyCo, // <-- Đầu Kỳ Có đã điều chỉnh
+                        // ---------------------------------------------
+                        credit: psNoValue,
+                        noPhaiTraCK: psGiamValue,
+                        closingDebt: closingDebt,
+                        closingCredit: closingCredit,
+                    };
+                });
+
+                // ✅ THAY ĐỔI 2: Dòng tổng hợp (summaryRow) BÂY GIỜ sẽ cộng dồn kết quả từ các dòng đã xử lý
+                const summaryRow = processedItems.reduce(
+                    (sum, item) => {
+                        // SỬ DỤNG giá trị Đầu Kỳ ĐÃ ĐIỀU CHỈNH
+                        sum.debt += toNum(item.debt);
+                        sum.openingCredit += toNum(item.openingCredit);
+                        // ... (các cột khác giữ nguyên logic cộng dồn)
+                        sum.credit += toNum(item.credit); // PS Nợ
+                        sum.noPhaiTraCK += toNum(item.noPhaiTraCK); // PS Giảm
+                        sum.closingDebt += toNum(item.closingDebt);
+                        sum.closingCredit += toNum(item.closingCredit);
+                        return sum;
+                    },
+                    {
+                        _id: summaryId,
+                        project: projectKey,
+                        description: "Tổng hợp",
+                        debt: 0,
+                        openingCredit: 0,
+                        credit: 0,
+                        noPhaiTraCK: 0,
+                        closingDebt: 0,
+                        closingCredit: 0,
+                        isSummary: true,
+                    }
+                );
+
+                result.push(summaryRow);
+                result.push(...processedItems);
+            }
+            // --- BƯỚC 3B: XỬ LÝ NHÓM CHỈ CÓ 1 GIAO DỊCH ---
+            else {
+                const singleItem = itemsInGroup[0];
+
                 // 💡 LOGIC MỚI: ĐIỀU CHỈNH ĐẦU KỲ CHO DÒNG CHI TIẾT
-                const projectCode = (item.project || '').toUpperCase();
-                let dauKyNo = toNum(item.debt);
-                let dauKyCo = toNum(item.openingCredit);
-                
+                const projectCode = (singleItem.project || '').toUpperCase();
+                let dauKyNo = toNum(singleItem.debt);
+                let dauKyCo = toNum(singleItem.openingCredit);
+
                 if (
                     projectType === 'Nhà máy' &&
                     (projectCode.includes('-VT') || projectCode.includes('-NC'))
@@ -993,24 +973,24 @@ const handleExportToExcel = () => {
                     dauKyCo = 0; // Buộc Đầu Kỳ Có = 0
                 }
                 // -------------------------------------------------------------
-                
-                const psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
-                // Giữ nguyên công thức PS Giảm theo logic cũ của bạn
-                const psGiamValue = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
 
+                const psNoValue = grandTotalRevenue > 0 ? toNum(singleItem.noPhaiTraCK) : 0;
+                const psGiamValue = grandTotalRevenue === 0 ? toNum(singleItem.directCost) : toNum(singleItem.debt);
+
+                // ✅ THAY ĐỔI 3: TÍNH SỐ DƯ DỰA TRÊN PROJECT TYPE
                 let finalBalance;
                 if (projectType === 'Nhà máy') {
-                    finalBalance = toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM);
+                    finalBalance = toNum(singleItem.noPhaiTraCK) + toNum(singleItem.noPhaiTraCKNM);
                 } else {
-                    finalBalance = toNum(item.noPhaiTraCK);
+                    finalBalance = toNum(singleItem.noPhaiTraCK);
                 }
 
                 const closingDebt = finalBalance > 0 ? finalBalance : 0;
                 const closingCredit = finalBalance < 0 ? -finalBalance : 0;
 
-                return {
-                    ...item,
-                    parentId: summaryId,
+                result.push({
+                    ...singleItem,
+                    isSingle: true,
                     // ✅ CẬP NHẬT: Gán lại các giá trị Đầu Kỳ đã điều chỉnh
                     debt: dauKyNo,          // <-- Đầu Kỳ Nợ đã điều chỉnh
                     openingCredit: dauKyCo, // <-- Đầu Kỳ Có đã điều chỉnh
@@ -1019,89 +999,13 @@ const handleExportToExcel = () => {
                     noPhaiTraCK: psGiamValue,
                     closingDebt: closingDebt,
                     closingCredit: closingCredit,
-                };
-            });
-
-            // ✅ THAY ĐỔI 2: Dòng tổng hợp (summaryRow) BÂY GIỜ sẽ cộng dồn kết quả từ các dòng đã xử lý
-            const summaryRow = processedItems.reduce(
-                (sum, item) => {
-                    // SỬ DỤNG giá trị Đầu Kỳ ĐÃ ĐIỀU CHỈNH
-                    sum.debt += toNum(item.debt);
-                    sum.openingCredit += toNum(item.openingCredit);
-                    // ... (các cột khác giữ nguyên logic cộng dồn)
-                    sum.credit += toNum(item.credit); // PS Nợ
-                    sum.noPhaiTraCK += toNum(item.noPhaiTraCK); // PS Giảm
-                    sum.closingDebt += toNum(item.closingDebt);
-                    sum.closingCredit += toNum(item.closingCredit);
-                    return sum;
-                },
-                {
-                    _id: summaryId,
-                    project: projectKey,
-                    description: "Tổng hợp",
-                    debt: 0,
-                    openingCredit: 0,
-                    credit: 0,
-                    noPhaiTraCK: 0,
-                    closingDebt: 0,
-                    closingCredit: 0,
-                    isSummary: true,
-                }
-            );
-
-            result.push(summaryRow);
-            result.push(...processedItems);
-        }
-        // --- BƯỚC 3B: XỬ LÝ NHÓM CHỈ CÓ 1 GIAO DỊCH ---
-        else {
-            const singleItem = itemsInGroup[0];
-            
-            // 💡 LOGIC MỚI: ĐIỀU CHỈNH ĐẦU KỲ CHO DÒNG CHI TIẾT
-            const projectCode = (singleItem.project || '').toUpperCase();
-            let dauKyNo = toNum(singleItem.debt);
-            let dauKyCo = toNum(singleItem.openingCredit);
-            
-            if (
-                projectType === 'Nhà máy' &&
-                (projectCode.includes('-VT') || projectCode.includes('-NC'))
-            ) {
-                dauKyNo = 0; // Buộc Đầu Kỳ Nợ = 0
-                dauKyCo = 0; // Buộc Đầu Kỳ Có = 0
+                });
             }
-            // -------------------------------------------------------------
-            
-            const psNoValue = grandTotalRevenue > 0 ? toNum(singleItem.noPhaiTraCK) : 0;
-            const psGiamValue = grandTotalRevenue === 0 ? toNum(singleItem.directCost) : toNum(singleItem.debt);
-
-            // ✅ THAY ĐỔI 3: TÍNH SỐ DƯ DỰA TRÊN PROJECT TYPE
-            let finalBalance;
-            if (projectType === 'Nhà máy') {
-                finalBalance = toNum(singleItem.noPhaiTraCK) + toNum(singleItem.noPhaiTraCKNM);
-            } else {
-                finalBalance = toNum(singleItem.noPhaiTraCK);
-            }
-
-            const closingDebt = finalBalance > 0 ? finalBalance : 0;
-            const closingCredit = finalBalance < 0 ? -finalBalance : 0;
-
-            result.push({
-                ...singleItem,
-                isSingle: true,
-                // ✅ CẬP NHẬT: Gán lại các giá trị Đầu Kỳ đã điều chỉnh
-                debt: dauKyNo,          // <-- Đầu Kỳ Nợ đã điều chỉnh
-                openingCredit: dauKyCo, // <-- Đầu Kỳ Có đã điều chỉnh
-                // ---------------------------------------------
-                credit: psNoValue,
-                noPhaiTraCK: psGiamValue,
-                closingDebt: closingDebt,
-                closingCredit: closingCredit,
-            });
         }
-    }
 
-    // --- BƯỚC 4: TRẢ VỀ KẾT QUẢ CUỐI CÙNG ---
-    return result;
-}, [sortedDetailItems, projects, selectedProject]);
+        // --- BƯỚC 4: TRẢ VỀ KẾT QUẢ CUỐI CÙNG ---
+        return result;
+    }, [sortedDetailItems, projects, selectedProject]);
     const detailSummary = useMemo(() => {
         // Nếu không có dữ liệu chi tiết, trả về các giá trị 0
         if (!detailDataWithGroups || detailDataWithGroups.length === 0) {
@@ -1434,51 +1338,51 @@ const handleExportToExcel = () => {
                         },
                     }}
                 >
-                <Box sx={{ width: "100%" }}>
-                    {isError ? (
-                        <Box sx={{ p: 3 }}>
-                            <ErrorState
-                                error="Đã có lỗi xảy ra khi tải dữ liệu"
-                                title="Lỗi tải dữ liệu công nợ"
-                                onRetry={() => window.location.reload()}
-                                retryLabel="Tải lại"
+                    <Box sx={{ width: "100%" }}>
+                        {isError ? (
+                            <Box sx={{ p: 3 }}>
+                                <ErrorState
+                                    error="Đã có lỗi xảy ra khi tải dữ liệu"
+                                    title="Lỗi tải dữ liệu công nợ"
+                                    onRetry={() => window.location.reload()}
+                                    retryLabel="Tải lại"
+                                />
+                            </Box>
+                        ) : isLoading && payablesData.length === 0 ? (
+                            <Box sx={{ p: 3 }}>
+                                <SkeletonDataGrid rows={8} columns={6} />
+                            </Box>
+                        ) : (
+                            <StyledDataGrid
+                                rows={processedData}
+                                columns={mainColumns}
+                                getRowId={(row) => row._id}
+                                loading={isLoading}
+                                onRowClick={handleRowClick}
+                                // ✨ THÊM HAI PROP NÀY ✨
+                                rowSpacingType="border"
+                                getRowSpacing={getGridRowSpacing}
+                                // -------------------------
+                                slots={{
+                                    toolbar: () => (
+                                        <CustomToolbar
+                                            onExportClick={handleExportToExcel}
+                                            isDataEmpty={processedData.length === 0}
+                                        />
+                                    ),
+                                    noRowsOverlay: NoRowsOverlay,
+                                }}
+                                disableRowSelectionOnClick
+                                autoHeight
+                                getRowClassName={(params) =>
+                                    params.id === selectedProject?._id
+                                        ? "Mui-selected"
+                                        : ""
+                                }
                             />
-                        </Box>
-                    ) : isLoading && payablesData.length === 0 ? (
-                        <Box sx={{ p: 3 }}>
-                            <SkeletonDataGrid rows={8} columns={6} />
-                        </Box>
-                    ) : (
-                        <StyledDataGrid
-                            rows={processedData}
-                            columns={mainColumns}
-                            getRowId={(row) => row._id}
-                            loading={isLoading}
-                            onRowClick={handleRowClick}
-                            // ✨ THÊM HAI PROP NÀY ✨
-                            rowSpacingType="border" 
-                            getRowSpacing={getGridRowSpacing}
-                            // -------------------------
-                            slots={{
-                                toolbar: () => (
-                                    <CustomToolbar
-                                        onExportClick={handleExportToExcel}
-                                        isDataEmpty={processedData.length === 0}
-                                    />
-                                ),
-                                noRowsOverlay: NoRowsOverlay,
-                            }}
-                            disableRowSelectionOnClick
-                            autoHeight
-                            getRowClassName={(params) =>
-                                params.id === selectedProject?._id
-                                    ? "Mui-selected"
-                                    : ""
-                            }
-                        />
-                    )}
-                </Box>
-            </Paper>
+                        )}
+                    </Box>
+                </Paper>
             </motion.div>
 
             <Dialog
@@ -1546,7 +1450,7 @@ const handleExportToExcel = () => {
                             </Typography>
 
                             <Grid container spacing={2.5} sx={{ mb: 3 }}>
-                                <Grid item xs={6} md={3}>
+                                <Grid size={{ xs: 6, md: 3 }}>
                                     <DetailStatCard
                                         title="Đầu Kỳ Nợ"
                                         value={detailSummary.debt}
@@ -1554,7 +1458,7 @@ const handleExportToExcel = () => {
                                         index={0}
                                     />
                                 </Grid>
-                                <Grid item xs={6} md={3}>
+                                <Grid size={{ xs: 6, md: 3 }}>
                                     <DetailStatCard
                                         title="PS Nợ"
                                         value={detailSummary.credit}
@@ -1562,7 +1466,7 @@ const handleExportToExcel = () => {
                                         index={1}
                                     />
                                 </Grid>
-                                <Grid item xs={6} md={3}>
+                                <Grid size={{ xs: 6, md: 3 }}>
                                     <DetailStatCard
                                         title="PS Giảm"
                                         value={detailSummary.debit}
@@ -1570,7 +1474,7 @@ const handleExportToExcel = () => {
                                         index={2}
                                     />
                                 </Grid>
-                                <Grid item xs={6} md={3}>
+                                <Grid size={{ xs: 6, md: 3 }}>
                                     <DetailStatCard
                                         title="Cuối Kỳ Nợ"
                                         value={detailSummary.closingDebt}

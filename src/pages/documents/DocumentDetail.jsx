@@ -153,7 +153,7 @@ export default function DocumentDetail() {
   }
 
   // --- Hàm xử lý khi PDF load lỗi ---
-   function onDocumentLoadError(error) {
+  function onDocumentLoadError(error) {
     console.error("Lỗi khi tải PDF:", error);
     setPdfLoadingError(`Không thể hiển thị file PDF. Lỗi: ${error.message}`);
     setNumPages(null);
@@ -166,26 +166,26 @@ export default function DocumentDetail() {
 
   // --- Hiển thị Loading hoặc Lỗi Fetch ---
   if (isLoading) {
-      return (
-          <Container maxWidth="md" sx={{ py: 4, textAlign: 'center' }}>
-            <CircularProgress />
-            <Typography sx={{ mt: 2 }}>Đang tải chi tiết văn bản...</Typography>
-          </Container>
-      );
+    return (
+      <Container maxWidth="md" sx={{ py: 4, textAlign: 'center' }}>
+        <CircularProgress />
+        <Typography sx={{ mt: 2 }}>Đang tải chi tiết văn bản...</Typography>
+      </Container>
+    );
   }
 
   if (fetchError) {
-      return (
-          <Container maxWidth="md" sx={{ py: 4 }}>
-            <Alert severity="error">
-              <AlertTitle>Lỗi</AlertTitle>
-              {fetchError.message || "Không thể tải chi tiết văn bản."}
-              <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/admin/document-list')} sx={{ mt: 2 }}>
-                Quay Về Danh Sách
-              </Button>
-            </Alert>
-          </Container>
-      );
+    return (
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <Alert severity="error">
+          <AlertTitle>Lỗi</AlertTitle>
+          {fetchError.message || "Không thể tải chi tiết văn bản."}
+          <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/admin/document-list')} sx={{ mt: 2 }}>
+            Quay Về Danh Sách
+          </Button>
+        </Alert>
+      </Container>
+    );
   }
 
   // --- Lấy URL của file ---
@@ -222,41 +222,41 @@ export default function DocumentDetail() {
           {isPdf && fileUrl && (
             <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', textAlign: 'center' }}>
               <Typography variant="h6" gutterBottom align="left" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                 <VisibilityIcon fontSize="small" /> Xem trước nội dung {numPages ? `(Trang ${pageNumber} / ${numPages})` : ''}
+                <VisibilityIcon fontSize="small" /> Xem trước nội dung {numPages ? `(Trang ${pageNumber} / ${numPages})` : ''}
               </Typography>
               {pdfLoadingError && (
-                 <Alert severity="warning" sx={{ mb: 2, textAlign: 'left' }}>{pdfLoadingError}</Alert>
+                <Alert severity="warning" sx={{ mb: 2, textAlign: 'left' }}>{pdfLoadingError}</Alert>
               )}
               <Box sx={{
-                  maxWidth: '100%',
-                  margin: '0 auto',
-                  border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden',
-                  position: 'relative',
-                  minHeight: '60vh',
-                 }}
+                maxWidth: '100%',
+                margin: '0 auto',
+                border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden',
+                position: 'relative',
+                minHeight: '60vh',
+              }}
               >
-                  <Document
-                    file={fileUrl}
-                    onLoadSuccess={onDocumentLoadSuccess}
-                    onLoadError={onDocumentLoadError}
+                <Document
+                  file={fileUrl}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={onDocumentLoadError}
+                  loading={
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+                      <CircularProgress />
+                      <Typography sx={{ ml: 2 }}>Đang tải PDF...</Typography>
+                    </Box>
+                  }
+                  error={!pdfLoadingError ? <Typography color="error">Lỗi không xác định khi tải PDF.</Typography> : null}
+                >
+                  <Page
+                    pageNumber={pageNumber}
+                    renderTextLayer={true}
+                    renderAnnotationLayer={true}
+                    width={Math.min(window.innerWidth * 0.8, 1000)}
                     loading={
-                      <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh'}}>
-                        <CircularProgress />
-                        <Typography sx={{ml: 2}}>Đang tải PDF...</Typography>
-                      </Box>
+                      <Skeleton variant="rectangular" width="100%" height="70vh" />
                     }
-                    error={!pdfLoadingError ? <Typography color="error">Lỗi không xác định khi tải PDF.</Typography> : null}
-                  >
-                    <Page
-                       pageNumber={pageNumber}
-                       renderTextLayer={true}
-                       renderAnnotationLayer={true}
-                       width={Math.min(window.innerWidth * 0.8, 1000)}
-                       loading={
-                         <Skeleton variant="rectangular" width="100%" height="70vh" />
-                       }
-                    />
-                  </Document>
+                  />
+                </Document>
               </Box>
               {/* --- Điều khiển phân trang --- */}
               {numPages && numPages > 1 && (
@@ -278,7 +278,7 @@ export default function DocumentDetail() {
           <Box sx={{ p: 3 }}>
             <Grid container spacing={4}>
               {/* Cột Thông Tin */}
-              <Grid item xs={12} md={7}>
+              <Grid size={{ xs: 12, md: 7 }}>
                 <Typography variant="h6" gutterBottom>Thông tin chung</Typography>
                 <Divider sx={{ mb: 2 }} />
                 <DetailItem>
@@ -310,11 +310,11 @@ export default function DocumentDetail() {
                       {document.createdBy.name} {document.createdBy.email ? `(${document.createdBy.email})` : ''}
                     </Typography>
                   </DetailItem>
-                 )}
+                )}
               </Grid>
 
               {/* Cột File & Actions */}
-              <Grid item xs={12} md={5}>
+              <Grid size={{ xs: 12, md: 5 }}>
                 <Typography variant="h6" gutterBottom>Tệp đính kèm</Typography>
                 <Divider sx={{ mb: 2 }} />
                 <DetailItem>
@@ -340,9 +340,9 @@ export default function DocumentDetail() {
                   </Typography>
                 </DetailItem>
                 {!isPdf && document?.fileType && (
-                    <Alert severity="info" sx={{ mt: 2 }}>
-                        File {document.fileType.includes('/') ? document.fileType.split('/')[1] : document.fileType} không thể xem trực tiếp. Vui lòng tải về.
-                    </Alert>
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    File {document.fileType.includes('/') ? document.fileType.split('/')[1] : document.fileType} không thể xem trực tiếp. Vui lòng tải về.
+                  </Alert>
                 )}
                 <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
                   <Button
@@ -365,9 +365,9 @@ export default function DocumentDetail() {
                     {deleteMutation.isLoading ? 'Đang xóa...' : 'Xóa Văn Bản'}
                   </Button>
                 </Box>
-                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                    *Lưu ý: Xóa chỉ gỡ bỏ thông tin, không xóa file vật lý trên server.
-                 </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  *Lưu ý: Xóa chỉ gỡ bỏ thông tin, không xóa file vật lý trên server.
+                </Typography>
               </Grid>
             </Grid>
           </Box>
@@ -380,7 +380,7 @@ export default function DocumentDetail() {
           aria-labelledby="alert-dialog-title"
           aria-describedby="alert-dialog-description"
         >
-           <DialogTitle id="alert-dialog-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DialogTitle id="alert-dialog-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <WarningAmberIcon color="warning" />
             Xác nhận xóa văn bản?
           </DialogTitle>
@@ -392,7 +392,7 @@ export default function DocumentDetail() {
           <DialogActions sx={{ p: 2 }}>
             <Button onClick={handleCloseDeleteConfirm} color="inherit">Hủy</Button>
             <Button onClick={handleDelete} color="error" variant="contained" autoFocus disabled={deleteMutation.isLoading}>
-              {deleteMutation.isLoading ? <CircularProgress size={20} color="inherit"/> : 'Xác nhận Xóa'}
+              {deleteMutation.isLoading ? <CircularProgress size={20} color="inherit" /> : 'Xác nhận Xóa'}
             </Button>
           </DialogActions>
         </Dialog>

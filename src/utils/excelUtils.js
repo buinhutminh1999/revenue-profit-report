@@ -1,5 +1,5 @@
-import * as XLSX from 'xlsx';
-import FileSaver from 'file-saver';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 /**
  * Xuất dữ liệu ra file Excel với giao diện được trang trí hiện đại.
@@ -11,107 +11,225 @@ import FileSaver from 'file-saver';
  * @param {string} year - Năm hiện tại.
  * @param {string} quarter - Quý hiện tại.
  */
-export const exportToExcel = (items, displayedColumns, projectData, year, quarter) => {
-    // --- BƯỚC 1: CHUẨN BỊ DỮ LIỆU ---
+export const exportToExcel = async (items, displayedColumns, projectData, year, quarter) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Chi Phí Thực Tế");
+
+    // --- BƯỚC 1: CHUẨN BỊ DỮ LIỆU VÀ CỘT ---
     const headerLabels = displayedColumns.map(col => col.label);
     const headerKeys = displayedColumns.map(col => col.key);
 
-    // Chuyển đổi mảng object thành mảng của các mảng (array of arrays)
-    const dataForSheet = [
-        headerLabels, // Dòng đầu tiên là tiêu đề
-        ...items.map(item =>
-            headerKeys.map(key => {
-                const originalValue = item[key];
-                
-                // Các cột đặc biệt luôn là text
-                if (key === 'project' || key === 'description') {
-                    return originalValue ?? '';
-                }
+    // Thêm dòng tiêu đề
+    const headerRow = worksheet.addRow(headerLabels);
 
-                // Chuyển đổi giá trị sang số, loại bỏ dấu phẩy nếu có.
-                const cleanedValue = String(originalValue).replace(/,/g, '');
-                const numericValue = Number(cleanedValue);
+    // --- BƯỚC 2: THÊM DỮ LIỆU ---
+    items.forEach(item => {
+        const rowValues = headerKeys.map(key => {
+            const originalValue = item[key];
 
-                // NẾU giá trị là một số hợp lệ (và không phải chuỗi rỗng), hãy LÀM TRÒN nó.
-                if (!isNaN(numericValue) && cleanedValue.trim() !== '') {
-                    return Math.round(numericValue);
-                }
-                
-                // Giữ nguyên giá trị nếu nó không phải là số (ví dụ: text)
+            // Các cột đặc biệt luôn là text
+            if (key === 'project' || key === 'description') {
                 return originalValue ?? '';
-            })
-        )
-    ];
+            }
 
-    // --- BƯỚC 2: TẠO WORKSHEET VÀ TÍNH TOÁN ĐỘ RỘNG CỘT ---
-    const ws = XLSX.utils.aoa_to_sheet(dataForSheet);
+            // Chuyển đổi giá trị sang số, loại bỏ dấu phẩy nếu có.
+            const cleanedValue = String(originalValue).replace(/,/g, '');
+            const numericValue = Number(cleanedValue);
 
-    // Tính toán độ rộng tối ưu cho từng cột
-    const colWidths = headerLabels.map((label, i) => {
-        const key = headerKeys[i];
-        const maxLength = Math.max(
-            ...items.map(item => {
-                const originalValue = item[key];
-                const cleanedValue = String(originalValue).replace(/,/g, '');
-                const numericValue = Number(cleanedValue);
-                let displayValue;
+            // NẾU giá trị là một số hợp lệ (và không phải chuỗi rỗng), hãy LÀM TRÒN nó.
+            if (!isNaN(numericValue) && cleanedValue.trim() !== '') {
+                return Math.round(numericValue);
+            }
 
-                if (!isNaN(numericValue) && cleanedValue.trim() !== '') {
-                    // Định dạng số với dấu phẩy để tính độ dài chính xác cho cột
-                    displayValue = Math.round(numericValue).toLocaleString('en-US');
-                } else {
-                    displayValue = String(originalValue || '');
-                }
-                return displayValue.length;
-            }),
-            label.length // So sánh với cả độ dài của tiêu đề
-        );
-        return { wch: maxLength + 2 }; // Thêm một chút padding
+            // Giữ nguyên giá trị nếu nó không phải là số
+            return originalValue ?? '';
+        });
+        worksheet.addRow(rowValues);
     });
-    ws['!cols'] = colWidths;
 
     // --- BƯỚC 3: TRANG TRÍ VÀ ĐỊNH DẠNG ---
-    const headerStyle = {
-        font: { bold: true, color: { rgb: "FFFFFF" } },
-        fill: { fgColor: { rgb: "4F81BD" } }, // Màu xanh dương đậm
-        alignment: { horizontal: "center", vertical: "center" }
-    };
-    
-    const numberFormat = '#,##0'; // Định dạng số có dấu phẩy ngăn cách hàng nghìn
 
-    // Lặp qua các ô để áp dụng style
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    for (let R = range.s.r; R <= range.e.r; ++R) {
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-            const cell_address = { c: C, r: R };
-            const cell_ref = XLSX.utils.encode_cell(cell_address);
-            const cell = ws[cell_ref];
-            if (!cell) continue;
+    // Style cho Header
+    headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: "FF4F81BD" } // Màu xanh dương đậm
+        };
+        cell.alignment = { horizontal: "center", vertical: "center" };
+    });
 
-            // Áp dụng style cho dòng tiêu đề
-            if (R === 0) {
-                cell.s = headerStyle;
-            } 
-            // Áp dụng định dạng số cho các ô dữ liệu là số
-            else if (typeof cell.v === 'number') {
-                cell.t = 'n'; // Đảm bảo kiểu dữ liệu là number
-                cell.s = { numFmt: numberFormat };
-            }
+    // Định dạng số và độ rộng cột
+    worksheet.columns.forEach((column, index) => {
+        // Tính độ rộng (đơn giản hóa)
+        let maxLength = headerLabels[index].length;
+        // Duyệt qua một số dòng đầu để ước lượng (hoặc duyệt hết nếu cần chính xác)
+        // ExcelJS không tự động tính width như xlsx, ta set cứng hoặc tính sơ bộ
+        column.width = maxLength + 5 < 15 ? 15 : maxLength + 5;
+
+        // Định dạng số cho các cột dữ liệu (trừ project và description)
+        const key = headerKeys[index];
+        if (key !== 'project' && key !== 'description') {
+            column.numFmt = '#,##0';
         }
-    }
+    });
 
-    // Thêm bộ lọc tự động cho bảng
-    ws['!autofilter'] = { ref: ws['!ref'] };
-    
-    // --- BƯỚC 4: TẠO WORKBOOK VÀ XUẤT FILE ---
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Chi Phí Thực Tế");
+    // Thêm AutoFilter
+    worksheet.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: headerKeys.length }
+    };
 
+    // --- BƯỚC 4: XUẤT FILE ---
+    const buffer = await workbook.xlsx.writeBuffer();
     const projectName = projectData?.name?.replace(/\s+/g, '_') || 'BaoCao';
     const fileName = `${projectName}_${year}_${quarter}_CPTT.xlsx`;
 
-    FileSaver.saveAs(
-        new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })], { type: "application/octet-stream" }),
-        fileName
-    );
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    saveAs(blob, fileName);
+};
+
+/**
+ * Đọc file Excel và trả về mảng object (tương tự sheet_to_json).
+ * @param {File} file - File Excel cần đọc.
+ * @returns {Promise<Array<Object>>} - Mảng dữ liệu.
+ */
+export const getExcelSheetNames = async (file) => {
+    const buffer = await file.arrayBuffer();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    return workbook.worksheets.map(ws => ws.name);
+};
+
+/**
+ * Đọc file Excel và trả về mảng object (tương tự sheet_to_json).
+ * @param {File} file - File Excel cần đọc.
+ * @param {string} [sheetName] - Tên sheet cần đọc (tùy chọn).
+ * @returns {Promise<Array<Object>>} - Mảng dữ liệu.
+ */
+export const readExcelFile = async (file, sheetName) => {
+    const buffer = await file.arrayBuffer();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+
+    // Lấy sheet theo tên hoặc sheet đầu tiên
+    const worksheet = sheetName ? workbook.getWorksheet(sheetName) : workbook.worksheets[0];
+    if (!worksheet) return [];
+
+    const data = [];
+    let headers = {};
+
+    worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) {
+            // Đọc header
+            row.eachCell((cell, colNumber) => {
+                // Lấy text của header
+                headers[colNumber] = cell.text || cell.value;
+            });
+        } else {
+            const rowData = {};
+            let hasData = false;
+            row.eachCell((cell, colNumber) => {
+                const header = headers[colNumber];
+                if (header) {
+                    let val = cell.value;
+                    // Xử lý các kiểu dữ liệu đặc biệt của ExcelJS
+                    if (typeof val === 'object' && val !== null) {
+                        if (val.richText) {
+                            val = val.richText.map(t => t.text).join('');
+                        } else if (val.text) {
+                            val = val.text;
+                        } else if (val instanceof Date) {
+                            // Format ngày tháng thành dd/mm/yyyy
+                            val = val.toLocaleDateString('en-GB');
+                        } else if (val.result !== undefined) {
+                            // Công thức
+                            val = val.result;
+                        }
+                    }
+                    rowData[header] = val;
+                    hasData = true;
+                }
+            });
+            if (hasData) {
+                data.push(rowData);
+            }
+        }
+    });
+
+    return data;
+};
+
+/**
+ * Đọc file Excel và trả về mảng các mảng (tương tự sheet_to_json với header: 1).
+ * @param {File} file - File Excel cần đọc.
+ * @returns {Promise<Array<Array<any>>>} - Mảng dữ liệu (AoA).
+ */
+export const readExcelFileAsArray = async (file) => {
+    const buffer = await file.arrayBuffer();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) return [];
+
+    const data = [];
+    // Sử dụng includeEmpty: true để đảm bảo đọc cả các dòng trống nếu cần,
+    // tuy nhiên eachRow thường bỏ qua dòng hoàn toàn trống.
+    // Để giống sheet_to_json(header: 1), ta cần lấy values.
+
+    worksheet.eachRow({ includeEmpty: true }, (row) => {
+        // row.values trả về mảng bắt đầu từ index 1. Index 0 là undefined.
+        // Ta cần slice(1) để lấy dữ liệu thực.
+        // Tuy nhiên, nếu row.values thưa thớt (sparse), ta cần fill.
+        // ExcelJS row.values: [, val1, val2, ...]
+
+        if (Array.isArray(row.values)) {
+            // Loại bỏ phần tử đầu tiên (luôn là undefined/null do 1-based index của ExcelJS)
+            const rowValues = row.values.slice(1);
+
+            // Xử lý các cell object (rich text, formula...)
+            const processedValues = rowValues.map(val => {
+                if (typeof val === 'object' && val !== null) {
+                    if (val.richText) {
+                        return val.richText.map(t => t.text).join('');
+                    } else if (val.text) {
+                        return val.text;
+                    } else if (val instanceof Date) {
+                        return val.toLocaleDateString('en-GB');
+                    } else if (val.result !== undefined) {
+                        return val.result;
+                    }
+                }
+                return val;
+            });
+
+            data.push(processedValues);
+        }
+    });
+
+    return data;
+};
+
+/**
+ * Tạo một Workbook và Worksheet mới của ExcelJS.
+ * @param {string} sheetName - Tên của sheet.
+ * @returns {Object} - { workbook, worksheet }
+ */
+export const createWorkbook = (sheetName) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(sheetName);
+    return { workbook, worksheet };
+};
+
+/**
+ * Lưu workbook xuống file máy khách.
+ * @param {Object} workbook - Đối tượng workbook của ExcelJS.
+ * @param {string} fileName - Tên file muốn lưu.
+ */
+export const saveWorkbook = async (workbook, fileName) => {
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    saveAs(blob, fileName);
 };

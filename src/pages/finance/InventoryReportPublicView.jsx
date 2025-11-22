@@ -40,18 +40,18 @@ import {
 } from "@mui/material";
 import { styled, alpha } from "@mui/material/styles";
 import {
-    ArrowLeft,
-    Printer,
+    ArrowBack as ArrowLeft,
+    Print as Printer,
     Check,
-    Clock,
-    MoreHorizontal,
-    UserCheck,
-    CheckCircle2,
-    FileText,
-    Copy,
+    AccessTime as Clock,
+    MoreHoriz as MoreHorizontal,
+    HowToReg as UserCheck,
+    CheckCircle as CheckCircle2,
+    Description as FileText,
+    ContentCopy as Copy,
     ZoomIn,
     ZoomOut
-} from "lucide-react";
+} from "@mui/icons-material";
 import { useReactToPrint } from "react-to-print";
 import { AssetListPrintTemplate } from "../../components/print-templates/AssetListPrintTemplate";
 import { AssetSummaryPrintTemplate } from "../../components/print-templates/AssetSummaryPrintTemplate";
@@ -145,9 +145,9 @@ const EnhancedWorkflowStepper = ({ report, workflow }) => {
                 const isFuture = !isCompleted && !isActive;
 
                 let icon, iconColor = "action.disabled";
-                if (isCompleted) { icon = <CheckCircle2 size={20} />; iconColor = "success.main"; }
-                else if (isActive) { icon = <Clock size={20} />; iconColor = "primary.main"; }
-                else { icon = <MoreHorizontal size={20} />; }
+                if (isCompleted) { icon = <CheckCircle2 sx={{ fontSize: 20 }} />; iconColor = "success.main"; }
+                else if (isActive) { icon = <Clock sx={{ fontSize: 20 }} />; iconColor = "primary.main"; }
+                else { icon = <MoreHorizontal sx={{ fontSize: 20 }} />; }
 
                 return (
                     // ✅ Bọc trong một Box để kiểm soát layout tốt hơn
@@ -192,7 +192,7 @@ const ControlSidebar = ({ report, workflow, onApprove, isApproving, canProcess, 
                 {isMyTurn && (
                     <>
                         <Stack spacing={1} alignItems="center" textAlign="center" sx={{ mb: 2.5 }}>
-                            <UserCheck size={28} color={theme.palette.primary.main} />
+                            <UserCheck sx={{ fontSize: 28 }} color={theme.palette.primary.main} />
                             <Typography variant="h6" fontWeight={700}>Đến lượt duyệt của bạn</Typography>
                             <Typography variant="body2" color="text.secondary">Vui lòng xem kỹ nội dung và ký duyệt biên bản.</Typography>
                         </Stack>
@@ -431,7 +431,7 @@ export default function InventoryReportPublicView() {
             <ReportHeader elevation={0}>
                 <Container maxWidth="xl">
                     <Stack direction="row" alignItems="center" spacing={2} sx={{ height: "64px" }}>
-                        <Button component={Link} to="/" variant="text" startIcon={<ArrowLeft size={20} />} sx={{ color: "text.secondary", mr: 1, flexShrink: 0 }}>
+                        <Button component={Link} to="/" variant="text" startIcon={<ArrowLeft sx={{ fontSize: 20 }} />} sx={{ color: "text.secondary", mr: 1, flexShrink: 0 }}>
                             Quay về
                         </Button>
                         <Divider orientation="vertical" flexItem />
@@ -443,12 +443,12 @@ export default function InventoryReportPublicView() {
                                 navigator.clipboard.writeText(report.maPhieuHienThi || report.id);
                                 setToast({ open: true, msg: "Đã sao chép mã hiển thị", severity: "success" });
                             }}>
-                                <Copy size={16} />
+                                <Copy sx={{ fontSize: 16 }} />
                             </IconButton>
                         </Tooltip>
                         <Box flexGrow={1} />
                         <StatusBadge status={report?.status} />
-                        <Button onClick={handlePrint} variant="contained" startIcon={<Printer size={18} />} sx={{ borderRadius: 2, flexShrink: 0 }} disabled={!reportForPrint || !companyInfo}>
+                        <Button onClick={handlePrint} variant="contained" startIcon={<Printer sx={{ fontSize: 18 }} />} sx={{ borderRadius: 2, flexShrink: 0 }} disabled={!reportForPrint || !companyInfo}>
                             {!companyInfo ? "Đang tải..." : (report?.status === "COMPLETED" ? "In Biên bản" : "In Bản nháp")}
                         </Button>
                     </Stack>
@@ -457,7 +457,7 @@ export default function InventoryReportPublicView() {
 
             <Container maxWidth="xl" sx={{ pt: 4 }}>
                 <Grid container spacing={4}>
-                    <Grid item xs={12} md={4} lg={3.5}>
+                    <Grid size={{ xs: 12, md: 4, lg: 3.5 }}>
                         <Box sx={{ position: "sticky", top: "80px" }}>
                             <ControlSidebar
                                 report={report}
@@ -469,16 +469,16 @@ export default function InventoryReportPublicView() {
                             />
                         </Box>
                     </Grid>
-                    <Grid item xs={12} md={8} lg={8.5}>
+                    <Grid size={{ xs: 12, md: 8, lg: 8.5 }}>
                         <Stack spacing={2}>
                             <Paper variant="outlined" sx={{ p: 1, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                 <Typography variant="h6" sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
-                                    <FileText size={20} /> Nội dung biên bản
+                                    <FileText sx={{ fontSize: 20 }} /> Nội dung biên bản
                                 </Typography>
                                 <ButtonGroup variant="outlined" size="small">
-                                    <Button onClick={() => setScale((s) => clamp(s - 0.15, 0.5, 1.5))}><ZoomOut size={16} /></Button>
+                                    <Button onClick={() => setScale((s) => clamp(s - 0.15, 0.5, 1.5))}><ZoomOut sx={{ fontSize: 16 }} /></Button>
                                     <Button onClick={() => setScale(1)} sx={{ minWidth: "55px" }}>{Math.round(scale * 100)}%</Button>
-                                    <Button onClick={() => setScale((s) => clamp(s + 0.15, 0.5, 1.5))}><ZoomIn size={16} /></Button>
+                                    <Button onClick={() => setScale((s) => clamp(s + 0.15, 0.5, 1.5))}><ZoomIn sx={{ fontSize: 16 }} /></Button>
                                 </ButtonGroup>
                             </Paper>
                             <Paper elevation={0} variant="outlined" sx={{ backgroundColor: "white", overflow: "auto", p: { xs: 1, sm: 2 }, display: "flex", justifyContent: "center", borderRadius: 3, height: "calc(100vh - 180px)" }}>

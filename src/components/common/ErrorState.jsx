@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Button, Stack, Alert, AlertTitle } from '@mui/material';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { ErrorOutline as AlertCircle, Refresh as RefreshCw } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 
 /**
@@ -47,7 +47,7 @@ export default function ErrorState({
             justifyContent: 'center',
           }}
         >
-          <AlertCircle size={64} />
+          <AlertCircle sx={{ fontSize: 64 }} />
         </Box>
       </motion.div>
 
@@ -69,7 +69,7 @@ export default function ErrorState({
           maxWidth: 500,
           textAlign: 'left',
         }}
-        icon={<AlertCircle size={20} />}
+        icon={<AlertCircle sx={{ fontSize: 20 }} />}
       >
         <AlertTitle sx={{ fontWeight: 600 }}>Chi tiết lỗi</AlertTitle>
         {errorMessage}
@@ -92,7 +92,7 @@ export default function ErrorState({
         <Button
           variant="contained"
           onClick={onRetry}
-          startIcon={<RefreshCw size={18} />}
+          startIcon={<RefreshCw sx={{ fontSize: 18 }} />}
           sx={{ mt: 1 }}
         >
           {retryLabel}

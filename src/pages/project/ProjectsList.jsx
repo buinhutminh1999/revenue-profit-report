@@ -19,7 +19,7 @@ import {
   Stack,
 } from '@mui/material';
 import { EmptyState, ErrorState } from '../../components/common';
-import { Building2, AlertCircle } from 'lucide-react';
+import { Business as Building2, ErrorOutline as AlertCircle } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
 import FolderIcon from '@mui/icons-material/Folder';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -27,6 +27,9 @@ import PendingIcon from '@mui/icons-material/Pending';
 import SearchIcon from '@mui/icons-material/Search';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase-config';
+import { useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { projectSearchSchema } from "../../schemas/searchSchema";
 
 const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
 
@@ -39,8 +42,20 @@ export default function ProjectsList() {
   const [selQuarter, setSelQuarter] = useState(quarters[0]);
   const [selYear, setSelYear] = useState(new Date().getFullYear());
 
-  const [searchText, setSearchText] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+
+
+  const { register, control } = useForm({
+    resolver: zodResolver(projectSearchSchema),
+    defaultValues: {
+      searchText: '',
+      filterStatus: 'all',
+    }
+  });
+
+  const { searchText, filterStatus } = useWatch({ control });
+
+  // const [searchText, setSearchText] = useState(''); // REMOVED
+  // const [filterStatus, setFilterStatus] = useState('all'); // REMOVED
 
   useEffect(() => {
     (async () => {
@@ -127,17 +142,16 @@ export default function ProjectsList() {
         <TextField
           size="small"
           placeholder="🔍 Tìm kiếm công trình..."
-          value={searchText}
-          onChange={e => setSearchText(e.target.value)}
           InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1 }} /> }}
           sx={{ width: { xs: '100%', sm: 300 } }}
+          {...register("searchText")}
         />
         <TextField
           size="small"
           select
           label="Lọc trạng thái"
-          value={filterStatus}
-          onChange={e => setFilterStatus(e.target.value)}
+          defaultValue="all"
+          inputProps={register("filterStatus")}
           sx={{ width: { xs: '100%', sm: 180 } }}
         >
           <MenuItem value="all">Tất cả</MenuItem>
@@ -155,9 +169,9 @@ export default function ProjectsList() {
         </Stack>
       ) : filteredProjects.length === 0 ? (
         <EmptyState
-          icon={<Building2 size={64} />}
+          icon={<Building2 sx={{ fontSize: 64 }} />}
           title={projects.length === 0 ? "Chưa có công trình nào" : "Không tìm thấy công trình"}
-          description={projects.length === 0 
+          description={projects.length === 0
             ? "Bắt đầu bằng cách tạo công trình mới để quản lý dự án của bạn."
             : "Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc để tìm công trình khác."}
           size="medium"

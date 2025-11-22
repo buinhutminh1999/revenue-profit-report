@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+
 import { Box, Snackbar, Alert } from "@mui/material";
-import * as XLSX from "xlsx";
+
+import { readExcelFile } from "../../utils/excelUtils";
 import {
     doc,
     getDoc,
@@ -113,11 +115,35 @@ export const handleFileUpload = (
     };
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
         try {
-            const workbook = XLSX.read(evt.target.result, { type: "array" });
-            const sheet = workbook.Sheets[sheetName || workbook.SheetNames[0]];
-            const dataFromFile = XLSX.utils.sheet_to_json(sheet);
+            // const workbook = XLSX.read(evt.target.result, { type: "array" });
+            // const sheet = workbook.Sheets[sheetName || workbook.SheetNames[0]];
+            // const dataFromFile = XLSX.utils.sheet_to_json(sheet);
+
+            // Sử dụng hàm readExcelFile mới từ excelUtils (đã dùng exceljs)
+            // Lưu ý: readExcelFile nhận vào File object, không phải array buffer từ FileReader
+            // Tuy nhiên ở đây ta đang dùng FileReader để đọc file.
+            // Nhưng readExcelFile được thiết kế để nhận File object.
+            // Ta có thể gọi trực tiếp readExcelFile(file) thay vì dùng FileReader ở đây.
+
+            // Logic cũ dùng FileReader để đọc array buffer rồi đưa vào XLSX.
+            // Logic mới: gọi readExcelFile(file) trả về promise data.
+
+            // Tạm thời comment lại logic cũ và thay thế bằng logic mới bên dưới
+
+        } catch (err) {
+            console.error("Lỗi khi đọc file Excel:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+    // reader.readAsArrayBuffer(file); 
+
+    // THAY THẾ TOÀN BỘ LOGIC ĐỌC FILE:
+    (async () => {
+        try {
+            const dataFromFile = await readExcelFile(file);
 
             if (mode === "replaceAll") {
                 const newItems = dataFromFile.map((row) => {
@@ -219,9 +245,7 @@ export const handleFileUpload = (
         } finally {
             setLoading(false);
         }
-    };
-
-    reader.readAsArrayBuffer(file);
+    })();
 };
 
 // ---------- Validation ----------
@@ -270,6 +294,8 @@ export default function ActualCostsTab({ projectId }) {
     const [projectData, setProjectData] = useState(null);
     const [costAllocations, setCostAllocations] = useState(null);
     const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
+    const [isProjectFinalized, setIsProjectFinalized] = useState(false);
+    const [isFinalizing, setIsFinalizing] = useState(false); // Flag để tránh onSnapshot override
 
     const [initialDbLoadComplete, setInitialDbLoadComplete] = useState(false);
     // V State mới để quản lý dialog xác nhận (ĐÃ CÓ)
@@ -575,6 +601,15 @@ export default function ActualCostsTab({ projectId }) {
                             : 0
                     );
                     setOverallRevenue(orvFromDoc);
+
+                    // Lấy trạng thái quyết toán từ document
+                    const docData = docSnap.exists() ? docSnap.data() : {};
+                    const finalized = docData.isFinalized === true || docData.isFinalized === "true";
+                    console.log(`📊 onSnapshot: isFinalized = ${finalized}`, docData.isFinalized, 'isFinalizing:', isFinalizing);
+                    // Chỉ cập nhật từ onSnapshot nếu không đang trong quá trình quyết toán
+                    if (!isFinalizing) {
+                        setIsProjectFinalized(finalized);
+                    }
 
                     const rawItems = (
                         docSnap.exists() ? docSnap.data().items || [] : []
@@ -905,19 +940,39 @@ export default function ActualCostsTab({ projectId }) {
     // ---
 
     // Phần 2: Logic thực thi
-    const executeUndoFinalize = useCallback(() => {
-        setCostItems((prevItems) =>
-            prevItems.map((row) => {
-                const newRow = { ...row, isFinalized: false };
-                calcAllFields(newRow, {
-                    overallRevenue,
-                    projectTotalAmount,
-                    projectType: projectData?.type,
-                });
-                return newRow;
-            })
-        );
-    }, [overallRevenue, projectTotalAmount, projectData]);
+    const executeUndoFinalize = useCallback(async () => {
+        const updatedItems = costItems.map((row) => {
+            const newRow = { ...row, isFinalized: false };
+            calcAllFields(newRow, {
+                overallRevenue,
+                projectTotalAmount,
+                projectType: projectData?.type,
+            });
+            return newRow;
+        });
+        setCostItems(updatedItems);
+        setIsProjectFinalized(false); // Cập nhật state ngay để hiển thị lại nút quyết toán
+
+        // Lưu vào Firestore và xóa field isFinalized
+        setLoading(true);
+        try {
+            await setDoc(
+                doc(db, "projects", id, "years", year, "quarters", quarter),
+                {
+                    items: updatedItems,
+                    overallRevenue: Number(overallRevenue),
+                    updated_at: new Date().toISOString(),
+                    isFinalized: false, // Xóa trạng thái quyết toán
+                },
+                { merge: true }
+            );
+            setSnackOpen(true);
+        } catch (err) {
+            setError("Lỗi khi hủy quyết toán: " + err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [costItems, overallRevenue, projectTotalAmount, projectData, id, year, quarter]);
 
     // Phần 1: Hàm mở Dialog
     const handleOpenUndoDialog = () => {
@@ -983,6 +1038,11 @@ export default function ActualCostsTab({ projectId }) {
             );
 
             console.log(`💾 Saving quarter ${year}/${quarter} - isFinalizedQuarter:`, isFinalizedQuarter, 'items count:', itemsToSave.length);
+            console.log(`📋 Sample items isFinalized:`, itemsToSave.slice(0, 3).map(i => ({
+                project: i.project,
+                description: i.description,
+                isFinalized: i.isFinalized
+            })));
 
             const docData = {
                 items: itemsToSave,
@@ -994,14 +1054,24 @@ export default function ActualCostsTab({ projectId }) {
             if (isFinalizedQuarter) {
                 docData.isFinalized = true;
                 docData.finalizedAt = new Date().toISOString();
-                console.log(`✅ Đang lưu quyết toán cho ${year}/${quarter}`);
+                console.log(`✅ Đang lưu quyết toán cho ${year}/${quarter} với isFinalized = true`);
+            } else {
+                console.log(`⚠️ WARNING: isFinalizedQuarter = false, không lưu isFinalized vào document!`);
             }
+
+            console.log(`📤 Saving docData:`, {
+                itemsCount: docData.items.length,
+                isFinalized: docData.isFinalized,
+                overallRevenue: docData.overallRevenue
+            });
 
             await setDoc(
                 doc(db, "projects", id, "years", year, "quarters", quarter),
                 docData,
                 { merge: false }
             );
+
+            console.log(`✅ Document saved successfully with isFinalized = ${docData.isFinalized}`);
 
             const nextQuarterDocRef = doc(
                 db,
@@ -1108,6 +1178,7 @@ export default function ActualCostsTab({ projectId }) {
 
     // Phần 2: Logic thực thi (đổi tên từ handleFinalizeProject -> executeFinalizeProject)
     const executeFinalizeProject = useCallback(async () => {
+        console.log('🎬 executeFinalizeProject STARTED');
         // --- BƯỚC 1: TÍNH TOÁN "GIÁ TRỊ GỐC" ĐỂ LƯU SANG QUÝ SAU ---
         const baseValueMap = new Map();
         costItems.forEach((row) => {
@@ -1175,21 +1246,45 @@ export default function ActualCostsTab({ projectId }) {
 
         // --- BƯỚC 3: CẬP NHẬT GIAO DIỆN VÀ GỌI HÀM CHUYỂN QUÝ ---
         setCostItems(finalizedItems);
-        await performSaveAndCarryOver(
-            finalizedItems,
-            baseValueMap, // Truyền map giá trị gốc sang
-            `Đã quyết toán và chuyển dữ liệu sang quý tiếp theo thành công!`
-        );
+        // Đặt flag để tránh onSnapshot override state
+        setIsFinalizing(true);
+        // Cập nhật state ngay để ẩn nút quyết toán
+        console.log('🔒 Setting isProjectFinalized to true');
+        setIsProjectFinalized(true);
+        try {
+            await performSaveAndCarryOver(
+                finalizedItems,
+                baseValueMap, // Truyền map giá trị gốc sang
+                `Đã quyết toán và chuyển dữ liệu sang quý tiếp theo thành công!`
+            );
+            // Đảm bảo state được cập nhật sau khi lưu thành công
+            console.log('✅ Finalize completed, ensuring isProjectFinalized = true');
+            setIsProjectFinalized(true);
+            // Đợi một chút để Firestore sync, sau đó cho phép onSnapshot cập nhật lại
+            setTimeout(() => {
+                setIsFinalizing(false);
+            }, 2000);
+        } catch (err) {
+            // Nếu có lỗi, reset lại state
+            console.error('❌ Finalize failed, resetting isProjectFinalized to false');
+            setIsProjectFinalized(false);
+            setIsFinalizing(false);
+            throw err;
+        }
     }, [costItems, year, quarter, id, projectData, overallRevenue]);
 
     // Phần 1: Hàm mở Dialog
     const handleOpenFinalizeDialog = () => {
+        console.log('🚀 handleOpenFinalizeDialog called');
         setConfirmState({
             open: true,
             title: "Xác nhận Quyết toán",
             content:
                 "BẠN CÓ CHẮC MUỐN QUYẾT TOÁN? Hành động này sẽ chốt số liệu quý này và tự động chuyển các số dư sang quý tiếp theo.",
-            onConfirm: executeFinalizeProject,
+            onConfirm: () => {
+                console.log('✅ Confirm dialog - calling executeFinalizeProject');
+                executeFinalizeProject();
+            },
             confirmText: "Quyết toán",
             confirmColor: "error", // Dùng màu đỏ cho hành động nguy hiểm
         });
@@ -1289,6 +1384,7 @@ export default function ActualCostsTab({ projectId }) {
                     costItems={costItems}
                     sx={{ mb: 0, px: 3, py: 2 }}
                     onShowFormulas={() => setFormulaDialogOpen(true)}
+                    isProjectFinalized={isProjectFinalized}
                 />
             </Box>
 

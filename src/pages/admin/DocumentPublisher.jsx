@@ -30,6 +30,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'; // <--- Icon cho nút "Quay về"
 import { auth, db } from '../../services/firebase-config';
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { documentPublisherSchema } from "../../schemas/adminSchema";
 
 // URL API máy chủ của bạn
 const UPLOAD_API_URL = '/api/upload'; // <--- Đây là đường dẫn proxy
@@ -61,21 +64,22 @@ const DropzoneArea = styled(Box)(({ theme, isDragActive, file }) => ({
 
 // --- Component Chính ---
 export default function DocumentPublisher() {
-  const [title, setTitle] = useState('');
-  const [docId, setDocId] = useState(''); // Số hiệu
-  const [category, setCategory] = useState(''); // Phân loại
-  const [file, setFile] = useState(null);
-  
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  
-  const navigate = useNavigate(); // <--- BƯỚC 3: Khởi tạo navigate
+
+  const navigate = useNavigate();
+
+  const { control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm({
+    resolver: zodResolver(documentPublisherSchema),
+    defaultValues: { title: "", docId: "", category: "", file: null }
+  });
+
+  const file = watch("file");
+  const title = watch("title");
+  const docId = watch("docId");
 
   const resetForm = () => {
-    setTitle('');
-    setDocId('');
-    setCategory('');
-    setFile(null);
+    reset({ title: "", docId: "", category: "", file: null });
     setUploadProgress(0);
   };
 
@@ -92,11 +96,11 @@ export default function DocumentPublisher() {
       });
       return;
     }
-    
+
     if (acceptedFiles.length > 0) {
-      setFile(acceptedFiles[0]);
+      setValue("file", acceptedFiles[0], { shouldValidate: true });
     }
-  }, []);
+  }, [setValue]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -106,13 +110,8 @@ export default function DocumentPublisher() {
     disabled: isLoading,
   });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!file || !title || !docId) {
-      toast.error('Vui lòng điền tiêu đề, số hiệu và chọn một file.');
-      return;
-    }
+  const onSubmit = async (data) => {
+    const { file, title, docId, category } = data;
 
     setIsLoading(true);
     setUploadProgress(0);
@@ -121,7 +120,7 @@ export default function DocumentPublisher() {
     try {
       // --- BƯỚC 1: Upload file lên API Node.js ---
       const formData = new FormData();
-      formData.append('fileVanBan', file); 
+      formData.append('fileVanBan', file);
 
       const config = {
         onUploadProgress: (progressEvent) => {
@@ -138,7 +137,7 @@ export default function DocumentPublisher() {
 
       // --- BƯỚC 2: Lưu metadata vào Cloud Firestore ---
       const currentUser = auth.currentUser; // <--- BƯỚC 4: Lấy user hiện tại
-      
+
       const docData = {
         title,
         docId,
@@ -168,7 +167,7 @@ export default function DocumentPublisher() {
       if (serverError.includes('ECONNREFUSED')) {
         errorMessage = 'Lỗi kết nối: Không thể kết nối đến máy chủ API.';
       }
-      
+
       toast.error(errorMessage, { id: toastId, icon: <ErrorIcon color="error" /> });
     } finally {
       setIsLoading(false);
@@ -195,9 +194,9 @@ export default function DocumentPublisher() {
           >
             Về Kho Văn Bản
           </Button>
-        
+
           <Paper elevation={3} sx={{ borderRadius: 4, overflow: 'hidden' }}>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit(onSubmit)}>
               {/* Header */}
               <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
                 <Typography variant="h5" component="h1" fontWeight={700}>
@@ -211,44 +210,63 @@ export default function DocumentPublisher() {
               {/* Content */}
               <Box sx={{ p: 3 }}>
                 <Grid container spacing={3}>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Tiêu đề văn bản"
-                      variant="outlined"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="V.v: Thông báo nghỉ lễ 30/4"
-                      disabled={isLoading}
-                      required
+                  <Grid size={{ xs: 12 }}>
+                    <Controller
+                      name="title"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Tiêu đề văn bản"
+                          variant="outlined"
+                          placeholder="V.v: Thông báo nghỉ lễ 30/4"
+                          disabled={isLoading}
+                          error={!!errors.title}
+                          helperText={errors.title?.message}
+                        />
+                      )}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Số hiệu"
-                      variant="outlined"
-                      value={docId}
-                      onChange={(e) => setDocId(e.target.value)}
-                      placeholder="V.v: 123/TB-CTY"
-                      disabled={isLoading}
-                      required
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Controller
+                      name="docId"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Số hiệu"
+                          variant="outlined"
+                          placeholder="V.v: 123/TB-CTY"
+                          disabled={isLoading}
+                          error={!!errors.docId}
+                          helperText={errors.docId?.message}
+                        />
+                      )}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Phân loại (Không bắt buộc)"
-                      variant="outlined"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      placeholder="V.v: Thông báo chung"
-                      disabled={isLoading}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Controller
+                      name="category"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Phân loại (Không bắt buộc)"
+                          variant="outlined"
+                          placeholder="V.v: Thông báo chung"
+                          disabled={isLoading}
+                          error={!!errors.category}
+                          helperText={errors.category?.message}
+                        />
+                      )}
                     />
                   </Grid>
-                  
+
                   {/* Vùng Upload File */}
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <DropzoneArea {...getRootProps({ isDragActive, file })}>
                       <input {...getInputProps()} />
                       <AnimatePresence>
@@ -267,7 +285,7 @@ export default function DocumentPublisher() {
                           </motion.div>
                         )}
                       </AnimatePresence>
-                      
+
                       <AnimatePresence>
                         {file && !isLoading && (
                           <motion.div
@@ -278,7 +296,7 @@ export default function DocumentPublisher() {
                             <Chip
                               icon={<DescriptionIcon />}
                               label={`${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`}
-                              onDelete={() => setFile(null)}
+                              onDelete={() => setValue("file", null)}
                               color="success"
                               sx={{ p: 2, fontSize: '1rem', fontWeight: 500 }}
                             />
@@ -289,7 +307,7 @@ export default function DocumentPublisher() {
                   </Grid>
 
                   {/* Thanh tiến trình */}
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <AnimatePresence>
                       {isLoading && (
                         <motion.div

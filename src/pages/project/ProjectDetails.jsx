@@ -7,7 +7,6 @@ import {
     ThemeProvider,
     createTheme,
 } from "@mui/material";
-import * as XLSX from "xlsx";
 import {
     doc,
     getDoc,
@@ -19,7 +18,7 @@ import { db } from "../../../services/firebase-config";
 import { parseNumber } from "../../../utils/numberUtils";
 import { generateUniqueId } from "../../../utils/idUtils";
 import { calcAllFields } from "../../../utils/calcUtils";
-import { exportToExcel } from "../../../utils/excelUtils";
+import { exportToExcel, readExcelFile } from "../../../utils/excelUtils";
 import { groupByProject } from "../../../utils/groupingUtils";
 import Filters from "../../../components/ui/Filters";
 import ActionBar from "../../../components/project/ActionBar";
@@ -46,7 +45,7 @@ export const defaultRow = {
     hskh: "0",
 };
 
-export const handleFileUpload = (
+export const handleFileUpload = async (
     input,
     costItems,
     setCostItems,
@@ -85,22 +84,95 @@ export const handleFileUpload = (
         HSKH: "hskh",
     };
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        try {
-            const workbook = XLSX.read(evt.target.result, { type: "array" });
-            const sheet = workbook.Sheets[sheetName || workbook.SheetNames[0]];
-            const dataFromFile = XLSX.utils.sheet_to_json(sheet);
+    try {
+        const dataFromFile = await readExcelFile(file, sheetName);
 
-            if (mode === "replaceAll") {
-                const newItems = dataFromFile.map((row) => {
+        if (mode === "replaceAll") {
+            const newItems = dataFromFile.map((row) => {
+                const newItem = {
+                    ...defaultRow,
+                    id: generateUniqueId(),
+                    project: (row["Công Trình"] || "").trim().toUpperCase(),
+                    description: (row["Khoản Mục Chi Phí"] || "").trim(),
+                };
+
+                for (const excelKey in excelToField) {
+                    if (row.hasOwnProperty(excelKey)) {
+                        newItem[excelToField[excelKey]] = String(
+                            row[excelKey]
+                        );
+                    }
+                }
+
+                calcAllFields(newItem, {
+                    overallRevenue,
+                    projectTotalAmount,
+                });
+                return newItem;
+            });
+
+            setCostItems(newItems);
+        } else {
+            // mode: "merge" hoặc "multiSheet"
+            const newDataMap = {};
+            for (const row of dataFromFile) {
+                const key = `${(row["Công Trình"] || "")
+                    .trim()
+                    .toUpperCase()}|||${(
+                        row["Khoản Mục Chi Phí"] || ""
+                    ).trim()}`;
+                newDataMap[key] = row;
+            }
+
+            const merged = costItems.map((oldRow) => {
+                const key = `${oldRow.project}|||${oldRow.description}`;
+                const excelRow = newDataMap[key];
+                if (!excelRow) return oldRow;
+
+                let newRow = { ...oldRow };
+                for (const excelKey in excelToField) {
+                    if (excelRow.hasOwnProperty(excelKey)) {
+                        newRow[excelToField[excelKey]] = String(
+                            excelRow[excelKey] ??
+                            oldRow[excelToField[excelKey]]
+                        );
+                    }
+                }
+                calcAllFields(newRow, {
+                    overallRevenue,
+                    projectTotalAmount,
+                });
+                return newRow;
+            });
+
+            const added = dataFromFile
+                .filter((row) => {
+                    const key = `${(row["Công Trình"] || "")
+                        .trim()
+                        .toUpperCase()}|||${(
+                            row["Khoản Mục Chi Phí"] || ""
+                        ).trim()}`;
+                    return !costItems.some(
+                        (oldRow) =>
+                            oldRow.project ===
+                            (row["Công Trình"] || "")
+                                .trim()
+                                .toUpperCase() &&
+                            oldRow.description ===
+                            (row["Khoản Mục Chi Phí"] || "").trim()
+                    );
+                })
+                .map((row) => {
                     const newItem = {
                         ...defaultRow,
                         id: generateUniqueId(),
-                        project: (row["Công Trình"] || "").trim().toUpperCase(),
-                        description: (row["Khoản Mục Chi Phí"] || "").trim(),
+                        project: (row["Công Trình"] || "")
+                            .trim()
+                            .toUpperCase(),
+                        description: (
+                            row["Khoản Mục Chi Phí"] || ""
+                        ).trim(),
                     };
-
                     for (const excelKey in excelToField) {
                         if (row.hasOwnProperty(excelKey)) {
                             newItem[excelToField[excelKey]] = String(
@@ -108,7 +180,6 @@ export const handleFileUpload = (
                             );
                         }
                     }
-
                     calcAllFields(newItem, {
                         overallRevenue,
                         projectTotalAmount,
@@ -116,92 +187,13 @@ export const handleFileUpload = (
                     return newItem;
                 });
 
-                setCostItems(newItems);
-            } else {
-                // mode: "merge" hoặc "multiSheet"
-                const newDataMap = {};
-                for (const row of dataFromFile) {
-                    const key = `${(row["Công Trình"] || "")
-                        .trim()
-                        .toUpperCase()}|||${(
-                            row["Khoản Mục Chi Phí"] || ""
-                        ).trim()}`;
-                    newDataMap[key] = row;
-                }
-
-                const merged = costItems.map((oldRow) => {
-                    const key = `${oldRow.project}|||${oldRow.description}`;
-                    const excelRow = newDataMap[key];
-                    if (!excelRow) return oldRow;
-
-                    let newRow = { ...oldRow };
-                    for (const excelKey in excelToField) {
-                        if (excelRow.hasOwnProperty(excelKey)) {
-                            newRow[excelToField[excelKey]] = String(
-                                excelRow[excelKey] ??
-                                oldRow[excelToField[excelKey]]
-                            );
-                        }
-                    }
-                    calcAllFields(newRow, {
-                        overallRevenue,
-                        projectTotalAmount,
-                    });
-                    return newRow;
-                });
-
-                const added = dataFromFile
-                    .filter((row) => {
-                        const key = `${(row["Công Trình"] || "")
-                            .trim()
-                            .toUpperCase()}|||${(
-                                row["Khoản Mục Chi Phí"] || ""
-                            ).trim()}`;
-                        return !costItems.some(
-                            (oldRow) =>
-                                oldRow.project ===
-                                (row["Công Trình"] || "")
-                                    .trim()
-                                    .toUpperCase() &&
-                                oldRow.description ===
-                                (row["Khoản Mục Chi Phí"] || "").trim()
-                        );
-                    })
-                    .map((row) => {
-                        const newItem = {
-                            ...defaultRow,
-                            id: generateUniqueId(),
-                            project: (row["Công Trình"] || "")
-                                .trim()
-                                .toUpperCase(),
-                            description: (
-                                row["Khoản Mục Chi Phí"] || ""
-                            ).trim(),
-                        };
-                        for (const excelKey in excelToField) {
-                            if (row.hasOwnProperty(excelKey)) {
-                                newItem[excelToField[excelKey]] = String(
-                                    row[excelKey]
-                                );
-                            }
-                        }
-                        calcAllFields(newItem, {
-                            overallRevenue,
-                            projectTotalAmount,
-                        });
-                        return newItem;
-                    });
-
-                setCostItems([...merged, ...added]);
-            }
-        } catch (err) {
-            console.error("Lỗi khi đọc file Excel:", err);
-        } finally {
-            setLoading(false);
+            setCostItems([...merged, ...added]);
         }
-    };
-
-    reader.readAsArrayBuffer(file);
+    } catch (err) {
+        console.error("Lỗi khi đọc file Excel:", err);
+    } finally {
+        setLoading(false);
+    }
 };
 
 // ---------- Validation ----------

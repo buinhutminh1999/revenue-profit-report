@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import ExcelJS from "exceljs";
-import { saveAs } from "file-saver";
+import { createWorkbook, saveWorkbook } from "../../utils/excelUtils";
 import {
     Dialog,
     DialogTitle,
@@ -42,13 +41,16 @@ import { toNum, formatNumber } from "../../utils/numberUtils";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import ProfitSummaryTable from "../../reports/ProfitSummaryTable";
 import FunctionsIcon from '@mui/icons-material/Functions';
-import ProfitReportFormulaGuide from '../../components/reports_performance-profit-report/ProfitReportFormulaGuide';
+import ProfitReportFormulaGuide from '../../components/PerformanceReport/ProfitReportFormulaGuide';
 import {
     updateLDXRow, updateSalanRow, updateDTLNLDXRow, updateThuNhapKhacRow,
     updateDauTuRow, updateGroupI1, updateGroupI2, updateGroupI3, updateGroupI4,
     updateXayDungRow, updateSanXuatRow, updateGroupII1, calculateTotals,
     updateVuotCPRows, updateLoiNhuanRongRow
 } from "../../utils/profitReportCalculations";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { addProjectSchema } from "../../schemas/reportingSchemas";
 
 export default function ProfitReportQuarter() {
     const theme = useTheme(); // ✅ Thêm useTheme để đảm bảo theme được load
@@ -58,11 +60,18 @@ export default function ProfitReportQuarter() {
     const [tvMode, setTvMode] = useState(false); // ✅ Mặc định false cho PC/laptop
     const [editingCell, setEditingCell] = useState({ idx: -1, field: "" });
     const [addModal, setAddModal] = useState(false);
-    const [addProject, setAddProject] = useState({
-        group: "I.1. Dân Dụng + Giao Thông",
-        name: "",
-        type: "",
+
+
+    const { register, handleSubmit, reset, formState: { errors }, control } = useForm({
+        resolver: zodResolver(addProjectSchema),
+        defaultValues: {
+            group: "I.1. Dân Dụng + Giao Thông",
+            name: "",
+            type: "",
+        }
     });
+
+    // const [addProject, setAddProject] = useState({ ... }); // REMOVED
     const [loading, setLoading] = useState(false);
     const [summaryTargets, setSummaryTargets] = useState({
         revenueTargetXayDung: 0,
@@ -72,7 +81,63 @@ export default function ProfitReportQuarter() {
         revenueTargetDauTu: 0,
         profitTargetDauTu: 0,
     });
-    const [formulaDialogOpen, setFormulaDialogOpen] = useState(false); // <-- THÊM DÒNG NÀY
+    const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
+
+    const handleAddProject = async (data) => {
+        try {
+            const newProjectRef = doc(collection(db, "projects"));
+            await setDoc(newProjectRef, {
+                name: data.name,
+                type: data.type,
+                createdAt: new Date(),
+            });
+
+            // Tạo sub-collection cho năm/quý hiện tại
+            const qRef = doc(
+                db,
+                `projects/${newProjectRef.id}/years/${selectedYear}/quarters/${selectedQuarter}`
+            );
+            await setDoc(qRef, {
+                items: [],
+                overallRevenue: 0,
+                createdAt: new Date(),
+            });
+
+            // Cập nhật UI (thêm tạm thời vào rows để hiển thị ngay)
+            const newRow = {
+                id: newProjectRef.id,
+                projectId: newProjectRef.id,
+                name: data.name,
+                group: data.group,
+                revenue: 0,
+                cost: 0,
+                profit: 0,
+                percent: null,
+                costOverQuarter: null,
+                target: null,
+                note: "",
+                suggest: "",
+                type: data.type,
+                editable: true,
+            };
+
+            // Tìm vị trí để chèn vào đúng nhóm
+            const groupIndex = rows.findIndex((r) => r.name === data.group);
+            if (groupIndex !== -1) {
+                const updatedRows = [...rows];
+                updatedRows.splice(groupIndex + 1, 0, newRow);
+                setRows(updatedRows);
+            } else {
+                // Fallback nếu không tìm thấy nhóm
+                setRows([...rows, newRow]);
+            }
+
+            setAddModal(false);
+            reset(); // Reset form
+        } catch (error) {
+            console.error("Lỗi khi thêm công trình:", error);
+        }
+    };
     // ======================================================================
     // ✅ BẮT ĐẦU: DÁN TOÀN BỘ KHỐI CODE NÀY VÀO ĐÂY
     // ======================================================================
@@ -1227,8 +1292,7 @@ export default function ProfitReportQuarter() {
 
     const handleExportExcel = async () => {
         if (!rows || rows.length === 0) return;
-        const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet("Báo cáo quý");
+        const { workbook, worksheet: sheet } = createWorkbook("Báo cáo quý");
         sheet.views = [{ state: "frozen", ySplit: 1 }];
         const headers = [
             "CÔNG TRÌNH",
@@ -1338,14 +1402,10 @@ export default function ProfitReportQuarter() {
             { width: 28 },
             { width: 22 },
         ];
-        const buffer = await workbook.xlsx.writeBuffer();
         const dateStr = new Date()
             .toLocaleDateString("vi-VN")
             .replaceAll("/", "-");
-        saveAs(
-            new Blob([buffer]),
-            `BaoCaoLoiNhuan_${selectedQuarter}_${selectedYear}_${dateStr}.xlsx`
-        );
+        await saveWorkbook(workbook, `BaoCaoLoiNhuan_${selectedQuarter}_${selectedYear}_${dateStr}.xlsx`);
     };
 
     const isDTLNLDX = (r) => {
@@ -1790,147 +1850,49 @@ export default function ProfitReportQuarter() {
                     </Table>
                 </TableContainer>
                 <Dialog open={addModal} onClose={() => setAddModal(false)}>
-                    <DialogTitle sx={{ fontWeight: "bold" }}>
-                        Thêm Công Trình Mới
-                    </DialogTitle>
+                    <DialogTitle sx={{ fontWeight: "bold" }}>Thêm Công Trình Mới</DialogTitle>
                     <DialogContent sx={{ minWidth: 400, pt: 2 }}>
-                        <Stack spacing={2}>
-                            <FormControl fullWidth size="small">
-                                <InputLabel>Nhóm</InputLabel>
-                                <Select
-                                    label="Nhóm"
-                                    value={addProject.group}
-                                    onChange={(e) =>
-                                        setAddProject((p) => ({
-                                            ...p,
-                                            group: e.target.value,
-                                        }))
-                                    }
-                                >
-                                    {[
-                                        "I.1. Dân Dụng + Giao Thông",
-                                        "I.2. KÈ",
-                                        "I.3. CÔNG TRÌNH CÔNG TY CĐT",
-                                        "I.4. Xí nghiệp XD II",
-                                        'II.1. SẢN XUẤT',
-                                        "III. ĐẦU TƯ",
-                                    ].map((g) => (
-                                        <MenuItem key={g} value={g}>
-                                            {g}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
+                        <Stack spacing={2} sx={{ mt: 1 }} component="form" id="add-project-form" onSubmit={handleSubmit(handleAddProject)}>
+                            <Controller
+                                name="group"
+                                control={control}
+                                render={({ field }) => (
+                                    <TextField
+                                        select
+                                        label="Nhóm"
+                                        fullWidth
+                                        size="small"
+                                        {...field}
+                                        error={!!errors.group} helperText={errors.group?.message}
+                                    >
+                                        <MenuItem value="I.1. Dân Dụng + Giao Thông">I.1. Dân Dụng + Giao Thông</MenuItem>
+                                        <MenuItem value="I.2. KÈ">I.2. KÈ</MenuItem>
+                                        <MenuItem value="I.3. CÔNG TRÌNH CÔNG TY CĐT">I.3. CÔNG TRÌNH CÔNG TY CĐT</MenuItem>
+                                        <MenuItem value="I.4. Xí nghiệp XD II">I.4. Xí nghiệp XD II</MenuItem>
+                                        <MenuItem value="II.1. SẢN XUẤT">II.1. SẢN XUẤT</MenuItem>
+                                        <MenuItem value="III. ĐẦU TƯ">III. ĐẦU TƯ</MenuItem>
+                                    </TextField>
+                                )}
+                            />
+
                             <TextField
+                                label="Tên công trình"
                                 fullWidth
                                 size="small"
-                                label="Tên công trình"
-                                value={addProject.name}
-                                onChange={(e) =>
-                                    setAddProject((p) => ({
-                                        ...p,
-                                        name: e.target.value,
-                                    }))
-                                }
+                                error={!!errors.name} helperText={errors.name?.message}
+                                {...register("name")}
+                            />
+                            <TextField
+                                label="Loại (VD: Nhà máy, Kè...)"
+                                fullWidth
+                                size="small"
+                                {...register("type")}
                             />
                         </Stack>
                     </DialogContent>
                     <DialogActions sx={{ pr: 3, pb: 2 }}>
-                        <Button onClick={() => setAddModal(false)}>Huỷ</Button>
-                        <Button
-                            variant="contained"
-                            onClick={() => {
-                                if (!addProject.name.trim()) return;
-
-                                // ==========================================================
-                                // ✅ BẮT ĐẦU LOGIC MỚI THEO YÊU CẦU CỦA BẠN
-                                // ==========================================================
-                                let projectType = ""; // Mặc định type là chuỗi rỗng
-
-                                if (
-                                    addProject.group === "I.4. Xí nghiệp XD II"
-                                ) {
-                                    projectType = "xnxd2";
-                                } else if (
-                                    addProject.group === "II.1. SẢN XUẤT"
-                                ) {
-                                    // <-- ĐIỀU KIỆN BẠN YÊU CẦU
-                                    projectType = "Nhà máy";
-                                } else if (
-                                    addProject.group ===
-                                    "I.3. CÔNG TRÌNH CÔNG TY CĐT"
-                                ) {
-                                    projectType = "CĐT";
-                                } else if (addProject.group === "III. ĐẦU TƯ") {
-                                    projectType = "KH-ĐT";
-                                } else {
-                                    projectType = "Thi công"; // Mặc định cho "I.1. Dân Dụng + Giao Thông" và các trường hợp khác
-                                }
-                                // ==========================================================
-                                // ✅ KẾT THÚC LOGIC MỚI
-                                // ==========================================================
-
-                                let insertIndex = -1;
-                                let groupLabel = addProject.group
-                                    .trim()
-                                    .toUpperCase();
-                                let rowsCopy = [...rows];
-                                const idxGroup = rowsCopy.findIndex(
-                                    (r) =>
-                                        (r.name || "").trim().toUpperCase() ===
-                                        groupLabel
-                                );
-
-                                if (idxGroup !== -1) {
-                                    insertIndex = idxGroup + 1;
-                                    while (
-                                        insertIndex < rowsCopy.length &&
-                                        !(
-                                            rowsCopy[insertIndex].name &&
-                                            rowsCopy[insertIndex].name.match(
-                                                /^[IVX]+\./
-                                            )
-                                        ) &&
-                                        ![
-                                            "I. XÂY DỰNG",
-                                            "II. SẢN XUẤT",
-                                            "TỔNG",
-                                        ].includes(
-                                            (
-                                                rowsCopy[insertIndex].name || ""
-                                            ).toUpperCase()
-                                        )
-                                    ) {
-                                        insertIndex++;
-                                    }
-                                } else {
-                                    insertIndex = rowsCopy.length - 1;
-                                }
-
-                                rowsCopy.splice(insertIndex, 0, {
-                                    name: addProject.name,
-                                    type: projectType, // <-- SỬ DỤNG TYPE ĐÃ XÁC ĐỊNH
-                                    revenue: 0,
-                                    cost: 0,
-                                    profit: 0,
-                                    percent: null,
-                                    costOverQuarter: null,
-                                    target: null,
-                                    note: "",
-                                    suggest: "",
-                                    editable: true,
-                                });
-
-                                setRows(rowsCopy);
-                                setAddModal(false);
-                                setAddProject({
-                                    group: "I.1. Dân Dụng + Giao Thông",
-                                    name: "",
-                                    type: "",
-                                });
-                            }}
-                            disabled={!addProject.name.trim()}
-                        >
+                        <Button onClick={() => setAddModal(false)}>Hủy</Button>
+                        <Button type="submit" form="add-project-form" variant="contained">
                             Thêm
                         </Button>
                     </DialogActions>

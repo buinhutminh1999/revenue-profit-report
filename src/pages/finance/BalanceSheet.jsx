@@ -8,7 +8,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFirestore, collection, getDocs, query, orderBy, where, writeBatch, doc, setDoc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
-import * as XLSX from 'xlsx'; // Import thư viện để xuất Excel
+import { createWorkbook, saveWorkbook } from "../../utils/excelUtils";
 import {
     ExpandMore as ExpandMoreIcon,
     ChevronRight as ChevronRightIcon,
@@ -68,33 +68,44 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
 
     const formatNumber = (num) => (num || 0).toLocaleString('vi-VN');
 
-    const handleExport = () => {
+    const handleExport = async () => {
         if (!data.items || data.items.length === 0) {
             toast.error("Không có dữ liệu để xuất.");
             return;
         }
-        const worksheetData = data.items.map(item => {
-            if (data.type === 'constructionPayablesSummary') {
-                return {
-                    'Tên Công Trình': item.projectName,
-                    'Diễn Giải': item.description,
-                    'Cuối Kỳ Có': item.carryover,
-                    'Cuối Kỳ Nợ': item.tonCuoiKy,
-                    'Kết quả': item.result
-                };
-            }
-            return {
-                'Tên Công Trình': item.projectName,
-                'Khoản Mục': item.description,
-                'Nợ Phải Trả CK': item.noPhaiTraCK,
-                'Nợ Phải Trả ĐK (debt)': item.debt,
-                'Kết quả': item.result
-            };
+
+        const { workbook, worksheet } = createWorkbook("ChiTietTinhToan");
+
+        let columns = [];
+        if (data.type === 'constructionPayablesSummary') {
+            columns = [
+                { header: 'Tên Công Trình', key: 'projectName', width: 30 },
+                { header: 'Diễn Giải', key: 'description', width: 40 },
+                { header: 'Cuối Kỳ Có', key: 'carryover', width: 15 },
+                { header: 'Cuối Kỳ Nợ', key: 'tonCuoiKy', width: 15 },
+                { header: 'Kết quả', key: 'result', width: 15 }
+            ];
+        } else {
+            columns = [
+                { header: 'Tên Công Trình', key: 'projectName', width: 30 },
+                { header: 'Khoản Mục', key: 'description', width: 40 },
+                { header: 'Nợ Phải Trả CK', key: 'noPhaiTraCK', width: 15 },
+                { header: 'Nợ Phải Trả ĐK (debt)', key: 'debt', width: 15 },
+                { header: 'Kết quả', key: 'result', width: 15 }
+            ];
+        }
+
+        worksheet.columns = columns;
+
+        // Add data
+        data.items.forEach(item => {
+            worksheet.addRow(item);
         });
-        const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "ChiTietTinhToan");
-        XLSX.writeFile(workbook, `${data.title.replace(/\s/g, '_')}.xlsx`);
+
+        // Format header
+        worksheet.getRow(1).font = { bold: true };
+
+        await saveWorkbook(workbook, `${data.title.replace(/\s/g, '_')}.xlsx`);
     };
 
     const headerHeight = 40;
@@ -878,11 +889,11 @@ const BalanceSheet = () => {
                 <Divider />
                 <CardContent>
                     <Grid container spacing={2} alignItems="center" justifyContent="space-between">
-                        <Grid item container spacing={2} alignItems="center" xs={12} md={6}>
-                            <Grid item xs={12} sm={6} md={4}><FormControl fullWidth size="small"><InputLabel>Quý</InputLabel><Select value={selectedQuarter} label="Quý" onChange={(e) => setSelectedQuarter(e.target.value)}>{[1, 2, 3, 4].map(q => <MenuItem key={q} value={q}>Quý {q}</MenuItem>)}</Select></FormControl></Grid>
-                            <Grid item xs={12} sm={6} md={4}><FormControl fullWidth size="small"><InputLabel>Năm</InputLabel><Select value={selectedYear} label="Năm" onChange={(e) => setSelectedYear(e.target.value)}>{yearOptions.map(year => <MenuItem key={year} value={year}>{year}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid container spacing={2} alignItems="center" size={{ xs: 12, md: 6 }}>
+                            <Grid size={{ xs: 12, sm: 6, md: 4 }}><FormControl fullWidth size="small"><InputLabel>Quý</InputLabel><Select value={selectedQuarter} label="Quý" onChange={(e) => setSelectedQuarter(e.target.value)}>{[1, 2, 3, 4].map(q => <MenuItem key={q} value={q}>Quý {q}</MenuItem>)}</Select></FormControl></Grid>
+                            <Grid size={{ xs: 12, sm: 6, md: 4 }}><FormControl fullWidth size="small"><InputLabel>Năm</InputLabel><Select value={selectedYear} label="Năm" onChange={(e) => setSelectedYear(e.target.value)}>{yearOptions.map(year => <MenuItem key={year} value={year}>{year}</MenuItem>)}</Select></FormControl></Grid>
                         </Grid>
-                        <Grid item xs={12} md="auto">
+                        <Grid size={{ xs: 12, md: "auto" }}>
                             <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
                                 <Tooltip title="Mở rộng tất cả"><IconButton onClick={handleExpandAll}><UnfoldMoreIcon /></IconButton></Tooltip>
                                 <Tooltip title="Thu gọn tất cả"><IconButton onClick={handleCollapseAll}><UnfoldLessIcon /></IconButton></Tooltip>

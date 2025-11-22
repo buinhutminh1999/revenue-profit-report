@@ -15,6 +15,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFirestore, collection, getDocs, writeBatch, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { ErrorState, SkeletonTable } from '../../components/common';
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { accountSchema } from "../../schemas/accountSchema";
 
 // Khởi tạo Firestore
 const db = getFirestore();
@@ -65,7 +68,7 @@ const useMutateAccounts = () => {
         },
         onError: (error) => toast.error(`Lỗi: ${error.message}`),
     });
-    
+
     const renameAccountMutation = useMutation({
         mutationFn: async ({ oldAccount, newAccountId, allAccounts }) => {
             const newDocRef = doc(db, ACCOUNTS_COLLECTION, newAccountId);
@@ -122,38 +125,42 @@ const useMutateAccounts = () => {
 // COMPONENT: DIALOG THÊM MỚI
 // ===================================================================================
 const AddAccountDialog = ({ open, onClose, parent = null }) => {
-    const [parentAccountId, setParentAccountId] = useState('');
-    const [parentAccountName, setParentAccountName] = useState('');
-    const [childrenData, setChildrenData] = useState('');
     const { addBatchMutation } = useMutateAccounts();
     const [isChecking, setIsChecking] = useState(false);
+
+    const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm({
+        resolver: zodResolver(accountSchema),
+        defaultValues: {
+            accountId: "",
+            accountName: "",
+            childrenData: "",
+            parentId: null
+        }
+    });
 
     useEffect(() => {
         if (open) {
             if (parent) {
-                setParentAccountId(parent.accountId);
-                setParentAccountName(parent.accountName);
+                setValue("accountId", parent.accountId); // Hiển thị mã cha để tham khảo (hoặc logic khác tùy nghiệp vụ)
+                setValue("accountName", parent.accountName);
+                setValue("parentId", parent.accountId);
             } else {
-                setParentAccountId('');
-                setParentAccountName('');
+                reset({ accountId: "", accountName: "", childrenData: "", parentId: null });
             }
-            setChildrenData('');
             setIsChecking(false);
         }
-    }, [open, parent]);
+    }, [open, parent, reset, setValue]);
 
-    const handleSubmit = async () => {
-        const newParentId = parentAccountId.trim();
-        const newParentName = parentAccountName.trim();
-        const pastedChildren = childrenData.trim();
+    const onSubmit = async (data) => {
+        const newParentId = data.accountId.trim();
+        const newParentName = data.accountName.trim();
+        const pastedChildren = data.childrenData ? data.childrenData.trim() : "";
         const accountsToCreate = [];
 
+        // Logic cũ: Nếu không có parent (tạo root), thì tạo chính nó
         if (!parent) {
             if (newParentId || newParentName) {
-                if (!newParentId || !newParentName) {
-                    toast.error('Vui lòng nhập đủ "Mã" và "Tên" tài khoản cha.');
-                    return;
-                }
+                // Validation đã được Zod xử lý một phần, nhưng kiểm tra logic nghiệp vụ thêm
                 accountsToCreate.push({
                     accountId: newParentId,
                     accountName: newParentName,
@@ -161,7 +168,7 @@ const AddAccountDialog = ({ open, onClose, parent = null }) => {
                 });
             }
         }
-        
+
         if (pastedChildren) {
             const childrenParentId = parent ? parent.accountId : newParentId;
             if (!childrenParentId) {
@@ -185,7 +192,7 @@ const AddAccountDialog = ({ open, onClose, parent = null }) => {
                 }
             });
         }
-        
+
         if (accountsToCreate.length === 0) {
             toast.error('Không có thông tin hợp lệ để thêm mới.');
             return;
@@ -203,11 +210,11 @@ const AddAccountDialog = ({ open, onClose, parent = null }) => {
                     return;
                 }
             }
-            
+
             await addBatchMutation.mutateAsync(accountsToCreate);
             setIsChecking(false);
             onClose();
-            
+
         } catch (error) {
             toast.error("Lỗi khi kiểm tra dữ liệu: " + error.message);
             setIsChecking(false);
@@ -218,16 +225,32 @@ const AddAccountDialog = ({ open, onClose, parent = null }) => {
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
             <DialogTitle>{parent ? `Thêm tài khoản con cho [${parent.accountId}]` : 'Tạo Tài Khoản Mới'}</DialogTitle>
             <DialogContent>
-                <Typography variant="subtitle1" gutterBottom sx={{ mt: 1 }}>Thông tin tài khoản cha</Typography>
-                <TextField autoFocus margin="dense" label="Mã Tài Khoản Cha" fullWidth variant="outlined" value={parentAccountId} onChange={(e) => setParentAccountId(e.target.value)} disabled={!!parent} />
-                <TextField margin="dense" label="Tên Tài Khoản Cha" fullWidth variant="outlined" value={parentAccountName} onChange={(e) => setParentAccountName(e.target.value)} disabled={!!parent} />
-                <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>Dán danh sách tài khoản con</Typography>
-                <Typography variant="body2" color="text.secondary">(Mỗi dòng một tài khoản, định dạng: Mã Tên tài khoản)</Typography>
-                <TextField margin="dense" label="Danh sách tài khoản con" fullWidth multiline rows={8} variant="outlined" placeholder={"21201 Đầu tư xây dựng nhà máy\n21301 Mua sắm thiết bị nhà máy"} value={childrenData} onChange={(e) => setChildrenData(e.target.value)} />
+                <Stack spacing={2} sx={{ mt: 1 }} component="form" id="add-account-form" onSubmit={handleSubmit(onSubmit)}>
+                    <Typography variant="subtitle1" gutterBottom>Thông tin tài khoản cha</Typography>
+                    <TextField
+                        autoFocus margin="dense" label="Mã Tài Khoản Cha" fullWidth variant="outlined"
+                        disabled={!!parent}
+                        error={!!errors.accountId} helperText={errors.accountId?.message}
+                        {...register("accountId")}
+                    />
+                    <TextField
+                        margin="dense" label="Tên Tài Khoản Cha" fullWidth variant="outlined"
+                        disabled={!!parent}
+                        error={!!errors.accountName} helperText={errors.accountName?.message}
+                        {...register("accountName")}
+                    />
+                    <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>Dán danh sách tài khoản con</Typography>
+                    <Typography variant="body2" color="text.secondary">(Mỗi dòng một tài khoản, định dạng: Mã Tên tài khoản)</Typography>
+                    <TextField
+                        margin="dense" label="Danh sách tài khoản con" fullWidth multiline rows={8} variant="outlined"
+                        placeholder={"21201 Đầu tư xây dựng nhà máy\n21301 Mua sắm thiết bị nhà máy"}
+                        {...register("childrenData")}
+                    />
+                </Stack>
             </DialogContent>
             <DialogActions sx={{ p: '16px 24px' }}>
                 <Button onClick={onClose}>Hủy</Button>
-                <Button onClick={handleSubmit} variant="contained" disabled={addBatchMutation.isLoading || isChecking}>
+                <Button type="submit" form="add-account-form" variant="contained" disabled={addBatchMutation.isLoading || isChecking}>
                     {(addBatchMutation.isLoading || isChecking) ? <CircularProgress size={24} /> : 'Lưu'}
                 </Button>
             </DialogActions>
@@ -254,7 +277,7 @@ const DeleteConfirmationDialog = ({ open, onClose, onConfirm, account, isLoading
             <DialogActions>
                 <Button onClick={onClose}>Hủy</Button>
                 <Button onClick={onConfirm} color="error" variant="contained" disabled={isLoading}>
-                   {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Xóa'}
+                    {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Xóa'}
                 </Button>
             </DialogActions>
         </Dialog>
@@ -266,13 +289,20 @@ const DeleteConfirmationDialog = ({ open, onClose, onConfirm, account, isLoading
 // ===================================================================================
 const AccountDetailPanel = ({ account, onClearSelection, allAccounts }) => {
     const { updateMutation, renameAccountMutation } = useMutateAccounts();
-    const [formState, setFormState] = useState({ accountId: '', accountName: '' });
+
+    const { register, handleSubmit, reset, formState: { errors } } = useForm({
+        resolver: zodResolver(accountSchema),
+        defaultValues: {
+            accountId: '',
+            accountName: ''
+        }
+    });
 
     useEffect(() => {
         if (account) {
-            setFormState({ accountId: account.accountId, accountName: account.accountName });
+            reset({ accountId: account.accountId, accountName: account.accountName });
         }
-    }, [account]);
+    }, [account, reset]);
 
     if (!account) {
         return (
@@ -283,30 +313,21 @@ const AccountDetailPanel = ({ account, onClearSelection, allAccounts }) => {
             </Card>
         );
     }
-    
-    const handleChange = (e) => {
-        setFormState({ ...formState, [e.target.name]: e.target.value });
-    };
 
-    const handleSave = async () => {
-        const newAccountId = formState.accountId.trim();
-        const newAccountName = formState.accountName.trim();
-        
-        if (!newAccountId || !newAccountName) {
-            toast.error("Mã và Tên tài khoản không được để trống!");
-            return;
-        }
+    const onSubmit = async (data) => {
+        const newAccountId = data.accountId.trim();
+        const newAccountName = data.accountName.trim();
 
         if (newAccountId === account.accountId) {
             if (newAccountName !== account.accountName) {
                 updateMutation.mutate({ id: account.id, data: { accountName: newAccountName } });
             }
-        } 
+        }
         else {
-            await renameAccountMutation.mutateAsync({ 
-                oldAccount: account, 
+            await renameAccountMutation.mutateAsync({
+                oldAccount: account,
                 newAccountId: newAccountId,
-                allAccounts: allAccounts 
+                allAccounts: allAccounts
             });
             onClearSelection();
         }
@@ -323,25 +344,23 @@ const AccountDetailPanel = ({ account, onClearSelection, allAccounts }) => {
             />
             <Divider />
             <CardContent>
-                <Stack spacing={3}>
+                <Stack spacing={3} component="form" onSubmit={handleSubmit(onSubmit)}>
                     <TextField
-                        name="accountId"
                         label="Số Hiệu Tài Khoản"
-                        value={formState.accountId}
-                        onChange={handleChange}
                         fullWidth
+                        error={!!errors.accountId} helperText={errors.accountId?.message}
+                        {...register("accountId")}
                     />
                     <TextField
-                        name="accountName"
                         label="Tên Tài Khoản"
-                        value={formState.accountName}
-                        onChange={handleChange}
                         fullWidth
+                        error={!!errors.accountName} helperText={errors.accountName?.message}
+                        {...register("accountName")}
                     />
                     <Button
+                        type="submit"
                         variant="contained"
                         startIcon={<SaveIcon />}
-                        onClick={handleSave}
                         disabled={isLoading}
                         sx={{ alignSelf: 'flex-end' }}
                     >
@@ -363,8 +382,8 @@ const AccountRow = ({ account, level, expanded, onToggle, onAddChild, onDelete, 
 
     return (
         <React.Fragment>
-            <TableRow 
-                hover 
+            <TableRow
+                hover
                 selected={selected}
                 sx={{ '& > *': { borderBottom: 'unset' }, cursor: 'pointer' }}
             >
@@ -435,7 +454,7 @@ const ChartOfAccountsPage = () => {
 
     const [addDialogOpen, setAddDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    
+
     const [parentForAdding, setParentForAdding] = useState(null);
     const [accountToDelete, setAccountToDelete] = useState(null);
     const [selectedAccount, setSelectedAccount] = useState(null);
@@ -481,7 +500,7 @@ const ChartOfAccountsPage = () => {
 
     useEffect(() => {
         if (searchTerm) {
-             const allIds = [];
+            const allIds = [];
             const collectIds = (nodes) => {
                 for (const node of nodes) {
                     allIds.push(node.id);
@@ -492,7 +511,7 @@ const ChartOfAccountsPage = () => {
             setExpanded(allIds);
         }
     }, [searchTerm, filteredTree]);
-    
+
     // --- Handlers ---
     const handleToggle = useCallback((accountId) => {
         setExpanded(prev =>
@@ -522,21 +541,21 @@ const ChartOfAccountsPage = () => {
         setAccountToDelete(account);
         setDeleteDialogOpen(true);
     };
-    
+
     const handleDeleteConfirm = () => {
         if (accountToDelete) {
             deleteMutation.mutate(accountToDelete.id, {
                 onSuccess: () => {
                     setDeleteDialogOpen(false);
                     setAccountToDelete(null);
-                    if(selectedAccount && selectedAccount.id === accountToDelete.id){
+                    if (selectedAccount && selectedAccount.id === accountToDelete.id) {
                         setSelectedAccount(null);
                     }
                 }
             });
         }
     };
-    
+
     if (isLoading) {
         return (
             <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
@@ -580,7 +599,7 @@ const ChartOfAccountsPage = () => {
                     </Typography>
                 </Box>
                 <Grid container spacing={3}>
-                    <Grid item xs={12} md={7}>
+                    <Grid size={{ xs: 12, md: 7 }}>
                         <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
                             <Toolbar sx={{ p: 2 }}>
                                 <TextField
@@ -596,7 +615,7 @@ const ChartOfAccountsPage = () => {
                                         ),
                                     }}
                                 />
-                                <Tooltip title="Mở rộng tất cả"><IconButton onClick={handleExpandAll} sx={{ml: 1}}><UnfoldMoreIcon /></IconButton></Tooltip>
+                                <Tooltip title="Mở rộng tất cả"><IconButton onClick={handleExpandAll} sx={{ ml: 1 }}><UnfoldMoreIcon /></IconButton></Tooltip>
                                 <Tooltip title="Thu gọn tất cả"><IconButton onClick={handleCollapseAll}><UnfoldLessIcon /></IconButton></Tooltip>
                                 <Button
                                     variant="contained"
@@ -645,9 +664,9 @@ const ChartOfAccountsPage = () => {
                             </TableContainer>
                         </Paper>
                     </Grid>
-                    <Grid item xs={12} md={5}>
-                        <AccountDetailPanel 
-                            account={selectedAccount} 
+                    <Grid size={{ xs: 12, md: 5 }}>
+                        <AccountDetailPanel
+                            account={selectedAccount}
                             onClearSelection={() => setSelectedAccount(null)}
                             allAccounts={accounts || []}
                         />

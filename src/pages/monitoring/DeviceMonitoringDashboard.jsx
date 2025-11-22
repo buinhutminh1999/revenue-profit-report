@@ -16,9 +16,12 @@ import { collection, query, onSnapshot, where, orderBy } from 'firebase/firestor
 import { ref, onValue } from 'firebase/database';
 import { db, rtdb } from '../../services/firebase-config';
 import { format, formatDistanceToNow, isSameDay, startOfDay, endOfDay } from 'date-fns';
-import vi from 'date-fns/locale/vi';
+import { vi } from 'date-fns/locale';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { useForm, useWatch, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { deviceMonitoringSchema } from "../../schemas/searchSchema";
 
 // Icons
 import SearchIcon from '@mui/icons-material/Search';
@@ -351,15 +354,27 @@ const MachineTable = ({ data }) => {
 export default function DeviceMonitoringDashboard() {
     const [machines, setMachines] = useState([]);
     const [loadingMachines, setLoadingMachines] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [selectedDate, setSelectedDate] = useState(new Date());
     const [workingHours] = useState(8);
     const [onlineStatusMap, setOnlineStatusMap] = useState({});
-    
-    // New states for UI controls
-    const [timeFilter, setTimeFilter] = useState('workingHours');
-    const [viewMode, setViewMode] = useState('grid');
+
+    const { control, register } = useForm({
+        resolver: zodResolver(deviceMonitoringSchema),
+        defaultValues: {
+            searchTerm: '',
+            statusFilter: 'all',
+            selectedDate: new Date(),
+            timeFilter: 'workingHours',
+            viewMode: 'grid',
+        }
+    });
+
+    const { searchTerm, statusFilter, selectedDate, timeFilter, viewMode } = useWatch({ control });
+
+    // const [searchTerm, setSearchTerm] = useState(''); // REMOVED
+    // const [statusFilter, setStatusFilter] = useState('all'); // REMOVED
+    // const [selectedDate, setSelectedDate] = useState(new Date()); // REMOVED
+    // const [timeFilter, setTimeFilter] = useState('workingHours'); // REMOVED
+    // const [viewMode, setViewMode] = useState('grid'); // REMOVED
 
     // Fetch machine base data
     useEffect(() => {
@@ -394,83 +409,83 @@ export default function DeviceMonitoringDashboard() {
     const isLoading = loadingMachines || (visibleMachineIds.length > 0 && loadingEvents);
 
     const processedMachineData = useMemo(() => {
-        return filteredMachines.map(machine => {
-            const events = eventsByMachine[machine.id] || [];
-            const isOnline = onlineStatusMap[machine.id]?.isOnline === true;
-            const lastBootTime = machine.lastBootAt ? machine.lastBootAt.toDate() : null;
-            
-            let totalSec = 0;
-            let workingHoursSec = 0;
-            let sessionStart = null;
-            const dayStart = startOfDay(selectedDate);
-            const dayEnd = endOfDay(selectedDate);
+        return filteredMachines.map(machine => {
+            const events = eventsByMachine[machine.id] || [];
+            const isOnline = onlineStatusMap[machine.id]?.isOnline === true;
+            const lastBootTime = machine.lastBootAt ? machine.lastBootAt.toDate() : null;
 
-            if (events && events.length > 0) {
-                const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-                
-                // If the first event is a shutdown, it implies the machine was running since the start of the day.
-                // Or if the machine booted before today and the first event isn't a startup event.
-                const firstEvent = sortedEvents[0];
-                if (
-                    STOP_IDS.has(Number(firstEvent.eventId)) || 
-                    (!START_IDS.has(Number(firstEvent.eventId)) && lastBootTime && lastBootTime < dayStart)
-                ) {
-                    sessionStart = dayStart;
-                }
+            let totalSec = 0;
+            let workingHoursSec = 0;
+            let sessionStart = null;
+            const dayStart = startOfDay(selectedDate);
+            const dayEnd = endOfDay(selectedDate);
 
-                for (const e of sortedEvents) {
-                    const eventId = Number(e.eventId);
-                    if (START_IDS.has(eventId) && !sessionStart) {
-                        sessionStart = e.createdAt;
-                    } else if (STOP_IDS.has(eventId) && sessionStart) {
-                        const duration = (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
-                        if (duration > 0) {
-                            totalSec += duration;
-                            workingHoursSec += getSecondsInWorkingHours(sessionStart, e.createdAt, selectedDate);
-                        }
-                        sessionStart = null;
-                    }
-                }
-            } else {
-                // NO EVENTS TODAY: Check if it was left on from yesterday.
-                if (isOnline && lastBootTime && lastBootTime < dayStart) {
-                    sessionStart = dayStart;
-                }
-            }
+            if (events && events.length > 0) {
+                const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-            // Calculate duration for any open session (either started today or carried over)
-            if (sessionStart) {
-                // Determine the end point for the calculation
-                let endPoint;
-                if (isSameDay(selectedDate, new Date()) && isOnline) {
-                    // It's today and the machine is still online: calculate up to now
-                    endPoint = new Date();
-                } else {
-                    // It's a past date, or the machine is offline. Use last seen time, but cap it at the end of the selected day.
-                    const lastSeenTime = machine.lastSeenAt ? machine.lastSeenAt.toDate() : dayEnd;
-                    endPoint = new Date(Math.min(lastSeenTime.getTime(), dayEnd.getTime()));
-                }
+                // If the first event is a shutdown, it implies the machine was running since the start of the day.
+                // Or if the machine booted before today and the first event isn't a startup event.
+                const firstEvent = sortedEvents[0];
+                if (
+                    STOP_IDS.has(Number(firstEvent.eventId)) ||
+                    (!START_IDS.has(Number(firstEvent.eventId)) && lastBootTime && lastBootTime < dayStart)
+                ) {
+                    sessionStart = dayStart;
+                }
 
-                const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
-                if (durationToAdd > 0) {
-                    totalSec += durationToAdd;
-                    workingHoursSec += getSecondsInWorkingHours(sessionStart, endPoint, selectedDate);
-                }
-            }
-            
-            return {
-                ...machine,
-                id: machine.id,
-                isOnline,
-                lastSeenAt: machine.lastSeenAt ? machine.lastSeenAt.toDate() : null,
-                lastBootAt: lastBootTime,
-                usageData: {
-                    totalSec: Math.max(0, totalSec),
-                    workingHoursSec: Math.max(0, workingHoursSec)
-                }
-            };
-        });
-    }, [filteredMachines, eventsByMachine, onlineStatusMap, selectedDate]);
+                for (const e of sortedEvents) {
+                    const eventId = Number(e.eventId);
+                    if (START_IDS.has(eventId) && !sessionStart) {
+                        sessionStart = e.createdAt;
+                    } else if (STOP_IDS.has(eventId) && sessionStart) {
+                        const duration = (e.createdAt.getTime() - sessionStart.getTime()) / 1000;
+                        if (duration > 0) {
+                            totalSec += duration;
+                            workingHoursSec += getSecondsInWorkingHours(sessionStart, e.createdAt, selectedDate);
+                        }
+                        sessionStart = null;
+                    }
+                }
+            } else {
+                // NO EVENTS TODAY: Check if it was left on from yesterday.
+                if (isOnline && lastBootTime && lastBootTime < dayStart) {
+                    sessionStart = dayStart;
+                }
+            }
+
+            // Calculate duration for any open session (either started today or carried over)
+            if (sessionStart) {
+                // Determine the end point for the calculation
+                let endPoint;
+                if (isSameDay(selectedDate, new Date()) && isOnline) {
+                    // It's today and the machine is still online: calculate up to now
+                    endPoint = new Date();
+                } else {
+                    // It's a past date, or the machine is offline. Use last seen time, but cap it at the end of the selected day.
+                    const lastSeenTime = machine.lastSeenAt ? machine.lastSeenAt.toDate() : dayEnd;
+                    endPoint = new Date(Math.min(lastSeenTime.getTime(), dayEnd.getTime()));
+                }
+
+                const durationToAdd = (endPoint.getTime() - sessionStart.getTime()) / 1000;
+                if (durationToAdd > 0) {
+                    totalSec += durationToAdd;
+                    workingHoursSec += getSecondsInWorkingHours(sessionStart, endPoint, selectedDate);
+                }
+            }
+
+            return {
+                ...machine,
+                id: machine.id,
+                isOnline,
+                lastSeenAt: machine.lastSeenAt ? machine.lastSeenAt.toDate() : null,
+                lastBootAt: lastBootTime,
+                usageData: {
+                    totalSec: Math.max(0, totalSec),
+                    workingHoursSec: Math.max(0, workingHoursSec)
+                }
+            };
+        });
+    }, [filteredMachines, eventsByMachine, onlineStatusMap, selectedDate]);
 
     return (
         <Box sx={{ p: { xs: 2, md: 4 }, backgroundColor: '#f9fafb', minHeight: '100vh' }}>
@@ -481,23 +496,66 @@ export default function DeviceMonitoringDashboard() {
 
             <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '12px', position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(8px)', backgroundColor: 'rgba(255,255,255,0.8)' }}>
                 <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} md={4}><TextField fullWidth size="small" placeholder="Tìm kiếm theo tên máy…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon /></InputAdornment>) }} /></Grid>
-                    <Grid item xs={12} sm={6} md={3}><LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}><DatePicker label="Chọn ngày" value={selectedDate} onChange={(d) => d && setSelectedDate(d)} enableAccessibleFieldDOMStructure={false} slotProps={{ textField: { size: 'small', fullWidth: true } }} format="dd/MM/yyyy" /></LocalizationProvider></Grid>
-                    <Grid item xs={12} sm={6} md={5}>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                        <TextField
+                            fullWidth
+                            size="small"
+                            placeholder="Tìm kiếm theo tên máy…"
+                            {...register("searchTerm")}
+                            InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon /></InputAdornment>) }}
+                        />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
+                            <Controller
+                                name="selectedDate"
+                                control={control}
+                                render={({ field }) => (
+                                    <DatePicker
+                                        label="Chọn ngày"
+                                        value={field.value}
+                                        onChange={(d) => field.onChange(d)}
+                                        enableAccessibleFieldDOMStructure={false}
+                                        slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                                        format="dd/MM/yyyy"
+                                    />
+                                )}
+                            />
+                        </LocalizationProvider>
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 5 }}>
                         <Stack direction="row" spacing={2} justifyContent="flex-end" flexWrap="wrap">
-                            <ToggleButtonGroup size="small" value={timeFilter} exclusive onChange={(e, v) => v && setTimeFilter(v)}>
-                                <ToggleButton value="allDay"><AllInclusiveIcon sx={{ mr: 0.5, fontSize: '1rem' }} /> Cả ngày</ToggleButton>
-                                <ToggleButton value="workingHours"><AccessTimeIcon sx={{ mr: 0.5, fontSize: '1rem' }} /> Giờ làm việc</ToggleButton>
-                            </ToggleButtonGroup>
-                            <ToggleButtonGroup size="small" value={statusFilter} exclusive onChange={(e, v) => v && setStatusFilter(v)}>
-                                <ToggleButton value="all">Tất cả</ToggleButton>
-                                <ToggleButton value="online">Online</ToggleButton>
-                                <ToggleButton value="offline">Offline</ToggleButton>
-                            </ToggleButtonGroup>
-                            <ToggleButtonGroup size="small" value={viewMode} exclusive onChange={(e, v) => v && setViewMode(v)}>
-                                <ToggleButton value="grid"><ViewModuleIcon /></ToggleButton>
-                                <ToggleButton value="list"><ViewListIcon /></ToggleButton>
-                            </ToggleButtonGroup>
+                            <Controller
+                                name="timeFilter"
+                                control={control}
+                                render={({ field }) => (
+                                    <ToggleButtonGroup size="small" value={field.value} exclusive onChange={(e, v) => v && field.onChange(v)}>
+                                        <ToggleButton value="allDay"><AllInclusiveIcon sx={{ mr: 0.5, fontSize: '1rem' }} /> Cả ngày</ToggleButton>
+                                        <ToggleButton value="workingHours"><AccessTimeIcon sx={{ mr: 0.5, fontSize: '1rem' }} /> Giờ làm việc</ToggleButton>
+                                    </ToggleButtonGroup>
+                                )}
+                            />
+                            <Controller
+                                name="statusFilter"
+                                control={control}
+                                render={({ field }) => (
+                                    <ToggleButtonGroup size="small" value={field.value} exclusive onChange={(e, v) => v && field.onChange(v)}>
+                                        <ToggleButton value="all">Tất cả</ToggleButton>
+                                        <ToggleButton value="online">Online</ToggleButton>
+                                        <ToggleButton value="offline">Offline</ToggleButton>
+                                    </ToggleButtonGroup>
+                                )}
+                            />
+                            <Controller
+                                name="viewMode"
+                                control={control}
+                                render={({ field }) => (
+                                    <ToggleButtonGroup size="small" value={field.value} exclusive onChange={(e, v) => v && field.onChange(v)}>
+                                        <ToggleButton value="grid"><ViewModuleIcon /></ToggleButton>
+                                        <ToggleButton value="list"><ViewListIcon /></ToggleButton>
+                                    </ToggleButtonGroup>
+                                )}
+                            />
                         </Stack>
                     </Grid>
                 </Grid>
@@ -506,7 +564,7 @@ export default function DeviceMonitoringDashboard() {
             {isLoading ? (
                 <Grid container spacing={3}>
                     {Array.from(new Array(8)).map((_, i) => (
-                        <Grid item xs={12} sm={6} md={4} lg={3} key={i}><Skeleton variant="rectangular" sx={{ borderRadius: '16px' }} height={280} /></Grid>
+                        <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={i}><Skeleton variant="rectangular" sx={{ borderRadius: '16px' }} height={280} /></Grid>
                     ))}
                 </Grid>
             ) : processedMachineData.length === 0 ? (
@@ -517,7 +575,7 @@ export default function DeviceMonitoringDashboard() {
             ) : viewMode === 'grid' ? (
                 <Grid container spacing={3}>
                     {processedMachineData.map((data) => (
-                        <Grid item xs={12} sm={6} md={4} lg={3} key={data.id}>
+                        <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={data.id}>
                             <MachineCard
                                 machineData={data}
                                 events={eventsByMachine[data.id] || []}

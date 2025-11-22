@@ -17,7 +17,7 @@ import {
 } from "firebase/firestore";
 import { toNum } from "../../utils/numberUtils";
 import { EmptyState, SkeletonTable } from "../../components/common";
-import { Inbox } from "lucide-react";
+import { Inbox } from "@mui/icons-material";
 
 // =================================================================
 // START: INLINE EDITABLE CELL COMPONENT (PHIÊN BẢN SỬA LỖI CĂN LỀ)
@@ -32,7 +32,7 @@ const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel }) => {
             setTimeout(() => inputRef.current.focus(), 0);
         }
     }, []);
-    
+
     const handleBlur = () => {
         const originalValue = type === 'number' ? toNum(value) : value;
         const updatedValue = type === 'number' ? toNum(currentValue) : currentValue;
@@ -51,7 +51,7 @@ const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel }) => {
             onCancel();
         }
     };
-    
+
     // ✅ SỬA LỖI CĂN LỀ:
     // 1. Thêm `sx` để component chiếm toàn bộ chiều cao/rộng của TableCell.
     // 2. Target vào class nội bộ `.MuiInputBase-root` để nó cũng chiếm 100% chiều cao.
@@ -64,7 +64,7 @@ const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel }) => {
             boxSizing: 'border-box',
         },
     };
-    
+
     if (type === 'number') {
         return (
             <NumericFormat
@@ -164,7 +164,7 @@ const MetricCard = ({ title, value, icon, color, loading }) => (
 );
 const NoRowsOverlay = () => (
     <EmptyState
-        icon={<Inbox size={64} />}
+        icon={<Inbox sx={{ fontSize: 64 }} />}
         title="Chưa có dữ liệu công nợ phải thu"
         description="Không có dữ liệu công nợ phải thu cho quý và năm đã chọn. Hãy thêm dữ liệu mới hoặc chọn quý/năm khác."
         size="small"
@@ -178,7 +178,7 @@ const CurrencyDisplay = ({ value }) => (
 export default function AccountsReceivable() {
     const currentYear = new Date().getFullYear();
     const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
-    const quarterOptions = [ { value: 1, label: "Quý 1" }, { value: 2, label: "Quý 2" }, { value: 3, label: "Quý 3" }, { value: 4, label: "Quý 4" } ];
+    const quarterOptions = [{ value: 1, label: "Quý 1" }, { value: 2, label: "Quý 2" }, { value: 3, label: "Quý 3" }, { value: 4, label: "Quý 4" }];
     const [selectedYear, setSelectedYear] = useState(currentYear);
     const [selectedQuarter, setSelectedQuarter] = useState(Math.ceil((new Date().getMonth() + 1) / 3));
     const [rows, setRows] = useState([]);
@@ -218,9 +218,9 @@ export default function AccountsReceivable() {
         setEditingCell(null);
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
         const docRef = doc(db, collectionPath, rowId);
-        
+
         const promise = updateDoc(docRef, { [field]: newValue });
-        
+
         toast.promise(promise, {
             loading: 'Đang cập nhật...',
             success: 'Cập nhật thành công!',
@@ -279,7 +279,7 @@ export default function AccountsReceivable() {
                 return acc;
             }, { ...zeroSummary });
         };
-        
+
         categories.forEach(category => {
             if (category.children && category.children.length > 0) {
                 const parentTotal = { ...zeroSummary };
@@ -313,7 +313,7 @@ export default function AccountsReceivable() {
             toast.error("Không thể lưu số liệu tổng hợp.");
         }
     }, []);
-    
+
     useEffect(() => {
         setIsLoading(true);
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
@@ -329,14 +329,14 @@ export default function AccountsReceivable() {
         });
         return () => unsubscribe();
     }, [selectedYear, selectedQuarter, updateAndSaveTotals]);
-    
+
     const displayRows = useMemo(() => {
         if (isLoading) return [];
         let dataRowIndex = 0;
         const result = [];
         const grandTotal = { openingDebit: 0, openingCredit: 0, debitIncrease: 0, creditDecrease: 0, closingDebit: 0, closingCredit: 0 };
         const zeroSummary = { ...grandTotal };
-        
+
         categories.forEach(category => {
             const childDisplayRows = [];
             const categorySummary = { ...zeroSummary };
@@ -362,14 +362,14 @@ export default function AccountsReceivable() {
                     Object.keys(zeroSummary).forEach(key => acc[key] += toNum(row[key]));
                     return acc;
                 }, { ...zeroSummary });
-                
+
                 result.push({ id: `header-${category.id}`, type: 'group-header', project: category.label, categoryId: category.id, ...summary });
                 result.push(...childDisplayRows);
                 Object.keys(zeroSummary).forEach(key => categorySummary[key] += summary[key]);
             }
             Object.keys(grandTotal).forEach(key => grandTotal[key] += categorySummary[key]);
         });
-        
+
         result.push({ id: 'grand-total', type: 'grand-total', project: 'TỔNG CỘNG TOÀN BỘ', ...grandTotal });
         return result;
     }, [rows, isLoading]);
@@ -377,7 +377,7 @@ export default function AccountsReceivable() {
     useEffect(() => {
         const handlePaste = (event) => {
             if (!editingCell) return toast.error("Vui lòng chọn một ô trong bảng trước khi dán.");
-            
+
             const activeRow = displayRows.find(r => r.id === editingCell.rowId);
             if (!activeRow) return;
 
@@ -395,14 +395,14 @@ export default function AccountsReceivable() {
     }, [editingCell, displayRows]);
 
     const summaryData = useMemo(() => displayRows.find(row => row.type === 'grand-total') || {}, [displayRows]);
-    
+
     const pageVariants = { initial: { opacity: 0, y: 20 }, in: { opacity: 1, y: 0 }, out: { opacity: 0, y: -20 } };
 
     return (
         <Box sx={{ p: { xs: 2, sm: 3 }, bgcolor: '#f4f6f8' }} >
             <Toaster position="bottom-right" toastOptions={{ duration: 4000 }} />
             <motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={{ duration: 0.4 }}>
-                <Stack direction={{xs: 'column', md: 'row'}} justifyContent="space-between" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+                <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems="center" spacing={2} sx={{ mb: 3 }}>
                     <Box>
                         <Typography variant="h4" fontWeight={700}>Báo Cáo Công Nợ Phải Thu</Typography>
                         <Typography variant="body1" color="text.secondary">Tổng hợp và quản lý công nợ theo quý.</Typography>
@@ -416,19 +416,19 @@ export default function AccountsReceivable() {
                 </Stack>
 
                 <Grid container spacing={3} sx={{ mb: 3 }}>
-                    <Grid item xs={12} sm={6} md={3}><MetricCard title="Phải thu đầu kỳ" value={summaryData.openingDebit} icon={<ArchiveOutlined fontSize="large" />} color="info" loading={isLoading} /></Grid>
-                    <Grid item xs={12} sm={6} md={3}><MetricCard title="Phát sinh phải thu" value={summaryData.debitIncrease} icon={<TrendingUp fontSize="large" />} color="warning" loading={isLoading} /></Grid>
-                    <Grid item xs={12} sm={6} md={3}><MetricCard title="Đã thu trong kỳ" value={summaryData.creditDecrease} icon={<TrendingDown fontSize="large" />} color="success" loading={isLoading} /></Grid>
-                    <Grid item xs={12} sm={6} md={3}><MetricCard title="Phải thu cuối kỳ" value={summaryData.closingDebit} icon={<AttachMoney fontSize="large" />} color="error" loading={isLoading} /></Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}><MetricCard title="Phải thu đầu kỳ" value={summaryData.openingDebit} icon={<ArchiveOutlined fontSize="large" />} color="info" loading={isLoading} /></Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}><MetricCard title="Phát sinh phải thu" value={summaryData.debitIncrease} icon={<TrendingUp fontSize="large" />} color="warning" loading={isLoading} /></Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}><MetricCard title="Đã thu trong kỳ" value={summaryData.creditDecrease} icon={<TrendingDown fontSize="large" />} color="success" loading={isLoading} /></Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}><MetricCard title="Phải thu cuối kỳ" value={summaryData.closingDebit} icon={<AttachMoney fontSize="large" />} color="error" loading={isLoading} /></Grid>
                 </Grid>
-                
+
                 <Paper ref={tableContainerRef} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
                     <TableContainer sx={{ maxHeight: '70vh' }}>
                         <Table stickyHeader size="small">
                             <TableHead>
                                 <TableRow>
                                     {tableColumns.map(col => (
-                                        <TableCell key={col.field} align={col.type === 'number' ? 'right' : 'left'} sx={{minWidth: 140}}>
+                                        <TableCell key={col.field} align={col.type === 'number' ? 'right' : 'left'} sx={{ minWidth: 140 }}>
                                             {col.headerName.split('/ ').map((line, index) => (
                                                 <React.Fragment key={index}>{line}{index < col.headerName.split('/ ').length - 1 && <br />}</React.Fragment>
                                             ))}
@@ -483,21 +483,21 @@ export default function AccountsReceivable() {
                                                                     onCancel={() => setEditingCell(null)}
                                                                 />
                                                             ) : (
-                                                                col.field === 'project' ? row.project : 
-                                                                (row[col.field] != null) && (
-                                                                    (col.field === 'debitIncrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]}/>} color="warning" size="small"/> :
-                                                                    (col.field === 'creditDecrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]}/>} color="success" size="small"/> :
-                                                                    <Typography variant="body2" sx={{fontWeight: (col.field.includes('closing')) && isDataRow ? 'bold' : 'inherit'}}>
-                                                                        <CurrencyDisplay value={row[col.field]} />
-                                                                    </Typography>
-                                                                )
+                                                                col.field === 'project' ? row.project :
+                                                                    (row[col.field] != null) && (
+                                                                        (col.field === 'debitIncrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]} />} color="warning" size="small" /> :
+                                                                            (col.field === 'creditDecrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]} />} color="success" size="small" /> :
+                                                                                <Typography variant="body2" sx={{ fontWeight: (col.field.includes('closing')) && isDataRow ? 'bold' : 'inherit' }}>
+                                                                                    <CurrencyDisplay value={row[col.field]} />
+                                                                                </Typography>
+                                                                    )
                                                             )}
                                                         </TableCell>
                                                     )
                                                 })}
                                                 <TableCell align="center" sx={{ minWidth: 100 }}>
-                                                    {row.type === 'data' && ( <IconButton size="small" onClick={() => handleDeleteRow(row.id)}><DeleteIcon fontSize="small" /></IconButton> )}
-                                                    {row.type === 'group-header' && ( <IconButton size="small" onClick={() => handleAddRow(row.categoryId)}><AddIcon fontSize="small" /></IconButton> )}
+                                                    {row.type === 'data' && (<IconButton size="small" onClick={() => handleDeleteRow(row.id)}><DeleteIcon fontSize="small" /></IconButton>)}
+                                                    {row.type === 'group-header' && (<IconButton size="small" onClick={() => handleAddRow(row.categoryId)}><AddIcon fontSize="small" /></IconButton>)}
                                                 </TableCell>
                                             </TableRow>
                                         );
@@ -518,7 +518,7 @@ export default function AccountsReceivable() {
             </Dialog>
             <Dialog open={pasteDialogOpen} onClose={() => setPasteDialogOpen(false)}>
                 <DialogTitle>Xác nhận dán dữ liệu</DialogTitle>
-                <DialogContent><DialogContentText>Thao tác này sẽ <strong>XOÁ TOÀN BỘ</strong> dữ liệu hiện có trong nhóm được chọn và thay thế bằng dữ liệu mới.<br/>Bạn có chắc chắn muốn tiếp tục không?</DialogContentText></DialogContent>
+                <DialogContent><DialogContentText>Thao tác này sẽ <strong>XOÁ TOÀN BỘ</strong> dữ liệu hiện có trong nhóm được chọn và thay thế bằng dữ liệu mới.<br />Bạn có chắc chắn muốn tiếp tục không?</DialogContentText></DialogContent>
                 <DialogActions><Button onClick={() => setPasteDialogOpen(false)}>Hủy bỏ</Button><Button onClick={confirmPaste} color="primary" autoFocus>Tiếp tục</Button></DialogActions>
             </Dialog>
         </Box>

@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Box, Button, Typography, Paper } from '@mui/material';
-import { ShieldAlert, ArrowLeft } from 'lucide-react';
+import { GppBad as ShieldAlert, ArrowBack as ArrowLeft } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 
 // Component chính cho trang "Không có quyền"
@@ -39,31 +39,31 @@ export default function UnauthorizedPage() {
                         animate={{ rotate: [0, -10, 10, -10, 10, 0] }}
                         transition={{ duration: 1, repeat: Infinity, repeatDelay: 4 }}
                     >
-                        <ShieldAlert size={64} color="#ef4444" />
+                        <ShieldAlert sx={{ fontSize: 64, color: "#ef4444" }} />
                     </motion.div>
-                    
-                    <Typography 
-                        variant="h4" 
-                        component="h1" 
-                        sx={{ 
-                            fontWeight: 800, 
+
+                    <Typography
+                        variant="h4"
+                        component="h1"
+                        sx={{
+                            fontWeight: 800,
                             color: 'error.main', // Sử dụng màu lỗi từ theme
-                            mt: 3, 
-                            mb: 2 
+                            mt: 3,
+                            mb: 2
                         }}
                     >
                         Truy Cập Bị Từ Chối
                     </Typography>
-                    
-                    <Typography 
-                        variant="body1" 
-                        color="text.secondary" 
+
+                    <Typography
+                        variant="body1"
+                        color="text.secondary"
                         sx={{ mb: 4 }}
                     >
-                        Rất tiếc, tài khoản của bạn không có quyền truy cập vào trang này. 
+                        Rất tiếc, tài khoản của bạn không có quyền truy cập vào trang này.
                         Nếu bạn cho rằng đây là một sự nhầm lẫn, vui lòng liên hệ với quản trị viên.
                     </Typography>
-                    
+
                     <Button
                         component={RouterLink}
                         to="/"

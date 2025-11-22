@@ -1,6 +1,6 @@
 // src/hooks/useFileUpload.js
 import { useCallback } from "react";
-import * as XLSX from "xlsx";
+import { readExcelFile } from "../utils/excelUtils";
 
 /* Map tiêu đề gốc (kể cả in hoa, dấu, khoảng trắng) -> khóa chuẩn */
 const headerMap = {
@@ -30,19 +30,13 @@ const normalize = (h) =>
 export const useFileUpload = (onDataReady) => {
     /* đọc file & chuẩn hoá header trước khi trả về Home */
     const handleFileUpload = useCallback(
-        (e) => {
+        async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                const wb = XLSX.read(evt.target.result, { type: "binary" });
-                const ws = wb.Sheets[wb.SheetNames[0]];
-                // ⭐ CẦN CHỈNH SỬA Ở ĐÂY ⭐
-                const rawRows = XLSX.utils.sheet_to_json(ws, {
-                    defval: "",
-                    raw: false, // 1. Buộc đọc các giá trị đã được định dạng (format)
-                    dateNF: 'd/m/yyyy', // 2. Định dạng cho các giá trị ngày tháng
-                });
+
+            try {
+                const rawRows = await readExcelFile(file);
+
                 // chuẩn hoá header
                 const rows = rawRows.map((row) => {
                     const obj = {};
@@ -53,14 +47,16 @@ export const useFileUpload = (onDataReady) => {
                         } else {
                             obj[stdKey] = val;
                         }
-
                     });
                     return obj;
                 });
 
                 onDataReady(rows);
-            };
-            reader.readAsBinaryString(file);
+            } catch (error) {
+                console.error("Error reading excel file:", error);
+                // Có thể thêm callback onError nếu cần
+            }
+
             // reset input để upload cùng file 2 lần vẫn trigger
             e.target.value = "";
         },

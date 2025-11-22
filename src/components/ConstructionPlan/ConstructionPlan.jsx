@@ -58,7 +58,7 @@ import {
     AttachMoney as AttachMoneyIcon, // Icon mới cho Doanh thu
     Close as CloseIcon
 } from "@mui/icons-material";
-import { DataGrid } from "@mui/x-data-grid";
+import { DataGrid, GridPagination } from "@mui/x-data-grid";
 import { motion, useSpring, useTransform } from "framer-motion";
 import AllocationTimelineModal, {
     getCurrentYear,
@@ -105,6 +105,10 @@ function AnimatedCounter({ value, isCurrency = false }) {
     return <motion.span>{display}</motion.span>;
 }
 
+function CustomFooter(props) {
+    return <GridPagination {...props} />;
+}
+
 // --- FRAMER MOTION VARIANTS ---
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -127,7 +131,7 @@ const StatCard = ({
 }) => {
     const primaryColor = theme.palette[color].main;
     return (
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <motion.div
                 variants={itemVariants}
                 whileHover={{ y: -5, boxShadow: `0 8px 25px ${alpha(primaryColor, 0.2)}` }}
@@ -205,7 +209,7 @@ const ProjectFormDrawer = ({ open, onClose, project, setProject, onSave, isEdit 
                         <CloseIcon />
                     </IconButton>
                 </Stack>
-                
+
                 <Box sx={{ flexGrow: 1, overflowY: "auto", px: 1 }}>
                     <Stack spacing={3} mt={1}>
                         <TextField
@@ -217,7 +221,7 @@ const ProjectFormDrawer = ({ open, onClose, project, setProject, onSave, isEdit 
                             required
                             autoFocus
                         />
-                        
+
                         <TextField
                             variant="outlined"
                             label="Tổng Giá Trị Hợp Đồng (VND)"
@@ -247,8 +251,8 @@ const ProjectFormDrawer = ({ open, onClose, project, setProject, onSave, isEdit 
                         >
                             {PROJECT_TYPES.map((opt) => (
                                 <MenuItem key={opt} value={opt}>
-                                    <Chip 
-                                        label={opt} 
+                                    <Chip
+                                        label={opt}
                                         color={chipColorByType[opt] || "default"}
                                         size="small"
                                         sx={{ fontWeight: 600 }}
@@ -331,11 +335,14 @@ export default function ConstructionPlan() {
     const [openAddDrawer, setOpenAddDrawer] = useState(false);
     const [openEditDrawer, setOpenEditDrawer] = useState(false);
     const [projectToEdit, setProjectToEdit] = useState(null);
-    const [selectionModel, setSelectionModel] = useState([]);
     const [isTimelineModalOpen, setTimelineModalOpen] = useState(false);
     const [projectForTimeline, setProjectForTimeline] = useState(null);
     const [projectToDelete, setProjectToDelete] = useState(null);
-    
+    const [paginationModel, setPaginationModel] = useState({
+        pageSize: 10,
+        page: 0,
+    });
+
     // Lưu trữ quarters data khi listener chạy (trước khi projects load)
     const [quartersCache, setQuartersCache] = useState(new Map());
 
@@ -385,8 +392,8 @@ export default function ConstructionPlan() {
                             );
 
                             // Không load quyết toán ở đây để tránh chậm - sẽ load sau bằng realtime listener
-                            return { 
-                                ...project, 
+                            return {
+                                ...project,
                                 revenueHSKH: totalHSKH,
                                 finalizedQuarters: [],
                                 latestFinalized: null,
@@ -402,14 +409,14 @@ export default function ConstructionPlan() {
                             return qOrder[b.quarter] - qOrder[a.quarter];
                         });
                         const latestFinalized = finalizedQuarters.length > 0 ? finalizedQuarters[0] : null;
-                        
+
                         return {
                             ...project,
                             finalizedQuarters: finalizedQuarters,
                             latestFinalized: latestFinalized,
                         };
                     });
-                    
+
                     setProjects(projectsWithFinalized);
                 } catch (error) {
                     console.error("Lỗi khi lấy dữ liệu:", error);
@@ -433,7 +440,7 @@ export default function ConstructionPlan() {
         try {
             const yearsRef = collection(db, "projects", project.id, "years");
             const yearsSnapshot = await getDocs(yearsRef);
-            
+
             for (const yearDoc of yearsSnapshot.docs) {
                 const year = yearDoc.id;
                 const quartersRef = collection(
@@ -445,13 +452,13 @@ export default function ConstructionPlan() {
                     "quarters"
                 );
                 const quartersSnapshot = await getDocs(quartersRef);
-                
+
                 for (const quarterDoc of quartersSnapshot.docs) {
                     const quarter = quarterDoc.id;
                     const quarterData = quarterDoc.data();
-                    
+
                     let isFinalized = false;
-                    
+
                     // Kiểm tra document level trước
                     if (quarterData.isFinalized === true || quarterData.isFinalized === "true") {
                         isFinalized = true;
@@ -467,7 +474,7 @@ export default function ConstructionPlan() {
                                 if (item.hasOwnProperty('isFinalized') && item.isFinalized) return true;
                                 return false;
                             });
-                            
+
                             if (finalizedItems.length > 0) {
                                 isFinalized = true;
                                 console.log(`✅ [Reload] Found ${finalizedItems.length} finalized items: ${project.name} (${project.id})/${year}/${quarter}`);
@@ -487,7 +494,7 @@ export default function ConstructionPlan() {
                             }
                         }
                     }
-                    
+
                     if (isFinalized) {
                         finalizedQuarters.push({ quarter, year });
                     }
@@ -496,19 +503,19 @@ export default function ConstructionPlan() {
         } catch (error) {
             console.error(`❌ Lỗi khi reload quyết toán cho project ${project.id}:`, error);
         }
-        
+
         finalizedQuarters.sort((a, b) => {
             if (a.year !== b.year) return Number(b.year) - Number(a.year);
             const qOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
             return qOrder[b.quarter] - qOrder[a.quarter];
         });
-        
+
         const latestFinalized = finalizedQuarters.length > 0 ? finalizedQuarters[0] : null;
-        
+
         if (finalizedQuarters.length > 0) {
             console.log(`📌 [Reload] Project ${project.name}: ${finalizedQuarters.length} quarters finalized, latest: ${latestFinalized.quarter}/${latestFinalized.year}`);
         }
-        
+
         return {
             ...project,
             finalizedQuarters: finalizedQuarters,
@@ -517,33 +524,33 @@ export default function ConstructionPlan() {
     }, []);
 
     // Không cần reload riêng nữa vì đã có realtime listener
-    
+
     // Listener realtime cho quarters - load ngay và tự động cập nhật khi có thay đổi
     useEffect(() => {
         if (location.pathname !== '/construction-plan') return;
-        
+
         console.log('👂 Setting up realtime listener for quarters...');
         const quartersQuery = collectionGroup(db, "quarters");
         const unsubQuarters = onSnapshot(
             quartersQuery,
             (quartersSnapshot) => {
                 console.log(`📢 Quarters snapshot: ${quartersSnapshot.docs.length} quarters found`);
-                
+
                 // Nhóm quarters theo projectId
                 const quartersByProject = new Map();
-                
+
                 quartersSnapshot.docs.forEach((quarterDoc) => {
                     const quarterData = quarterDoc.data();
                     const pathParts = quarterDoc.ref.path.split('/');
                     const projectIdIndex = pathParts.indexOf('projects') + 1;
                     const yearIndex = pathParts.indexOf('years') + 1;
                     const quarterIndex = pathParts.indexOf('quarters') + 1;
-                    
+
                     if (projectIdIndex > 0 && yearIndex > 0 && quarterIndex > 0) {
                         const projectId = pathParts[projectIdIndex];
                         const year = pathParts[yearIndex];
                         const quarter = pathParts[quarterIndex];
-                        
+
                         // Kiểm tra có finalized không - ưu tiên document level
                         let isFinalized = false;
                         if (quarterData.isFinalized === true || quarterData.isFinalized === "true") {
@@ -552,12 +559,12 @@ export default function ConstructionPlan() {
                             // Nếu không có ở document level, kiểm tra trong items
                             const items = Array.isArray(quarterData.items) ? quarterData.items : [];
                             if (items.length > 0) {
-                                isFinalized = items.some(item => 
+                                isFinalized = items.some(item =>
                                     item && (item.isFinalized === true || item.isFinalized === "true")
                                 );
                             }
                         }
-                        
+
                         if (isFinalized) {
                             if (!quartersByProject.has(projectId)) {
                                 quartersByProject.set(projectId, []);
@@ -566,19 +573,19 @@ export default function ConstructionPlan() {
                         }
                     }
                 });
-                
+
                 // Lưu cache để dùng sau khi projects load
                 setQuartersCache(quartersByProject);
-                
+
                 console.log(`📊 Found finalized quarters for ${quartersByProject.size} projects`);
-                
+
                 // Cập nhật projects với dữ liệu mới
                 setProjects(prevProjects => {
                     if (prevProjects.length === 0) {
                         // Nếu chưa có projects, chỉ lưu cache và return
                         return prevProjects;
                     }
-                    
+
                     const updated = prevProjects.map(project => {
                         const finalizedQuarters = quartersByProject.get(project.id) || [];
                         finalizedQuarters.sort((a, b) => {
@@ -587,14 +594,14 @@ export default function ConstructionPlan() {
                             return qOrder[b.quarter] - qOrder[a.quarter];
                         });
                         const latestFinalized = finalizedQuarters.length > 0 ? finalizedQuarters[0] : null;
-                        
+
                         return {
                             ...project,
                             finalizedQuarters: finalizedQuarters,
                             latestFinalized: latestFinalized,
                         };
                     });
-                    
+
                     // Debug: Log projects có quyết toán
                     const withFinalized = updated.filter(p => p.latestFinalized);
                     if (withFinalized.length > 0) {
@@ -603,7 +610,7 @@ export default function ConstructionPlan() {
                             latestFinalized: `${p.latestFinalized.quarter}/${p.latestFinalized.year}`
                         })));
                     }
-                    
+
                     return updated;
                 });
             },
@@ -611,7 +618,7 @@ export default function ConstructionPlan() {
                 console.error('❌ Lỗi listener quarters:', error);
             }
         );
-        
+
         return () => {
             console.log('🔇 Cleaning up quarters listener');
             unsubQuarters();
@@ -631,14 +638,14 @@ export default function ConstructionPlan() {
                         return qOrder[b.quarter] - qOrder[a.quarter];
                     });
                     const latestFinalized = finalizedQuarters.length > 0 ? finalizedQuarters[0] : null;
-                    
+
                     return {
                         ...project,
                         finalizedQuarters: finalizedQuarters,
                         latestFinalized: latestFinalized,
                     };
                 });
-                
+
                 // Debug: Log projects có quyết toán
                 const withFinalized = updated.filter(p => p.latestFinalized);
                 if (withFinalized.length > 0) {
@@ -647,7 +654,7 @@ export default function ConstructionPlan() {
                         latestFinalized: `${p.latestFinalized.quarter}/${p.latestFinalized.year}`
                     })));
                 }
-                
+
                 return updated;
             });
         }
@@ -731,7 +738,7 @@ export default function ConstructionPlan() {
         (proj) => setProjectToDelete(proj),
         []
     );
-    
+
     const handleConfirmDelete = useCallback(async () => {
         if (!projectToDelete?.id) return;
         const deletePromise = deleteDoc(
@@ -821,7 +828,7 @@ export default function ConstructionPlan() {
                         displayValue = row.allocationPeriods?.[currentKey] || 0;
                         color = 'success.dark'; // DT Nhà máy là DT Quý
                     }
-                    
+
                     return (
                         <Tooltip title={isDynamic ? "Giá trị Doanh thu Quý hiện tại" : "Tổng Giá trị Hợp đồng"}>
                             <Typography
@@ -926,7 +933,7 @@ export default function ConstructionPlan() {
                 sortable: false,
                 renderCell: (params) => {
                     const { latestFinalized, finalizedQuarters, id, name } = params.row;
-                    
+
                     // Debug log
                     if (process.env.NODE_ENV === 'development') {
                         console.log(`🔍 Project ${name} (${id}):`, {
@@ -935,7 +942,7 @@ export default function ConstructionPlan() {
                             finalizedQuartersLength: finalizedQuarters?.length || 0
                         });
                     }
-                    
+
                     if (!latestFinalized || !finalizedQuarters || finalizedQuarters.length === 0) {
                         return (
                             <Typography
@@ -950,9 +957,9 @@ export default function ConstructionPlan() {
                     const finalizedCount = finalizedQuarters.length;
                     const displayText = `${latestFinalized.quarter}/${latestFinalized.year}`;
                     return (
-                        <Tooltip 
+                        <Tooltip
                             title={
-                                finalizedCount > 1 
+                                finalizedCount > 1
                                     ? `Đã quyết toán ${finalizedCount} quý. Quý mới nhất: ${displayText}`
                                     : `Đã quyết toán quý ${displayText}`
                             }
@@ -1012,7 +1019,7 @@ export default function ConstructionPlan() {
                         Theo dõi tổng quan Hợp đồng, Phân bổ và Trạng thái thanh toán của các Công trình.
                     </Typography>
                 </motion.div>
-                
+
                 {/* --- KHỐI THẺ THỐNG KÊ --- */}
                 <Grid container spacing={3} sx={{ my: 2 }}>
                     <StatCard
@@ -1095,11 +1102,13 @@ export default function ConstructionPlan() {
                                 columns={columns}
                                 loading={isLoading}
                                 rowHeight={68}
-                                checkboxSelection
-                                onRowSelectionModelChange={(newModel) =>
-                                    setSelectionModel(newModel)
-                                }
-                                rowSelectionModel={selectionModel}
+                                paginationModel={paginationModel}
+                                onPaginationModelChange={setPaginationModel}
+                                pageSizeOptions={[10, 25, 50]}
+                                slots={{
+                                    footer: CustomFooter
+                                }}
+                                getRowId={(row) => row.id}
                                 disableRowSelectionOnClick
                                 onRowClick={(params, event) => {
                                     if (
@@ -1110,7 +1119,6 @@ export default function ConstructionPlan() {
                                         return;
                                     navigate(`/project-details/${params.id}`);
                                 }}
-                                experimentalFeatures={{ columnGrouping: true }}
                                 columnGroupingModel={columnGroupingModel}
                                 getRowClassName={getRowClassName}
                                 sx={{
@@ -1126,17 +1134,17 @@ export default function ConstructionPlan() {
                                         fontSize: "0.8rem",
                                     },
                                     "& .MuiDataGrid-columnHeader--filledGroup":
-                                        {
-                                            backgroundColor: alpha(
-                                                theme.palette.primary.main,
-                                                0.08
-                                            ),
-                                        },
+                                    {
+                                        backgroundColor: alpha(
+                                            theme.palette.primary.main,
+                                            0.08
+                                        ),
+                                    },
                                     "& .MuiDataGrid-columnHeader--filledGroup .MuiDataGrid-columnHeaderTitle":
-                                        {
-                                            color: "primary.dark",
-                                            fontWeight: "800",
-                                        },
+                                    {
+                                        color: "primary.dark",
+                                        fontWeight: "800",
+                                    },
                                     "& .MuiDataGrid-row": {
                                         cursor: "pointer",
                                         transition: 'background-color 0.2s',

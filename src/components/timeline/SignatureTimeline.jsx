@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Stack, Typography, Tooltip } from "@mui/material";
-import { Check, Clock } from "lucide-react";
+import { Check, AccessTime as Clock } from "@mui/icons-material";
 import { fullTime } from "../../utils/assetUtils";
 
 const SignatureTimeline = ({ signatures = {}, status }) => {
@@ -28,7 +28,7 @@ const SignatureTimeline = ({ signatures = {}, status }) => {
                         color: step.sig ? 'success.dark' : (index === activeIndex ? 'primary.dark' : 'grey.600'),
                         border: theme => `2px solid ${step.sig ? theme.palette.success.main : (index === activeIndex ? theme.palette.primary.main : 'transparent')}`
                     }}>
-                        {step.sig ? <Check size={16} /> : <Clock size={14} />}
+                        {step.sig ? <Check sx={{ fontSize: 16 }} /> : <Clock sx={{ fontSize: 14 }} />}
                     </Box>
                     <Box>
                         <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>

@@ -65,7 +65,7 @@ import { cats, COL_MAIN, isFixed } from "../../constants/costAllocation.js";
 import { buildRows } from "../../utils/rowBuilder";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
-import * as XLSX from "xlsx"; // [THÊM MỚI] Import thư viện xlsx
+import { exportToExcel } from "../../utils/excelUtils";
 import { Download as DownloadIcon } from "@mui/icons-material"; // Thêm icon Download
 import { useLocation } from "react-router-dom";
 // --- Bản đồ ánh xạ các trường dữ liệu ---
@@ -178,7 +178,7 @@ const RoundingDialog = ({
 const StatCard = React.memo(({ title, value, icon, color, isLoading }) => {
     const theme = useTheme();
     return (
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1611,7 +1611,6 @@ export default function CostAllocationQuarter() {
         });
 
         setDataVersion(Date.now());
-
         setDirtyCells((ds) => {
             const next = new Set(ds);
             next.add(`${rowId}-${projectId}-limit`);
@@ -1620,41 +1619,31 @@ export default function CostAllocationQuarter() {
 
         toast.success(`Đã cập nhật. Bảng sẽ được tính toán lại.`);
     };
-    // BÊN TRONG component CostAllocationQuarter.js
 
-    const handleExportExcel = () => {
-        // 1. Lấy ra các cột cần xuất. Lọc bỏ các cột không cần thiết nếu có.
-        // Chúng ta sẽ dùng `columns` để lấy header và thứ tự cột chính xác.
-        const columnsToExport = columns.filter(
-            (col) => col.field !== "actions"
-        ); // Ví dụ: bỏ cột action
+    const handleExportExcel = async () => {
+        const columnsToExport = columns
+            .filter((col) => col.field !== "actions")
+            .map(col => ({
+                key: col.field,
+                label: col.headerName
+            }));
 
-        // 2. Tạo Header cho file Excel từ `headerName` của cột
-        const header = columnsToExport.map((col) => col.headerName);
-
-        // 3. Chuẩn bị dữ liệu cho các dòng
-        // Rất quan trọng: Chúng ta map lại `rowsWithTotal` để đảm bảo dữ liệu đúng thứ tự cột
-        // và xuất ra giá trị số (number) thay vì chuỗi đã định dạng (vd: 1000000 thay vì "1,000,000")
-        const data = rowsWithTotal.map((row) => {
-            return columnsToExport.map((col) => {
-                // Nếu là dòng tổng cộng và cột %DT, để trống
-                if (row.isTotal && col.field === "pct") {
-                    return "";
-                }
-                // Lấy giá trị từ row dựa trên field của cột
-                return row[col.field];
-            });
+        const dataToExport = rowsWithTotal.map(row => {
+            if (row.isTotal) {
+                return { ...row, pct: "" };
+            }
+            return row;
         });
 
-        // 4. Tạo worksheet và workbook
-        const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, `PhanBo_Q${quarter}_${year}`); // Tên của sheet
-
-        // 5. Trigger download file
-        const fileName = `PhanBoChiPhi_Q${quarter}_${year}.xlsx`;
-        XLSX.writeFile(wb, fileName);
+        await exportToExcel(
+            dataToExport,
+            columnsToExport,
+            { name: `PhanBoChiPhi` },
+            year,
+            quarter
+        );
     };
+
     return (
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
             <Paper
@@ -1766,7 +1755,7 @@ export default function CostAllocationQuarter() {
                         </Tooltip>
                     </Stack>
                 </Stack>
-            </Paper>
+            </Paper >
 
             <Grid container spacing={2.5} sx={{ mb: 3 }}>
                 <StatCard
@@ -1918,7 +1907,7 @@ export default function CostAllocationQuarter() {
                         : undefined
                 }
             />
-        </Box>
+        </Box >
     );
 }
 

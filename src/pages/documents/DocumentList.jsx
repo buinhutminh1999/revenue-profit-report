@@ -29,7 +29,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import AddIcon from '@mui/icons-material/Add';
 import InboxIcon from '@mui/icons-material/Inbox';
 import { EmptyState, ErrorState } from '../../components/common';
-import { Inbox } from 'lucide-react';
+
 
 // Đường dẫn file trên server (qua proxy)
 const FILE_BASE_URL = '/api/files';
@@ -235,7 +235,7 @@ export default function DocumentList() {
             ) : !isLoading && (!documents || documents.length === 0) ? (
               <Box sx={{ p: 3 }}>
                 <EmptyState
-                  icon={<Inbox size={64} />}
+                  icon={<InboxIcon sx={{ fontSize: 64 }} />}
                   title="Chưa có văn bản nào"
                   description="Bắt đầu bằng cách tạo văn bản mới để chia sẻ với nhân viên."
                   actionLabel="Tạo Văn Bản Mới"
@@ -251,7 +251,7 @@ export default function DocumentList() {
                   pagination: {
                     paginationModel: { pageSize: 10 },
                   },
-                   // Thêm sắp xếp mặc định theo ngày mới nhất
+                  // Thêm sắp xếp mặc định theo ngày mới nhất
                   sorting: {
                     sortModel: [{ field: 'createdAt', sort: 'desc' }],
                   },

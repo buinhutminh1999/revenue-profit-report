@@ -15,37 +15,39 @@ import { doc, getDoc } from "firebase/firestore";
 
 // --- CÁC ICON ---
 import {
-    LayoutDashboard, ChevronRight, Briefcase, Landmark, BarChart3, Construction,
-    Building2, FileCheck2, FileSpreadsheet, BookCheck, BarChart2 as BarChartIcon,
-    ClipboardList, BookUser, PieChart, LineChart, TrendingUp,
-    UserCheck,
-    ScanLine,
+    Dashboard, ChevronRight, Work, AccountBalance, BarChart, Construction,
+    Business, FactCheck, TableChart, LibraryAddCheck, Equalizer,
+    Assignment, ContactPage, PieChart, ShowChart, TrendingUp,
+    HowToReg,
+    QrCodeScanner,
     History,
-    SlidersHorizontal,
-} from "lucide-react";
+    Tune,
+} from "@mui/icons-material";
 
-// ----- Drawer styles -----
+// --- STYLED COMPONENTS ---
 const openedMixin = (theme, width) => ({
-    width,
+    width: width,
     transition: theme.transitions.create("width", {
         easing: theme.transitions.easing.sharp,
         duration: theme.transitions.duration.enteringScreen,
     }),
     overflowX: "hidden",
 });
+
 const closedMixin = (theme, width) => ({
-    width,
     transition: theme.transitions.create("width", {
         easing: theme.transitions.easing.sharp,
         duration: theme.transitions.duration.leavingScreen,
     }),
     overflowX: "hidden",
+    width: width,
+    [theme.breakpoints.up("sm")]: {
+        width: width,
+    },
 });
 
-const StyledDrawer = styled(MuiDrawer, {
-    shouldForwardProp: (prop) =>
-        prop !== "open" && prop !== "widthExpanded" && prop !== "widthCollapsed",
-})(({ theme, open, widthExpanded, widthCollapsed }) => ({
+const StyledDrawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== "open" && prop !== "widthExpanded" && prop !== "widthCollapsed" })(
+    ({ theme, open, widthExpanded, widthCollapsed }) => ({
         width: widthExpanded,
         flexShrink: 0,
         whiteSpace: "nowrap",
@@ -63,30 +65,30 @@ const StyledDrawer = styled(MuiDrawer, {
 
 const ListSubheaderStyle = styled(ListSubheader)(({ theme }) => ({
     ...theme.typography.overline,
-    fontSize: "0.75rem",
-    paddingTop: theme.spacing(2.5),
-    paddingBottom: theme.spacing(0.75),
-    paddingLeft: theme.spacing(3.5),
+    fontSize: 11,
+    paddingTop: theme.spacing(3),
+    paddingBottom: theme.spacing(1),
     color: theme.palette.text.secondary,
+    backgroundColor: "transparent",
 }));
 
 const navigationConfig = [
     {
         subheader: "Tổng quan",
-        items: [{ title: "Dashboard", path: "/", icon: <LayoutDashboard size={18} /> }],
+        items: [{ title: "Dashboard", path: "/", icon: <Dashboard sx={{ fontSize: 18 }} /> }],
     },
     {
         subheader: "Quản lý Nhân sự",
         items: [
             {
                 title: "Chấm công",
-                icon: <UserCheck size={18} />,
+                icon: <HowToReg sx={{ fontSize: 18 }} />,
                 children: [
-                    { title: "Bảng điều khiển", path: "/attendance", icon: <LayoutDashboard size={18} /> },
-                    { title: "Chấm công hàng ngày", path: "/attendance/check-in", icon: <ScanLine size={18} /> },
-                    { title: "Lịch sử chấm công", path: "/attendance/history", icon: <History size={18} /> },
-                    { title: "Báo cáo", path: "/attendance/reports", icon: <BarChart3 size={18} /> },
-                    { title: "Cài đặt", path: "/attendance/settings", icon: <SlidersHorizontal size={18} /> },
+                    { title: "Bảng điều khiển", path: "/attendance", icon: <Dashboard sx={{ fontSize: 18 }} /> },
+                    { title: "Chấm công hàng ngày", path: "/attendance/check-in", icon: <QrCodeScanner sx={{ fontSize: 18 }} /> },
+                    { title: "Lịch sử chấm công", path: "/attendance/history", icon: <History sx={{ fontSize: 18 }} /> },
+                    { title: "Báo cáo", path: "/attendance/reports", icon: <BarChart sx={{ fontSize: 18 }} /> },
+                    { title: "Cài đặt", path: "/attendance/settings", icon: <Tune sx={{ fontSize: 18 }} /> },
                 ],
             },
         ],
@@ -96,10 +98,10 @@ const navigationConfig = [
         items: [
             {
                 title: "Dự án & Thi công",
-                icon: <Briefcase size={18} />,
+                icon: <Work sx={{ fontSize: 18 }} />,
                 children: [
-                    { title: "Kế hoạch Thi công", path: "/construction-plan", icon: <Construction size={18} /> },
-                    { title: "Quản lý Công trình", path: "/project-manager", icon: <Building2 size={18} /> },
+                    { title: "Kế hoạch Thi công", path: "/construction-plan", icon: <Construction sx={{ fontSize: 18 }} /> },
+                    { title: "Quản lý Công trình", path: "/project-manager", icon: <Business sx={{ fontSize: 18 }} /> },
                 ],
             },
         ],
@@ -109,13 +111,13 @@ const navigationConfig = [
         items: [
             {
                 title: "Kế toán & Công nợ",
-                icon: <Landmark size={18} />,
+                icon: <AccountBalance sx={{ fontSize: 18 }} />,
                 children: [
-                    { title: "Công nợ Phải thu", path: "/accounts-receivable", icon: <FileCheck2 size={18} /> },
-                    { title: "Công nợ Phải trả", path: "/construction-payables", icon: <FileSpreadsheet size={18} /> },
-                    { title: "Phân bổ Chi phí", path: "/allocations", icon: <BookCheck size={18} /> },
-                    { title: "Bảng Cân đối", path: "/balance-sheet", icon: <BarChartIcon size={18} /> },
-                    { title: "Hệ thống Tài khoản", path: "/chart-of-accounts", icon: <ClipboardList size={18} /> },
+                    { title: "Công nợ Phải thu", path: "/accounts-receivable", icon: <FactCheck sx={{ fontSize: 18 }} /> },
+                    { title: "Công nợ Phải trả", path: "/construction-payables", icon: <TableChart sx={{ fontSize: 18 }} /> },
+                    { title: "Phân bổ Chi phí", path: "/allocations", icon: <LibraryAddCheck sx={{ fontSize: 18 }} /> },
+                    { title: "Bảng Cân đối", path: "/balance-sheet", icon: <Equalizer sx={{ fontSize: 18 }} /> },
+                    { title: "Hệ thống Tài khoản", path: "/chart-of-accounts", icon: <Assignment sx={{ fontSize: 18 }} /> },
                 ],
             },
         ],
@@ -125,12 +127,12 @@ const navigationConfig = [
         items: [
             {
                 title: "Báo cáo",
-                icon: <BarChart3 size={18} />,
+                icon: <BarChart sx={{ fontSize: 18 }} />,
                 children: [
-                    { title: "Báo cáo Lợi nhuận", path: "/reports/profit-quarter", icon: <TrendingUp size={18} /> },
-                    { title: "Lợi nhuận theo Năm", path: "/reports/profit-year", icon: <LineChart size={18} /> },
-                    { title: "Báo cáo Nợ Có", path: "/reports/broker-debt", icon: <BookUser size={18} /> },
-                    { title: "Báo cáo Tổng quát", path: "/reports/overall", icon: <PieChart size={18} /> },
+                    { title: "Báo cáo Lợi nhuận", path: "/reports/profit-quarter", icon: <TrendingUp sx={{ fontSize: 18 }} /> },
+                    { title: "Lợi nhuận theo Năm", path: "/reports/profit-year", icon: <ShowChart sx={{ fontSize: 18 }} /> },
+                    { title: "Báo cáo Nợ Có", path: "/reports/broker-debt", icon: <ContactPage sx={{ fontSize: 18 }} /> },
+                    { title: "Báo cáo Tổng quát", path: "/reports/overall", icon: <PieChart sx={{ fontSize: 18 }} /> },
                 ],
             },
         ],
@@ -258,7 +260,7 @@ function SidebarNavItem({ item, isOpen, persistKey }) {
                             animate={reduce ? {} : { rotate: isSubMenuOpen ? 90 : 0 }}
                             transition={{ duration: 0.2, ease: "easeOut" }}
                         >
-                            <ChevronRight size={18} />
+                            <ChevronRight sx={{ fontSize: 18 }} />
                         </motion.span>
                     )}
                 </ListItemButton>

@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { viVN } from '@mui/x-data-grid/locales';
-import { Plus, Trash2, Edit, Save, Search, Clock, ShieldOff, AlertCircle } from 'lucide-react'; 
+import { Add as Plus, Delete as Trash2, Edit, Save, Search, AccessTime as Clock, GppBad as ShieldOff, ErrorOutline as AlertCircle } from '@mui/icons-material';
 import {
     collection, getDocs, query, orderBy, Timestamp,
     addDoc, serverTimestamp, deleteDoc, doc, writeBatch,
@@ -19,9 +19,12 @@ import { format, addDays, isPast } from 'date-fns';
 import toast from 'react-hot-toast';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import vi from 'date-fns/locale/vi';
+import { vi } from 'date-fns/locale';
 import { useAuth } from '../../contexts/AuthContext';
-import { EmptyState, ErrorState, SkeletonDataGrid } from '../../components/common'; 
+import { EmptyState, ErrorState, SkeletonDataGrid } from '../../components/common';
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { createPriceTableSchema } from "../../schemas/reportingSchemas";
 
 // --- Key Whitelist cho chức năng Tạo bảng ---
 const CREATE_PATH_KEY = 'material-price-comparison/create';
@@ -108,7 +111,7 @@ const CountdownTimer = ({ deadline }) => {
             label={chipLabel}
             color={chipColor}
             size="small"
-            icon={<Clock size={16} style={{ marginRight: '4px' }} />}
+            icon={<Clock sx={{ fontSize: 16 }} style={{ marginRight: '4px' }} />}
             variant="filled"
         />
     );
@@ -117,23 +120,23 @@ const CountdownTimer = ({ deadline }) => {
 
 // --- Component Chính (Trang Danh Sách) ---
 const MaterialPriceComparison = () => {
-    
+
     // SỬA: Lấy accessRules từ AuthContext
-    const { user: currentUser, loading: authLoading, accessRules } = useAuth(); 
-    
+    const { user: currentUser, loading: authLoading, accessRules } = useAuth();
+
     // TRONG MaterialPriceComparison.jsx (Logic kiểm tra Whitelist TẠO BẢNG)
 
-const canCreate = useMemo(() => {
-    if (!currentUser || !accessRules) return false;
-    
-    const whitelistedEmails = accessRules[CREATE_PATH_KEY] || [];
-    
-    // Admin có thể tạo mọi thứ (quyền ưu tiên cao nhất)
-    if (currentUser.role === 'admin') return true; 
-    console.log('currentUser.role',currentUser.role)
-    // Kiểm tra email người dùng hiện tại có trong danh sách được phép tạo không
-    return whitelistedEmails.includes(currentUser.email);
-}, [currentUser, accessRules]);
+    const canCreate = useMemo(() => {
+        if (!currentUser || !accessRules) return false;
+
+        const whitelistedEmails = accessRules[CREATE_PATH_KEY] || [];
+
+        // Admin có thể tạo mọi thứ (quyền ưu tiên cao nhất)
+        if (currentUser.role === 'admin') return true;
+        console.log('currentUser.role', currentUser.role)
+        // Kiểm tra email người dùng hiện tại có trong danh sách được phép tạo không
+        return whitelistedEmails.includes(currentUser.email);
+    }, [currentUser, accessRules]);
     // ==========================================
 
 
@@ -149,18 +152,27 @@ const canCreate = useMemo(() => {
     }, [currentUser, canCreate]);
 
     const isAdmin = currentUser?.role === 'admin';
-    
-    const [tables, setTables] = useState([]); 
-    
+
+    const [tables, setTables] = useState([]);
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
 
     // --- State cho Dialog tạo mới ---
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
-    const [newProjectName, setNewProjectName] = useState('');
-    const [newDurationDays, setNewDurationDays] = useState(7);
     const [isCreating, setIsCreating] = useState(false);
+
+    const { register, handleSubmit, reset, formState: { errors } } = useForm({
+        resolver: zodResolver(createPriceTableSchema),
+        defaultValues: {
+            projectName: '',
+            durationDays: 7
+        }
+    });
+
+    // const [newProjectName, setNewProjectName] = useState(''); // REMOVED
+    // const [newDurationDays, setNewDurationDays] = useState(7); // REMOVED
 
     // --- State cho việc Xóa ---
     const [isDeleting, setIsDeleting] = useState(false);
@@ -171,7 +183,7 @@ const canCreate = useMemo(() => {
     // --- State cho Lọc và Tìm kiếm ---
     const [searchQuery, setSearchQuery] = useState('');
     const [filterDate, setFilterDate] = useState(null);
-    const [filterStatus, setFilterStatus] = useState(''); 
+    const [filterStatus, setFilterStatus] = useState('');
     // =================================================
 
 
@@ -180,7 +192,7 @@ const canCreate = useMemo(() => {
         {
             field: 'projectName',
             headerName: 'TÊN CÔNG TRÌNH',
-            flex: 4, 
+            flex: 4,
             minWidth: 350,
             renderCell: (params) => (
                 <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
@@ -235,39 +247,39 @@ const canCreate = useMemo(() => {
             sortable: false,
             filterable: false,
             disableColumnMenu: true,
-            width: 150, 
+            width: 150,
             align: 'center',
             headerAlign: 'center',
             renderCell: (params) => {
-                
+
                 return (
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5 }}>
-                        
+
                         {/* 1. NÚT CHỈNH SỬA (Luôn hiển thị) */}
                         <Tooltip title="Chỉnh sửa nội dung">
                             <IconButton
-                                color="info" 
+                                color="info"
                                 size="small"
                                 onClick={(e) => { e.stopPropagation(); handleViewDetails(params.row.id); }}
                                 disabled={isDeleting}
                             >
-                                <Edit size={18} /> 
+                                <Edit sx={{ fontSize: 18 }} />
                             </IconButton>
                         </Tooltip>
 
                         {/* 2. NÚT XÓA (Chỉ Admin) */}
                         <Tooltip title={isAdmin ? "Xóa bảng (Quyền Admin)" : "Bạn không có quyền xóa"}>
-                            <IconButton 
-                                color="error" 
-                                size="small" 
-                                onClick={(e) => { 
-                                    e.stopPropagation(); 
+                            <IconButton
+                                color="error"
+                                size="small"
+                                onClick={(e) => {
+                                    e.stopPropagation();
                                     setDeleteTarget({ id: params.row.id, name: params.row.projectName });
                                     setOpenDeleteConfirm(true);
-                                }} 
+                                }}
                                 disabled={isDeleting || !isAdmin} // Chỉ cho phép xóa khi là Admin
                             >
-                                <Trash2 size={18} />
+                                <Trash2 sx={{ fontSize: 18 }} />
                             </IconButton>
                         </Tooltip>
                     </Box>
@@ -287,7 +299,7 @@ const canCreate = useMemo(() => {
                 ...doc.data(),
                 approvalStatus: 'APPROVED'
             }));
-            
+
             setTables(data);
             setLoading(false);
             setError(null);
@@ -303,20 +315,20 @@ const canCreate = useMemo(() => {
 
     useEffect(() => {
         if (!authLoading) {
-             const unsubscribe = fetchTables();
-             return () => {
-                 if (unsubscribe) {
-                     unsubscribe();
-                 }
-             };
+            const unsubscribe = fetchTables();
+            return () => {
+                if (unsubscribe) {
+                    unsubscribe();
+                }
+            };
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [authLoading]); 
+    }, [authLoading]);
 
     // --- Logic Lọc (Giữ nguyên) ---
     const filteredTables = useMemo(() => {
         const safeTables = Array.isArray(tables) ? tables : [];
-        let tempTables = [...safeTables]; 
+        let tempTables = [...safeTables];
         const queryLower = searchQuery.toLowerCase();
 
         if (queryLower) {
@@ -349,13 +361,13 @@ const canCreate = useMemo(() => {
     };
 
     // --- Dialog Tạo Mới (Thêm kiểm tra canCreate) ---
+    // --- Dialog Tạo Mới (Thêm kiểm tra canCreate) ---
     const handleAddNew = () => {
         if (!canCreate) { // Kiểm tra quyền trước khi mở
-             toast.error('Bạn không có quyền tạo bảng so sánh giá.');
-             return;
+            toast.error('Bạn không có quyền tạo bảng so sánh giá.');
+            return;
         }
-        setNewProjectName('');
-        setNewDurationDays(7);
+        reset(); // Reset form values
         setOpenCreateDialog(true);
     };
 
@@ -391,43 +403,40 @@ const canCreate = useMemo(() => {
 
 
     // === HÀM TẠO BẢNG (Thêm kiểm tra canCreate) ===
-    const handleConfirmCreateTable = async () => {
-        const duration = parseInt(newDurationDays, 10);
-        
-        // Kiểm tra quyền lần cuối khi submit
-        if (!newProjectName.trim() || isNaN(duration) || duration <= 0 || !currentUser || !canCreate) {
-             toast.error('Lỗi quyền hoặc thiếu thông tin.');
-             return;
+    const handleConfirmCreateTable = async (data) => {
+        if (!canCreate) {
+            toast.error("Bạn không có quyền tạo bảng so sánh giá.");
+            return;
         }
 
         setIsCreating(true);
-
         try {
-            const trimmedProjectName = newProjectName.trim();
-            const now = Timestamp.now();
-            await addDoc(collection(db, 'priceComparisonTables'), {
-                projectName: trimmedProjectName,
-                createdAt: now,
-                durationDays: duration,
-                reportQuarter: `Quý ${Math.floor(new Date().getMonth() / 3) + 1} / ${new Date().getFullYear()}`,
-                approvalStatus: 'APPROVED', 
-                sentAt: now,
+            const tablesColRef = collection(db, 'priceComparisonTables');
+            const newDocRef = await addDoc(tablesColRef, {
+                projectName: data.projectName,
+                durationDays: Number(data.durationDays),
+                createdAt: serverTimestamp(),
                 createdBy: {
                     uid: currentUser.uid,
                     displayName: currentUser.displayName,
                 },
-                approvedBy: { 
-                    uid: currentUser.uid,
-                    displayName: currentUser.displayName,
-                },
-                approvedAt: now
+                reportQuarter: `Quý ${Math.floor(new Date().getMonth() / 3) + 1} / ${new Date().getFullYear()}`,
+                approvalStatus: 'DRAFT', // New tables start as DRAFT
+                sentAt: null, // Not sent yet
+                approvedBy: null,
+                approvedAt: null
             });
 
-            toast.success(`Tạo bảng "${trimmedProjectName}" thành công!`);
+            toast.success('Tạo bảng so sánh giá thành công!');
             setOpenCreateDialog(false);
+            reset(); // Reset form
+
+            // Chuyển hướng đến trang chi tiết của bảng vừa tạo
+            navigate(`/material-price-comparison/${newDocRef.id}`);
+
         } catch (err) {
-            console.error("Lỗi khi tạo bảng mới:", err);
-            toast.error(`Lỗi khi tạo bảng: ${err.message}`);
+            console.error("Lỗi khi tạo bảng:", err);
+            toast.error('Có lỗi xảy ra khi tạo bảng.');
         } finally {
             setIsCreating(false);
         }
@@ -442,7 +451,7 @@ const canCreate = useMemo(() => {
             </Container>
         );
     }
-    
+
     // Nếu Auth đã tải xong (loading=false) nhưng người dùng vẫn là null, hiển thị cảnh báo
     if (!currentUser) {
         return (
@@ -457,7 +466,7 @@ const canCreate = useMemo(() => {
             </Container>
         );
     }
-    
+
     // --- Bắt đầu Render UI chính ---
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
@@ -467,16 +476,16 @@ const canCreate = useMemo(() => {
             <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', p: { xs: 2, sm: 4, md: 5 } }}>
 
                 {isDeleting && (
-                    <LinearProgress 
-                        sx={{ 
-                            position: 'fixed', 
-                            top: 0, 
-                            left: 0, 
-                            right: 0, 
+                    <LinearProgress
+                        sx={{
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            right: 0,
                             zIndex: 9999,
                             height: 4,
-                        }} 
-                        color="error" 
+                        }}
+                        color="error"
                     />
                 )}
 
@@ -505,14 +514,14 @@ const canCreate = useMemo(() => {
                     {/* --- TOOLBAR: Áp dụng logic canCreate cho nút Tạo Bảng Mới --- */}
                     <Paper elevation={1} sx={{ p: 2, mb: 4, borderRadius: 3 }}>
                         <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems="center">
-                            
+
                             {/* NÚT TẠO BẢNG MỚI (CHỈ HIỂN THỊ KHI CÓ QUYỀN canCreate) */}
                             <Tooltip title={canCreate ? "Tạo bảng so sánh vật tư mới" : "Bạn không có quyền tạo bảng"}>
                                 <span>
                                     <Button
                                         variant="contained"
                                         size="large"
-                                        startIcon={<Plus size={20} />}
+                                        startIcon={<Plus sx={{ fontSize: 20 }} />}
                                         onClick={handleAddNew}
                                         disabled={isDeleting || !canCreate}
                                         sx={{
@@ -536,17 +545,17 @@ const canCreate = useMemo(() => {
                                 InputProps={{
                                     startAdornment: (
                                         <InputAdornment position="start">
-                                            <Search size={18} color="#64748b" />
+                                            <Search sx={{ fontSize: 18 }} color="#64748b" />
                                         </InputAdornment>
                                     )
                                 }}
                                 sx={{ minWidth: 250, width: { xs: '100%', sm: 'auto' } }}
                             />
 
-                            <FormControl 
-                                size="small" 
-                                sx={{ 
-                                    minWidth: 200, 
+                            <FormControl
+                                size="small"
+                                sx={{
+                                    minWidth: 200,
                                     width: { xs: '100%', sm: 'auto' },
                                 }}
                             >
@@ -624,7 +633,7 @@ const canCreate = useMemo(() => {
                         ) : tables.length === 0 ? (
                             <Box sx={{ p: 3 }}>
                                 <EmptyState
-                                    icon={<AlertCircle size={64} />}
+                                    icon={<AlertCircle sx={{ fontSize: 64 }} />}
                                     title="Chưa có bảng so sánh giá"
                                     description="Bắt đầu bằng cách tạo bảng so sánh giá vật tư mới cho công trình của bạn."
                                     actionLabel={canCreate ? "Tạo Bảng Mới" : undefined}
@@ -674,15 +683,15 @@ const canCreate = useMemo(() => {
                                         backgroundColor: (theme) => theme.palette.background.paper,
                                     },
                                     '& .MuiDataGrid-virtualScroller': {
-                                        '&::-webkit-scrollbar': { 
-                                            width: '8px', 
-                                            height: '8px' 
+                                        '&::-webkit-scrollbar': {
+                                            width: '8px',
+                                            height: '8px'
                                         },
-                                        '&::-webkit-scrollbar-thumb': { 
+                                        '&::-webkit-scrollbar-thumb': {
                                             backgroundColor: (theme) => theme.palette.mode === 'light' ? '#cbd5e1' : '#475569',
                                             borderRadius: '10px',
                                         },
-                                        '&::-webkit-scrollbar-track': { 
+                                        '&::-webkit-scrollbar-track': {
                                             backgroundColor: (theme) => theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b',
                                         },
                                     },
@@ -702,36 +711,30 @@ const canCreate = useMemo(() => {
                 </Container>
             </Box>
 
-            {/* === DIALOG TẠO BẢNG MỚI (Giữ nguyên) === */}
-            <Dialog
-                open={openCreateDialog}
-                onClose={handleCloseCreateDialog}
-                maxWidth="sm"
-                fullWidth
-                disableEscapeKeyDown={isCreating || isDeleting}
-            >
-                <DialogTitle sx={{ 
-                    fontWeight: 700, 
+            {/* --- Dialog Tạo Mới --- */}
+            <Dialog open={openCreateDialog} onClose={handleCloseCreateDialog} maxWidth="sm" fullWidth disableEscapeKeyDown={isCreating || isDeleting}>
+                <DialogTitle sx={{
+                    fontWeight: 700,
                     borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
                     color: 'primary.main',
                 }}>
                     📝 Tạo Bảng So Sánh Vật Tư Mới
                 </DialogTitle>
                 <DialogContent>
-                    <Stack spacing={3} sx={{ mt: 2 }}>
+                    <DialogContentText sx={{ mb: 2 }}>
+                        Nhập tên công trình và thời hạn báo giá.
+                    </DialogContentText>
+                    <Stack spacing={3} sx={{ mt: 2 }} component="form" id="create-table-form" onSubmit={handleSubmit(handleConfirmCreateTable)}>
                         <TextField
                             autoFocus
-                            required
                             margin="dense"
-                            id="projectName"
                             label="Tên Công Trình"
                             placeholder="VD: Mái che hố khảo cổ Óc Eo - Ba Thê"
-                            type="text"
                             fullWidth
                             variant="outlined"
-                            value={newProjectName}
-                            onChange={(e) => setNewProjectName(e.target.value)}
-                            disabled={isCreating}
+                            error={!!errors.projectName}
+                            helperText={errors.projectName?.message}
+                            {...register("projectName")}
                             sx={{
                                 '& .MuiOutlinedInput-root': {
                                     borderRadius: 2,
@@ -739,22 +742,21 @@ const canCreate = useMemo(() => {
                             }}
                         />
                         <TextField
-                            required
                             margin="dense"
-                            id="durationDays"
-                            label="Thời gian đánh giá (số ngày)"
+                            label="Thời hạn (ngày)"
                             type="number"
                             fullWidth
                             variant="outlined"
-                            value={newDurationDays}
-                            onChange={(e) => setNewDurationDays(e.target.value)}
-                            disabled={isCreating}
+                            error={!!errors.durationDays}
+                            helperText={errors.durationDays?.message}
+                            {...register("durationDays")}
                             InputProps={{
                                 startAdornment: (
                                     <InputAdornment position="start">
-                                        <Clock size={18} />
+                                        <Clock sx={{ fontSize: 18 }} />
                                     </InputAdornment>
                                 ),
+                                endAdornment: <InputAdornment position="end">ngày</InputAdornment>,
                             }}
                             sx={{
                                 '& .MuiOutlinedInput-root': {
@@ -768,19 +770,20 @@ const canCreate = useMemo(() => {
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ p: 2, borderTop: (theme) => `1px solid ${theme.palette.divider}` }}>
-                    <Button 
-                        onClick={handleCloseCreateDialog} 
-                        color="inherit" 
+                    <Button
+                        onClick={handleCloseCreateDialog}
+                        color="inherit"
                         disabled={isCreating}
                     >
                         Hủy
                     </Button>
                     <Button
-                        onClick={handleConfirmCreateTable}
+                        type="submit"
+                        form="create-table-form"
                         variant="contained"
                         color="primary"
-                        disabled={isCreating || !newProjectName.trim() || !newDurationDays}
-                        startIcon={isCreating ? <CircularProgress size={20} color="inherit" /> : <Save size={18} />}
+                        disabled={isCreating}
+                        startIcon={isCreating ? <CircularProgress size={20} color="inherit" /> : <Save sx={{ fontSize: 18 }} />}
                     >
                         {isCreating ? 'Đang Tạo...' : 'Tạo Bảng'}
                     </Button>
@@ -793,10 +796,10 @@ const canCreate = useMemo(() => {
                 onClose={() => setOpenDeleteConfirm(false)}
                 maxWidth="sm"
             >
-                <DialogTitle sx={{ 
-                    color: 'error.main', 
-                    fontWeight: 700, 
-                    display: 'flex', 
+                <DialogTitle sx={{
+                    color: 'error.main',
+                    fontWeight: 700,
+                    display: 'flex',
                     alignItems: 'center',
                 }}>
                     <ShieldOff size={24} style={{ marginRight: 8 }} />
@@ -814,8 +817,8 @@ const canCreate = useMemo(() => {
                     </Alert>
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
-                    <Button 
-                        onClick={() => setOpenDeleteConfirm(false)} 
+                    <Button
+                        onClick={() => setOpenDeleteConfirm(false)}
                         color="inherit"
                         disabled={isDeleting}
                     >

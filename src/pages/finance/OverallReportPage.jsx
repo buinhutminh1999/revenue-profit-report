@@ -1141,7 +1141,7 @@ const OverallReportPageContent = () => {
     }
 
     // Error handling
-    const hasError = 
+    const hasError =
         isChartError ||
         isBalancesError ||
         isReportError ||
@@ -1150,14 +1150,14 @@ const OverallReportPageContent = () => {
         isProfitError;
 
     if (hasError) {
-        const error = 
+        const error =
             chartError ||
             balancesError ||
             reportError ||
             capitalError ||
             prevCapitalError ||
             profitError;
-        
+
         return (
             <Container
                 maxWidth="xl"
@@ -1249,7 +1249,7 @@ const OverallReportPageContent = () => {
                     />
                     <CardContent>
                         <Grid container spacing={2} alignItems="center">
-                            <Grid item xs={12} sm={3} md={2}>
+                            <Grid size={{ xs: 12, sm: 3, md: 2 }}>
                                 <FormControl fullWidth>
                                     <InputLabel>Quý</InputLabel>
                                     <Select
@@ -1268,7 +1268,7 @@ const OverallReportPageContent = () => {
                                     </Select>
                                 </FormControl>
                             </Grid>
-                            <Grid item xs={12} sm={3} md={2}>
+                            <Grid size={{ xs: 12, sm: 3, md: 2 }}>
                                 <FormControl fullWidth>
                                     <InputLabel>Năm</InputLabel>
                                     <Select
@@ -1837,13 +1837,13 @@ const OverallReportPageContent = () => {
                             </TableBody>
                         </Table>
                         <Divider sx={{ my: 2 }}>
-                            <Chip 
-                                label="V. TIỀN VAY" 
-                                size="small" 
-                                sx={{ 
+                            <Chip
+                                label="V. TIỀN VAY"
+                                size="small"
+                                sx={{
                                     fontWeight: 600,
                                     px: 1
-                                }} 
+                                }}
                             />
                         </Divider>
                         <Table size="small">
@@ -1923,13 +1923,13 @@ const OverallReportPageContent = () => {
                             </TableBody>
                         </Table>
                         <Divider sx={{ my: 2 }}>
-                            <Chip 
-                                label="VI. NỢ 01" 
-                                size="small" 
-                                sx={{ 
+                            <Chip
+                                label="VI. NỢ 01"
+                                size="small"
+                                sx={{
                                     fontWeight: 600,
                                     px: 1
-                                }} 
+                                }}
                             />
                         </Divider>
                         <Table size="small">

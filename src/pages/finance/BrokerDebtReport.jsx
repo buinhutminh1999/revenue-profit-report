@@ -80,7 +80,7 @@ const BASE_REPORT_STRUCTURE = [
                 type: "subheader",
                 children: [],
             },
-           {
+            {
                 id: "A.2",
                 stt: "I.2",
                 title: "Tài sản công ty",
@@ -731,7 +731,7 @@ const FinancialReport = () => {
         return filterNodes(dynamicReportStructure);
     }, [searchTerm, dynamicReportStructure]);
 
-   // ✅ 2. CẬP NHẬT LOGIC TÍNH TOÁN ĐỂ XỬ LÝ TRƯỜNG HỢP MỚI
+    // ✅ 2. CẬP NHẬT LOGIC TÍNH TOÁN ĐỂ XỬ LÝ TRƯỜNG HỢP MỚI
     const reportData = useMemo(() => {
         if (!accountBalances || !accountsData || !dynamicReportStructure || dynamicReportStructure.length === 0) {
             return {};
@@ -745,7 +745,7 @@ const FinancialReport = () => {
             }
 
             let finalBalance = { dauKy: 0, phatSinh: 0, cuoiKy: 0 };
-            
+
             // TH1: Node có children được định nghĩa sẵn trong cấu trúc (như A.3.1)
             if (node.children && node.children.length > 0) {
                 node.children.forEach(childNode => {
@@ -754,13 +754,13 @@ const FinancialReport = () => {
                     finalBalance.phatSinh += childBalance.phatSinh || 0;
                     finalBalance.cuoiKy += childBalance.cuoiKy || 0;
                 });
-            } 
+            }
             // TH2: Node có mã code, cần tìm con từ chartOfAccounts (như 112)
             else if (node.code) {
                 const descendantIds = getAllDescendantIds(node.code, accountsData);
                 // Nếu tìm thấy con -> tính tổng con
                 if (descendantIds.length > 0) {
-                     descendantIds.forEach(accId => {
+                    descendantIds.forEach(accId => {
                         const balance = accountBalances[accId];
                         if (balance) {
                             finalBalance.dauKy += balance.dauKy || 0;
@@ -768,7 +768,7 @@ const FinancialReport = () => {
                             finalBalance.cuoiKy += balance.cuoiKy || 0;
                         }
                     });
-                } 
+                }
                 // Nếu không có con -> là tài khoản lá, lấy trực tiếp
                 else {
                     const balance = accountBalances[node.code];
@@ -783,7 +783,7 @@ const FinancialReport = () => {
         };
 
         dynamicReportStructure.forEach(rootNode => calculateNodeValue(rootNode));
-        
+
         const totalA = processedData["A"] || { dauKy: 0, phatSinh: 0, cuoiKy: 0 };
         const totalB = processedData["B"] || { dauKy: 0, phatSinh: 0, cuoiKy: 0 };
         processedData["C"] = {
@@ -856,8 +856,8 @@ const FinancialReport = () => {
                 <Divider />
                 <CardContent>
                     <Grid container spacing={2} alignItems="center" justifyContent="space-between">
-                        <Grid item container spacing={2} xs={12} lg={7}>
-                            <Grid item xs={12} sm={6} md={4}>
+                        <Grid container spacing={2} size={{ xs: 12, lg: 7 }}>
+                            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                                 <FormControl fullWidth size="small">
                                     <InputLabel>Quý</InputLabel>
                                     <Select value={quarter} label="Quý" onChange={(e) => setQuarter(e.target.value)}>
@@ -865,7 +865,7 @@ const FinancialReport = () => {
                                     </Select>
                                 </FormControl>
                             </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
+                            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                                 <FormControl fullWidth size="small">
                                     <InputLabel>Năm</InputLabel>
                                     <Select value={year} label="Năm" onChange={(e) => setYear(e.target.value)}>
@@ -873,7 +873,7 @@ const FinancialReport = () => {
                                     </Select>
                                 </FormControl>
                             </Grid>
-                            <Grid item xs={12} md={4}>
+                            <Grid size={{ xs: 12, md: 4 }}>
                                 <TextField
                                     fullWidth
                                     size="small"
@@ -888,7 +888,7 @@ const FinancialReport = () => {
                                 />
                             </Grid>
                         </Grid>
-                        <Grid item xs={12} lg={5}>
+                        <Grid size={{ xs: 12, lg: 5 }}>
                             <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', lg: 'flex-end' }}>
                                 <Tooltip title="Mở rộng tất cả"><IconButton onClick={handleExpandAll}><UnfoldMoreIcon /></IconButton></Tooltip>
                                 <Tooltip title="Thu gọn tất cả"><IconButton onClick={handleCollapseAll}><UnfoldLessIcon /></IconButton></Tooltip>
@@ -898,7 +898,7 @@ const FinancialReport = () => {
                         </Grid>
                     </Grid>
                 </CardContent>
-                
+
                 {/* ✅ THAY ĐỔI DUY NHẤT: THÊM `maxHeight` VÀO ĐÂY */}
                 <TableContainer component={Paper} variant="outlined" sx={{ m: 2, width: 'auto', maxHeight: 'calc(100vh - 400px)' }}>
                     {(isLoadingAccounts || isLoadingBalances) && <LinearProgress />}

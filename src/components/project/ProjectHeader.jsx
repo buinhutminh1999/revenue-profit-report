@@ -2,18 +2,18 @@
 
 import React, { useState, useRef } from "react";
 import {
-  Box, Button, IconButton, Tooltip, Typography, Stack, Menu, MenuItem, Divider, TextField, Chip, CircularProgress
+    Box, Button, IconButton, Tooltip, Typography, Stack, Menu, MenuItem, Divider, TextField, Chip, CircularProgress
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Search, Plus, Save, MoreVertical, FileUp, FileDown,
-  Columns, SkipForward, Layers, Trash2, ChevronRight
-} from 'lucide-react';
+    ArrowBack as ArrowLeft, Search, Add as Plus, Save, MoreVert as MoreVertical, UploadFile as FileUp, FileDownload as FileDown,
+    ViewColumn as Columns, NextPlan as SkipForward, Layers, Delete as Trash2, ChevronRight
+} from '@mui/icons-material';
 
 const ActionMenuItem = ({ icon, text, onClick, color, ...props }) => (
     <MenuItem onClick={onClick} sx={{ color }} {...props}>
-        {React.cloneElement(icon, { size: 18, style: { marginRight: '12px' } })}
+        {React.cloneElement(icon, { sx: { fontSize: 18, marginRight: '12px' } })}
         <Typography variant="body2">{text}</Typography>
     </MenuItem>
 );
@@ -58,7 +58,7 @@ export default function ProjectHeader({
     };
 
     return (
-        <Box sx={{ p: {xs: 1, md: 2.5}, bgcolor: 'background.paper', borderRadius: 3, border: '1px solid', borderColor: 'divider', mb: 3 }}>
+        <Box sx={{ p: { xs: 1, md: 2.5 }, bgcolor: 'background.paper', borderRadius: 3, border: '1px solid', borderColor: 'divider', mb: 3 }}>
             {/* Hàng 1: Tiêu đề, số dòng, nút quay lại */}
             <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2.5}>
                 <Stack direction="row" alignItems="center" spacing={1.5}>
@@ -74,10 +74,10 @@ export default function ProjectHeader({
 
                 {/* Các nút hành động chính */}
                 <Stack direction="row" spacing={1.5}>
-                    <Button variant="outlined" onClick={onAddRow} startIcon={<Plus size={18} />}>
+                    <Button variant="outlined" onClick={onAddRow} startIcon={<Plus sx={{ fontSize: 18 }} />}>
                         Thêm dòng
                     </Button>
-                    <Button variant="contained" onClick={onSave} startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save size={18} />} disabled={saving}>
+                    <Button variant="contained" onClick={onSave} startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save sx={{ fontSize: 18 }} />} disabled={saving}>
                         Lưu
                     </Button>
                     <Tooltip title="Hành động khác">
@@ -89,12 +89,12 @@ export default function ProjectHeader({
             </Stack>
 
             {/* Hàng 2: Filters */}
-            <Stack direction={{xs: 'column', sm: 'row'}} spacing={2}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField
                     placeholder="Tìm kiếm khoản mục..."
                     value={search}
                     onChange={onSearchChange}
-                    InputProps={{ startAdornment: <Search size={20} style={{ marginRight: 8, color: theme.palette.text.secondary }} /> }}
+                    InputProps={{ startAdornment: <Search sx={{ fontSize: 20, marginRight: 1, color: theme.palette.text.secondary }} /> }}
                     sx={{ flexGrow: 1, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                 />
                 <TextField select value={quarter} onChange={onQuarterChange} size="small" sx={{ minWidth: 120 }}>
@@ -115,16 +115,16 @@ export default function ProjectHeader({
 
             <Menu anchorEl={actionsMenu} open={Boolean(actionsMenu)} onClose={handleCloseActionsMenu}>
                 <MenuItem onClick={handleOpenUploadMenu}>
-                    <FileUp size={18} style={{ marginRight: 12 }} />
+                    <FileUp sx={{ fontSize: 18, marginRight: 1.5 }} />
                     Tải lên từ Excel...
-                    <ChevronRight size={16} style={{ position: 'absolute', right: 8 }}/>
+                    <ChevronRight sx={{ fontSize: 16, position: 'absolute', right: 8 }} />
                 </MenuItem>
                 <MenuItem onClick={() => { onExport(); handleCloseActionsMenu(); }}>
-                    <FileDown size={18} style={{ marginRight: 12 }} />
+                    <FileDown sx={{ fontSize: 18, marginRight: 1.5 }} />
                     Xuất ra Excel
                 </MenuItem>
                 <MenuItem onClick={() => { onToggleColumns(); handleCloseActionsMenu(); }}>
-                    <Columns size={18} style={{ marginRight: 12 }} />
+                    <Columns sx={{ fontSize: 18, marginRight: 1.5 }} />
                     Tùy chọn cột
                 </MenuItem>
                 <Divider />

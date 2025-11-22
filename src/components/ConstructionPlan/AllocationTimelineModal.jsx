@@ -25,9 +25,9 @@ const itemVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 
 const QuarterInputCard = ({ q, year, isSelected, revenue, onToggle, onRevenueChange }) => {
     const theme = useTheme();
     const key = `${year}-${q}`;
-    
+
     return (
-        <Grid item xs={12} sm={6} md={3} key={key}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }} key={key}>
             <motion.div variants={itemVariants} style={{ height: '100%' }}>
                 <Paper
                     onClick={() => onToggle(key, !isSelected)}
@@ -60,8 +60,8 @@ const QuarterInputCard = ({ q, year, isSelected, revenue, onToggle, onRevenueCha
                         placeholder="0"
                         value={formatNumber(revenue)}
                         onChange={(e) => {
-                           e.stopPropagation();
-                           onRevenueChange(key, e.target.value);
+                            e.stopPropagation();
+                            onRevenueChange(key, e.target.value);
                         }}
                         onClick={(e) => e.stopPropagation()}
                         disabled={!isSelected}
@@ -87,7 +87,7 @@ const QuarterInputCard = ({ q, year, isSelected, revenue, onToggle, onRevenueCha
 const AllocationTimelineModal = ({ open, onClose, project, onSave }) => {
     const theme = useTheme();
     const [periods, setPeriods] = useState({});
-    
+
     const isFactory = project?.type === "Nhà máy";
 
     const displayYears = useMemo(() => {
@@ -151,9 +151,9 @@ const AllocationTimelineModal = ({ open, onClose, project, onSave }) => {
     if (!project) return null;
 
     return (
-        <Dialog 
-            open={open} 
-            onClose={onClose} 
+        <Dialog
+            open={open}
+            onClose={onClose}
             PaperProps={{ sx: { borderRadius: 4, width: '100%', maxWidth: 'lg' } }}
             fullWidth
         >
@@ -171,7 +171,7 @@ const AllocationTimelineModal = ({ open, onClose, project, onSave }) => {
             </DialogTitle>
             <DialogContent dividers sx={{ p: { xs: 1.5, sm: 2, md: 3 }, bgcolor: 'background.default' }}>
                 <Stack spacing={4}>
-                    { isFactory ? (
+                    {isFactory ? (
                         // GIAO DIỆN HIỆN ĐẠI CHO "NHÀ MÁY"
                         displayYears.map(year => (
                             <Box key={year}>
@@ -204,8 +204,8 @@ const AllocationTimelineModal = ({ open, onClose, project, onSave }) => {
                     ) : (
                         // GIAO DIỆN CŨ CHO CÔNG TRÌNH KHÁC
                         displayYears.map(year => {
-                             const selectedQuartersForYear = Object.keys(periods).filter(k => k.startsWith(`${year}-`) && periods[k]).map(k => k.split('-')[1]);
-                            return(
+                            const selectedQuartersForYear = Object.keys(periods).filter(k => k.startsWith(`${year}-`) && periods[k]).map(k => k.split('-')[1]);
+                            return (
                                 <Box component={motion.div} variants={itemVariants} key={year}>
                                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5, px: 1 }}>
                                         <Typography variant="h6" fontWeight={600}>{`Năm ${year}`}</Typography>
@@ -216,9 +216,9 @@ const AllocationTimelineModal = ({ open, onClose, project, onSave }) => {
                                     </Stack>
                                     <ToggleButtonGroup fullWidth value={selectedQuartersForYear} onChange={(e, v) => handleYearSelectionChange(year, v)}>
                                         {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
-                                            <ToggleButton value={q} key={q} sx={{ py: 1.5, fontWeight: 600, borderRadius: 2, border: `1px solid ${theme.palette.divider} !important`, '&.Mui-selected': { color: 'primary.contrastText', backgroundColor: 'primary.main' }}}>
+                                            <ToggleButton value={q} key={q} sx={{ py: 1.5, fontWeight: 600, borderRadius: 2, border: `1px solid ${theme.palette.divider} !important`, '&.Mui-selected': { color: 'primary.contrastText', backgroundColor: 'primary.main' } }}>
                                                 <Stack direction="row" spacing={0.5} alignItems="center">
-                                                    {selectedQuartersForYear.includes(q) && <CheckIcon fontSize="small"/>}
+                                                    {selectedQuartersForYear.includes(q) && <CheckIcon fontSize="small" />}
                                                     <Typography>{q}</Typography>
                                                 </Stack>
                                             </ToggleButton>

@@ -18,6 +18,9 @@ import { getAuth, sendPasswordResetEmail } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "../../services/firebase-config";
 import { getApp } from "firebase/app";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { userFormSchema } from "../../schemas/adminSchema";
 
 /* ---------------- Vai trò & màu sắc ---------------- */
 const ROLE_OPTIONS = [
@@ -132,85 +135,146 @@ const EnhancedTableToolbar = ({ numSelected, onBulkDelete, onBulkLock, onBulkUnl
 );
 
 const UserFormDialog = ({
-  open, onClose, onSave, form, setForm, isEdit, departments
-}) => (
-  <Dialog open={open} onClose={onClose}>
-    <DialogTitle>{isEdit ? "Chỉnh Sửa Người Dùng" : "Gửi Lời Mời Người Dùng Mới"}</DialogTitle>
-    <DialogContent>
-      <DialogContentText sx={{ mb: 2 }}>
-        {!isEdit && "Hệ thống sẽ tạo tài khoản và gửi email mời người dùng xác thực và tự tạo mật khẩu."}
-      </DialogContentText>
-      <Stack spacing={2} sx={{ mt: 1, minWidth: { sm: 520 } }}>
-        <TextField autoFocus label="Tên hiển thị" fullWidth
-          value={form.displayName || ""} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
-        <TextField label="Email" type="email" fullWidth
-          value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} disabled={isEdit} />
-        
-        {/* Vai trò */}
-        <FormControl fullWidth>
-          <InputLabel>Vai trò</InputLabel>
-          <Select
-            value={form.role || "nhan-vien"}
-            onChange={(e) => setForm({ ...form, role: e.target.value })}
-            label="Vai trò"
-          >
-            {ROLE_OPTIONS.map((r) => (
-              <MenuItem key={r.id} value={r.id}>{r.label}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+  open, onClose, onSave, initialValues, isEdit, departments
+}) => {
+  const { register, handleSubmit, control, reset, formState: { errors, isSubmitting } } = useForm({
+    resolver: zodResolver(userFormSchema),
+    defaultValues: {
+      displayName: "",
+      email: "",
+      role: "nhan-vien",
+      primaryDepartmentId: "",
+      managedDepartmentIds: []
+    }
+  });
 
-        {/* Phòng ban chính */}
-        <FormControl fullWidth>
-          <InputLabel>Phòng ban chính</InputLabel>
-          <Select
-            value={form.primaryDepartmentId || ""}
-            onChange={(e) => setForm({ ...form, primaryDepartmentId: e.target.value })}
-            label="Phòng ban chính"
-          >
-            <MenuItem value=""><em>Chưa gán</em></MenuItem>
-            {departments.map((dept) => (
-              <MenuItem key={dept.id} value={dept.id}>{dept.name}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+  useEffect(() => {
+    if (open) {
+      reset(initialValues || {
+        displayName: "",
+        email: "",
+        role: "nhan-vien",
+        primaryDepartmentId: "",
+        managedDepartmentIds: []
+      });
+    }
+  }, [open, initialValues, reset]);
 
-        {/* Quản lý nhiều phòng */}
-        <FormControl fullWidth>
-          <InputLabel>Quản lý (nhiều phòng)</InputLabel>
-          <Select
-            multiple
-            value={form.managedDepartmentIds || []}
-            onChange={(e) => setForm({
-              ...form,
-              managedDepartmentIds: typeof e.target.value === "string"
-                ? e.target.value.split(",")
-                : e.target.value
-            })}
-            input={<OutlinedInput label="Quản lý (nhiều phòng)" />}
-            renderValue={(selected) =>
-              (selected || [])
-                .map(id => departments.find(d => d.id === id)?.name)
-                .filter(Boolean)
-                .join(", ")
-            }
-          >
-            {departments.map((dept) => (
-              <MenuItem key={dept.id} value={dept.id}>
-                <Checkbox checked={(form.managedDepartmentIds || []).indexOf(dept.id) > -1} />
-                <ListItemText primary={dept.name} />
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Stack>
-    </DialogContent>
-    <DialogActions sx={{ p: "0 24px 16px" }}>
-      <Button onClick={onClose}>Hủy</Button>
-      <Button onClick={onSave} variant="contained">{isEdit ? "Lưu thay đổi" : "Gửi Lời Mời"}</Button>
-    </DialogActions>
-  </Dialog>
-);
+  const onSubmit = (data) => {
+    onSave(data);
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose}>
+      <DialogTitle>{isEdit ? "Chỉnh Sửa Người Dùng" : "Gửi Lời Mời Người Dùng Mới"}</DialogTitle>
+      <DialogContent>
+        <DialogContentText sx={{ mb: 2 }}>
+          {!isEdit && "Hệ thống sẽ tạo tài khoản và gửi email mời người dùng xác thực và tự tạo mật khẩu."}
+        </DialogContentText>
+        <Stack spacing={2} sx={{ mt: 1, minWidth: { sm: 520 } }} component="form" onSubmit={handleSubmit(onSubmit)}>
+          <Controller
+            name="displayName"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                autoFocus
+                label="Tên hiển thị"
+                fullWidth
+                error={!!errors.displayName}
+                helperText={errors.displayName?.message}
+              />
+            )}
+          />
+          <Controller
+            name="email"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Email"
+                type="email"
+                fullWidth
+                disabled={isEdit}
+                error={!!errors.email}
+                helperText={errors.email?.message}
+              />
+            )}
+          />
+
+          {/* Vai trò */}
+          <FormControl fullWidth error={!!errors.role}>
+            <InputLabel>Vai trò</InputLabel>
+            <Controller
+              name="role"
+              control={control}
+              render={({ field }) => (
+                <Select {...field} label="Vai trò">
+                  {ROLE_OPTIONS.map((r) => (
+                    <MenuItem key={r.id} value={r.id}>{r.label}</MenuItem>
+                  ))}
+                </Select>
+              )}
+            />
+            {errors.role && <Typography variant="caption" color="error">{errors.role.message}</Typography>}
+          </FormControl>
+
+          {/* Phòng ban chính */}
+          <FormControl fullWidth error={!!errors.primaryDepartmentId}>
+            <InputLabel>Phòng ban chính</InputLabel>
+            <Controller
+              name="primaryDepartmentId"
+              control={control}
+              render={({ field }) => (
+                <Select {...field} label="Phòng ban chính" value={field.value || ""}>
+                  <MenuItem value=""><em>Chưa gán</em></MenuItem>
+                  {departments.map((dept) => (
+                    <MenuItem key={dept.id} value={dept.id}>{dept.name}</MenuItem>
+                  ))}
+                </Select>
+              )}
+            />
+          </FormControl>
+
+          {/* Quản lý nhiều phòng */}
+          <FormControl fullWidth>
+            <InputLabel>Quản lý (nhiều phòng)</InputLabel>
+            <Controller
+              name="managedDepartmentIds"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  {...field}
+                  multiple
+                  input={<OutlinedInput label="Quản lý (nhiều phòng)" />}
+                  renderValue={(selected) =>
+                    (selected || [])
+                      .map(id => departments.find(d => d.id === id)?.name)
+                      .filter(Boolean)
+                      .join(", ")
+                  }
+                >
+                  {departments.map((dept) => (
+                    <MenuItem key={dept.id} value={dept.id}>
+                      <Checkbox checked={(field.value || []).indexOf(dept.id) > -1} />
+                      <ListItemText primary={dept.name} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+            />
+          </FormControl>
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ p: "0 24px 16px" }}>
+        <Button onClick={onClose}>Hủy</Button>
+        <Button onClick={handleSubmit(onSubmit)} variant="contained" disabled={isSubmitting}>
+          {isEdit ? "Lưu thay đổi" : "Gửi Lời Mời"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
 
 /* ---------------- Main page ---------------- */
 
@@ -229,17 +293,12 @@ export default function AdminUserManager() {
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [editUserOpen, setEditUserOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState({ title: "", content: "", onConfirm: () => {} });
+  const [confirmAction, setConfirmAction] = useState({ title: "", content: "", onConfirm: () => { } });
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
-  const [form, setForm] = useState({
-    email: "", displayName: "", role: "nhan-vien",
-    primaryDepartmentId: "", managedDepartmentIds: []
-  });
-
   const auth = getAuth();
-    const functions = getFunctions(getApp(), "asia-southeast1");
+  const functions = getFunctions(getApp(), "asia-southeast1");
   const deleteUserByUid = httpsCallable(functions, "deleteUserByUid");
   const inviteUser = httpsCallable(functions, 'inviteUser');
 
@@ -328,33 +387,28 @@ export default function AdminUserManager() {
   const handleCloseMenu = () => { setAnchorEl(null); };
 
   const handleOpenEditDialog = () => {
-    setForm({
-      ...currentUser,
-      primaryDepartmentId: currentUser.primaryDepartmentId || "",
-      managedDepartmentIds: currentUser.managedDepartmentIds || [],
-    });
     setEditUserOpen(true);
     handleCloseMenu();
   };
 
-  const handleUpdateUser = async () => {
+  const handleUpdateUser = async (data) => {
     const adminUser = auth.currentUser;
     const originalUser = currentUser;
     try {
-      await updateDoc(doc(db, "users", form.uid), {
-        displayName: form.displayName,
-        role: form.role,
-        primaryDepartmentId: form.primaryDepartmentId || null,
-        managedDepartmentIds: form.managedDepartmentIds || [],
+      await updateDoc(doc(db, "users", originalUser.uid), {
+        displayName: data.displayName,
+        role: data.role,
+        primaryDepartmentId: data.primaryDepartmentId || null,
+        managedDepartmentIds: data.managedDepartmentIds || [],
       });
 
-      if (originalUser.displayName !== form.displayName)
-        await logActivity("USER_NAME_UPDATED", adminUser, form, { from: originalUser.displayName, to: form.displayName });
-      if (originalUser.role !== form.role)
-        await logActivity("USER_ROLE_UPDATED", adminUser, form, { from: originalUser.role, to: form.role });
-      if (originalUser.primaryDepartmentId !== form.primaryDepartmentId ||
-        JSON.stringify(originalUser.managedDepartmentIds || []) !== JSON.stringify(form.managedDepartmentIds || []))
-        await logActivity("USER_DEPT_UPDATED", adminUser, form);
+      if (originalUser.displayName !== data.displayName)
+        await logActivity("USER_NAME_UPDATED", adminUser, data, { from: originalUser.displayName, to: data.displayName });
+      if (originalUser.role !== data.role)
+        await logActivity("USER_ROLE_UPDATED", adminUser, data, { from: originalUser.role, to: data.role });
+      if (originalUser.primaryDepartmentId !== data.primaryDepartmentId ||
+        JSON.stringify(originalUser.managedDepartmentIds || []) !== JSON.stringify(data.managedDepartmentIds || []))
+        await logActivity("USER_DEPT_UPDATED", adminUser, data);
 
       fetchData();
       setFeedback({ open: true, message: "Cập nhật người dùng thành công!", severity: "success" });
@@ -364,43 +418,38 @@ export default function AdminUserManager() {
     }
   };
 
-const handleCreateUser = async () => {
-  if (!form.email || !form.displayName) {
-    setFeedback({ open: true, message: "Vui lòng nhập đủ Email và Tên hiển thị.", severity: "warning" });
-    return;
-  }
+  const handleCreateUser = async (data) => {
+    setLoading(true);
+    try {
+      // Gọi Cloud Function: tạo user + gửi email reset qua Yahoo SMTP (đã làm ở backend)
+      await inviteUser({
+        email: data.email,
+        displayName: data.displayName,
+        role: data.role,
+        primaryDepartmentId: data.primaryDepartmentId || null,
+        managedDepartmentIds: data.managedDepartmentIds || [],
+      });
 
-  setLoading(true);
-  try {
-    // Gọi Cloud Function: tạo user + gửi email reset qua Yahoo SMTP (đã làm ở backend)
-    await inviteUser({
-      email: form.email,
-      displayName: form.displayName,
-      role: form.role,
-      primaryDepartmentId: form.primaryDepartmentId || null,
-      managedDepartmentIds: form.managedDepartmentIds || [],
-    });
+      // KHÔNG gọi sendPasswordResetEmail ở client nữa (tránh gửi 2 mail)
 
-    // KHÔNG gọi sendPasswordResetEmail ở client nữa (tránh gửi 2 mail)
-
-    await fetchData();
-    setFeedback({
-      open: true,
-      message: `✅ Đã tạo tài khoản & đã gửi email thiết lập mật khẩu tới ${form.email}`,
-      severity: "success",
-    });
-    setAddUserOpen(false);
-  } catch (error) {
-    console.error("Lỗi khi tạo người dùng:", error);
-    setFeedback({
-      open: true,
-      message: `❌ Lỗi: ${error.message || "Không thể tạo người dùng."}`,
-      severity: "error",
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+      await fetchData();
+      setFeedback({
+        open: true,
+        message: `✅ Đã tạo tài khoản & đã gửi email thiết lập mật khẩu tới ${data.email}`,
+        severity: "success",
+      });
+      setAddUserOpen(false);
+    } catch (error) {
+      console.error("Lỗi khi tạo người dùng:", error);
+      setFeedback({
+        open: true,
+        message: `❌ Lỗi: ${error.message || "Không thể tạo người dùng."}`,
+        severity: "error",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   const executeActionWithConfirmation = (title, content, onConfirm) => {
@@ -452,7 +501,6 @@ const handleCreateUser = async () => {
 
   return (
     <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
-      {/* ... Toàn bộ JSX của bạn giữ nguyên ... */}
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
         <Box>
           <Typography variant="h5" fontWeight={600}>
@@ -466,10 +514,10 @@ const handleCreateUser = async () => {
         </Button>
       </Stack>
       <Grid container spacing={3} mb={3}>
-        <Grid item xs={6} sm={3}><StatCard icon={<PeopleAlt />} title="Tổng số" count={stats.total} color="info.main" /></Grid>
-        <Grid item xs={6} sm={3}><StatCard icon={<AdminPanelSettings />} title="Quản trị" count={stats.admin} color="error.main" /></Grid>
-        <Grid item xs={6} sm={3}><StatCard icon={<SupervisorAccount />} title="Nhóm quản lý" count={stats.managerLike} color="warning.main" /></Grid>
-        <Grid item xs={6} sm={3}><StatCard icon={<Lock />} title="Bị khóa" count={stats.locked} color="action.disabled" /></Grid>
+        <Grid size={{ xs: 6, sm: 3 }}><StatCard icon={<PeopleAlt />} title="Tổng số" count={stats.total} color="info.main" /></Grid>
+        <Grid size={{ xs: 6, sm: 3 }}><StatCard icon={<AdminPanelSettings />} title="Quản trị" count={stats.admin} color="error.main" /></Grid>
+        <Grid size={{ xs: 6, sm: 3 }}><StatCard icon={<SupervisorAccount />} title="Nhóm quản lý" count={stats.managerLike} color="warning.main" /></Grid>
+        <Grid size={{ xs: 6, sm: 3 }}><StatCard icon={<Lock />} title="Bị khóa" count={stats.locked} color="action.disabled" /></Grid>
       </Grid>
       <Card elevation={4} sx={{ borderRadius: 3, overflow: "visible" }}>
         {selected.length > 0 ? (
@@ -506,10 +554,6 @@ const handleCreateUser = async () => {
             <Divider flexItem orientation="vertical" />
             <Button
               onClick={() => {
-                setForm({
-                  email: "", displayName: "", role: "nhan-vien",
-                  primaryDepartmentId: "", managedDepartmentIds: []
-                });
                 setAddUserOpen(true);
               }}
               variant="contained"
@@ -583,18 +627,8 @@ const handleCreateUser = async () => {
                         <TableCell>
                           <Chip label={roleLabel} size="small" color={roleColors[user.role] || "default"} />
                         </TableCell>
-                        <TableCell>
-                          {user.locked ? (
-                            <Chip icon={<Block />} label="Bị khóa" color="error" size="small" variant="outlined" />
-                          ) : user.emailVerified ? (
-                            <Chip icon={<CheckCircle />} label="Đã xác thực" color="success" size="small" variant="outlined" />
-                          ) : (
-                            <Chip icon={<Warning />} label="Chưa xác thực" color="warning" size="small" variant="outlined" />
-                          )}
-                        </TableCell>
-                        <TableCell>{user.lastLogin?.toDate?.()?.toLocaleString("vi-VN") || "—"}</TableCell>
                         <TableCell align="right">
-                          <IconButton onClick={(e) => handleOpenMenu(e, user)}>
+                          <IconButton onClick={(event) => handleOpenMenu(event, user)}>
                             <MoreVert />
                           </IconButton>
                         </TableCell>
@@ -617,7 +651,7 @@ const handleCreateUser = async () => {
             setPage(0);
           }}
         />
-      </Card>
+      </Card >
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => { setAnchorEl(null); }}>
         <MenuItem onClick={handleOpenEditDialog}>
           <Edit sx={{ mr: 1 }} fontSize="small" /> Chỉnh sửa
@@ -671,8 +705,7 @@ const handleCreateUser = async () => {
         open={addUserOpen}
         onClose={() => setAddUserOpen(false)}
         onSave={handleCreateUser}
-        form={form}
-        setForm={setForm}
+        initialValues={null}
         isEdit={false}
         departments={departments}
       />
@@ -680,8 +713,7 @@ const handleCreateUser = async () => {
         open={editUserOpen}
         onClose={() => { setEditUserOpen(false); }}
         onSave={handleUpdateUser}
-        form={form}
-        setForm={setForm}
+        initialValues={currentUser}
         isEdit={true}
         departments={departments}
       />
@@ -705,6 +737,6 @@ const handleCreateUser = async () => {
           {feedback.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </Box >
   );
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import { Card, CardContent, Stack, Checkbox, Box, Typography, Tooltip, IconButton } from "@mui/material";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Delete as Trash2 } from "@mui/icons-material";
 import { formatDate } from "../../utils/assetUtils";
 
 const AssetCardMobile = React.memo(({ asset, isSelected, canManageAssets, onSelect, onEdit, onDelete }) => (
@@ -45,12 +45,12 @@ const AssetCardMobile = React.memo(({ asset, isSelected, canManageAssets, onSele
                     <Stack>
                         <Tooltip title="Chỉnh sửa (Admin)">
                             <IconButton size="small" onClick={onEdit}>
-                                <Edit size={18} />
+                                <Edit sx={{ fontSize: 18 }} />
                             </IconButton>
                         </Tooltip>
                         <Tooltip title="Yêu cầu Xóa/Giảm SL">
                             <IconButton size="small" color="error" onClick={onDelete}>
-                                <Trash2 size={18} />
+                                <Trash2 sx={{ fontSize: 18 }} />
                             </IconButton>
                         </Tooltip>
                     </Stack>

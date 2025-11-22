@@ -81,14 +81,14 @@ const FormulaGuide = ({ open, onClose }) => {
                 {/* --- NHÓM CÔNG THỨC CHUNG --- */}
                 <SectionHeader icon={<PublicIcon color="action" />}>Công Thức Chung</SectionHeader>
                 <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <FormulaItem
                             title="Được Trừ Quý Này"
                             projectType="Tất cả loại CT"
                             formula="MIN( MAX(0, Doanh Thu - (CP Trực Tiếp + Phân Bổ)), Chuyển Tiếp ĐK )"
                         />
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <FormulaItem
                             title="CP Sau Quyết Toán"
                             projectType="Tất cả loại CT"
@@ -102,28 +102,28 @@ const FormulaGuide = ({ open, onClose }) => {
                 {/* --- NHÓM QUY TẮC CHUYỂN QUÝ --- */}
                 <SectionHeader icon={<SwapHorizIcon color="action" />}>Quy Tắc Chuyển Dữ Liệu Sang Quý Sau</SectionHeader>
                 <Grid container spacing={3}>
-                    <Grid item xs={12} lg={6}>
+                    <Grid size={{ xs: 12, lg: 6 }}>
                         <FormulaItem
                             title="Nợ Phải Trả ĐK (Quý Sau)"
                             projectType="Nhà Máy"
                             formula="Nợ Phải Trả CK (Quý Hiện Tại) + Nợ Phải Trả CK NM (Quý Hiện Tại)"
                         />
                     </Grid>
-                     <Grid item xs={12} lg={6}>
+                    <Grid size={{ xs: 12, lg: 6 }}>
                         <FormulaItem
                             title="Nợ Phải Trả ĐK (Quý Sau)"
                             projectType="Loại CT khác"
                             formula="Nợ Phải Trả CK (Quý Hiện Tại)"
                         />
                     </Grid>
-                    <Grid item xs={12} lg={6}>
+                    <Grid size={{ xs: 12, lg: 6 }}>
                         <FormulaItem
                             title="Tồn ĐK (Quý Sau)"
                             projectType="Tất cả loại CT"
                             formula="Tồn Kho/Ứng KH (Quý Hiện Tại)"
                         />
                     </Grid>
-                    <Grid item xs={12} lg={6}>
+                    <Grid size={{ xs: 12, lg: 6 }}>
                         <FormulaItem
                             title="Chuyển Tiếp ĐK (Quý Sau)"
                             projectType="Tất cả loại CT"
@@ -135,21 +135,21 @@ const FormulaGuide = ({ open, onClose }) => {
                 {/* --- NHÓM CÔNG TRÌNH THI CÔNG & KH-ĐT --- */}
                 <SectionHeader icon={<ConstructionIcon color="action" />}>Công Thức Cho CT Thi Công & KH-ĐT</SectionHeader>
                 <Grid container spacing={3}>
-                    <Grid item xs={12} md={6} lg={4}>
+                    <Grid size={{ xs: 12, md: 6, lg: 4 }}>
                         <FormulaItem
                             title="Tổng Chi Phí"
                             projectType="Thi Công & KH-ĐT"
                             formula={`IF( Doanh Thu = 0, (CP Trực Tiếp + Phân Bổ), Doanh Thu )`}
                         />
                     </Grid>
-                    <Grid item xs={12} md={6} lg={4}>
+                    <Grid size={{ xs: 12, md: 6, lg: 4 }}>
                         <FormulaItem
                             title="Nợ Phải Trả CK"
                             projectType="Thi Công & KH-ĐT"
                             formula={`MAX(0, Doanh Thu - CP Trực Tiếp - Phân Bổ - Được Trừ QN) + Nợ Phải Trả ĐK`}
                         />
                     </Grid>
-                    <Grid item xs={12} md={6} lg={4}>
+                    <Grid size={{ xs: 12, md: 6, lg: 4 }}>
                         <FormulaItem
                             title="Cuối Kỳ"
                             projectType="Thi Công & KH-ĐT"
@@ -159,16 +159,16 @@ const FormulaGuide = ({ open, onClose }) => {
                 </Grid>
 
                 {/* --- NHÓM CÔNG TRÌNH VẬT TƯ & NHÂN CÔNG --- */}
-                 <SectionHeader icon={<GroupsIcon color="action" />}>Công Thức Cho CT Vật Tư & Nhân Công</SectionHeader>
+                <SectionHeader icon={<GroupsIcon color="action" />}>Công Thức Cho CT Vật Tư & Nhân Công</SectionHeader>
                 <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <FormulaItem
                             title="Tổng Chi Phí"
                             projectType="Vật Tư & Nhân Công"
                             formula={`Tồn ĐK - Nợ Phải Trả ĐK + CP Trực Tiếp + Phân Bổ + Nợ Phải Trả CK - Tồn Kho/Ứng KH`}
                         />
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <FormulaItem
                             title="Nợ Phải Trả CK"
                             projectType="Vật Tư & Nhân Công"
@@ -180,28 +180,28 @@ const FormulaGuide = ({ open, onClose }) => {
                 {/* --- NHÓM CÔNG TRÌNH NHÀ MÁY --- */}
                 <SectionHeader icon={<FactoryIcon color="action" />}>Công Thức Riêng Cho Loại CT Nhà Máy</SectionHeader>
                 <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <FormulaItem
                             title="CP Trừ Vào Chuyển Tiếp"
                             projectType="Nhà Máy"
                             formula={`MIN( MAX(0, Doanh Thu - CP Trực Tiếp), Chuyển Tiếp ĐK )`}
                         />
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <FormulaItem
                             title="CP Vượt Quý"
                             projectType="Nhà Máy"
                             formula={`MAX(0, CP Trực Tiếp + Phân Bổ + Nợ Phải Trả CK NM - Nợ Phải Trả ĐK - Doanh Thu)`}
                         />
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <FormulaItem
                             title="Vượt Cuối Kỳ"
                             projectType="Nhà Máy"
                             formula={`Chuyển Tiếp ĐK - Được Trừ QN + CP Vượt Quý`}
                         />
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <FormulaItem
                             title="Nợ Phải Trả CK"
                             projectType="Nhà Máy"

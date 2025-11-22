@@ -19,19 +19,19 @@ import {
 } from '@mui/material';
 import { styled, alpha } from '@mui/material/styles';
 import {
-    ArrowLeft, Printer, Check, Clock, MoreHorizontal, UserCheck,
-    CheckCircle2, Copy, ZoomIn, ZoomOut, FileText, Users, Handshake, X
-} from 'lucide-react';
+    ArrowBack as ArrowLeft, Print as Printer, Check, AccessTime as Clock, MoreHoriz as MoreHorizontal, HowToReg as UserCheck,
+    CheckCircle as CheckCircle2, ContentCopy as Copy, ZoomIn, ZoomOut, Description as FileText, Group as Users, Handshake, Close as X
+} from '@mui/icons-material';
 
 // ================== CONFIG & HELPERS ==================
 
 // Trạng thái yêu cầu
 const requestStatusConfig = {
-    PENDING_HC: { label: "Chờ P.HC", color: "warning", icon: <Clock size={14} /> },
-    PENDING_BLOCK_LEADER: { label: "Chờ Lãnh đạo Khối", color: "primary", icon: <Users size={14} /> },
-    PENDING_KT: { label: "Chờ P.KT", color: "info", icon: <UserCheck size={14} /> },
-    COMPLETED: { label: "Hoàn thành", color: "success", icon: <Check size={14} /> },
-    REJECTED: { label: "Bị từ chối", color: "error", icon: <X size={14} /> },
+    PENDING_HC: { label: "Chờ P.HC", color: "warning", icon: <Clock sx={{ fontSize: 14 }} /> },
+    PENDING_BLOCK_LEADER: { label: "Chờ Lãnh đạo Khối", color: "primary", icon: <Users sx={{ fontSize: 14 }} /> },
+    PENDING_KT: { label: "Chờ P.KT", color: "info", icon: <UserCheck sx={{ fontSize: 14 }} /> },
+    COMPLETED: { label: "Hoàn thành", color: "success", icon: <Check sx={{ fontSize: 14 }} /> },
+    REJECTED: { label: "Bị từ chối", color: "error", icon: <X sx={{ fontSize: 14 }} /> },
 };
 
 // Luồng duyệt
@@ -72,9 +72,9 @@ const EnhancedWorkflowStepper = ({ request }) => {
                 const isFuture = !isCompleted && !isActive;
 
                 let icon, iconColor = "action.disabled";
-                if (isCompleted) { icon = <CheckCircle2 size={20} />; iconColor = "success.main"; }
-                else if (isActive) { icon = <Clock size={20} />; iconColor = "primary.main"; }
-                else { icon = <MoreHorizontal size={20} />; }
+                if (isCompleted) { icon = <CheckCircle2 sx={{ fontSize: 20 }} />; iconColor = "success.main"; }
+                else if (isActive) { icon = <Clock sx={{ fontSize: 20 }} />; iconColor = "primary.main"; }
+                else { icon = <MoreHorizontal sx={{ fontSize: 20 }} />; }
 
                 return (
                     <Stack key={step.signatureKey} direction="row" spacing={2} sx={{ alignItems: "flex-start" }}>
@@ -114,7 +114,7 @@ const ControlSidebar = ({ request, onProcess, isProcessing, canProcess }) => {
                 {isMyTurn && (
                     <>
                         <Stack spacing={1} alignItems="center" textAlign="center" sx={{ mb: 2.5 }}>
-                            <UserCheck size={28} color={theme.palette.primary.main} />
+                            <UserCheck sx={{ fontSize: 28 }} color={theme.palette.primary.main} />
                             <Typography variant="h6" fontWeight={700}>Đến lượt duyệt của bạn</Typography>
                             <Typography variant="body2" color="text.secondary">Vui lòng xem kỹ nội dung và xử lý yêu cầu.</Typography>
                         </Stack>
@@ -311,7 +311,7 @@ export default function AssetRequestDetailPage() {
             <PageHeader elevation={0}>
                 <Container maxWidth="xl">
                     <Stack direction="row" alignItems="center" spacing={2} sx={{ height: "64px" }}>
-                        <Button component={Link} to="/asset-transfer" variant="text" startIcon={<ArrowLeft size={20} />} sx={{ color: "text.secondary", mr: 1 }}>
+                        <Button component={Link} to="/asset-transfer" variant="text" startIcon={<ArrowLeft sx={{ fontSize: 20 }} />} sx={{ color: "text.secondary", mr: 1 }}>
                             Quay về
                         </Button>
                         <Divider orientation="vertical" flexItem />
@@ -323,12 +323,12 @@ export default function AssetRequestDetailPage() {
                                 navigator.clipboard.writeText(requestId);
                                 toast.success("Đã sao chép mã yêu cầu");
                             }}>
-                                <Copy size={16} />
+                                <Copy sx={{ fontSize: 16 }} />
                             </IconButton>
                         </Tooltip>
                         <Box flexGrow={1} />
                         <StatusBadge status={request?.status} />
-                        <Button onClick={handlePrint} variant="contained" startIcon={<Printer size={18} />} sx={{ borderRadius: 2 }} disabled={!request}>
+                        <Button onClick={handlePrint} variant="contained" startIcon={<Printer sx={{ fontSize: 18 }} />} sx={{ borderRadius: 2 }} disabled={!request}>
                             {request?.status === "COMPLETED" ? "In Phiếu" : "In Bản nháp"}
                         </Button>
                     </Stack>
@@ -337,7 +337,7 @@ export default function AssetRequestDetailPage() {
 
             <Container maxWidth="xl" sx={{ pt: 4 }}>
                 <Grid container spacing={4}>
-                    <Grid item xs={12} md={4} lg={3.5}>
+                    <Grid size={{ xs: 12, md: 4, lg: 3.5 }}>
                         <Box sx={{ position: "sticky", top: "80px" }}>
                             <ControlSidebar
                                 request={request}
@@ -348,16 +348,16 @@ export default function AssetRequestDetailPage() {
                         </Box>
                     </Grid>
 
-                    <Grid item xs={12} md={8} lg={8.5}>
+                    <Grid size={{ xs: 12, md: 8, lg: 8.5 }}>
                         <Stack spacing={2}>
                             <Paper variant="outlined" sx={{ p: 1, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                 <Typography variant="h6" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                    <FileText size={20} /> Nội dung Yêu cầu
+                                    <FileText sx={{ fontSize: 20 }} /> Nội dung Yêu cầu
                                 </Typography>
                                 <ButtonGroup variant="outlined" size="small">
-                                    <Button onClick={() => setScale((s) => clamp(s - 0.15, 0.5, 1.5))}><ZoomOut size={16} /></Button>
+                                    <Button onClick={() => setScale((s) => clamp(s - 0.15, 0.5, 1.5))}><ZoomOut sx={{ fontSize: 16 }} /></Button>
                                     <Button onClick={() => setScale(1)} sx={{ minWidth: "55px" }}>{Math.round(scale * 100)}%</Button>
-                                    <Button onClick={() => setScale((s) => clamp(s + 0.15, 0.5, 1.5))}><ZoomIn size={16} /></Button>
+                                    <Button onClick={() => setScale((s) => clamp(s + 0.15, 0.5, 1.5))}><ZoomIn sx={{ fontSize: 16 }} /></Button>
                                 </ButtonGroup>
                             </Paper>
                             <Paper elevation={0} variant="outlined" sx={{ backgroundColor: "white", overflow: "auto", p: { xs: 1, sm: 2 }, display: "flex", justifyContent: "center", borderRadius: 3, height: "calc(100vh - 180px)" }}>

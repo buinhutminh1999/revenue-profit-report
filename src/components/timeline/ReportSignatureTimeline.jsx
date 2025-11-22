@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Stack, Typography, Tooltip } from "@mui/material";
-import { Check, Clock } from "lucide-react";
+import { Check, AccessTime as Clock } from "@mui/icons-material";
 import { fullTime } from "../../utils/assetUtils";
 import { reportWorkflows } from "../../utils/constants";
 
@@ -26,7 +26,7 @@ const ReportSignatureTimeline = ({ signatures = {}, status, type }) => {
                             color: isCompleted ? 'success.dark' : (isActive ? 'primary.dark' : 'grey.600'),
                             border: theme => `2px solid ${isCompleted ? theme.palette.success.main : (isActive ? theme.palette.primary.main : 'transparent')}`
                         }}>
-                            {isCompleted ? <Check size={16} /> : <Clock size={14} />}
+                            {isCompleted ? <Check sx={{ fontSize: 16 }} /> : <Clock sx={{ fontSize: 14 }} />}
                         </Box>
                         <Box>
                             <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>{step.label}</Typography>

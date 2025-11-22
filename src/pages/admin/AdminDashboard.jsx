@@ -7,7 +7,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase-config';
 
 // ✅ BƯỚC 1: Thêm icon mới
-import { Users, Settings, BarChart, HardDrive, ClipboardList, ChevronRight, FileText, Landmark, ShieldCheck } from 'lucide-react';
+import { People as Users, Settings, BarChart, Storage as HardDrive, Assignment as ClipboardList, ChevronRight, Description as FileText, AccountBalance as Landmark, VerifiedUser as ShieldCheck } from '@mui/icons-material';
 
 // --- DỮ LIỆU CẤU HÌNH ---
 const adminItems = [
@@ -119,7 +119,7 @@ export default function AdminDashboard() {
     const navigate = useNavigate();
     const [stats, setStats] = useState({ userCount: null, reportCount: null, departmentCount: null });
     const sectionRefs = useRef({});
-    const theme = useTheme(); 
+    const theme = useTheme();
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -138,7 +138,7 @@ export default function AdminDashboard() {
                 safeGetDocs("weeklyReports"),
                 safeGetDocs("departments")
             ]);
-            
+
             setStats({ userCount, reportCount, departmentCount });
         };
         fetchStats();
@@ -165,16 +165,16 @@ export default function AdminDashboard() {
         hidden: { opacity: 0 },
         visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
     };
-    
+
     const itemVariants = {
         hidden: { y: 20, opacity: 0 },
         visible: { y: 0, opacity: 1 }
     };
 
     return (
-        <Box p={{xs: 2, md: 3}}>
+        <Box p={{ xs: 2, md: 3 }}>
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                 <Typography variant="h4" gutterBottom fontWeight={700}>
+                <Typography variant="h4" gutterBottom fontWeight={700}>
                     Trang quản trị
                 </Typography>
                 <Typography variant="body1" color="text.secondary" mb={4}>
@@ -183,7 +183,7 @@ export default function AdminDashboard() {
             </motion.div>
 
             <Grid container spacing={5}>
-                <Grid item xs={12} md={3}>
+                <Grid size={{ xs: 12, md: 3 }}>
                     <Paper sx={{ p: 2, borderRadius: 4, position: 'sticky', top: '88px', background: 'transparent', boxShadow: 'none' }}>
                         <Typography variant="overline" color="text.secondary" display="block" mb={1}>DANH MỤC</Typography>
                         <List>
@@ -196,7 +196,7 @@ export default function AdminDashboard() {
                     </Paper>
                 </Grid>
 
-                <Grid item xs={12} md={9}>
+                <Grid size={{ xs: 12, md: 9 }}>
                     <motion.div variants={containerVariants} initial="hidden" animate="visible">
                         {Object.entries(groupedItems).map(([group, items]) => (
                             <Box key={group} mb={5} ref={el => sectionRefs.current[group] = el}>
@@ -216,8 +216,8 @@ export default function AdminDashboard() {
                                                     <Typography variant="body2" color="text.secondary">{item.description}</Typography>
                                                 </Box>
                                                 {typeof item.count === 'number' && <Chip label={item.count} size="small" sx={{ mx: 2, fontWeight: 'bold' }} />}
-                                                
-                                                {!item.disabled && <ChevronRight style={{ color: theme.palette.text.secondary }} />}
+
+                                                {!item.disabled && <ChevronRight sx={{ color: theme.palette.text.secondary }} />}
                                             </AdminItemCard>
                                         </motion.div>
                                     ))}

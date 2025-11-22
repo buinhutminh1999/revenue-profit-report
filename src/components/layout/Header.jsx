@@ -31,18 +31,18 @@ import {
     writeBatch,
 } from "firebase/firestore";
 
-// lucide-react icons
+// MUI icons
 import {
-    Search, Moon, Sun, Settings as SettingsIcon, LogOut, User as UserIcon, Bell,
-    HelpCircle, Shield, Menu as MenuIcon, ChevronRight, Home, LayoutDashboard,
-    Building2, BarChart2, FolderOpen, TrendingUp, ChevronsLeft, PlusCircle, Trash2,
-    FilePlus,
+    Search, DarkMode as Moon, LightMode as Sun, Settings as SettingsIcon, Logout as LogOut, Person as UserIcon, Notifications as Bell,
+    Help as HelpCircle, AdminPanelSettings as Shield, Menu as MenuIcon, ChevronRight, Home, Dashboard as LayoutDashboard,
+    Business as Building2, BarChart as BarChart2, FolderOpen, TrendingUp, MenuOpen as ChevronsLeft, AddCircle as PlusCircle, Delete as Trash2,
+    NoteAdd as FilePlus,
     Check,
-    X,
-    UserCheck,
+    Close as X,
+    HowToReg as UserCheck,
     Send,
-    FilePen,
-} from "lucide-react";
+    DriveFileRenameOutline as FilePen,
+} from "@mui/icons-material";
 
 // ---------- styled ----------
 const NotificationBadge = styled(Badge)(({ theme }) => ({
@@ -63,7 +63,7 @@ const UserSection = styled(Box)(({ theme }) => ({
     borderRadius: theme.shape.borderRadius * 3, // Bo góc nhiều hơn, hiện đại hơn
     cursor: "pointer",
     transition: "background-color 0.2s ease, box-shadow 0.2s ease",
-    backgroundColor: theme.palette.mode === 'light' ? theme.palette.grey[100] : alpha(theme.palette.common.white, 0.05), 
+    backgroundColor: theme.palette.mode === 'light' ? theme.palette.grey[100] : alpha(theme.palette.common.white, 0.05),
     "&:hover": {
         backgroundColor: alpha(theme.palette.primary.main, 0.1), // Hover nổi bật
     },
@@ -114,22 +114,22 @@ const pathMap = {
 
 // ---------- Notification Config ----------
 const notificationConfig = {
-    ASSET_CREATED: { icon: <PlusCircle size={20} color="#2e7d32" />, template: (actor, target) => `**${actor}** đã tạo tài sản mới **${target}**.` },
-    ASSET_DELETED: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã xóa tài sản **${target}**.` },
-    ASSET_REQUEST_CREATED: { icon: <FilePlus size={20} color="#0288d1" />, template: (actor, target) => `**${actor}** đã gửi yêu cầu thêm tài sản **${target}**.` },
-    ASSET_REQUEST_DELETED: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor) => `**${actor}** đã xóa một yêu cầu thay đổi.` },
-    ASSET_REQUEST_REJECTED: { icon: <X size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã từ chối yêu cầu cho tài sản **${target}**.` },
-    ASSET_REQUEST_APPROVED: { icon: <Check size={20} color="#2e7d32" />, template: (actor, target) => `**${actor}** đã duyệt yêu cầu cho tài sản **${target}**.` },
-    ASSET_REQUEST_HC_APPROVED: { icon: <UserCheck size={20} color="#1976d2" />, template: (actor, target) => `**${actor}** (P.HC) đã duyệt yêu cầu cho **${target}**.` },
-    ASSET_REQUEST_KT_APPROVED: { icon: <Check size={20} color="#2e7d32" />, template: (actor, target) => `**${actor}** (P.KT) đã duyệt xong yêu cầu cho **${target}**.` },
-    TRANSFER_CREATED: { icon: <Send size={20} color="#0288d1" />, template: (actor, target) => `**${actor}** đã tạo phiếu luân chuyển **${target}**.` },
-    TRANSFER_DELETED: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã xóa phiếu luân chuyển **${target}**.` },
-    TRANSFER_SIGNED: { icon: <FilePen size={20} color="#1976d2" />, template: (actor, target, details) => `**${actor}** đã ký **${details}** cho phiếu **${target}**.` },
-    REPORT_CREATED: { icon: <FilePlus size={20} color="#0288d1" />, template: (actor, target) => `**${actor}** đã tạo **${target}**.` },
-    REPORT_SIGNED: { icon: <Check size={20} color="#2e7d32" />, template: (actor, target, details) => `**${actor}** đã ký **${details}** cho **${target}**.` },
-    REPORT_DELETED: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã xóa **${target}**.` },
-    REPORT_DELETED_BY_CALLABLE: { icon: <Trash2 size={20} color="#d32f2f" />, template: (actor, target) => `**${actor}** đã xóa **${target}** (qua tác vụ hệ thống).` },
-    DEFAULT: { icon: <Bell size={20} />, template: (actor) => `**${actor}** đã thực hiện một hành động.` }
+    ASSET_CREATED: { icon: <PlusCircle htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã tạo tài sản mới **${target}**.` },
+    ASSET_DELETED: { icon: <Trash2 htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã xóa tài sản **${target}**.` },
+    ASSET_REQUEST_CREATED: { icon: <FilePlus htmlColor="#0288d1" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã gửi yêu cầu thêm tài sản **${target}**.` },
+    ASSET_REQUEST_DELETED: { icon: <Trash2 htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor) => `**${actor}** đã xóa một yêu cầu thay đổi.` },
+    ASSET_REQUEST_REJECTED: { icon: <X htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã từ chối yêu cầu cho tài sản **${target}**.` },
+    ASSET_REQUEST_APPROVED: { icon: <Check htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã duyệt yêu cầu cho tài sản **${target}**.` },
+    ASSET_REQUEST_HC_APPROVED: { icon: <UserCheck htmlColor="#1976d2" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** (P.HC) đã duyệt yêu cầu cho **${target}**.` },
+    ASSET_REQUEST_KT_APPROVED: { icon: <Check htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** (P.KT) đã duyệt xong yêu cầu cho **${target}**.` },
+    TRANSFER_CREATED: { icon: <Send htmlColor="#0288d1" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã tạo phiếu luân chuyển **${target}**.` },
+    TRANSFER_DELETED: { icon: <Trash2 htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã xóa phiếu luân chuyển **${target}**.` },
+    TRANSFER_SIGNED: { icon: <FilePen htmlColor="#1976d2" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** đã ký **${details}** cho phiếu **${target}**.` },
+    REPORT_CREATED: { icon: <FilePlus htmlColor="#0288d1" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã tạo **${target}**.` },
+    REPORT_SIGNED: { icon: <Check htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** đã ký **${details}** cho **${target}**.` },
+    REPORT_DELETED: { icon: <Trash2 htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã xóa **${target}**.` },
+    REPORT_DELETED_BY_CALLABLE: { icon: <Trash2 htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã xóa **${target}** (qua tác vụ hệ thống).` },
+    DEFAULT: { icon: <Bell sx={{ fontSize: 20 }} />, template: (actor) => `**${actor}** đã thực hiện một hành động.` }
 };
 
 export default function Header({ onSidebarToggle, isSidebarOpen }) {
@@ -159,7 +159,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         setNotificationsError(null);
         const q = query(collection(db, "audit_logs"), orderBy("timestamp", "desc"), limit(20));
         const unsubscribe = onSnapshot(
-            q, 
+            q,
             (querySnapshot) => {
                 const logsData = querySnapshot.docs.map(doc => ({
                     id: doc.id,
@@ -228,27 +228,27 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
             {
                 category: "Điều hướng",
                 items: [
-                    { icon: <LayoutDashboard size={20} />, text: "Dashboard", action: () => navigate("/") },
-                    { icon: <Building2 size={20} />, text: "Danh sách dự án", action: () => navigate("/project-manager") },
-                    { icon: <BarChart2 size={20} />, text: "Báo cáo lợi nhuận", action: () => navigate("/profit-report-quarter") },
-                    { icon: <TrendingUp size={20} />, text: "Báo cáo lợi nhuận năm", action: () => navigate("/profit-report-year") },
-                    { icon: <FolderOpen size={20} />, text: "Công nợ phải thu", action: () => navigate("/accounts-receivable") },
-                    { icon: <FolderOpen size={20} />, text: "Công nợ phải trả", action: () => navigate("/construction-payables") },
+                    { icon: <LayoutDashboard sx={{ fontSize: 20 }} />, text: "Dashboard", action: () => navigate("/") },
+                    { icon: <Building2 sx={{ fontSize: 20 }} />, text: "Danh sách dự án", action: () => navigate("/project-manager") },
+                    { icon: <BarChart2 sx={{ fontSize: 20 }} />, text: "Báo cáo lợi nhuận", action: () => navigate("/profit-report-quarter") },
+                    { icon: <TrendingUp sx={{ fontSize: 20 }} />, text: "Báo cáo lợi nhuận năm", action: () => navigate("/profit-report-year") },
+                    { icon: <FolderOpen sx={{ fontSize: 20 }} />, text: "Công nợ phải thu", action: () => navigate("/accounts-receivable") },
+                    { icon: <FolderOpen sx={{ fontSize: 20 }} />, text: "Công nợ phải trả", action: () => navigate("/construction-payables") },
                 ],
             },
             {
                 category: "Hành động",
                 items: [
-                    { icon: <FolderOpen size={20} />, text: "Tạo dự án mới", action: () => navigate("/construction-plan") },
-                    { icon: <PlusCircle size={20} />, text: "Quản lý tài sản", action: () => navigate("/asset-transfer") },
-                    { icon: <FilePlus size={20} />, text: "So sánh giá vật tư", action: () => navigate("/material-price-comparison") },
+                    { icon: <FolderOpen sx={{ fontSize: 20 }} />, text: "Tạo dự án mới", action: () => navigate("/construction-plan") },
+                    { icon: <PlusCircle sx={{ fontSize: 20 }} />, text: "Quản lý tài sản", action: () => navigate("/asset-transfer") },
+                    { icon: <FilePlus sx={{ fontSize: 20 }} />, text: "So sánh giá vật tư", action: () => navigate("/material-price-comparison") },
                 ],
             },
             ...(user?.role === 'admin' ? [{
                 category: "Quản trị",
                 items: [
-                    { icon: <Shield size={20} />, text: "Quản trị hệ thống", action: () => navigate("/admin") },
-                    { icon: <UserCheck size={20} />, text: "Quản lý người dùng", action: () => navigate("/admin") },
+                    { icon: <Shield sx={{ fontSize: 20 }} />, text: "Quản trị hệ thống", action: () => navigate("/admin") },
+                    { icon: <UserCheck sx={{ fontSize: 20 }} />, text: "Quản lý người dùng", action: () => navigate("/admin") },
                 ],
             }] : []),
         ],
@@ -265,27 +265,27 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         }));
     }, [searchValue, quickActions]);
     const noActionFound = filteredActions.every((g) => g.items.length === 0);
-    
+
     // ✅ Cải thiện: Tính toán total items cho keyboard navigation
-    const totalItems = useMemo(() => 
+    const totalItems = useMemo(() =>
         filteredActions.reduce((sum, group) => sum + group.items.length, 0),
         [filteredActions]
     );
-    
+
     // ✅ Cải thiện: Thêm keyboard navigation cho command palette
     const [selectedIndex, setSelectedIndex] = useState(0);
-    
+
     // ✅ Cải thiện: Reset selectedIndex khi searchValue thay đổi
     useEffect(() => {
         setSelectedIndex(0);
     }, [searchValue]);
-    
+
     useEffect(() => {
         if (!searchOpen) {
             setSelectedIndex(0);
             return;
         }
-        
+
         const handleKeyDown = (e) => {
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
@@ -310,7 +310,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                 }
             }
         };
-        
+
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [searchOpen, totalItems, selectedIndex, filteredActions]);
@@ -347,9 +347,9 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     </Tooltip>
 
                     <Box sx={{ display: { xs: "none", md: "block" } }}>
-                        <Breadcrumbs 
-                            aria-label="breadcrumb" 
-                            separator={<ChevronRight size={16} />} 
+                        <Breadcrumbs
+                            aria-label="breadcrumb"
+                            separator={<ChevronRight size={16} />}
                             sx={{ '& .MuiBreadcrumbs-separator': { mx: 0.5 } }} // Giảm khoảng cách giữa các dấu >
                         >
                             <MuiLink
@@ -359,7 +359,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                 color="text.secondary" // Màu xám nhẹ cho link chưa active
                                 to="/"
                             >
-                                <Home size={16} style={{ marginRight: 6 }} /> {/* Icon nhỏ hơn */}
+                                <Home sx={{ fontSize: 16, mr: 0.75 }} /> {/* Icon nhỏ hơn */}
                                 <Typography variant="body2" sx={{ fontWeight: 500 }}>Tổng quan</Typography>
                             </MuiLink>
                             {pathnames.map((value, index) => {
@@ -370,10 +370,10 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                     <Typography
                                         color="text.primary"
                                         key={to}
-                                        sx={{ 
-                                            display: "flex", 
-                                            alignItems: "center", 
-                                            fontWeight: 700, 
+                                        sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            fontWeight: 700,
                                             fontSize: '0.9rem' // Tăng fontWeight
                                         }}
                                         aria-current="page"
@@ -381,11 +381,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                         {label}
                                     </Typography>
                                 ) : (
-                                    <MuiLink 
-                                        component={RouterLink} 
-                                        underline="hover" 
-                                        color="text.secondary" 
-                                        to={to} 
+                                    <MuiLink
+                                        component={RouterLink}
+                                        underline="hover"
+                                        color="text.secondary"
+                                        to={to}
                                         key={to}
                                     >
                                         <Typography variant="body2" sx={{ fontWeight: 500 }}>{label}</Typography>
@@ -400,7 +400,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                 <Stack direction="row" alignItems="center" spacing={{ xs: 0.5, sm: 1.5 }}>
                     <Tooltip title="Tìm kiếm nhanh (⌘K)">
                         <IconButton color="inherit" onClick={() => setSearchOpen(true)} aria-label="Mở bảng lệnh nhanh">
-                            <Search size={20} />
+                            <Search sx={{ fontSize: 20 }} />
                         </IconButton>
                     </Tooltip>
 
@@ -419,7 +419,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                     exit={reduce ? {} : { rotate: 90, opacity: 0 }}
                                     transition={{ duration: 0.2 }}
                                 >
-                                    {theme.palette.mode === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+                                    {theme.palette.mode === "dark" ? <Sun sx={{ fontSize: 20 }} /> : <Moon sx={{ fontSize: 20 }} />}
                                 </motion.div>
                             </AnimatePresence>
                         </IconButton>
@@ -438,7 +438,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                             aria-label={`Mở thông báo, ${unreadCount} chưa đọc`}
                         >
                             <NotificationBadge badgeContent={unreadCount} max={9}>
-                                <Bell size={20} />
+                                <Bell sx={{ fontSize: 20 }} />
                             </NotificationBadge>
                         </IconButton>
                     </Tooltip>
@@ -476,33 +476,33 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                 PaperProps={{ sx: { mt: 1, minWidth: 220, borderRadius: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" } }}
             >
                 <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/user"); }}>
-                    <ListItemIcon><UserIcon size={18} /></ListItemIcon>
+                    <ListItemIcon><UserIcon sx={{ fontSize: 18 }} /></ListItemIcon>
                     <ListItemText primary="Hồ sơ cá nhân" />
                 </MenuItem>
                 <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/settings"); }}>
-                    <ListItemIcon><SettingsIcon size={18} /></ListItemIcon>
+                    <ListItemIcon><SettingsIcon sx={{ fontSize: 18 }} /></ListItemIcon>
                     <ListItemText primary="Cài đặt" />
                 </MenuItem>
-                
+
                 {/* Bọc mục "Quản trị" trong điều kiện kiểm tra vai trò */}
                 {user?.role === 'admin' && (
                     <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/admin"); }}>
-                        <ListItemIcon><Shield size={18} /></ListItemIcon>
+                        <ListItemIcon><Shield sx={{ fontSize: 18 }} /></ListItemIcon>
                         <ListItemText primary="Quản trị" />
                     </MenuItem>
                 )}
-                
+
                 <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/help"); }}>
-                    <ListItemIcon><HelpCircle size={18} /></ListItemIcon>
+                    <ListItemIcon><HelpCircle sx={{ fontSize: 18 }} /></ListItemIcon>
                     <ListItemText primary="Trợ giúp" />
                 </MenuItem>
                 <Divider />
                 <MenuItem onClick={() => { toggleColorMode(); }}>
-                    <ListItemIcon>{theme.palette.mode === "dark" ? <Sun size={18} /> : <Moon size={18} />}</ListItemIcon>
+                    <ListItemIcon>{theme.palette.mode === "dark" ? <Sun sx={{ fontSize: 18 }} /> : <Moon sx={{ fontSize: 18 }} />}</ListItemIcon>
                     <ListItemText primary={theme.palette.mode === "dark" ? "Chế độ Sáng" : "Chế độ Tối"} />
                 </MenuItem>
                 <MenuItem onClick={async () => { setUserMenuAnchor(null); await handleLogout(); }}>
-                    <ListItemIcon><LogOut size={18} /></ListItemIcon>
+                    <ListItemIcon><LogOut sx={{ fontSize: 18 }} /></ListItemIcon>
                     <ListItemText primary="Đăng xuất" />
                 </MenuItem>
             </Menu>
@@ -567,10 +567,10 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     ) : notifications.filter((n) => (notificationTab === 0 ? true : !n.isRead)).length === 0 ? (
                         // ✅ Cải thiện: Empty state với component
                         <EmptyState
-                            icon={<Bell size={48} />}
+                            icon={<Bell sx={{ fontSize: 48 }} />}
                             title="Không có thông báo nào"
                             description={
-                                notificationTab === 0 
+                                notificationTab === 0
                                     ? "Bạn chưa có thông báo nào. Thông báo sẽ xuất hiện ở đây khi có hoạt động mới."
                                     : "Tất cả thông báo đã được đọc."
                             }
@@ -581,54 +581,54 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         notifications
                             .filter((n) => (notificationTab === 0 ? true : !n.isRead))
                             .map((n) => {
-                            const config = notificationConfig[n.action] || notificationConfig.DEFAULT;
-                            return (
-                                <ListItemButton
-                                    key={n.id}
-                                    onClick={() => {
-                                        if (!n.isRead) handleMarkAsRead(n.id);
-                                        setNotificationAnchor(null);
-                                    }}
-                                    sx={{ 
-                                        borderRadius: 1.5, 
-                                        mb: 0.5, 
-                                        alignItems: 'flex-start',
-                                        // Highlight thông báo chưa đọc
-                                        bgcolor: n.isRead ? 'transparent' : alpha(theme.palette.primary.light, 0.05),
-                                        "&:hover": {
-                                            bgcolor: alpha(theme.palette.primary.light, 0.1),
-                                        }
-                                    }}
-                                >
-                                    <ListItemIcon sx={{ mt: 0.5, minWidth: 36 }}>{config.icon}</ListItemIcon>
+                                const config = notificationConfig[n.action] || notificationConfig.DEFAULT;
+                                return (
+                                    <ListItemButton
+                                        key={n.id}
+                                        onClick={() => {
+                                            if (!n.isRead) handleMarkAsRead(n.id);
+                                            setNotificationAnchor(null);
+                                        }}
+                                        sx={{
+                                            borderRadius: 1.5,
+                                            mb: 0.5,
+                                            alignItems: 'flex-start',
+                                            // Highlight thông báo chưa đọc
+                                            bgcolor: n.isRead ? 'transparent' : alpha(theme.palette.primary.light, 0.05),
+                                            "&:hover": {
+                                                bgcolor: alpha(theme.palette.primary.light, 0.1),
+                                            }
+                                        }}
+                                    >
+                                        <ListItemIcon sx={{ mt: 0.5, minWidth: 36 }}>{config.icon}</ListItemIcon>
 
-                                    <ListItemText
-                                        primary={
-                                            <Typography variant="body2" fontWeight={n.isRead ? 400 : 700} sx={{ mb: 0.25 }}>
-                                                {config.template(
-                                                    n.actor?.name || "Một người dùng",
-                                                    n.target?.name || "",
-                                                    n.details?.step || ""
-                                                ).split('**').map((text, index) => (
-                                                    <b key={index} style={{ color: n.isRead ? undefined : theme.palette.primary.main }}>{index % 2 === 1 ? text : text}</b> 
-                                                ))}
-                                            </Typography>
-                                        }
-                                        secondary={
-                                            <Typography variant="caption" color="text.secondary">
-                                                {n.timestamp?.toDate().toLocaleString("vi-VN", {
-                                                    day: '2-digit', month: '2-digit', year: 'numeric',
-                                                    hour: '2-digit', minute: '2-digit'
-                                                })}
-                                            </Typography>
-                                        }
-                                    />
-                                    {!n.isRead && (
-                                        <Box sx={{ mt: 0.75, width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
-                                    )}
-                                </ListItemButton>
-                            );
-                        })
+                                        <ListItemText
+                                            primary={
+                                                <Typography variant="body2" fontWeight={n.isRead ? 400 : 700} sx={{ mb: 0.25 }}>
+                                                    {config.template(
+                                                        n.actor?.name || "Một người dùng",
+                                                        n.target?.name || "",
+                                                        n.details?.step || ""
+                                                    ).split('**').map((text, index) => (
+                                                        <b key={index} style={{ color: n.isRead ? undefined : theme.palette.primary.main }}>{index % 2 === 1 ? text : text}</b>
+                                                    ))}
+                                                </Typography>
+                                            }
+                                            secondary={
+                                                <Typography variant="caption" color="text.secondary">
+                                                    {n.timestamp?.toDate().toLocaleString("vi-VN", {
+                                                        day: '2-digit', month: '2-digit', year: 'numeric',
+                                                        hour: '2-digit', minute: '2-digit'
+                                                    })}
+                                                </Typography>
+                                            }
+                                        />
+                                        {!n.isRead && (
+                                            <Box sx={{ mt: 0.75, width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', flexShrink: 0 }} />
+                                        )}
+                                    </ListItemButton>
+                                );
+                            })
                     )}
                 </Box>
                 <Box sx={{ p: 1, borderTop: t => `1px solid ${t.palette.divider}` }}>
@@ -653,7 +653,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     >
                         <CommandPalette onClick={(e) => e.stopPropagation()}>
                             <Box sx={{ p: 1.5, borderBottom: (t) => `1px solid ${t.palette.divider}`, display: "flex", alignItems: "center", gap: 1.5 }}>
-                                <Search size={18} color={theme.palette.primary.main} /> {/* Highlight icon Search */}
+                                <Search sx={{ fontSize: 18, color: theme.palette.primary.main }} /> {/* Highlight icon Search */}
                                 <InputBase
                                     fullWidth
                                     placeholder="Tìm nhanh chức năng, dự án, báo cáo... (gõ để lọc)"
@@ -663,11 +663,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                     inputProps={{ "aria-label": "Tìm kiếm nhanh" }}
                                     sx={{ fontSize: '1.1rem' }} // Chữ to hơn
                                 />
-                                <Button 
-                                    onClick={() => setSearchOpen(false)} 
+                                <Button
+                                    onClick={() => setSearchOpen(false)}
                                     size="small"
                                     color="inherit"
-                                    startIcon={<X size={14} />}
+                                    startIcon={<X sx={{ fontSize: 14 }} />}
                                     sx={{ textTransform: 'none', minWidth: 'auto', p: '2px 8px', borderRadius: 1.5 }}
                                 >
                                     Đóng
@@ -681,20 +681,20 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                         if (g.category === group.category) break;
                                         groupStartIndex += g.items.length;
                                     }
-                                    
+
                                     return (
                                         <Box key={group.category} sx={{ mb: 2 }}>
                                             <Typography variant="overline" color="text.secondary">{group.category}</Typography>
                                             {group.items.map((item, itemIndex) => {
                                                 const currentIndex = groupStartIndex + itemIndex;
                                                 const isSelected = currentIndex === selectedIndex;
-                                                
+
                                                 return (
-                                                    <QuickAction 
-                                                        key={item.text} 
-                                                        onClick={() => { 
-                                                            item.action(); 
-                                                            setSearchOpen(false); 
+                                                    <QuickAction
+                                                        key={item.text}
+                                                        onClick={() => {
+                                                            item.action();
+                                                            setSearchOpen(false);
                                                             setSearchValue("");
                                                         }}
                                                         sx={{

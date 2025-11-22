@@ -6,8 +6,10 @@ import {
   Divider, Chip, Avatar, Grid, Tooltip, Fade, Zoom
 } from "@mui/material";
 import { styled, alpha, useTheme } from "@mui/material/styles";
-import { Edit, Save, Cancel, CheckCircle, Email, VerifiedUser, 
-  Person, Fingerprint, Cloud, AdminPanelSettings } from "@mui/icons-material";
+import {
+  Edit, Save, Cancel, CheckCircle, Email, VerifiedUser,
+  Person, Fingerprint, Cloud, AdminPanelSettings
+} from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 import { updateProfile, sendEmailVerification } from "firebase/auth";
 import { auth } from "../../services/firebase-config";
@@ -93,12 +95,12 @@ export default function ProfileTab() {
       toast.error("Tên hiển thị không được để trống");
       return;
     }
-    
+
     if (formData.displayName === user?.displayName) {
       setIsEditing(false);
       return;
     }
-    
+
     setIsLoading(true);
     try {
       await updateProfile(auth.currentUser, {
@@ -342,7 +344,7 @@ export default function ProfileTab() {
         {/* Account Information Grid */}
         <Grid container spacing={2}>
           {/* Email */}
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <motion.div variants={itemVariants}>
               <InfoCard>
                 <CardContent>
@@ -383,7 +385,7 @@ export default function ProfileTab() {
           </Grid>
 
           {/* Role */}
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <motion.div variants={itemVariants}>
               <InfoCard>
                 <CardContent>
@@ -418,7 +420,7 @@ export default function ProfileTab() {
           </Grid>
 
           {/* UID */}
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <motion.div variants={itemVariants}>
               <InfoCard>
                 <CardContent>
@@ -457,7 +459,7 @@ export default function ProfileTab() {
           </Grid>
 
           {/* Provider */}
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <motion.div variants={itemVariants}>
               <InfoCard>
                 <CardContent>

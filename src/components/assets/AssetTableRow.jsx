@@ -1,6 +1,6 @@
 import React from "react";
 import { TableRow, TableCell, Checkbox, Typography, Tooltip, IconButton } from "@mui/material";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Delete } from "@mui/icons-material";
 import { hi, formatDate } from "../../utils/assetUtils";
 
 const AssetTableRow = React.memo(({
@@ -36,12 +36,12 @@ const AssetTableRow = React.memo(({
                 <TableCell align="right">
                     <Tooltip title="Chỉnh sửa tài sản (Admin)">
                         <IconButton size="small" onClick={() => onEdit(asset)}>
-                            <Edit size={18} />
+                            <Edit fontSize="small" />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Yêu cầu Xóa/Giảm SL">
                         <IconButton size="small" color="error" onClick={() => onDelete(asset)}>
-                            <Trash2 size={18} />
+                            <Delete fontSize="small" />
                         </IconButton>
                     </Tooltip>
                 </TableCell>

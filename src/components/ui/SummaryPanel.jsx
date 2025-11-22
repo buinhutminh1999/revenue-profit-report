@@ -352,7 +352,7 @@ export default function SummaryPanel({
           {/* Main KPIs */}
           <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 4 }}>
             {main.map((m) => (
-              <Grid item xs={12} md={4} key={m.key}>
+              <Grid size={{ xs: 12, md: 4 }} key={m.key}>
                 <PrimaryMetric
                   label={m.label}
                   value={m.value}
@@ -387,7 +387,7 @@ export default function SummaryPanel({
           {/* Secondary metrics (dense) */}
           <Grid container spacing={2}>
             {/* Project Revenue block first */}
-            <Grid item xs={6} sm={4} md={3} lg={2}>
+            <Grid size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
               <SecondaryMetric
                 label={projectData?.type === "Nhà máy" ? `Doanh thu Q${quarter}` : "DT Toàn Công Trình"}
                 value={displayProjectRevenue}
@@ -399,7 +399,7 @@ export default function SummaryPanel({
             </Grid>
 
             {secondary.map((s, i) => (
-              <Grid item xs={6} sm={4} md={3} lg={2} key={s.key}>
+              <Grid size={{ xs: 6, sm: 4, md: 3, lg: 2 }} key={s.key}>
                 <SecondaryMetric
                   label={s.label}
                   value={s.value}

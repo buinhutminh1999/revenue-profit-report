@@ -214,8 +214,8 @@ const EditableCell = React.memo(
             setIsEditing(false);
             const newValue = isNumeric
                 ? parseFloat(
-                      String(value).replace(/\./g, "").replace(/,/g, "")
-                  ) || 0
+                    String(value).replace(/\./g, "").replace(/,/g, "")
+                ) || 0
                 : value;
             if (initialValue !== newValue) onSave(newValue);
         };
@@ -276,8 +276,8 @@ const EditableCell = React.memo(
                     {isNumeric
                         ? formatCurrency(initialValue)
                         : initialValue || (
-                              <em style={{ color: "#9e9e9e" }}>Nhập...</em>
-                          )}
+                            <em style={{ color: "#9e9e9e" }}>Nhập...</em>
+                        )}
                 </Typography>
             </Box>
         );
@@ -466,7 +466,7 @@ const CapitalUtilizationReport = () => {
             setReportData(updatedData);
         }
     }, [fetchedData, balances, chartOfAccounts]);
-    
+
     // BẮT ĐẦU THAY ĐỔI: Cập nhật hàm debouncedSave
     const debouncedSave = useMemo(
         () =>
@@ -520,7 +520,7 @@ const CapitalUtilizationReport = () => {
         [year, quarter, saveData]
     );
     // KẾT THÚC THAY ĐỔI
-    
+
     const handleDataChange = useCallback(
         (section, id, field, newValue) => {
             setReportData((prevData) => {
@@ -598,7 +598,7 @@ const CapitalUtilizationReport = () => {
         );
     }, [debouncedSave]);
     // KẾT THÚC THAY ĐỔI
-  // ✅ DI CHUYỂN useMemo LÊN ĐÂY, NGAY SAU CÁC HOOK KHÁC
+    // ✅ DI CHUYỂN useMemo LÊN ĐÂY, NGAY SAU CÁC HOOK KHÁC
     const investmentTotals = useMemo(() => {
         // Kiểm tra an toàn vì reportData có thể chưa tồn tại ở lần render đầu tiên
         if (!reportData?.investment?.projectDetails) {
@@ -674,15 +674,15 @@ const CapitalUtilizationReport = () => {
 
             <Paper elevation={0} variant="outlined" sx={{ p: 2, mb: 3 }}>
                 <Grid container spacing={2} alignItems="center">
-                    <Grid item>
+                    <Grid size="auto">
                         <FilterListIcon color="action" />
                     </Grid>
-                    <Grid item>
+                    <Grid size="auto">
                         <Typography fontWeight="bold">
                             Chọn kỳ báo cáo:
                         </Typography>
                     </Grid>
-                    <Grid item xs={12} sm={3} md={2}>
+                    <Grid size={{ xs: 12, sm: 3, md: 2 }}>
                         <FormControl fullWidth size="small">
                             <InputLabel>Quý</InputLabel>
                             <Select
@@ -698,7 +698,7 @@ const CapitalUtilizationReport = () => {
                             </Select>
                         </FormControl>
                     </Grid>
-                    <Grid item xs={12} sm={3} md={2}>
+                    <Grid size={{ xs: 12, sm: 3, md: 2 }}>
                         <FormControl fullWidth size="small">
                             <InputLabel>Năm</InputLabel>
                             <Select
@@ -894,7 +894,7 @@ const CapitalUtilizationReport = () => {
                                             />
                                         </TableCell>
                                         <TableCell>{row.name}</TableCell>
-                                        
+
                                         {/* Chuyển các ô thành EditableCell để có thể dán và sửa */}
                                         <TableCell align="right"><EditableCell value={row.cost} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "cost", v)} /></TableCell>
                                         <TableCell align="right"><EditableCell value={row.profit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "profit", v)} /></TableCell>

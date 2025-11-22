@@ -1,6 +1,6 @@
 import React from "react";
 import { Card, CardActionArea, CardContent, Stack, Box, Collapse, Divider, CardActions, Tooltip, Button } from "@mui/material";
-import { History } from "lucide-react";
+import { History } from "@mui/icons-material";
 import { motion } from "framer-motion";
 
 const WorkflowCard = ({
@@ -66,7 +66,7 @@ const WorkflowCard = ({
                         <Button
                             size="small"
                             onClick={onExpandClick}
-                            startIcon={<History size={16} />}
+                            startIcon={<History sx={{ fontSize: 16 }} />}
                             sx={{ color: 'text.secondary' }}
                         >
                             Lịch sử
