@@ -9,8 +9,6 @@ import {
     AutoAwesome, ArrowForward
 } from '@mui/icons-material';
 
-const CURRENT_VERSION = '1.2.0'; // Increment this for new updates
-
 const updates = [
     {
         type: 'security',
@@ -37,20 +35,39 @@ const updates = [
 
 const UpdateNotification = () => {
     const [open, setOpen] = useState(false);
+    const [version, setVersion] = useState(null);
     const theme = useTheme();
 
     useEffect(() => {
-        const lastSeenVersion = localStorage.getItem('app_version');
-        if (lastSeenVersion !== CURRENT_VERSION) {
-            // Delay a bit for better UX
-            const timer = setTimeout(() => setOpen(true), 1500);
-            return () => clearTimeout(timer);
-        }
+        const checkVersion = async () => {
+            try {
+                // Fetch version.json from public folder (generated at build time)
+                const response = await fetch('/version.json?t=' + new Date().getTime());
+                if (!response.ok) return;
+
+                const data = await response.json();
+                const serverVersion = data.version;
+                const localVersion = localStorage.getItem('app_version');
+
+                // If version changed (and it's not the first visit), show notification
+                if (serverVersion && serverVersion !== localVersion) {
+                    setVersion(serverVersion);
+                    // Delay a bit for better UX
+                    setTimeout(() => setOpen(true), 1500);
+                }
+            } catch (error) {
+                console.error("Failed to check version:", error);
+            }
+        };
+
+        checkVersion();
     }, []);
 
     const handleClose = () => {
         setOpen(false);
-        localStorage.setItem('app_version', CURRENT_VERSION);
+        if (version) {
+            localStorage.setItem('app_version', version);
+        }
     };
 
     return (
@@ -123,7 +140,7 @@ const UpdateNotification = () => {
                         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                             <Box>
                                 <Chip
-                                    label={`Phiên bản ${CURRENT_VERSION}`}
+                                    label={version && version.length > 10 ? "Phiên bản mới nhất" : `Phiên bản ${version}`}
                                     size="small"
                                     sx={{
                                         bgcolor: 'rgba(255,255,255,0.2)',
