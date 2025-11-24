@@ -5,11 +5,13 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
-import queryClient from "./services/queryClient"; 
+import queryClient from "./services/queryClient";
 import { AuthProvider } from "./contexts/AuthContext"; // Import AuthProvider từ file context
 import CustomThemeProvider from "./styles/ThemeContext";
 import Router from "./routes"; // Import component Router từ routes/index.js
 import ErrorBoundary from "./components/common/ErrorBoundary";
+
+import UpdateNotification from "./components/common/UpdateNotification";
 
 export default function App() {
   return (
@@ -33,6 +35,7 @@ export default function App() {
                 },
               }}
             />
+            <UpdateNotification />
             <Router />
           </AuthProvider>
         </CustomThemeProvider>

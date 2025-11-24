@@ -1,4 +1,4 @@
-// src/pages/Home.js
+// src/pages/attendance/AttendanceDashboard.jsx
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
@@ -27,7 +27,7 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { vi } from 'date-fns/locale'; // Import locale tiếng Việt từ date-fns
 
 import { startOfDay, endOfDay } from "date-fns";
-import { Print, Search, Clear } from "@mui/icons-material";
+import { Print, Search, Clear, CloudUpload } from "@mui/icons-material";
 
 import FileUpload from "../../components/common/FileUpload";
 import DepartmentFilter from "../../components/common/DepartmentFilter";
@@ -114,7 +114,7 @@ const companyOptions = [
     { value: "BKCT", label: "Công ty Bách Khoa Châu Thành" },
 ];
 
-export default function Home() {
+export default function AttendanceDashboard() {
     const isMobile = useMediaQuery("(max-width:600px)");
     const [rows, setRows] = useState([]);
     const [depts, setDepts] = useState([]);
@@ -313,156 +313,164 @@ export default function Home() {
     );
 
     return (
-        <Box sx={{ p: isMobile ? 1 : 3 }}>
-            <Typography variant={isMobile ? "h5" : "h4"} component="h1" fontWeight="bold" gutterBottom>
-                Ứng Dụng Chấm Công
-            </Typography>
-
-            <Paper elevation={2} sx={{ p: isMobile ? 2 : 3, mb: 3, background: theme => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50' }}>
-                <Stack spacing={3}>
-                    {/* Khu vực Tải Dữ Liệu (Không đổi) */}
-                    <Box>
-                        <Typography variant="h6" fontWeight="bold" gutterBottom>
-                            Tải Dữ Liệu Chấm Công
-                        </Typography>
-                        <FileUpload
-                            onFileUpload={handleFileUpload}
-                            isUploading={isUploading}
-                        />
-                    </Box>
-                    <Divider />
-
-                    {/* KHU VỰC LỌC: ĐÃ CẬP NHẬT */}
-                    <Box>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                            <Typography variant="h6" fontWeight="bold">
-                                Lọc và Tìm Kiếm
-                            </Typography>
-                            <Button
-                                variant="outlined"
-                                size="small"
-                                onClick={handleClearFilters}
-                                startIcon={<Clear />}
-                            >
-                                Xóa bộ lọc
-                            </Button>
-                        </Stack>
-
-                        {/* --- THAY ĐỔI 5: Cập nhật Grid layout và thêm Select --- */}
-                        <Grid container spacing={2} alignItems="center">
-                            <Grid size={{ xs: 12, md: 4 }}> {/* Đổi từ md={6} */}
-                                <TextField
-                                    fullWidth
-                                    size="small"
-                                    label="Tìm kiếm theo tên, bộ phận..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    InputProps={{
-                                        startAdornment: (
-                                            <InputAdornment position="start">
-                                                <Search />
-                                            </InputAdornment>
-                                        ),
-                                    }}
-                                />
-                            </Grid>
-                            <Grid size={{ xs: 12, md: 4 }}> {/* Đổi từ md={6} */}
-                                <DepartmentFilter depts={depts} value={dept} onChange={setDept} labels={{ all: "Tất cả bộ phận" }} />
-                            </Grid>
-
-                            {/* --- THÊM SELECT CÔNG TY --- */}
-                            <Grid size={{ xs: 12, md: 4 }}>
-                                <TextField
-                                    select
-                                    fullWidth
-                                    size="small"
-                                    label="Chọn logic chấm công"
-                                    value={selectedCompany} // Vẫn đọc từ state
-                                    onChange={(e) => setSelectedCompany(e.target.value)} // Vẫn cập nhật state
-                                >
-                                    {companyOptions.map((option) => (
-                                        <MenuItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </MenuItem>
-                                    ))}
-                                </TextField>
-                            </Grid>
-                            {/* --------------------------- */}
-
-                            <Grid size={{ xs: 12, sm: 6 }}>
-                                <LocalizationProvider
-                                    dateAdapter={AdapterDateFns}
-                                    adapterLocale={vi}
-                                >
-                                    <Picker
-                                        label="Từ ngày"
-                                        value={fromDate}
-                                        onChange={setFromDate}
-                                        format="dd/MM/yyyy"
-                                        enableAccessibleFieldDOMStructure={false}
-                                        slots={{ textField: TextField }}
-                                        slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                                    />
-                                </LocalizationProvider>
-                            </Grid>
-                            <Grid size={{ xs: 12, sm: 6 }}>
-                                <LocalizationProvider
-                                    dateAdapter={AdapterDateFns}
-                                    adapterLocale={vi}
-                                >
-                                    <Picker
-                                        label="Đến ngày"
-                                        value={toDate}
-                                        onChange={setToDate}
-                                        format="dd/MM/yyyy"
-                                        enableAccessibleFieldDOMStructure={false}
-                                        slots={{ textField: TextField }}
-                                        slotProps={{ textField: { size: 'small', fullWidth: true } }}
-                                    />
-                                </LocalizationProvider>
-                            </Grid>
-                        </Grid>
-                    </Box>
-                    <Divider />
-
-                    {/* Khu vực Hành Động (Không đổi) */}
-                    <Box>
-                        <Typography variant="h6" fontWeight="bold" gutterBottom>
-                            Hành Động
-                        </Typography>
-                        <Stack direction={isMobile ? "column" : "row"} spacing={2} alignItems="center">
-                            <FormControlLabel
-                                control={<Checkbox checked={includeSaturday} onChange={(e) => setIncludeSaturday(e.target.checked)} />}
-                                label="In kèm ngày Thứ 7"
-                                sx={{ mr: 'auto' }}
-                            />
-                            <Button fullWidth={isMobile} variant="contained" size="large" startIcon={<Print />} onClick={handlePrint}>
-                                IN BẢNG CHẤM CÔNG
-                            </Button>
-                        </Stack>
-                    </Box>
-                </Stack>
-            </Paper>
-
-            {/* --- THAY ĐỔI 6: Truyền 'company' prop vào AttendanceTable --- */}
-            {filtered.length > 0 ? (
-                <AttendanceTable
-                    rows={filtered}
-                    includeSaturday={includeSaturday}
-                    onReasonSave={handleReasonSave}
-                    isMobile={isMobile}
-                    company={selectedCompany} // <-- TRUYỀN PROP VÀO ĐÂY
-                />
-            ) : (
-                <Box sx={{ mt: 4, textAlign: 'center' }}>
-                    <Typography variant="h6">Không có dữ liệu hiển thị</Typography>
-                    <Typography color="text.secondary">
-                        {rows.length === 0
-                            ? "Vui lòng tải tệp chấm công để bắt đầu."
-                            : "Hãy thử thay đổi hoặc xóa bớt bộ lọc."}
+        <Box sx={{ p: isMobile ? 1 : 3, backgroundColor: "#f8f9fa", minHeight: "100vh" }}>
+            {/* 1. Header & Title */}
+            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+                <Box>
+                    <Typography variant={isMobile ? "h5" : "h4"} component="h1" fontWeight="800" sx={{ color: "#1a237e", letterSpacing: "-0.5px" }}>
+                        QUẢN LÝ CHẤM CÔNG
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Hệ thống báo cáo & theo dõi nhân sự
                     </Typography>
                 </Box>
-            )}
+
+                {/* Quick Actions (Top Right) */}
+                <Stack direction="row" spacing={2}>
+                    <Button
+                        variant="contained"
+                        startIcon={<Print />}
+                        onClick={handlePrint}
+                        sx={{
+                            backgroundColor: "#2e7d32",
+                            "&:hover": { backgroundColor: "#1b5e20" },
+                            textTransform: "none",
+                            fontWeight: 600,
+                            boxShadow: "0 4px 12px rgba(46, 125, 50, 0.2)"
+                        }}
+                    >
+                        In Bảng Chấm Công
+                    </Button>
+                </Stack>
+            </Box>
+
+            {/* 2. Action Deck (Upload & Settings) */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid item xs={12} md={8}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: "1px solid #e0e0e0", display: 'flex', alignItems: 'center', gap: 2, height: '100%' }}>
+                        <Box sx={{ p: 1.5, borderRadius: "50%", backgroundColor: "#e3f2fd", color: "#1976d2" }}>
+                            <CloudUpload />
+                        </Box>
+                        <Box sx={{ flexGrow: 1 }}>
+                            <Typography variant="subtitle2" fontWeight="bold">Dữ liệu chấm công</Typography>
+                            <FileUpload
+                                onFileUpload={handleFileUpload}
+                                isUploading={isUploading}
+                            />
+                        </Box>
+                    </Paper>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: "1px solid #e0e0e0", height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <FormControlLabel
+                            control={<Checkbox checked={includeSaturday} onChange={(e) => setIncludeSaturday(e.target.checked)} />}
+                            label={<Typography variant="body2" fontWeight="600">In kèm chiều Thứ 7</Typography>}
+                        />
+                        <Typography variant="caption" color="text.secondary" sx={{ ml: 4 }}>
+                            *Tự động từ 18/11/2025
+                        </Typography>
+                    </Paper>
+                </Grid>
+            </Grid>
+
+            {/* 3. Filter Bar (Sticky-like) */}
+            <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 2, border: "1px solid #e0e0e0", backgroundColor: "#fff" }}>
+                <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} md={3}>
+                        <TextField
+                            fullWidth
+                            size="small"
+                            placeholder="Tìm tên, bộ phận..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            InputProps={{
+                                startAdornment: (<InputAdornment position="start"><Search fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment>),
+                            }}
+                            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+                        />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                        <DepartmentFilter depts={depts} value={dept} onChange={setDept} labels={{ all: "Tất cả bộ phận" }} />
+                    </Grid>
+                    <Grid item xs={12} md={2}>
+                        <TextField
+                            select
+                            fullWidth
+                            size="small"
+                            value={selectedCompany}
+                            onChange={(e) => setSelectedCompany(e.target.value)}
+                            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+                        >
+                            {companyOptions.map((option) => (
+                                <MenuItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={6} md={2}>
+                        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
+                            <Picker
+                                value={fromDate}
+                                onChange={setFromDate}
+                                format="dd/MM/yyyy"
+                                slotProps={{
+                                    textField: {
+                                        size: 'small',
+                                        fullWidth: true,
+                                        placeholder: "Từ ngày",
+                                        helperText: null // Disable helper text to prevent layout shift
+                                    }
+                                }}
+                            />
+                        </LocalizationProvider>
+                    </Grid>
+                    <Grid item xs={6} md={2}>
+                        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
+                            <Picker
+                                value={toDate}
+                                onChange={setToDate}
+                                format="dd/MM/yyyy"
+                                slotProps={{
+                                    textField: {
+                                        size: 'small',
+                                        fullWidth: true,
+                                        placeholder: "Đến ngày",
+                                        helperText: null // Disable helper text to prevent layout shift
+                                    }
+                                }}
+                            />
+                        </LocalizationProvider>
+                    </Grid>
+                </Grid>
+
+                {/* Active Filters Chips (Optional, can add later) */}
+                {(dept !== 'all' || searchTerm) && (
+                    <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                        <Button size="small" onClick={handleClearFilters} startIcon={<Clear />} sx={{ textTransform: 'none', color: 'text.secondary' }}>
+                            Xóa bộ lọc
+                        </Button>
+                    </Box>
+                )}
+            </Paper>
+
+            {/* 4. Data Table */}
+            <Paper elevation={0} sx={{ borderRadius: 2, border: "1px solid #e0e0e0", overflow: "hidden", minHeight: 400 }}>
+                {filtered.length > 0 ? (
+                    <AttendanceTable
+                        rows={filtered}
+                        includeSaturday={includeSaturday}
+                        onReasonSave={handleReasonSave}
+                        isMobile={isMobile}
+                        company={selectedCompany}
+                    />
+                ) : (
+                    <Box sx={{ p: 8, textAlign: 'center', color: 'text.secondary' }}>
+                        <Typography variant="h6">Chưa có dữ liệu</Typography>
+                        <Typography variant="body2">Vui lòng tải file Excel hoặc điều chỉnh bộ lọc.</Typography>
+                    </Box>
+                )}
+            </Paper>
         </Box>
     );
 }

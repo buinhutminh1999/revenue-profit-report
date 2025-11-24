@@ -415,7 +415,14 @@ export default function ActualCostsTab({ projectId }) {
     const columnsAll = useMemo(
         () => [
             { key: "project", label: "Công Trình", editable: true },
-            { key: "description", label: "Khoản Mục", editable: true },
+            {
+                key: "description",
+                label: "Khoản Mục",
+                isCellEditable: (row) => {
+                    const project = (row.project || "").toUpperCase();
+                    return !project.includes("-CP");
+                },
+            },
             { key: "inventory", label: "Tồn ĐK", editable: true },
             { key: "debt", label: "Nợ Phải Trả ĐK", editable: true },
             { key: "directCost", label: "Chi Phí Trực Tiếp", editable: true },

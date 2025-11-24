@@ -141,8 +141,15 @@ export const readExcelFile = async (file, sheetName) => {
                         } else if (val.text) {
                             val = val.text;
                         } else if (val instanceof Date) {
-                            // Format ngày tháng thành dd/mm/yyyy
-                            val = val.toLocaleDateString('en-GB');
+                            // Nếu năm < 1900, đây là giá trị THỜI GIAN (Time) của Excel
+                            if (val.getFullYear() < 1900) {
+                                const hours = val.getUTCHours().toString().padStart(2, '0');
+                                const minutes = val.getUTCMinutes().toString().padStart(2, '0');
+                                val = `${hours}:${minutes}`;
+                            } else {
+                                // Format ngày tháng thành dd/mm/yyyy
+                                val = val.toLocaleDateString('en-GB');
+                            }
                         } else if (val.result !== undefined) {
                             // Công thức
                             val = val.result;
@@ -197,6 +204,11 @@ export const readExcelFileAsArray = async (file) => {
                     } else if (val.text) {
                         return val.text;
                     } else if (val instanceof Date) {
+                        if (val.getFullYear() < 1900) {
+                            const hours = val.getUTCHours().toString().padStart(2, '0');
+                            const minutes = val.getUTCMinutes().toString().padStart(2, '0');
+                            return `${hours}:${minutes}`;
+                        }
                         return val.toLocaleDateString('en-GB');
                     } else if (val.result !== undefined) {
                         return val.result;

@@ -2,22 +2,21 @@ import { isLate, isEarly, isTimeString } from "./timeUtils";
 
 const WEEKDAYS = ["Chủ Nhật", "Hai", "Ba", "Tư", "Năm", "Sáu", "Bảy"];
 
-// --- THAY ĐỔI 1: Sao chép đối tượng logic thời gian từ AttendanceTable ---
 const TIME_THRESHOLDS = {
-    // Logic của Xây Dựng Bách Khoa (Mặc định)
-    BKXD: {
-        S1_LATE: 7 * 60 + 15,  // 07:15
-        S2_EARLY: 11 * 60 + 15, // 11:15
-        C1_LATE: 13 * 60,       // 13:00
-        C2_EARLY: 17 * 60,      // 17:00
-    },
-    // Logic của Bách Khoa Châu Thành (Mới)
-    BKCT: {
-        S1_LATE: 7 * 60,        // 07:00
-        S2_EARLY: 11 * 60,      // 11:00
-        C1_LATE: 13 * 60,       // 13:00 (Như cũ)
-        C2_EARLY: 17 * 60,      // 17:00 (Như cũ)
-    }
+  // Logic của Xây Dựng Bách Khoa (Mặc định)
+  BKXD: {
+    S1_LATE: 7 * 60 + 15,  // 07:15
+    S2_EARLY: 11 * 60 + 15, // 11:15
+    C1_LATE: 13 * 60,       // 13:00
+    C2_EARLY: 17 * 60,      // 17:00
+  },
+  // Logic của Bách Khoa Châu Thành (Mới)
+  BKCT: {
+    S1_LATE: 7 * 60,        // 07:00
+    S2_EARLY: 11 * 60,      // 11:00
+    C1_LATE: 13 * 60,       // 13:00 (Như cũ)
+    C2_EARLY: 17 * 60,      // 17:00 (Như cũ)
+  }
 };
 
 function parseDateString(str) {
@@ -30,47 +29,137 @@ function toMinutes(timeStr) {
   return h * 60 + m;
 }
 
-// --- THAY ĐỔI 2: Thêm 'company' vào tham số của hàm ---
 export function printStyledAttendance(
   rowsToPrint,
   dept,
   fromDate,
   toDate,
   includeSaturday = false,
-  company = "BKXD" // Thêm tham số này, mặc định là "BKXD"
+  company = "BKXD"
 ) {
   if (!rowsToPrint.length) return;
 
-  // --- THAY ĐỔI 3: Chọn logic dựa trên 'company' ---
+  // Logic mặc định
   const logic = TIME_THRESHOLDS[company] || TIME_THRESHOLDS.BKXD;
+
+  // Mapping tên công ty
+  const COMPANY_NAMES = {
+    BKXD: "CÔNG TY CPXD BÁCH KHOA",
+    BKCT: "CÔNG TY BÁCH KHOA CHÂU THÀNH"
+  };
+  const companyName = COMPANY_NAMES[company] || "CÔNG TY CPXD BÁCH KHOA";
 
   const firstDate = rowsToPrint[0].Ngày;
   const lastDate = rowsToPrint[rowsToPrint.length - 1].Ngày;
-  const title = `Bảng công từ ngày ${firstDate} đến ngày ${lastDate} – Bộ phận: ${dept}`;
+  const title = `BẢNG CHẤM CÔNG TỪ ${firstDate} ĐẾN ${lastDate}`;
+  const subTitle = `Bộ phận: ${dept === 'all' ? 'Tất cả' : dept}`;
+
+  const today = new Date();
+  const dateString = `Ngày ${today.getDate()} tháng ${today.getMonth() + 1} năm ${today.getFullYear()}`;
 
   const style = `
     <style>
-      @page { size: A4 landscape; margin: 20px; }
-      body { font-family: "Times New Roman", serif; }
-      h1 {
+      @page { size: A4 landscape; margin: 15mm; }
+      body { font-family: "Times New Roman", serif; color: #333; }
+      
+      /* Header Section */
+      .header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #1a237e;
+        padding-bottom: 10px;
+      }
+      .company-info {
+        font-size: 14px;
+        font-weight: bold;
+        text-transform: uppercase;
+        color: #1a237e;
+      }
+      .national-motto {
         text-align: center;
-        margin-bottom: 16px;
-        font-size: 24px;
+        font-size: 14px;
         font-weight: bold;
       }
-      table { width: 100%; border-collapse: collapse; }
-      th, td {
-        border: 1px solid #000;
-        padding: 6px;
-        text-align: center;
-        font-size: 12px;
+      .national-motto span {
+        display: block;
+        font-weight: normal;
+        font-style: italic;
+        font-size: 13px;
+        margin-top: 2px;
       }
-      th { background: #f2f2f2; }
-      .late { background: #FFCCCC; } /* Đây là class tô màu */
-      .signature { display: flex; justify-content: space-between; margin-top: 40px; }
-      .signature div { width: 40%; text-align: center; }
-      .signature p { font-weight: bold; margin-bottom: 60px; }
-      .note { font-size: 12px; margin-top: 10px; }
+
+      /* Title Section */
+      h1 {
+        text-align: center;
+        margin: 0 0 5px 0;
+        font-size: 22px;
+        font-weight: 900;
+        color: #1a237e;
+        text-transform: uppercase;
+      }
+      .sub-title {
+        text-align: center;
+        font-size: 16px;
+        font-weight: bold;
+        margin-bottom: 20px;
+        color: #555;
+      }
+
+      /* Table Section */
+      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+      th, td {
+        border: 1px solid #ccc; /* Lighter border */
+        padding: 6px 4px;
+        text-align: center;
+        font-size: 11px;
+      }
+      th { 
+        background-color: #1a237e; 
+        color: white; 
+        font-weight: bold;
+        font-size: 13px;
+      }
+      /* Zebra Striping */
+      tr:nth-child(even) { background-color: #f8f9fa; }
+      
+      /* Status Colors */
+      .late { 
+        color: #000; 
+        font-weight: bold; 
+        text-decoration: underline;
+        background-color: #e0e0e0;
+      }
+      .missing { color: #d32f2f; }
+      
+      /* Footer Section */
+      .footer-container {
+        margin-top: 30px;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 20px;
+      }
+      .signature-block {
+        text-align: center;
+        width: 40%;
+      }
+      .signature-title {
+        font-weight: bold;
+        font-size: 13px;
+        text-transform: uppercase;
+        margin-bottom: 80px;
+      }
+      .signature-name {
+        font-weight: bold;
+        font-size: 13px;
+      }
+      .date-placeholder {
+        font-style: italic;
+        font-size: 13px;
+        margin-bottom: 5px;
+      }
+      .note { font-size: 11px; font-style: italic; color: #666; margin-top: 5px; }
     </style>
   `;
 
@@ -79,22 +168,19 @@ export function printStyledAttendance(
       const dateObj = parseDateString(r.Ngày);
       const weekday = WEEKDAYS[dateObj.getDay()];
       const isSat = dateObj.getDay() === 6;
-      const hideSat = isSat && !includeSaturday;
 
-      const allTimes = [r.S1, r.S2, r.C1, r.C2]
-        .filter(isTimeString)
-        .sort((a, b) => toMinutes(a) - toMinutes(b));
-      
+      // --- LOGIC MỚI: Từ 18/11/2025, Thứ 7 làm cả ngày (cho cả 2 công ty) ---
+      const effectiveDateSat = new Date(2025, 10, 18); // 18/11/2025
+      const isNewRegulationSat = dateObj >= effectiveDateSat;
+
+      // Nếu là quy định mới thì luôn hiện chiều T7 (hideSat = false).
+      const hideSat = isSat && !includeSaturday && !isNewRegulationSat;
+
       const S2calc = r.S2 || "❌";
 
       let C1calc, C2calc;
-      if (isSat) {
-        if (!includeSaturday) {
-          C1calc = C2calc = "—";
-        } else {
-          C1calc = r.C1 || "❌";
-          C2calc = r.C2 || "❌";
-        }
+      if (hideSat) {
+        C1calc = C2calc = "—";
       } else {
         C1calc = r.C1 || "❌";
         C2calc = r.C2 || "❌";
@@ -103,33 +189,45 @@ export function printStyledAttendance(
       const mReason = (r.morning || "").trim();
       const aReason = (r.afternoon || "").trim();
 
-      // --- THAY ĐỔI 4: Sử dụng 'logic' động thay vì số cứng ---
+      // --- LOGIC ĐỘNG THEO NGÀY (Cập nhật cho BKXD từ 18/11/2025) ---
+      let currentLogic = logic;
+      if (company === 'BKXD') {
+        const effectiveDate = new Date(2025, 10, 18); // 18/11/2025
+        if (dateObj >= effectiveDate) {
+          currentLogic = {
+            ...logic,
+            C1_LATE: 13 * 60 + 15, // 13:15
+            C2_EARLY: 17 * 60 + 15 // 17:15
+          };
+        }
+      }
+
       return `
         <tr>
           <td>${i + 1}</td>
-          <td>${r['Tên nhân viên']}</td>
+          <td style="text-align: left; padding-left: 8px;">${r['Tên nhân viên']}</td>
           <td>${r.Ngày}</td>
           <td>${weekday}</td>
 
-          <td class="${isTimeString(r.S1) && isLate(r.S1, logic.S1_LATE) ? 'late' : ''}">
-            ${r.S1 || '❌'}
+          <td class="${isTimeString(r.S1) && isLate(r.S1, currentLogic.S1_LATE) ? 'late' : ''}">
+            ${r.S1 || '<span class="missing">❌</span>'}
           </td>
 
-          <td class="${isTimeString(S2calc) && isEarly(S2calc, logic.S2_EARLY) ? 'late' : ''}">
-            ${S2calc}
+          <td class="${isTimeString(S2calc) && isEarly(S2calc, currentLogic.S2_EARLY) ? 'late' : ''}">
+            ${S2calc === '❌' ? '<span class="missing">❌</span>' : S2calc}
           </td>
 
-          <td>${mReason}</td>
+          <td style="text-align: left;">${mReason}</td>
 
-          <td class="${!hideSat && isTimeString(C1calc) && isLate(C1calc, logic.C1_LATE) ? 'late' : ''}">
-            ${C1calc}
+          <td class="${!hideSat && isTimeString(C1calc) && isLate(C1calc, currentLogic.C1_LATE) ? 'late' : ''}">
+            ${C1calc === '❌' ? '<span class="missing">❌</span>' : C1calc}
           </td>
 
-          <td class="${!hideSat && isTimeString(C2calc) && isEarly(C2calc, logic.C2_EARLY) ? 'late' : ''}">
-            ${C2calc}
+          <td class="${!hideSat && isTimeString(C2calc) && isEarly(C2calc, currentLogic.C2_EARLY) ? 'late' : ''}">
+            ${C2calc === '❌' ? '<span class="missing">❌</span>' : C2calc}
           </td>
 
-          <td>${hideSat ? '—' : aReason}</td>
+          <td style="text-align: left;">${hideSat ? '—' : aReason}</td>
         </tr>
       `;
     })
@@ -138,27 +236,55 @@ export function printStyledAttendance(
   const html = `
     <html>
       <head>
-        <title>In bảng chấm công</title>
+        <title>In Bảng Chấm Công</title>
         ${style}
       </head>
       <body>
+        <div class="header-container">
+            <div class="company-info">
+                ${companyName}
+            </div>
+            <div class="national-motto">
+                CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+                <span>Độc lập - Tự do - Hạnh phúc</span>
+            </div>
+        </div>
+
         <h1>${title}</h1>
+        <div class="sub-title">${subTitle}</div>
+
         <table>
           <thead>
             <tr>
-              <th>STT</th><th>Tên nhân viên</th><th>Ngày</th><th>Thứ</th>
-              <th>S1</th><th>S2</th><th>Lý do trễ (Sáng)</th>
-              <th>C1</th><th>C2</th><th>Lý do trễ (Chiều)</th>
+              <th style="width: 40px;">STT</th>
+              <th style="width: 150px;">Họ tên</th>
+              <th style="width: 80px;">Ngày</th>
+              <th style="width: 50px;">Thứ</th>
+              <th style="width: 60px;">S1</th>
+              <th style="width: 60px;">S2</th>
+              <th>Lý do (Sáng)</th>
+              <th style="width: 60px;">C1</th>
+              <th style="width: 60px;">C2</th>
+              <th>Lý do (Chiều)</th>
             </tr>
           </thead>
           <tbody>
             ${rowsHtml}
           </tbody>
         </table>
-        <p class="note"><strong>Ghi chú:</strong> ❌: chưa chấm công | S1/S2 sáng | C1/C2 chiều</p>
-        <div class="signature">
-          <div><p>Xác nhận lãnh đạo</p></div>
-          <div><p>Người lập</p></div>
+        
+        <p class="note"><strong>Ghi chú:</strong> ❌: Chưa chấm công | S1: Vào sáng | S2: Ra sáng | C1: Vào chiều | C2: Ra chiều</p>
+
+        <div class="footer-container">
+          <div class="signature-block">
+            <div class="signature-title">Xác Nhận Lãnh Đạo</div>
+            <!-- Space for signature -->
+          </div>
+          <div class="signature-block">
+            <div class="date-placeholder">${dateString}</div>
+            <div class="signature-title">Người Lập</div>
+             <!-- Space for signature -->
+          </div>
         </div>
       </body>
     </html>

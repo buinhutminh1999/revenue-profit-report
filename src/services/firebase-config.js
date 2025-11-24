@@ -3,17 +3,17 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth";
 import { getFunctions } from "firebase/functions";
-import { getDatabase } from 'firebase/database'; // Thêm dòng này
+import { getDatabase } from 'firebase/database';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyABAtDgu1RWl8yhHECA2WDqOYTO_6NNQ6I",
-    authDomain: "revenue-profit-app.firebaseapp.com",
-    projectId: "revenue-profit-app",
-    storageBucket: "revenue-profit-app.firebasestorage.app",
-    messagingSenderId: "468098013262",
-    appId: "1:468098013262:web:6fb885532508fce54d0b1f",
-    measurementId: "G-3WJ29GSV28",
-    databaseURL: "https://revenue-profit-app-default-rtdb.asia-southeast1.firebasedatabase.app"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+    databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL
 };
 
 // Khởi tạo Firebase
@@ -45,7 +45,7 @@ if (window.location.hostname === "localhost") {
     // connectFunctionsEmulator(functions, "localhost", 5001);
 }
 */
-const rtdb = getDatabase(app); // Thêm dòng này
+const rtdb = getDatabase(app);
 
 // Xuất các dịch vụ
-export { db, auth, storage, functions, rtdb  };
+export { db, auth, storage, functions, rtdb };

@@ -31,6 +31,7 @@ import {
     useSortable,
     verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { categoryFormSchema } from "../../schemas/adminSchema";
@@ -117,6 +118,8 @@ const TableSkeleton = () => (
     </Stack>
 );
 
+const MotionPaper = motion(Paper);
+
 const CategoryFormDialog = ({ open, onClose, onSave, initialValues, isEdit }) => {
     const { control, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
         resolver: zodResolver(categoryFormSchema),
@@ -130,7 +133,16 @@ const CategoryFormDialog = ({ open, onClose, onSave, initialValues, isEdit }) =>
     }, [open, initialValues, reset]);
 
     return (
-        <Dialog open={open} onClose={onClose} PaperComponent={motion.div} PaperProps={{ initial: { opacity: 0, scale: 0.95 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.95 } }}>
+        <Dialog
+            open={open}
+            onClose={onClose}
+            PaperComponent={MotionPaper}
+            PaperProps={{
+                initial: { opacity: 0, scale: 0.95 },
+                animate: { opacity: 1, scale: 1 },
+                exit: { opacity: 0, scale: 0.95 }
+            }}
+        >
             <DialogTitle>{isEdit ? "Sửa khoản mục" : "Thêm khoản mục mới"}</DialogTitle>
             <DialogContent sx={{ width: "400px" }}>
                 <Stack spacing={2} sx={{ mt: 1 }}>
