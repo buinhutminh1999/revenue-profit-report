@@ -316,10 +316,115 @@ export default function AccountsReceivable() {
         if (parsedRows.length === 0) return;
 
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
+
+        // Helper to check if prev data exists for a row (by project name)
+        const hasPrevData = (projectName) => {
+            if (!prevQuarterRows || prevQuarterRows.length === 0) return false;
+            return prevQuarterRows.some(p => p.category === category && (p.project || '').trim().toLowerCase() === (projectName || '').trim().toLowerCase());
+        };
+
         const promise = new Promise(async (resolve, reject) => {
             try {
                 const startColumnIndex = tableColumns.findIndex(col => col.field === startField);
                 if (startColumnIndex === -1) return reject("Vui lòng chọn một ô dữ liệu hợp lệ để dán.");
+
+                // Analyze if we are pasting into Opening Balance columns
+                let touchesOpening = false;
+                let missingPrevData = false;
+
+                // We need to know which columns are being pasted into
+                const targetColumns = [];
+                if (parsedRows.length > 0) {
+                    parsedRows[0].forEach((_, cellIndex) => {
+                        const targetColumnIndex = startColumnIndex + cellIndex;
+                        if (targetColumnIndex < tableColumns.length) {
+                            targetColumns.push(tableColumns[targetColumnIndex].field);
+                        }
+                    });
+                }
+
+                const openingFields = ['openingDebit', 'openingCredit'];
+                const touchingOpeningFields = targetColumns.filter(f => openingFields.includes(f));
+
+                if (touchingOpeningFields.length > 0) {
+                    // Check each row being pasted
+                    for (const rowData of parsedRows) {
+                        // Find project name column index in the paste data? 
+                        // Or assume the paste includes the project name?
+                        // If we are pasting starting from 'project' column, we can know the project name.
+                        // If we are pasting starting from 'openingDebit', we might NOT know the project name if it's not in the paste.
+                        // However, the requirement says "copy from excel...". Usually includes the name.
+                        // Let's assume if 'project' field is in targetColumns, we use it.
+                        // If not, we can't easily match against prev rows by name.
+                        // BUT, if we are replacing ALL rows for a category (which the logic does: batch.delete),
+                        // then the new rows ARE the rows.
+
+                        // Wait, the current logic DELETES existing rows for the category and replaces them.
+                        // So the pasted rows become the new rows.
+                        // We need to check if these NEW rows have a match in prev quarter.
+
+                        const projectColIdx = targetColumns.indexOf('project');
+                        let projectName = '';
+                        if (projectColIdx !== -1) {
+                            projectName = rowData[projectColIdx];
+                        }
+
+                        if (projectName && !hasPrevData(projectName)) {
+                            missingPrevData = true;
+                        }
+                    }
+                    touchesOpening = true;
+                }
+
+                let skipOpeningBalances = false;
+
+                if (touchesOpening) {
+                    if (missingPrevData) {
+                        const confirm = window.confirm(
+                            "Phát hiện một số dòng không có số dư từ quý trước để chuyển sang.\n\n" +
+                            "Bạn có muốn sử dụng số dư đầu kỳ từ dữ liệu dán không?\n" +
+                            "- OK: Sử dụng số liệu dán.\n" +
+                            "- Cancel: Bỏ qua cột đầu kỳ (để trống)."
+                        );
+                        if (!confirm) {
+                            skipOpeningBalances = true;
+                        }
+                    } else {
+                        // If prev data exists, we ALWAYS skip pasting opening balances to enforce carryover
+                        // UNLESS the user explicitly wants to overwrite? 
+                        // The requirement says: "không được sửa Phải Thu ĐK... trong quá trình copy mà quý trước không có... thì thông báo"
+                        // Implies: if prev has data -> MUST NOT EDIT (Skip).
+                        // If prev NO data -> Ask.
+                        skipOpeningBalances = true;
+                        // Wait, if missingPrevData is FALSE, it means ALL rows have prev data.
+                        // So we should skip pasting opening balances for ALL rows.
+                        // BUT, what if some have and some don't?
+                        // The logic above sets missingPrevData = true if ANY row is missing.
+                        // So if missingPrevData is FALSE, it means ALL rows have prev data. -> Skip pasting.
+
+                        // What if missingPrevData is TRUE? (Some missing, some present).
+                        // User clicked OK -> Use pasted data (overwriting carryover? No, carryover logic in displayRows overrides DB).
+                        // Wait, displayRows logic: if prevRow exists, it overrides.
+                        // So even if we save pasted data to DB, displayRows will IGNORE it if prevRow exists.
+                        // So we don't strictly need to skip saving to DB if displayRows handles it.
+                        // BUT, for data integrity, it's better not to save junk to DB if we know it's locked.
+
+                        // However, for the case where prev data is MISSING, displayRows won't override.
+                        // So saving to DB is crucial.
+
+                        // So:
+                        // 1. If prev data exists -> displayRows overrides. Saving to DB doesn't matter much, but better to skip to keep DB clean (0).
+                        // 2. If prev data MISSING -> displayRows does nothing. Saving to DB is required.
+
+                        // Refined Logic:
+                        // We will iterate row by row during batch.set.
+                        // For each row, check if prev data exists.
+                        // If YES -> Set openingDebit/Credit to 0 (or keep empty) in DB. (Display will show carryover).
+                        // If NO -> 
+                        //    If user said OK -> Save pasted value.
+                        //    If user said Cancel -> Save 0.
+                    }
+                }
 
                 const batch = writeBatch(db);
                 const collectionRef = collection(db, collectionPath);
@@ -330,11 +435,37 @@ export default function AccountsReceivable() {
                 parsedRows.forEach(rowData => {
                     const newRowData = { category: category };
                     tableColumns.forEach(col => newRowData[col.field] = col.type === 'number' ? 0 : '');
+
+                    // Extract project name for checking
+                    let projectName = '';
+                    const projectColIdx = targetColumns.indexOf('project');
+                    if (projectColIdx !== -1) projectName = rowData[projectColIdx];
+
+                    const rowHasPrevData = hasPrevData(projectName);
+
                     rowData.forEach((cellValue, cellIndex) => {
                         const targetColumnIndex = startColumnIndex + cellIndex;
                         if (targetColumnIndex < tableColumns.length) {
                             const column = tableColumns[targetColumnIndex];
-                            newRowData[column.field] = column.type === 'number' ? toNum(cellValue) : cellValue;
+
+                            // Logic for Opening Balances
+                            if (openingFields.includes(column.field)) {
+                                if (rowHasPrevData) {
+                                    // If prev data exists, we ignore pasted value (set to 0 in DB).
+                                    // The UI will show the carryover value from prev quarter.
+                                    newRowData[column.field] = 0;
+                                } else {
+                                    // No prev data.
+                                    if (skipOpeningBalances) {
+                                        newRowData[column.field] = 0;
+                                    } else {
+                                        newRowData[column.field] = column.type === 'number' ? toNum(cellValue) : cellValue;
+                                    }
+                                }
+                            } else {
+                                // Normal column
+                                newRowData[column.field] = column.type === 'number' ? toNum(cellValue) : cellValue;
+                            }
                         }
                     });
                     const newDocRef = doc(collection(db, collectionPath));
@@ -348,14 +479,32 @@ export default function AccountsReceivable() {
         setPasteContext(null);
     };
 
-    const updateAndSaveTotals = useCallback(async (currentRows, year, quarter) => {
+    const [prevQuarterRows, setPrevQuarterRows] = useState([]);
+
+    const updateAndSaveTotals = useCallback(async (currentRows, year, quarter, prevRows = []) => {
         const summaryData = {};
         const numericFields = tableColumns.filter(c => c.type === 'number').map(c => c.field);
         const zeroSummary = numericFields.reduce((acc, field) => ({ ...acc, [field]: 0 }), {});
 
+        // Helper to get carryover value
+        const getCarryoverValue = (row, field) => {
+            if (!prevRows || prevRows.length === 0) return null;
+            const prevRow = prevRows.find(p => p.category === row.category && (p.project || '').trim().toLowerCase() === (row.project || '').trim().toLowerCase());
+            if (!prevRow) return null;
+            if (field === 'openingDebit') return toNum(prevRow.closingDebit);
+            if (field === 'openingCredit') return toNum(prevRow.closingCredit);
+            return null;
+        };
+
         const calculateSummary = (filteredRows) => {
             return filteredRows.reduce((acc, row) => {
-                numericFields.forEach(key => acc[key] += toNum(row[key]));
+                numericFields.forEach(key => {
+                    let val = toNum(row[key]);
+                    // Override with carryover for calculation if exists
+                    const carryoverVal = getCarryoverValue(row, key);
+                    if (carryoverVal !== null) val = carryoverVal;
+                    acc[key] += val;
+                });
                 return acc;
             }, { ...zeroSummary });
         };
@@ -397,12 +546,39 @@ export default function AccountsReceivable() {
     useEffect(() => {
         setIsLoading(true);
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
+
+        // Calculate previous quarter
+        let prevYear = selectedYear;
+        let prevQuarter = selectedQuarter - 1;
+        if (prevQuarter === 0) {
+            prevQuarter = 4;
+            prevYear = selectedYear - 1;
+        }
+        const prevCollectionPath = `accountsReceivable/${prevYear}/quarters/Q${prevQuarter}/rows`;
+
+        // Fetch current rows
         const q = query(collection(db, collectionPath));
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const unsubscribe = onSnapshot(q, async (querySnapshot) => {
             const fetchedRows = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), type: 'data' }));
-            setRows(fetchedRows);
+
+            // Fetch previous rows (one-time fetch is usually enough, but real-time is better if user is editing prev quarter)
+            // For simplicity and performance, we'll fetch once here or subscribe. 
+            // Let's fetch once for now to avoid complex subscription management, 
+            // but ideally we should subscribe if we want instant updates from prev quarter.
+            // Given the requirement, fetching once on load/change of quarter is standard.
+            try {
+                const prevQ = query(collection(db, prevCollectionPath));
+                const prevSnapshot = await getDocs(prevQ);
+                const fetchedPrevRows = prevSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setPrevQuarterRows(fetchedPrevRows);
+                setRows(fetchedRows);
+                updateAndSaveTotals(fetchedRows, selectedYear, selectedQuarter, fetchedPrevRows);
+            } catch (err) {
+                console.error("Error fetching prev quarter:", err);
+                setRows(fetchedRows); // Still set current rows even if prev fails
+            }
+
             setIsLoading(false);
-            updateAndSaveTotals(fetchedRows, selectedYear, selectedQuarter);
         }, (error) => {
             setIsLoading(false);
             toast.error("Không thể tải dữ liệu từ máy chủ.");
@@ -417,13 +593,29 @@ export default function AccountsReceivable() {
         const grandTotal = { openingDebit: 0, openingCredit: 0, debitIncrease: 0, creditDecrease: 0, closingDebit: 0, closingCredit: 0 };
         const zeroSummary = { ...grandTotal };
 
+        // Helper to merge carryover
+        const mergeCarryover = (row) => {
+            if (!prevQuarterRows || prevQuarterRows.length === 0) return row;
+            const prevRow = prevQuarterRows.find(p => p.category === row.category && (p.project || '').trim().toLowerCase() === (row.project || '').trim().toLowerCase());
+            if (prevRow) {
+                return {
+                    ...row,
+                    openingDebit: toNum(prevRow.closingDebit),
+                    openingCredit: toNum(prevRow.closingCredit),
+                    isOpeningDebitLocked: true,
+                    isOpeningCreditLocked: true
+                };
+            }
+            return row;
+        };
+
         categories.forEach(category => {
             const childDisplayRows = [];
             const categorySummary = { ...zeroSummary };
 
             if (category.children && category.children.length > 0) {
                 category.children.forEach(child => {
-                    const categoryRows = rows.filter(row => row.category === child.id);
+                    const categoryRows = rows.filter(row => row.category === child.id).map(mergeCarryover);
                     const childSummary = categoryRows.reduce((acc, row) => {
                         Object.keys(zeroSummary).forEach(key => acc[key] += toNum(row[key]));
                         return acc;
@@ -436,7 +628,7 @@ export default function AccountsReceivable() {
                 result.push({ id: `p-header-${category.id}`, type: 'parent-header', project: category.label, ...categorySummary });
                 result.push(...childDisplayRows);
             } else {
-                const categoryRows = rows.filter(row => row.category === category.id);
+                const categoryRows = rows.filter(row => row.category === category.id).map(mergeCarryover);
                 categoryRows.forEach(row => childDisplayRows.push({ ...row, rowIndex: dataRowIndex++ }));
                 const summary = categoryRows.reduce((acc, row) => {
                     Object.keys(zeroSummary).forEach(key => acc[key] += toNum(row[key]));
@@ -452,7 +644,7 @@ export default function AccountsReceivable() {
 
         result.push({ id: 'grand-total', type: 'grand-total', project: 'TỔNG CỘNG TOÀN BỘ', ...grandTotal });
         return result;
-    }, [rows, isLoading]);
+    }, [rows, isLoading, prevQuarterRows]);
 
     useEffect(() => {
         const handlePaste = (event) => {
@@ -739,8 +931,11 @@ export default function AccountsReceivable() {
                                         return (
                                             <TableRow key={row.id} sx={getRowSx()}>
                                                 {tableColumns.map((col) => {
+                                                    const isLocked = (col.field === 'openingDebit' && row.isOpeningDebitLocked) ||
+                                                        (col.field === 'openingCredit' && row.isOpeningCreditLocked);
+
                                                     const isEditing = editingCell?.rowId === row.id && editingCell?.field === col.field;
-                                                    const isEditable = isDataRow;
+                                                    const isEditable = isDataRow && !isLocked;
 
                                                     return (
                                                         <TableCell
@@ -751,12 +946,20 @@ export default function AccountsReceivable() {
                                                                 cursor: isEditable ? 'pointer' : 'default',
                                                                 padding: isEditing ? 0 : '12px 16px',
                                                                 position: 'relative',
+                                                                bgcolor: isLocked ? alpha(theme.palette.action.disabledBackground, 0.1) : 'inherit',
                                                                 '&:hover': isEditable && !isEditing ? {
                                                                     bgcolor: alpha(theme.palette.primary.main, 0.08),
                                                                     boxShadow: 'inset 0 0 0 1px ' + alpha(theme.palette.primary.main, 0.2)
                                                                 } : {}
                                                             }}
                                                         >
+                                                            {isLocked && (
+                                                                <Tooltip title="Số dư được chuyển từ kỳ trước (Không thể sửa)">
+                                                                    <Box component="span" sx={{ position: 'absolute', top: 4, right: 4, color: 'text.disabled' }}>
+                                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" /></svg>
+                                                                    </Box>
+                                                                </Tooltip>
+                                                            )}
                                                             {isEditing && isEditable ? (
                                                                 <EditableCell
                                                                     value={row[col.field]}

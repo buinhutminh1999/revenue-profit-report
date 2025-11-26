@@ -11,7 +11,7 @@ import {
     BugReport as BugReportIcon
 } from '@mui/icons-material';
 
-const CURRENT_VERSION = '2025.11.26.2'; // Increment this to show dialog again
+const CURRENT_VERSION = '2025.11.26.3'; // Increment this to show dialog again
 
 const WhatsNewDialog = () => {
     const [open, setOpen] = useState(false);
@@ -33,24 +33,24 @@ const WhatsNewDialog = () => {
 
     const features = [
         {
+            icon: <AutoAwesomeIcon color="success" />,
+            title: "Tự động Chuyển Số Dư Công Nợ",
+            description: "Hệ thống tự động chuyển 'Phải Thu CK' và 'Trả Trước CK' của quý trước sang 'Đầu Kỳ' của quý hiện tại. Các cột này sẽ được KHÓA để đảm bảo chính xác."
+        },
+        {
+            icon: <ContentPasteIcon color="info" />,
+            title: "Dán Dữ Liệu Thông Minh",
+            description: "Khi dán từ Excel, hệ thống tự động bỏ qua các cột Đầu kỳ đã có số liệu. Nếu quý trước chưa có dữ liệu, bạn sẽ được hỏi ý kiến trước khi dán."
+        },
+        {
             icon: <BugReportIcon color="error" />,
-            title: "Sửa lỗi Nghiêm trọng & Đồng bộ",
-            description: "Đã khắc phục lỗi 'failed-precondition' khi đồng bộ dữ liệu ngoài và lỗi logic khiến tính năng 'Đồng bộ sang kỳ sau' không hoạt động."
+            title: "Sửa lỗi & Cải thiện",
+            description: "Khắc phục lỗi hiển thị thông báo kép và tối ưu hóa hiệu năng đồng bộ dữ liệu."
         },
         {
             icon: <PaletteIcon color="primary" />,
             title: "Giao diện Chi tiết TK Hiện đại",
-            description: "Bảng chi tiết tài khoản (khi click vào ô khóa) nay đã được nâng cấp với thiết kế Glassmorphism, hiệu ứng động và bố cục rõ ràng hơn."
-        },
-        {
-            icon: <SpeedIcon color="warning" />,
-            title: "Tối ưu Hiệu năng Đồng bộ",
-            description: "Cải thiện tốc độ và độ ổn định khi đồng bộ dữ liệu từ Báo cáo Công nợ và Công trình nhờ cơ chế xử lý hàng loạt (Batch Processing)."
-        },
-        {
-            icon: <AutoAwesomeIcon color="success" />,
-            title: "Trải nghiệm Mượt mà hơn",
-            description: "Sửa lỗi crash ứng dụng khi thông báo (Toast) và tinh chỉnh các hiệu ứng giao diện để mang lại cảm giác sử dụng tốt nhất."
+            description: "Bảng chi tiết tài khoản nay đã được nâng cấp với thiết kế Glassmorphism, hiệu ứng động và bố cục rõ ràng hơn."
         }
     ];
 

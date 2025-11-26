@@ -35,7 +35,7 @@ export default function App() {
                 },
               }}
             />
-            <UpdateNotification />
+            {/* <UpdateNotification /> - Tạm tắt để dùng WhatsNewDialog */}
             <Router />
           </AuthProvider>
         </CustomThemeProvider>
