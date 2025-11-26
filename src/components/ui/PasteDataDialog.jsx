@@ -1,18 +1,19 @@
-// PasteDataDialog.js
 import React, { useState } from 'react';
 import {
     Button, Dialog, DialogActions, DialogContent,
-    DialogContentText, DialogTitle, TextField, Box
+    DialogContentText, DialogTitle, TextField, Box,
+    RadioGroup, Radio, FormControlLabel, FormControl, FormLabel
 } from '@mui/material';
 
 const PasteDataDialog = ({ open, onClose, onSave }) => {
     const [pastedText, setPastedText] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [matchMode, setMatchMode] = useState('id'); // 'id' | 'name'
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await onSave(pastedText);
+            await onSave(pastedText, matchMode);
             setPastedText(''); // Xóa nội dung sau khi lưu
             onClose();
         } catch (error) {
@@ -28,8 +29,19 @@ const PasteDataDialog = ({ open, onClose, onSave }) => {
             <DialogTitle>Dán dữ liệu từ Excel</DialogTitle>
             <DialogContent>
                 <DialogContentText sx={{ mb: 2 }}>
-                    Sao chép các cột từ Excel (bao gồm Số hiệu TK, Diễn giải, Nợ/Có Đầu kỳ, Nợ/Có Cuối kỳ) và dán vào ô bên dưới.
+                    Sao chép các cột từ Excel (bao gồm {matchMode === 'id' ? 'Số hiệu TK' : 'Tên tài khoản'}, Nợ/Có Đầu kỳ, Nợ/Có Cuối kỳ) và dán vào ô bên dưới.
                 </DialogContentText>
+
+                <Box sx={{ mb: 2 }}>
+                    <FormControl component="fieldset">
+                        <FormLabel component="legend">Dữ liệu cột đầu tiên là:</FormLabel>
+                        <RadioGroup row aria-label="matchMode" name="matchMode" value={matchMode} onChange={(e) => setMatchMode(e.target.value)}>
+                            <FormControlLabel value="id" control={<Radio />} label="Số hiệu TK (Mặc định)" />
+                            <FormControlLabel value="name" control={<Radio />} label="Tên tài khoản" />
+                        </RadioGroup>
+                    </FormControl>
+                </Box>
+
                 <TextField
                     autoFocus
                     margin="dense"

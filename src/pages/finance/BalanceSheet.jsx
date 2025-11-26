@@ -3,7 +3,7 @@ import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
     Typography, Box, useTheme, Alert, IconButton, Stack,
     FormControl, InputLabel, Select, MenuItem, Grid, Button, Tooltip, Card, CardContent, CardHeader, Divider, TextField,
-    Dialog, DialogTitle, DialogContent, DialogActions, Menu, ListItemIcon, Skeleton
+    Dialog, DialogTitle, DialogContent, DialogActions, Menu, ListItemIcon, Skeleton, Chip, alpha
 } from '@mui/material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFirestore, collection, getDocs, query, orderBy, where, writeBatch, doc, setDoc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
@@ -22,10 +22,14 @@ import {
     Info as InfoIcon,
     MoreVert as MoreVertIcon,
     CloudUpload as CloudUploadIcon,
-    Close as CloseIcon // Thêm icon đóng
+    Close as CloseIcon,
+    FilterList as FilterListIcon,
+    Refresh as RefreshIcon
 } from '@mui/icons-material';
 import PasteDataDialog from '../../components/ui/PasteDataDialog';
 import { ErrorState } from '../../components/common';
+import { motion, AnimatePresence } from 'framer-motion';
+import { styled } from '@mui/material/styles';
 
 // Khởi tạo Firestore và các hằng số
 const db = getFirestore();
@@ -33,13 +37,81 @@ const ACCOUNTS_COLLECTION = 'chartOfAccounts';
 const BALANCES_COLLECTION = 'accountBalances';
 
 const syncedCellsConfig = {
-    '152': ['cuoiKyNo'], // ✨ THÊM DÒNG NÀY
-    '155': ['cuoiKyNo'], // ✨ THÊM DÒNG NÀY
+    '152': ['cuoiKyNo'],
+    '155': ['cuoiKyNo'],
     '131': ['cuoiKyCo'], '132': ['cuoiKyNo'], '133': ['cuoiKyNo'], '134': ['cuoiKyNo'], '142': ['cuoiKyNo'],
     '135': ['cuoiKyNo'], '339': ['cuoiKyCo'], '338': ['cuoiKyCo'],
     '139': ['cuoiKyCo'], '140': ['cuoiKyNo'], '332': ['cuoiKyCo'], '333': ['cuoiKyCo'],
 
 };
+
+// --- STYLED COMPONENTS (GLASSMORPHISM) ---
+const GlassContainer = styled(motion.div)(({ theme }) => ({
+    background: theme.palette.mode === 'dark'
+        ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.4)} 0%, ${alpha(theme.palette.background.paper, 0.1)} 100%)`
+        : `linear-gradient(135deg, ${alpha('#fff', 0.8)} 0%, ${alpha('#fff', 0.4)} 100%)`,
+    backdropFilter: 'blur(20px)',
+    borderRadius: theme.shape.borderRadius * 3,
+    border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+    boxShadow: theme.shadows[4],
+    overflow: 'hidden',
+    transition: 'all 0.3s ease-in-out',
+}));
+
+const GlassHeader = styled(Box)(({ theme }) => ({
+    padding: theme.spacing(3),
+    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+    background: alpha(theme.palette.background.paper, 0.3),
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: theme.spacing(2),
+}));
+
+const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
+    '&::-webkit-scrollbar': {
+        width: 8,
+        height: 8,
+    },
+    '&::-webkit-scrollbar-track': {
+        backgroundColor: alpha(theme.palette.grey[500], 0.1),
+        borderRadius: 4,
+    },
+    '&::-webkit-scrollbar-thumb': {
+        backgroundColor: alpha(theme.palette.grey[500], 0.3),
+        borderRadius: 4,
+        '&:hover': {
+            backgroundColor: alpha(theme.palette.grey[500], 0.5),
+        },
+    },
+}));
+
+const StyledTableRow = styled(motion.tr, {
+    shouldForwardProp: (prop) => prop !== 'isParent' && prop !== 'isExpanded',
+})(({ theme, isParent, isExpanded }) => ({
+    backgroundColor: isParent ? alpha(theme.palette.primary.main, 0.03) : 'transparent',
+    '&:hover': {
+        backgroundColor: alpha(theme.palette.primary.main, 0.08),
+    },
+    transition: 'background-color 0.2s ease',
+    cursor: isParent ? 'pointer' : 'default',
+}));
+
+const StickyCell = styled(TableCell, {
+    shouldForwardProp: (prop) => prop !== 'isParent' && prop !== 'left',
+})(({ theme, left, isParent }) => ({
+    position: 'sticky',
+    left: left,
+    zIndex: 10,
+    backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#fff', // Fallback solid color for sticky
+    borderRight: `1px solid ${theme.palette.divider}`,
+    ...(isParent && {
+        fontWeight: 700,
+        color: theme.palette.primary.main,
+    }),
+}));
+
 
 // Dán và thay thế toàn bộ component này trong file BalanceSheet.js
 const CalculationDetailDialog = ({ open, onClose, data }) => {
@@ -184,7 +256,7 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
     };
 
     return (
-        <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg" PaperProps={{ sx: { height: '90vh' } }}>
+        <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg" PaperProps={{ sx: { height: '90vh', borderRadius: 3 } }}>
             <DialogTitle sx={{ p: 2, backgroundColor: 'background.paper', borderBottom: `1px solid ${theme.palette.divider}` }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Box>
@@ -202,7 +274,7 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
                 </Stack>
             </DialogTitle>
             <DialogContent dividers sx={{ p: 0, bgcolor: 'action.hover' }}>
-                <TableContainer component={Paper} variant="outlined" sx={{ height: '100%' }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ height: '100%', border: 'none' }}>
                     {renderTable()}
                 </TableContainer>
             </DialogContent>
@@ -328,7 +400,7 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
         (year !== 2025 || quarter !== 1); const isLocked = isCarriedOverLocked || isSyncedLocked;
 
     const getNumberColor = () => {
-        if (fieldName.endsWith('No')) return theme.palette.info.dark;
+        if (fieldName.endsWith('No')) return theme.palette.info.main;
         if (fieldName.endsWith('Co')) return theme.palette.warning.dark;
         return 'inherit';
     };
@@ -366,20 +438,35 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
 
     if (isLocked) {
         return (
-            <Box onClick={handleStartEditing} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', backgroundColor: theme.palette.grey[100], padding: '2px 4px', borderRadius: 1, cursor: isSyncedLocked ? 'pointer' : 'not-allowed', '&:hover': { backgroundColor: isSyncedLocked ? theme.palette.grey[200] : theme.palette.grey[100] } }}>
+            <Box onClick={handleStartEditing} sx={{
+                display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%',
+                backgroundColor: isSyncedLocked ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.grey[500], 0.1),
+                padding: '4px 8px', borderRadius: 1, cursor: isSyncedLocked ? 'pointer' : 'not-allowed',
+                transition: 'all 0.2s',
+                '&:hover': { backgroundColor: isSyncedLocked ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.grey[500], 0.2) }
+            }}>
                 <Tooltip title={getLockReason()}>
                     <LockIcon sx={{ fontSize: 14, mr: 0.5, color: theme.palette.text.secondary }} />
                 </Tooltip>
-                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 500 }}>
                     {displayValue === '0' ? '-' : displayValue}
                 </Typography>
             </Box>
         );
     }
     if (isEditing) {
-        return (<TextField value={value} onChange={(e) => setValue(e.target.value)} onBlur={handleSave} onKeyDown={handleKeyDown} autoFocus variant="standard" fullWidth size="small" sx={{ "& input": { textAlign: "right", padding: '2px 0' } }} />);
+        return (<TextField value={value} onChange={(e) => setValue(e.target.value)} onBlur={handleSave} onKeyDown={handleKeyDown} autoFocus variant="standard" fullWidth size="small" sx={{ "& input": { textAlign: "right", padding: '4px 0', fontWeight: 600 } }} />);
     }
-    return (<Typography variant="body2" onClick={handleStartEditing} sx={{ color: getNumberColor(), textAlign: 'right', width: '100%', cursor: 'pointer', minHeight: '24px', padding: '2px 0', borderRadius: 1, '&:hover': { backgroundColor: theme.palette.action.hover } }}> {displayValue === '0' ? '-' : displayValue} </Typography>);
+    return (
+        <Typography variant="body2" onClick={handleStartEditing}
+            sx={{
+                color: getNumberColor(), textAlign: 'right', width: '100%', cursor: 'pointer', minHeight: '24px', padding: '4px 8px', borderRadius: 1,
+                transition: 'all 0.2s',
+                '&:hover': { backgroundColor: alpha(theme.palette.action.hover, 0.1), transform: 'scale(1.02)' }
+            }}>
+            {displayValue === '0' ? '-' : displayValue}
+        </Typography>
+    );
 };
 
 const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, updateMutation, onShowDetails }) => {
@@ -387,37 +474,76 @@ const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, up
     const isParent = account.children && account.children.length > 0;
     const isExpanded = expanded.includes(account.id);
     const formatStaticCurrency = (value) => {
-        if (typeof value !== 'number' || isNaN(value) || value === 0) return <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400 }}>-</Typography>;
+        if (typeof value !== 'number' || isNaN(value) || value === 0) return <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400, color: theme.palette.text.disabled }}>-</Typography>;
         return value.toLocaleString('vi-VN');
     };
-    const rowStyle = { backgroundColor: isParent ? theme.palette.grey[100] : 'transparent', fontWeight: isParent ? 'bold' : 'normal', };
-    const stickyCellSx = { position: 'sticky', zIndex: 2, backgroundColor: isParent ? theme.palette.grey[100] : 'white' };
 
     return (
         <React.Fragment>
-            <TableRow hover sx={rowStyle}>
-                <TableCell sx={{ ...stickyCellSx, left: 0, minWidth: 200 }} style={{ paddingLeft: `${8 + level * 24}px` }}>
-                    <Stack direction="row" alignItems="center" spacing={0.5}>
-                        {isParent ? (<IconButton size="small" onClick={() => onToggle(account.id)} sx={{ mr: 1 }}> {isExpanded ? <ExpandMoreIcon fontSize="inherit" /> : <ChevronRightIcon fontSize="inherit" />} </IconButton>) : (<Box sx={{ width: 40 }} />)}
-                        <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400 }}>{account.accountId}</Typography>
+            <StyledTableRow
+                isParent={isParent}
+                isExpanded={isExpanded}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => isParent && onToggle(account.id)}
+            >
+                <StickyCell left={0} isParent={isParent} style={{ paddingLeft: `${16 + level * 24}px` }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                        {isParent ? (
+                            <IconButton size="small" onClick={(e) => { e.stopPropagation(); onToggle(account.id); }} sx={{ p: 0.5 }}>
+                                {isExpanded ? <ExpandMoreIcon fontSize="small" color="primary" /> : <ChevronRightIcon fontSize="small" />}
+                            </IconButton>
+                        ) : (<Box sx={{ width: 28 }} />)}
+                        <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400, color: isParent ? 'primary.main' : 'text.primary' }}>
+                            {account.accountId}
+                        </Typography>
                     </Stack>
-                </TableCell>
-                <TableCell sx={{ ...stickyCellSx, left: 200, minWidth: 250 }} align="left">{account.accountName}</TableCell>
+                </StickyCell>
+                <StickyCell left={200} isParent={isParent}>
+                    <Typography variant="body2" sx={{ fontWeight: isParent ? 600 : 400 }}>{account.accountName}</Typography>
+                </StickyCell>
                 {['dauKyNo', 'dauKyCo', 'cuoiKyNo', 'cuoiKyCo'].map((field) => (
-                    <TableCell key={field} align="right" sx={{ minWidth: 120 }}>
-                        {isParent ? (<Typography variant="body2" sx={{ fontWeight: 700 }}>{formatStaticCurrency(account[field])}</Typography>) : (<EditableBalanceCell account={account} fieldName={field} year={year} quarter={quarter} updateMutation={updateMutation} onShowDetails={onShowDetails} />)}
+                    <TableCell key={field} align="right" sx={{ minWidth: 120, borderRight: `1px solid ${alpha(theme.palette.divider, 0.5)}` }}>
+                        {isParent ? (
+                            formatStaticCurrency(account[field])
+                        ) : (
+                            <EditableBalanceCell account={account} fieldName={field} year={year} quarter={quarter} updateMutation={updateMutation} onShowDetails={onShowDetails} />
+                        )}
                     </TableCell>
                 ))}
-            </TableRow>
-            {isParent && isExpanded && account.children.map(child => (
-                <BalanceSheetRow key={child.id} account={child} level={level + 1} expanded={expanded} onToggle={onToggle} year={year} quarter={quarter} updateMutation={updateMutation} onShowDetails={onShowDetails} />
-            ))}
+            </StyledTableRow>
+            <AnimatePresence>
+                {isParent && isExpanded && account.children.map(child => (
+                    <BalanceSheetRow key={child.id} account={child} level={level + 1} expanded={expanded} onToggle={onToggle} year={year} quarter={quarter} updateMutation={updateMutation} onShowDetails={onShowDetails} />
+                ))}
+            </AnimatePresence>
         </React.Fragment>
     );
 };
 
-const TableSkeleton = ({ columnCount }) => ([...Array(15)].map((_, index) => (<TableRow key={index}> {[...Array(columnCount)].map((_, i) => (<TableCell key={i}><Skeleton animation="wave" /></TableCell>))} </TableRow>)));
-const EmptyState = ({ onUpdateClick }) => (<TableRow> <TableCell colSpan={6}> <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 6 }}> <CloudUploadIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} /> <Typography variant="h6" color="text.secondary" gutterBottom>Chưa có dữ liệu cho kỳ này</Typography> <Typography color="text.secondary" sx={{ mb: 2 }}>Hãy bắt đầu bằng cách cập nhật số liệu.</Typography> <Button variant="contained" startIcon={<FileUploadIcon />} onClick={onUpdateClick}>Cập nhật</Button> </Box> </TableCell> </TableRow>);
+const TableSkeleton = ({ columnCount }) => ([...Array(10)].map((_, index) => (
+    <TableRow key={index}>
+        {[...Array(columnCount)].map((_, i) => (
+            <TableCell key={i}><Skeleton animation="wave" height={30} /></TableCell>
+        ))}
+    </TableRow>
+)));
+
+const EmptyState = ({ onUpdateClick }) => (
+    <TableRow>
+        <TableCell colSpan={6}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 8 }}>
+                <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5 }}>
+                    <CloudUploadIcon sx={{ fontSize: 80, color: 'text.disabled', mb: 2, opacity: 0.5 }} />
+                </motion.div>
+                <Typography variant="h6" color="text.secondary" gutterBottom>Chưa có dữ liệu cho kỳ này</Typography>
+                <Typography color="text.secondary" sx={{ mb: 3 }}>Hãy bắt đầu bằng cách cập nhật số liệu.</Typography>
+                <Button variant="contained" startIcon={<FileUploadIcon />} onClick={onUpdateClick} sx={{ borderRadius: 2, px: 4 }}>Cập nhật ngay</Button>
+            </Box>
+        </TableCell>
+    </TableRow>
+);
 
 // ===== COMPONENT CHÍNH =====
 const BalanceSheet = () => {
@@ -604,7 +730,6 @@ const BalanceSheet = () => {
         syncExternalData();
     }, [selectedYear, selectedQuarter, accounts, balances, updateBalanceMutation, isBalancesLoading]);
 
-    // Dán và thay thế toàn bộ hàm này trong file BalanceSheet.js
     const handleShowDetails = useCallback(async (accountId) => {
         // Chỉ chạy cho các tài khoản được hỗ trợ xem chi tiết
         if (!['338', '339', '332', '333'].includes(accountId)) return;
@@ -723,21 +848,24 @@ const BalanceSheet = () => {
     const handleExpandAll = useCallback(() => setExpanded(parentAccountIds), [parentAccountIds]);
     const handleCollapseAll = useCallback(() => setExpanded([]), []);
 
-    const handlePasteAndSave = async (pastedText) => {
+    const handlePasteAndSave = async (pastedText, matchMode = 'id') => {
         if (!pastedText || !accounts) {
             toast.error("Không có dữ liệu để dán hoặc hệ thống tài khoản chưa sẵn sàng.");
             return;
         }
 
         const toastId = toast.loading('Đang kiểm tra và xử lý dữ liệu...');
+        const warnings = [];
 
         const existingBalances = balances;
         const validAccountIds = new Set(accounts.map(acc => acc.accountId));
 
+        // Tạo map để tra cứu theo tên nếu cần
+        const accountNameMap = matchMode === 'name' ? new Map(accounts.map(acc => [acc.accountName?.toLowerCase().trim(), acc.accountId])) : null;
+
         const rows = pastedText.trim().split('\n');
         const updates = [];
         const errors = [];
-        const warnings = [];
 
         const parseCurrency = (value) => {
             if (typeof value !== 'string' || !value) return 0;
@@ -748,9 +876,20 @@ const BalanceSheet = () => {
         rows.forEach((row, index) => {
             const rowNum = index + 1;
             const columns = row.split('\t');
-            const accountId = columns[0]?.trim();
+            let accountId = columns[0]?.trim();
 
             if (!accountId) { return; }
+
+            // Xử lý tìm ID nếu matchMode là name
+            if (matchMode === 'name') {
+                const foundId = accountNameMap.get(accountId.toLowerCase());
+                if (!foundId) {
+                    errors.push({ row: rowNum, accountId: accountId, message: `Không tìm thấy tài khoản có tên "${accountId}"` });
+                    return;
+                }
+                accountId = foundId;
+            }
+
             if (!validAccountIds.has(accountId)) {
                 errors.push({ row: rowNum, accountId, message: 'Mã TK không tồn tại.' });
                 return;
@@ -761,10 +900,10 @@ const BalanceSheet = () => {
             let hasChanges = false;
 
             const fieldsToProcess = [
-                { colIndex: 2, fieldName: 'dauKyNo', label: 'Đầu Kỳ Nợ' },
-                { colIndex: 3, fieldName: 'dauKyCo', label: 'Đầu Kỳ Có' },
-                { colIndex: 4, fieldName: 'cuoiKyNo', label: 'Cuối Kỳ Nợ' },
-                { colIndex: 5, fieldName: 'cuoiKyCo', label: 'Cuối Kỳ Có' }
+                { colIndex: 1, fieldName: 'dauKyNo', label: 'Đầu Kỳ Nợ' },
+                { colIndex: 2, fieldName: 'dauKyCo', label: 'Đầu Kỳ Có' },
+                { colIndex: 3, fieldName: 'cuoiKyNo', label: 'Cuối Kỳ Nợ' },
+                { colIndex: 4, fieldName: 'cuoiKyCo', label: 'Cuối Kỳ Có' }
             ];
 
             fieldsToProcess.forEach(field => {
@@ -791,9 +930,6 @@ const BalanceSheet = () => {
                     }
                     return;
                 }
-
-                // ⭐ THAY ĐỔI TẠI ĐÂY: QUY TẮC BỎ QUA ĐÃ BỊ XÓA ⭐
-                // Logic cũ (đã xóa): if (existingValue !== 0 && existingValue !== newValue) ...
 
                 // Nếu giá trị mới khác giá trị cũ, thì tiến hành cập nhật
                 if (existingValue !== newValue) {
@@ -884,70 +1020,111 @@ const BalanceSheet = () => {
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
             <CalculationDetailDialog open={detailDialogOpen} onClose={() => setDetailDialogOpen(false)} data={detailData} />
             <PasteDataDialog open={isPasteDialogOpen} onClose={() => setIsPasteDialogOpen(false)} onSave={handlePasteAndSave} />
-            <Card elevation={2}>
-                <CardHeader title="Bảng Cân Đối Kế Toán" subheader="Xem và quản lý số dư các tài khoản" sx={{ pb: 1 }} />
-                <Divider />
-                <CardContent>
-                    <Grid container spacing={2} alignItems="center" justifyContent="space-between">
-                        <Grid container spacing={2} alignItems="center" size={{ xs: 12, md: 6 }}>
-                            <Grid size={{ xs: 12, sm: 6, md: 4 }}><FormControl fullWidth size="small"><InputLabel>Quý</InputLabel><Select value={selectedQuarter} label="Quý" onChange={(e) => setSelectedQuarter(e.target.value)}>{[1, 2, 3, 4].map(q => <MenuItem key={q} value={q}>Quý {q}</MenuItem>)}</Select></FormControl></Grid>
-                            <Grid size={{ xs: 12, sm: 6, md: 4 }}><FormControl fullWidth size="small"><InputLabel>Năm</InputLabel><Select value={selectedYear} label="Năm" onChange={(e) => setSelectedYear(e.target.value)}>{yearOptions.map(year => <MenuItem key={year} value={year}>{year}</MenuItem>)}</Select></FormControl></Grid>
-                        </Grid>
-                        <Grid size={{ xs: 12, md: "auto" }}>
-                            <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
-                                <Tooltip title="Mở rộng tất cả"><IconButton onClick={handleExpandAll}><UnfoldMoreIcon /></IconButton></Tooltip>
-                                <Tooltip title="Thu gọn tất cả"><IconButton onClick={handleCollapseAll}><UnfoldLessIcon /></IconButton></Tooltip>
-                                <Button variant="contained" startIcon={<FileUploadIcon />} onClick={() => setIsPasteDialogOpen(true)}>Cập nhật</Button>
-                                <Tooltip title="Hành động khác"><IconButton onClick={(e) => setActionsMenuAnchor(e.currentTarget)}><MoreVertIcon /></IconButton></Tooltip>
-                                <Menu anchorEl={actionsMenuAnchor} open={Boolean(actionsMenuAnchor)} onClose={() => setActionsMenuAnchor(null)}>
-                                    <MenuItem onClick={() => { setActionsMenuAnchor(null); }}> <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>Xuất Excel </MenuItem>
-                                    <MenuItem onClick={() => { setActionsMenuAnchor(null); }}> <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>In Bảng </MenuItem>
-                                    <Divider />
-                                    <MenuItem onClick={() => { handleDeleteByPeriod(); setActionsMenuAnchor(null); }} sx={{ color: 'error.main' }} disabled={isDeleting || isBalancesLoading || !balances || Object.keys(balances).length === 0}>
-                                        <ListItemIcon><DeleteForeverIcon fontSize="small" color="error" /></ListItemIcon>Xóa dữ liệu kỳ
-                                    </MenuItem>
-                                </Menu>
-                            </Stack>
-                        </Grid>
-                    </Grid>
-                </CardContent>
 
-                <Box sx={{ px: 2, pb: 1 }}> <Alert severity="info" icon={<InfoIcon fontSize="inherit" />} sx={{ fontSize: '0.875rem' }}><b>Mẹo:</b> Các ô số dư có nền xám và biểu tượng khóa <LockIcon sx={{ fontSize: 12, verticalAlign: 'middle' }} /> là các ô tự động, click để xem chi tiết hoặc sẽ bị khóa.</Alert></Box>
+            <GlassContainer
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+            >
+                <GlassHeader>
+                    <Box>
+                        <Typography variant="h5" component="h1" fontWeight={700} sx={{
+                            background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                            WebkitBackgroundClip: "text",
+                            WebkitTextFillColor: "transparent"
+                        }}>
+                            Bảng Cân Đối Kế Toán
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Quản lý và theo dõi số dư tài khoản chi tiết
+                        </Typography>
+                    </Box>
 
-                <Paper variant="outlined" sx={{ m: 2, mt: 0, borderRadius: 1, overflow: 'hidden' }}>
-                    <TableContainer sx={{ maxHeight: 'calc(100vh - 420px)' }}>
-                        <Table stickyHeader size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: 'background.paper', minWidth: 200, fontWeight: 700, borderRight: `1px solid ${theme.palette.divider}` }}>Số hiệu TK</TableCell>
-                                    <TableCell sx={{ position: 'sticky', left: 200, zIndex: 3, backgroundColor: 'background.paper', minWidth: 250, fontWeight: 700, borderRight: `1px solid ${theme.palette.divider}` }}>Tên tài khoản</TableCell>
-                                    <TableCell align="center" colSpan={2} sx={{ fontWeight: 700, borderLeft: `1px solid ${theme.palette.divider}` }}>Số dư đầu kỳ</TableCell>
-                                    <TableCell align="center" colSpan={2} sx={{ fontWeight: 700, borderLeft: `1px solid ${theme.palette.divider}` }}>Số dư cuối kỳ</TableCell>
-                                </TableRow>
-                                <TableRow>
-                                    <TableCell sx={{ position: 'sticky', left: 0, zIndex: 3, backgroundColor: 'background.paper', borderRight: `1px solid ${theme.palette.divider}` }}></TableCell>
-                                    <TableCell sx={{ position: 'sticky', left: 200, zIndex: 3, backgroundColor: 'background.paper', borderRight: `1px solid ${theme.palette.divider}` }}></TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 700, borderLeft: `1px solid ${theme.palette.divider}` }}>Nợ</TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 700 }}>Có</TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 700, borderLeft: `1px solid ${theme.palette.divider}` }}>Nợ</TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 700 }}>Có</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {isAccountsLoading || isBalancesLoading ? (
-                                    <TableSkeleton columnCount={6} />
-                                ) : accountTree.length > 0 ? (
-                                    accountTree.map((rootAccount) => (
-                                        <BalanceSheetRow key={rootAccount.id} account={rootAccount} level={0} expanded={expanded} onToggle={handleToggle} year={selectedYear} quarter={selectedQuarter} updateMutation={updateBalanceMutation} onShowDetails={handleShowDetails} />
-                                    ))
-                                ) : (
-                                    <EmptyState onUpdateClick={() => setIsPasteDialogOpen(true)} />
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Paper>
-            </Card>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <InputLabel>Quý</InputLabel>
+                            <Select value={selectedQuarter} label="Quý" onChange={(e) => setSelectedQuarter(e.target.value)}>
+                                {[1, 2, 3, 4].map(q => <MenuItem key={q} value={q}>Quý {q}</MenuItem>)}
+                            </Select>
+                        </FormControl>
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <InputLabel>Năm</InputLabel>
+                            <Select value={selectedYear} label="Năm" onChange={(e) => setSelectedYear(e.target.value)}>
+                                {yearOptions.map(year => <MenuItem key={year} value={year}>{year}</MenuItem>)}
+                            </Select>
+                        </FormControl>
+
+                        <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1 }}>
+                            <Tooltip title="Mở rộng tất cả"><IconButton onClick={handleExpandAll}><UnfoldMoreIcon /></IconButton></Tooltip>
+                            <Tooltip title="Thu gọn tất cả"><IconButton onClick={handleCollapseAll}><UnfoldLessIcon /></IconButton></Tooltip>
+                            <Button variant="contained" startIcon={<FileUploadIcon />} onClick={() => setIsPasteDialogOpen(true)} sx={{ borderRadius: 2, textTransform: 'none' }}>
+                                Cập nhật
+                            </Button>
+                            <IconButton onClick={(e) => setActionsMenuAnchor(e.currentTarget)}><MoreVertIcon /></IconButton>
+                        </Box>
+                        {/* Mobile Menu Button */}
+                        <Box sx={{ display: { xs: 'flex', md: 'none' } }}>
+                            <IconButton onClick={(e) => setActionsMenuAnchor(e.currentTarget)}><MoreVertIcon /></IconButton>
+                        </Box>
+                    </Stack>
+
+                    <Menu anchorEl={actionsMenuAnchor} open={Boolean(actionsMenuAnchor)} onClose={() => setActionsMenuAnchor(null)} PaperProps={{ sx: { borderRadius: 2, mt: 1 } }}>
+                        <MenuItem onClick={() => { setIsPasteDialogOpen(true); setActionsMenuAnchor(null); }} sx={{ display: { md: 'none' } }}> <ListItemIcon><FileUploadIcon fontSize="small" /></ListItemIcon>Cập nhật </MenuItem>
+                        <MenuItem onClick={() => { handleExpandAll(); setActionsMenuAnchor(null); }} sx={{ display: { md: 'none' } }}> <ListItemIcon><UnfoldMoreIcon fontSize="small" /></ListItemIcon>Mở rộng tất cả </MenuItem>
+                        <MenuItem onClick={() => { handleCollapseAll(); setActionsMenuAnchor(null); }} sx={{ display: { md: 'none' } }}> <ListItemIcon><UnfoldLessIcon fontSize="small" /></ListItemIcon>Thu gọn tất cả </MenuItem>
+                        <Divider sx={{ display: { md: 'none' } }} />
+                        <MenuItem onClick={() => { setActionsMenuAnchor(null); }}> <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>Xuất Excel </MenuItem>
+                        <MenuItem onClick={() => { setActionsMenuAnchor(null); }}> <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>In Bảng </MenuItem>
+                        <Divider />
+                        <MenuItem onClick={() => { handleDeleteByPeriod(); setActionsMenuAnchor(null); }} sx={{ color: 'error.main' }} disabled={isDeleting || isBalancesLoading || !balances || Object.keys(balances).length === 0}>
+                            <ListItemIcon><DeleteForeverIcon fontSize="small" color="error" /></ListItemIcon>Xóa dữ liệu kỳ
+                        </MenuItem>
+                    </Menu>
+                </GlassHeader>
+
+                <Box sx={{ p: 2 }}>
+                    <Alert severity="info" icon={<InfoIcon fontSize="inherit" />} sx={{
+                        borderRadius: 2,
+                        backgroundColor: alpha(theme.palette.info.main, 0.1),
+                        color: theme.palette.info.dark,
+                        border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`
+                    }}>
+                        <b>Mẹo:</b> Các ô số dư có nền màu và biểu tượng khóa <LockIcon sx={{ fontSize: 12, verticalAlign: 'middle' }} /> là các ô tự động. Click vào ô để xem chi tiết nguồn dữ liệu.
+                    </Alert>
+                </Box>
+
+                <StyledTableContainer sx={{ maxHeight: 'calc(100vh - 300px)', px: 2, pb: 2 }}>
+                    <Table stickyHeader size="small">
+                        <TableHead>
+                            <TableRow>
+                                <StickyCell left={0} sx={{ minWidth: 200, zIndex: 20 }}>Số hiệu TK</StickyCell>
+                                <StickyCell left={200} sx={{ minWidth: 250, zIndex: 20 }}>Tên tài khoản</StickyCell>
+                                <TableCell align="center" colSpan={2} sx={{ fontWeight: 700, backgroundColor: alpha(theme.palette.background.paper, 0.8), backdropFilter: 'blur(10px)' }}>Số dư đầu kỳ</TableCell>
+                                <TableCell align="center" colSpan={2} sx={{ fontWeight: 700, backgroundColor: alpha(theme.palette.background.paper, 0.8), backdropFilter: 'blur(10px)' }}>Số dư cuối kỳ</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <StickyCell left={0} sx={{ top: 40, zIndex: 20 }}></StickyCell>
+                                <StickyCell left={200} sx={{ top: 40, zIndex: 20 }}></StickyCell>
+                                <TableCell align="center" sx={{ fontWeight: 600, color: 'info.main', top: 40, backgroundColor: alpha(theme.palette.background.paper, 0.8) }}>Nợ</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 600, color: 'warning.dark', top: 40, backgroundColor: alpha(theme.palette.background.paper, 0.8) }}>Có</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 600, color: 'info.main', top: 40, backgroundColor: alpha(theme.palette.background.paper, 0.8) }}>Nợ</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 600, color: 'warning.dark', top: 40, backgroundColor: alpha(theme.palette.background.paper, 0.8) }}>Có</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {isAccountsLoading || isBalancesLoading ? (
+                                <TableSkeleton columnCount={6} />
+                            ) : accountTree.length > 0 ? (
+                                accountTree.map((rootAccount) => (
+                                    <BalanceSheetRow key={rootAccount.id} account={rootAccount} level={0} expanded={expanded} onToggle={handleToggle} year={selectedYear} quarter={selectedQuarter} updateMutation={updateBalanceMutation} onShowDetails={handleShowDetails} />
+                                ))
+                            ) : (
+                                <EmptyState onUpdateClick={() => setIsPasteDialogOpen(true)} />
+                            )}
+                        </TableBody>
+                    </Table>
+                </StyledTableContainer>
+            </GlassContainer>
         </Box>
     );
 };

@@ -81,13 +81,11 @@ function CustomNoRowsOverlay() {
 export default function DocumentList() {
   const navigate = useNavigate();
 
-  const { data: documents, isLoading, error } = useQuery(
-    'publishedDocuments',
-    fetchPublishedDocuments,
-    {
-      staleTime: 5 * 60 * 1000,
-    }
-  );
+  const { data: documents, isLoading, error } = useQuery({
+    queryKey: ['publishedDocuments'],
+    queryFn: fetchPublishedDocuments,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const columns = [
     {

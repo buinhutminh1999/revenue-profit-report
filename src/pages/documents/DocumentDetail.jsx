@@ -111,14 +111,12 @@ export default function DocumentDetail() {
   const [pdfLoadingError, setPdfLoadingError] = useState(null);
 
   // --- Fetch dữ liệu chi tiết ---
-  const { data: document, isLoading, error: fetchError } = useQuery(
-    ['documentDetail', documentId],
-    () => fetchDocumentDetail(documentId),
-    {
-      enabled: !!documentId,
-      staleTime: 5 * 60 * 1000,
-    }
-  );
+  const { data: document, isLoading, error: fetchError } = useQuery({
+    queryKey: ['documentDetail', documentId],
+    queryFn: () => fetchDocumentDetail(documentId),
+    enabled: !!documentId,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // --- Mutation để xóa văn bản ---
   const deleteMutation = useMutation({

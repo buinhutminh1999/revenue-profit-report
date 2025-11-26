@@ -117,6 +117,12 @@ function useMachineStatus(machineId) {
 function useGroupedMachineEvents(machineIds, selectedDate) {
     const [eventsByMachine, setEventsByMachine] = useState({});
     const [loading, setLoading] = useState(true);
+
+    // Create a stable key for machineIds
+    const machineIdsKey = useMemo(() => {
+        return machineIds ? machineIds.sort().join(',') : '';
+    }, [machineIds]);
+
     useEffect(() => {
         if (!machineIds || machineIds.length === 0) {
             setEventsByMachine({});
@@ -147,7 +153,7 @@ function useGroupedMachineEvents(machineIds, selectedDate) {
             setLoading(false);
         });
         return () => unsubscribe();
-    }, [machineIds.join(','), selectedDate.toISOString()]);
+    }, [machineIdsKey, selectedDate.toISOString()]); // Depend on machineIdsKey
     return { eventsByMachine, loading };
 }
 

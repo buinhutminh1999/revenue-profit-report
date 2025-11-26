@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { createWorkbook, saveWorkbook } from "../../utils/excelUtils";
 import {
     Dialog,
@@ -824,19 +824,13 @@ export default function ProfitReportQuarter() {
                 (r) => (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
             );
             const idxVII = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() ===
-                    `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
+                (r) => (r.name || "").trim().toUpperCase() === `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
             );
             const idxVIII = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() ===
-                    "VIII. GIẢM LÃI ĐT DỰ ÁN"
+                (r) => (r.name || "").trim().toUpperCase() === "VIII. GIẢM LÃI ĐT DỰ ÁN"
             );
             const idxLNFinal = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() ===
-                    `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase()
+                (r) => (r.name || "").trim().toUpperCase() === `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase()
             );
 
             if (
@@ -857,25 +851,8 @@ export default function ProfitReportQuarter() {
 
             // BƯỚC 6: Cập nhật các khoản vượt chi
             finalRows = updateVuotCPRows(finalRows, selectedQuarter);
-
-            // BƯỚC 7: Tính LỢI NHUẬN RÒNG (phụ thuộc vào "LỢI NHUẬN SAU GIẢM TRỪ" và "VƯỢT QUÝ")
+            // BƯỚC 7: Tính LỢI NHUẬN RÒNG
             finalRows = updateLoiNhuanRongRow(finalRows, selectedQuarter, selectedYear);
-
-            if (
-                idxLNFinal !== -1 &&
-                idxIV !== -1 &&
-                idxV !== -1 &&
-                idxVI !== -1 &&
-                idxVII !== -1 &&
-                idxVIII !== -1
-            ) {
-                finalRows[idxLNFinal].profit =
-                    toNum(finalRows[idxIV].profit) -
-                    toNum(finalRows[idxV].profit) +
-                    toNum(finalRows[idxVI].profit) -
-                    toNum(finalRows[idxVII].profit) -
-                    toNum(finalRows[idxVIII].profit);
-            }
 
             const filteredRows = finalRows.filter((r) => {
                 const rev = toNum(r.revenue);
@@ -915,7 +892,7 @@ export default function ProfitReportQuarter() {
                             "+VƯỢT CP BPĐT",
                             `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase(),
                             "+ CHI PHÍ ĐÃ TRẢ TRƯỚC",
-                            "LỢI NHUẬN RÒNG", // <-- THÊM DÒNG NÀY VÀO ĐÂY
+                            "LỢI NHUẬN RÒNG",
                         ].includes(nameUpper)
                     ) {
                         return true;
@@ -931,46 +908,39 @@ export default function ProfitReportQuarter() {
 
         processData();
 
-        // Mảng chứa các hàm để hủy listener
         const unsubscribes = [];
-
         const debouncedProcess = () => {
             clearTimeout(window.reportDebounceTimeout);
-            window.reportDebounceTimeout = setTimeout(processData, 500); // Chờ 500ms
+            window.reportDebounceTimeout = setTimeout(processData, 500);
         };
 
-        // Listener 1: Lắng nghe thay đổi trên collection `projects` (thêm/xóa dự án)
-        unsubscribes.push(onSnapshot(collection(db, "projects"), () => {
-            console.log("Change detected in 'projects' collection.");
+        unsubscribes.push(onSnapshot(collection(db, "projects"), (snapshot) => {
             debouncedProcess();
+            if (window.projectListeners) {
+                window.projectListeners.forEach(unsub => unsub());
+            }
+            window.projectListeners = [];
+            snapshot.docs.forEach(docSnap => {
+                const projectId = docSnap.id;
+                const quarterRef = doc(db, `projects/${projectId}/years/${selectedYear}/quarters/${selectedQuarter}`);
+                const unsubProjectQuarter = onSnapshot(quarterRef, (qSnap) => {
+                    debouncedProcess();
+                });
+                window.projectListeners.push(unsubProjectQuarter);
+            });
         }));
 
-        // Listener 2: Lắng nghe thay đổi trên TẤT CẢ các collection con `quarters`
-        unsubscribes.push(onSnapshot(collectionGroup(db, 'quarters'), () => {
-            console.log("Change detected in a 'quarters' sub-collection.");
-            debouncedProcess();
-        }));
+        unsubscribes.push(onSnapshot(doc(db, "costAllocationsQuarter", `${selectedYear}_${selectedQuarter}`), debouncedProcess));
+        unsubscribes.push(onSnapshot(doc(db, "profitChanges", `${selectedYear}_${selectedQuarter}`), debouncedProcess));
 
-        // ✅ THÊM MỚI - Listener 3: Lắng nghe thay đổi của file costAllocationsQuarter
-        unsubscribes.push(onSnapshot(doc(db, "costAllocationsQuarter", `${selectedYear}_${selectedQuarter}`), () => {
-            console.log("Change detected in 'costAllocationsQuarter'.");
-            debouncedProcess();
-        }));
-
-        // ✅ THÊM MỚI - Listener 4: Lắng nghe thay đổi của file profitChanges
-        unsubscribes.push(onSnapshot(doc(db, "profitChanges", `${selectedYear}_${selectedQuarter}`), () => {
-            console.log("Change detected in 'profitChanges'.");
-            debouncedProcess();
-        }));
-
-
-        // Hàm dọn dẹp: sẽ chạy khi component unmount hoặc khi year/quarter thay đổi
         return () => {
-            console.log("Cleaning up all listeners for quarter report.");
             unsubscribes.forEach(unsub => unsub());
+            if (window.projectListeners) {
+                window.projectListeners.forEach(unsub => unsub());
+                window.projectListeners = [];
+            }
             clearTimeout(window.reportDebounceTimeout);
         };
-
     }, [selectedYear, selectedQuarter]);
 
     const handleSave = async (rowsToSave) => {
@@ -984,7 +954,7 @@ export default function ProfitReportQuarter() {
             doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`),
             dataToSave
         );
-        console.log("Đã lưu báo cáo và chỉ tiêu thành công!");
+        console.log("Saved.");
     };
 
     const rowsHideRevenueCost = [
@@ -999,95 +969,49 @@ export default function ProfitReportQuarter() {
         `+ VƯỢT CP BPĐT DO KO CÓ DT ${selectedQuarter} (LÃI + THUÊ VP)`.toUpperCase(),
         "+ CHI PHÍ ĐÃ TRẢ TRƯỚC",
     ];
+
     const format = (v, field = "", row = {}) => {
         const name = (row.name || "").trim().toUpperCase();
-
-        // ✅ THÊM ĐIỀU KIỆN MỚI TẠI ĐÂY
-        if (name === "I.1. DÂN DỤNG + GIAO THÔNG" && field === "percent") {
-            return "–";
-        }
-        // KẾT THÚC THÊM MỚI
-
+        if (name === "I.1. DÂN DỤNG + GIAO THÔNG" && field === "percent") return "–";
         if (field === "percent" && name === "TỔNG") return "–";
-        if (
-            ["revenue", "cost"].includes(field) &&
-            rowsHideRevenueCost.includes(name)
-        ) {
-            return "–";
-        }
-        if (field === "percent" && name === "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY") {
-            return "–";
-        }
+        if (["revenue", "cost"].includes(field) && rowsHideRevenueCost.includes(name)) return "–";
+        if (field === "percent" && name === "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY") return "–";
         if (v === null || v === undefined) return "–";
-        if (typeof v === "number")
-            return field === "percent" ? `${v.toFixed(2)}%` : formatNumber(v);
+        if (typeof v === "number") return field === "percent" ? `${v.toFixed(2)}%` : formatNumber(v);
         return v;
     };
 
     const isDetailUnderII1 = (idx) => {
-        const idxII1 = rows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT"
-        );
+        const idxII1 = rows.findIndex((r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT");
         const idxEnd = (() => {
             for (let i = idxII1 + 1; i < rows.length; i++) {
                 const name = (rows[i].name || "").trim().toUpperCase();
-                if (
-                    name.startsWith("II.2") ||
-                    name.startsWith("II.3") ||
-                    name.startsWith("II.4") ||
-                    name.startsWith("III.")
-                ) {
-                    return i;
-                }
+                if (name.startsWith("II.2") || name.startsWith("II.3") || name.startsWith("II.4") || name.startsWith("III.")) return i;
             }
             return rows.length;
         })();
-        return (
-            idx > idxII1 &&
-            idx < idxEnd &&
-            !(rows[idx].name || "").match(/^[IVX]+\./)
-        );
+        return idx > idxII1 && idx < idxEnd && !(rows[idx].name || "").match(/^[IVX]+\./);
     };
 
     const handleCellChange = (e, idx, field) => {
         const rawValue = e.target.value;
         let newValue;
-        if (["note", "suggest"].includes(field)) {
-            newValue = rawValue;
-        } else {
-            newValue = toNum(rawValue);
-        }
+        if (["note", "suggest"].includes(field)) newValue = rawValue;
+        else newValue = toNum(rawValue);
 
-        if (
-            ["revenue", "cost"].includes(field) &&
-            typeof newValue === "number" &&
-            newValue < 0
-        ) {
-            return;
-        }
+        if (["revenue", "cost"].includes(field) && typeof newValue === "number" && newValue < 0) return;
 
         let newRows = [...rows];
         newRows[idx][field] = newValue;
 
-        const name = (newRows[idx].name || "").trim().toUpperCase();
-        // Đoạn code mới để dán vào
-        // ----------------------------------------------------------------
-        // ✅ BẮT ĐẦU LOGIC MỚI: TỰ ĐỘNG TÍNH LỢI NHUẬN
-        // Một hàng được tự động tính lợi nhuận nếu nó là một công trình có thể chỉnh sửa.
-        // Thuộc tính `editable: true` đã được thiết lập cho các công trình mới và các hàng cần chỉnh sửa.
         const isEditableProjectRow = newRows[idx].editable === true;
-
-        // Khi người dùng thay đổi "Doanh thu" hoặc "Chi phí" của một hàng có thể chỉnh sửa,
-        // tự động tính lại "Lợi nhuận" cho hàng đó.
         if (["revenue", "cost"].includes(field) && isEditableProjectRow) {
             const rev = toNum(newRows[idx].revenue);
             const cost = toNum(newRows[idx].cost);
             newRows[idx].profit = rev - cost;
         }
-        // --- TÍNH TOÁN LẠI CÁC DÒNG TỔNG HỢP THEO ĐÚNG THỨ TỰ ---
-        let finalRows = newRows;
 
-        // BƯỚC 1: Cập nhật các nhóm con và các mục chi tiết
+        let finalRows = newRows;
         finalRows = updateGroupI1(finalRows);
         finalRows = updateGroupI2(finalRows);
         finalRows = updateGroupI3(finalRows);
@@ -1098,94 +1022,37 @@ export default function ProfitReportQuarter() {
         finalRows = updateThuNhapKhacRow(finalRows);
         finalRows = updateGroupII1(finalRows);
         finalRows = updateDauTuRow(finalRows);
-
-        // BƯỚC 2: Cập nhật các mục tổng hợp lớn (phụ thuộc vào các nhóm con)
         finalRows = updateXayDungRow(finalRows);
         finalRows = updateSanXuatRow(finalRows);
-
-        // BƯỚC 3: Tính toán dòng TỔNG (phụ thuộc vào các mục lớn)
         finalRows = calculateTotals(finalRows);
 
-        // BƯỚC 4: Cập nhật Lợi nhuận Quý (phụ thuộc vào TỔNG)
-        const idxTotal = finalRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
-        );
-        const idxIV = finalRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
-        );
-        if (idxIV !== -1 && idxTotal !== -1) {
-            finalRows[idxIV].profit = toNum(finalRows[idxTotal].profit);
+        const idxTotal = finalRows.findIndex((r) => (r.name || "").trim().toUpperCase() === "TỔNG");
+        const idxIV = finalRows.findIndex((r) => (r.name || "").trim().toUpperCase() === `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase());
+        if (idxIV !== -1 && idxTotal !== -1) finalRows[idxIV].profit = toNum(finalRows[idxTotal].profit);
+
+        const idxV = finalRows.findIndex((r) => (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN");
+        const idxVI = finalRows.findIndex((r) => (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC");
+        const idxVII = finalRows.findIndex((r) => (r.name || "").trim().toUpperCase() === `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase());
+        const idxVIII = finalRows.findIndex((r) => (r.name || "").trim().toUpperCase() === "VIII. GIẢM LÃI ĐT DỰ ÁN");
+        const idxLNFinal = finalRows.findIndex((r) => (r.name || "").trim().toUpperCase() === `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase());
+
+        if (idxLNFinal !== -1 && idxIV !== -1 && idxV !== -1 && idxVI !== -1 && idxVII !== -1 && idxVIII !== -1) {
+            finalRows[idxLNFinal].profit = toNum(finalRows[idxIV].profit) - toNum(finalRows[idxV].profit) + toNum(finalRows[idxVI].profit) - toNum(finalRows[idxVII].profit) - toNum(finalRows[idxVIII].profit);
         }
 
-        // BƯỚC 5: Tính "LỢI NHUẬN SAU GIẢM TRỪ" (phụ thuộc vào Lợi nhuận Quý và các mục V, VI, VII, VIII)
-        const idxV = finalRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
-        );
-        const idxVI = finalRows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
-        );
-        const idxVII = finalRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
-        );
-        const idxVIII = finalRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "VIII. GIẢM LÃI ĐT DỰ ÁN"
-        );
-        const idxLNFinal = finalRows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase()
-        );
-
-        if (
-            idxLNFinal !== -1 &&
-            idxIV !== -1 &&
-            idxV !== -1 &&
-            idxVI !== -1 &&
-            idxVII !== -1 &&
-            idxVIII !== -1
-        ) {
-            finalRows[idxLNFinal].profit =
-                toNum(finalRows[idxIV].profit) -
-                toNum(finalRows[idxV].profit) +
-                toNum(finalRows[idxVI].profit) -
-                toNum(finalRows[idxVII].profit) -
-                toNum(finalRows[idxVIII].profit);
-        }
-        // BƯỚC 6: Cập nhật các khoản vượt chi
         finalRows = updateVuotCPRows(finalRows, selectedQuarter);
-
-        // BƯỚC 7: Tính LỢI NHUẬN RÒNG (phụ thuộc vào "LỢI NHUẬN SAU GIẢM TRỪ" và "VƯỢT QUÝ")
         finalRows = updateLoiNhuanRongRow(finalRows, selectedQuarter, selectedYear);
-
-        // Cập nhật state cuối cùng để UI hiển thị
         setRows(finalRows);
     };
 
     const isDetailUnderI1 = (idx) => {
-        const idxI1 = rows.findIndex(
-            (r) =>
-                (r.name || "").trim().toUpperCase() ===
-                "I.1. DÂN DỤNG + GIAO THÔNG"
-        );
-        const idxI2 = rows.findIndex(
-            (r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ"
-        );
-        return (
-            idx > idxI1 &&
-            (idxI2 === -1 || idx < idxI2) &&
-            !(rows[idx].name || "").match(/^[IVX]+\./)
-        );
+        const idxI1 = rows.findIndex((r) => (r.name || "").trim().toUpperCase() === "I.1. DÂN DỤNG + GIAO THÔNG");
+        const idxI2 = rows.findIndex((r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ");
+        return idx > idxI1 && (idxI2 === -1 || idx < idxI2) && !(rows[idx].name || "").match(/^[IVX]+\./);
     };
 
     const renderEditableCell = (r, idx, field, align = "right") => {
-        const isEditing =
-            editingCell.idx === idx && editingCell.field === field;
+        const isEditing = editingCell.idx === idx && editingCell.field === field;
         const value = r[field];
         const disallowedFields = ["percent"];
         const nameUpper = (r.name || "").trim().toUpperCase();
@@ -1196,102 +1063,52 @@ export default function ProfitReportQuarter() {
             `V. GIẢM LỢI NHUẬN`,
             "VI. THU NHẬP KHÁC",
         ].includes(nameUpper);
-        // THÊM ĐOẠN CODE MỚI NÀY VÀO
-        // ----------------------------------------------------------------
-        // ✅ BẮT ĐẦU LOGIC MỚI: KIỂM TRA QUYỀN CHỈNH SỬA
-        const isProjectDetailRow = !!r.projectId; // Hàng này là chi tiết của một dự án nếu có projectId
 
+        const isProjectDetailRow = !!r.projectId;
         const allowEdit = (() => {
-            // Không bao giờ cho phép sửa các cột tính toán hoặc bị cấm
-            if (disallowedFields.includes(field) || isCalcRow) {
-                return false;
-            }
-            // Cho phép sửa các cột target, note, suggest
-            if (["target", "note", "suggest"].includes(field)) {
-                return true;
-            }
-            // Đối với các cột còn lại (revenue, cost, profit):
-            // Chỉ cho phép sửa nếu hàng đó được đánh dấu là "editable" VÀ không phải là hàng chi tiết của dự án.
-            if (["revenue", "cost", "profit"].includes(field)) {
-                return r.editable && !isProjectDetailRow;
-            }
-            // Mặc định không cho sửa
+            if (disallowedFields.includes(field) || isCalcRow) return false;
+            if (["target", "note", "suggest"].includes(field)) return true;
+            if (["revenue", "cost", "profit"].includes(field)) return r.editable && !isProjectDetailRow;
             return false;
         })();
-        // ✅ KẾT THÚC LOGIC MỚI
-        // ----------------------------------------------------------------
+
         if (field === "costOverQuarter") {
             if (nameUpper === "III. ĐẦU TƯ") {
                 return (
-                    <TableCell
-                        align={align}
-                        sx={cellStyle}
-                        onDoubleClick={() => setEditingCell({ idx, field })}
-                    >
+                    <TableCell align={align} sx={cellStyle} onDoubleClick={() => setEditingCell({ idx, field })}>
                         {isEditing ? (
                             <TextField
-                                size="small"
-                                variant="standard"
-                                value={value ?? ""}
-                                onChange={(e) =>
-                                    handleCellChange(e, idx, field)
-                                }
-                                onBlur={() =>
-                                    setEditingCell({ idx: -1, field: "" })
-                                }
-                                onKeyDown={(e) =>
-                                    e.key === "Enter" &&
-                                    setEditingCell({ idx: -1, field: "" })
-                                }
-                                autoFocus
-                                inputProps={{ style: { textAlign: align } }}
+                                size="small" variant="standard" value={value ?? ""}
+                                onChange={(e) => handleCellChange(e, idx, field)}
+                                onBlur={() => setEditingCell({ idx: -1, field: "" })}
+                                onKeyDown={(e) => e.key === "Enter" && setEditingCell({ idx: -1, field: "" })}
+                                autoFocus inputProps={{ style: { textAlign: align } }}
                             />
-                        ) : (
-                            format(value)
-                        )}
+                        ) : format(value)}
                     </TableCell>
                 );
             }
-            return (
-                <TableCell align={align} sx={cellStyle}>
-                    {format(value)}
-                </TableCell>
-            );
+            return <TableCell align={align} sx={cellStyle}>{format(value)}</TableCell>;
         }
 
         return (
-            <TableCell
-                align={align}
-                sx={cellStyle}
-                onDoubleClick={() =>
-                    allowEdit && setEditingCell({ idx, field })
-                }
-            >
+            <TableCell align={align} sx={cellStyle} onDoubleClick={() => allowEdit && setEditingCell({ idx, field })}>
                 {allowEdit && isEditing ? (
                     <TextField
-                        size="small"
-                        variant="standard"
-                        value={value}
+                        size="small" variant="standard" value={value}
                         onChange={(e) => handleCellChange(e, idx, field)}
                         onBlur={() => setEditingCell({ idx: -1, field: "" })}
-                        onKeyDown={(e) =>
-                            e.key === "Enter" &&
-                            setEditingCell({ idx: -1, field: "" })
-                        }
-                        autoFocus
-                        inputProps={{ style: { textAlign: align } }}
+                        onKeyDown={(e) => e.key === "Enter" && setEditingCell({ idx: -1, field: "" })}
+                        autoFocus inputProps={{ style: { textAlign: align } }}
                     />
                 ) : field === "suggest" && value ? (
                     <Chip label={format(value)} color="warning" size="small" />
-                ) : (
-                    format(value, field, r)
-                )}
+                ) : format(value, field, r)}
             </TableCell>
         );
     };
 
     const handleExportExcel = async () => {
-        if (!rows || rows.length === 0) return;
         const { workbook, worksheet: sheet } = createWorkbook("Báo cáo quý");
         sheet.views = [{ state: "frozen", ySplit: 1 }];
         const headers = [
@@ -1299,8 +1116,8 @@ export default function ProfitReportQuarter() {
             "DOANH THU",
             "CHI PHÍ ĐÃ CHI",
             "LỢI NHUẬN",
-            "% LN / GIÁ VỐN", // Thêm vào đây
-            "% LN THEO KH", // <-- ĐÃ SỬA
+            "% LN / GIÁ VỐN",
+            "% LN THEO KH",
             "% LN QUÍ",
             "CP VƯỢT QUÝ",
             "CHỈ TIÊU",
@@ -1393,8 +1210,7 @@ export default function ProfitReportQuarter() {
             { width: 18 },
             { width: 18 },
             { width: 18 },
-            { width: 16 }, // % LN / GIÁ VỐN
-
+            { width: 16 },
             { width: 16 },
             { width: 14 },
             { width: 18 },
@@ -1493,7 +1309,7 @@ export default function ProfitReportQuarter() {
                         }}
                     >
                         Báo cáo quý: {selectedQuarter}.{selectedYear}
-                    </Typography>
+                    </Typography >
                     <Stack
                         direction="row"
                         spacing={1}
@@ -1675,7 +1491,7 @@ export default function ProfitReportQuarter() {
                             ))}
                         </Menu>
                     </Stack>
-                </Box>
+                </Box >
                 <ProfitSummaryTable
                     data={summaryData}
                     targets={summaryTargets}
@@ -1897,12 +1713,11 @@ export default function ProfitReportQuarter() {
                         </Button>
                     </DialogActions>
                 </Dialog>
-            </Paper>
+            </Paper >
             <ProfitReportFormulaGuide
                 open={formulaDialogOpen}
                 onClose={() => setFormulaDialogOpen(false)}
             />
-        </Box>
+        </Box >
     );
 }
-

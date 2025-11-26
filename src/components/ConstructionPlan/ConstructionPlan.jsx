@@ -343,8 +343,7 @@ export default function ConstructionPlan() {
         page: 0,
     });
 
-    // Lưu trữ quarters data khi listener chạy (trước khi projects load)
-    const [quartersCache, setQuartersCache] = useState(new Map());
+    // ✅ Đã loại bỏ quartersCache - không còn cần thiết
 
     const [newProject, setNewProject] = useState({
         name: "",
@@ -373,51 +372,20 @@ export default function ConstructionPlan() {
                         ...d.data(),
                         id: d.id,
                     }));
-                    const projectsWithTotals = await Promise.all(
-                        projectsData.map(async (project) => {
-                            // Lấy tổng HSKH
-                            const planningItemsRef = collection(
-                                db,
-                                "projects",
-                                project.id,
-                                "planningItems"
-                            );
-                            const planningSnapshot = await getDocs(
-                                planningItemsRef
-                            );
-                            const totalHSKH = planningSnapshot.docs.reduce(
-                                (sum, doc) =>
-                                    sum + (Number(doc.data().amount) || 0),
-                                0
-                            );
-
-                            // Không load quyết toán ở đây để tránh chậm - sẽ load sau bằng realtime listener
-                            return {
-                                ...project,
-                                revenueHSKH: totalHSKH,
-                                finalizedQuarters: [],
-                                latestFinalized: null,
-                            };
-                        })
-                    );
-                    // Nếu đã có quarters cache, apply ngay vào projects
-                    const projectsWithFinalized = projectsWithTotals.map(project => {
-                        const finalizedQuarters = quartersCache.get(project.id) || [];
-                        finalizedQuarters.sort((a, b) => {
-                            if (a.year !== b.year) return Number(b.year) - Number(a.year);
-                            const qOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
-                            return qOrder[b.quarter] - qOrder[a.quarter];
-                        });
-                        const latestFinalized = finalizedQuarters.length > 0 ? finalizedQuarters[0] : null;
-
+                    // ✅ TỐI ƯU: Không gọi getDocs trong listener để tránh nhiều reads
+                    // Thay vào đó, lấy revenueHSKH từ project document (nếu đã được lưu)
+                    // hoặc để 0 và sẽ tính sau khi cần
+                    const projectsWithTotals = projectsData.map((project) => {
                         return {
                             ...project,
-                            finalizedQuarters: finalizedQuarters,
-                            latestFinalized: latestFinalized,
+                            // Lấy từ project document nếu có, nếu không thì 0 (sẽ tính sau nếu cần)
+                            revenueHSKH: project.revenueHSKH || 0,
+                            finalizedQuarters: [],
+                            latestFinalized: null,
                         };
                     });
 
-                    setProjects(projectsWithFinalized);
+                    setProjects(projectsWithTotals);
                 } catch (error) {
                     console.error("Lỗi khi lấy dữ liệu:", error);
                     toast.error("Không thể tải được dữ liệu công trình.");
@@ -432,7 +400,7 @@ export default function ConstructionPlan() {
             }
         );
         return () => unsub();
-    }, [quartersCache]); // Thêm quartersCache vào dependency để apply cache khi load projects
+    }, []); // Không còn phụ thuộc vào quartersCache
 
     // Helper function để reload dữ liệu quyết toán cho một project
     const reloadProjectFinalizedData = useCallback(async (project) => {
@@ -523,142 +491,93 @@ export default function ConstructionPlan() {
         };
     }, []);
 
-    // Không cần reload riêng nữa vì đã có realtime listener
-
-    // Listener realtime cho quarters - load ngay và tự động cập nhật khi có thay đổi
+    // ✅ TỐI ƯU: Thay vì dùng collectionGroup (quét toàn bộ DB - RẤT TỐN TÀI NGUYÊN),
+    // chỉ load quarters một lần khi projects đã load, không dùng realtime listener
     useEffect(() => {
-        if (location.pathname !== '/construction-plan') return;
+        if (location.pathname !== '/construction-plan' || projects.length === 0) return;
 
-        console.log('👂 Setting up realtime listener for quarters...');
-        const quartersQuery = collectionGroup(db, "quarters");
-        const unsubQuarters = onSnapshot(
-            quartersQuery,
-            (quartersSnapshot) => {
-                console.log(`📢 Quarters snapshot: ${quartersSnapshot.docs.length} quarters found`);
-
-                // Nhóm quarters theo projectId
-                const quartersByProject = new Map();
-
-                quartersSnapshot.docs.forEach((quarterDoc) => {
-                    const quarterData = quarterDoc.data();
-                    const pathParts = quarterDoc.ref.path.split('/');
-                    const projectIdIndex = pathParts.indexOf('projects') + 1;
-                    const yearIndex = pathParts.indexOf('years') + 1;
-                    const quarterIndex = pathParts.indexOf('quarters') + 1;
-
-                    if (projectIdIndex > 0 && yearIndex > 0 && quarterIndex > 0) {
-                        const projectId = pathParts[projectIdIndex];
-                        const year = pathParts[yearIndex];
-                        const quarter = pathParts[quarterIndex];
-
-                        // Kiểm tra có finalized không - ưu tiên document level
-                        let isFinalized = false;
-                        if (quarterData.isFinalized === true || quarterData.isFinalized === "true") {
-                            isFinalized = true;
-                        } else {
-                            // Nếu không có ở document level, kiểm tra trong items
-                            const items = Array.isArray(quarterData.items) ? quarterData.items : [];
-                            if (items.length > 0) {
-                                isFinalized = items.some(item =>
-                                    item && (item.isFinalized === true || item.isFinalized === "true")
-                                );
+        console.log('📥 Loading finalized quarters (one-time load, not realtime)...');
+        
+        // Load quarters một lần cho tất cả projects
+        const loadFinalizedQuarters = async () => {
+            const quartersByProject = new Map();
+            
+            await Promise.all(
+                projects.map(async (project) => {
+                    try {
+                        const yearsRef = collection(db, "projects", project.id, "years");
+                        const yearsSnapshot = await getDocs(yearsRef);
+                        
+                        const finalizedQuarters = [];
+                        
+                        for (const yearDoc of yearsSnapshot.docs) {
+                            const year = yearDoc.id;
+                            const quartersRef = collection(
+                                db,
+                                "projects",
+                                project.id,
+                                "years",
+                                year,
+                                "quarters"
+                            );
+                            const quartersSnapshot = await getDocs(quartersRef);
+                            
+                            for (const quarterDoc of quartersSnapshot.docs) {
+                                const quarter = quarterDoc.id;
+                                const quarterData = quarterDoc.data();
+                                
+                                // Kiểm tra có finalized không
+                                let isFinalized = false;
+                                if (quarterData.isFinalized === true || quarterData.isFinalized === "true") {
+                                    isFinalized = true;
+                                } else {
+                                    const items = Array.isArray(quarterData.items) ? quarterData.items : [];
+                                    if (items.length > 0) {
+                                        isFinalized = items.some(item =>
+                                            item && (item.isFinalized === true || item.isFinalized === "true")
+                                        );
+                                    }
+                                }
+                                
+                                if (isFinalized) {
+                                    finalizedQuarters.push({ quarter, year });
+                                }
                             }
                         }
-
-                        if (isFinalized) {
-                            if (!quartersByProject.has(projectId)) {
-                                quartersByProject.set(projectId, []);
-                            }
-                            quartersByProject.get(projectId).push({ quarter, year });
+                        
+                        if (finalizedQuarters.length > 0) {
+                            finalizedQuarters.sort((a, b) => {
+                                if (a.year !== b.year) return Number(b.year) - Number(a.year);
+                                const qOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
+                                return qOrder[b.quarter] - qOrder[a.quarter];
+                            });
+                            quartersByProject.set(project.id, finalizedQuarters);
                         }
+                    } catch (error) {
+                        console.error(`❌ Lỗi khi load quarters cho project ${project.id}:`, error);
                     }
-                });
-
-                // Lưu cache để dùng sau khi projects load
-                setQuartersCache(quartersByProject);
-
-                console.log(`📊 Found finalized quarters for ${quartersByProject.size} projects`);
-
-                // Cập nhật projects với dữ liệu mới
-                setProjects(prevProjects => {
-                    if (prevProjects.length === 0) {
-                        // Nếu chưa có projects, chỉ lưu cache và return
-                        return prevProjects;
-                    }
-
-                    const updated = prevProjects.map(project => {
-                        const finalizedQuarters = quartersByProject.get(project.id) || [];
-                        finalizedQuarters.sort((a, b) => {
-                            if (a.year !== b.year) return Number(b.year) - Number(a.year);
-                            const qOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
-                            return qOrder[b.quarter] - qOrder[a.quarter];
-                        });
-                        const latestFinalized = finalizedQuarters.length > 0 ? finalizedQuarters[0] : null;
-
-                        return {
-                            ...project,
-                            finalizedQuarters: finalizedQuarters,
-                            latestFinalized: latestFinalized,
-                        };
-                    });
-
-                    // Debug: Log projects có quyết toán
-                    const withFinalized = updated.filter(p => p.latestFinalized);
-                    if (withFinalized.length > 0) {
-                        console.log('✅ Projects với quyết toán:', withFinalized.map(p => ({
-                            name: p.name,
-                            latestFinalized: `${p.latestFinalized.quarter}/${p.latestFinalized.year}`
-                        })));
-                    }
-
-                    return updated;
-                });
-            },
-            (error) => {
-                console.error('❌ Lỗi listener quarters:', error);
-            }
-        );
-
-        return () => {
-            console.log('🔇 Cleaning up quarters listener');
-            unsubQuarters();
-        };
-    }, [location.pathname]); // Chỉ phụ thuộc vào location.pathname để setup ngay
-
-    // Khi projects load xong, apply cache từ quarters listener
-    useEffect(() => {
-        if (projects.length > 0 && quartersCache.size > 0) {
-            console.log('🔄 Applying quarters cache to projects...');
+                })
+            );
+            
+            // Cập nhật projects với finalized quarters
             setProjects(prevProjects => {
-                const updated = prevProjects.map(project => {
-                    const finalizedQuarters = quartersCache.get(project.id) || [];
-                    finalizedQuarters.sort((a, b) => {
-                        if (a.year !== b.year) return Number(b.year) - Number(a.year);
-                        const qOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
-                        return qOrder[b.quarter] - qOrder[a.quarter];
-                    });
-                    const latestFinalized = finalizedQuarters.length > 0 ? finalizedQuarters[0] : null;
-
+                return prevProjects.map(project => {
+                    const finalizedQuarters = quartersByProject.get(project.id) || [];
                     return {
                         ...project,
                         finalizedQuarters: finalizedQuarters,
-                        latestFinalized: latestFinalized,
+                        latestFinalized: finalizedQuarters.length > 0 ? finalizedQuarters[0] : null,
                     };
                 });
-
-                // Debug: Log projects có quyết toán
-                const withFinalized = updated.filter(p => p.latestFinalized);
-                if (withFinalized.length > 0) {
-                    console.log('✅ Applied cache - Projects với quyết toán:', withFinalized.map(p => ({
-                        name: p.name,
-                        latestFinalized: `${p.latestFinalized.quarter}/${p.latestFinalized.year}`
-                    })));
-                }
-
-                return updated;
             });
-        }
-    }, [projects.length, quartersCache.size]); // Chạy khi projects load xong hoặc cache có data
+            
+            console.log(`✅ Loaded finalized quarters for ${quartersByProject.size} projects`);
+        };
+        
+        loadFinalizedQuarters();
+    }, [location.pathname, projects.length]); // Chỉ load một lần khi projects thay đổi
+
+    // ✅ Đã loại bỏ logic apply cache - không còn cần thiết vì đã load trực tiếp
 
     // --- HANDLERS DỰA TRÊN USECALLBACK ---
     const handleOpenTimelineModal = useCallback((project) => {

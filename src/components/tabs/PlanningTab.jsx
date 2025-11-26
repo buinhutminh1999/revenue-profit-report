@@ -591,18 +591,46 @@ export default function PlanningTab({ projectId }) {
         [expandedGroups]
     );
 
-    // CẬP NHẬT: Đã xóa logic lazy-loading khỏi hàm này
+    // ✅ TỐI ƯU: Chỉ tạo listener khi user mở rộng item (lazy loading)
     const handleToggleRow = useCallback(
         (itemId) => {
             const newExpanded = new Set(expandedRows);
-            if (newExpanded.has(itemId)) {
+            const isCurrentlyExpanded = newExpanded.has(itemId);
+            
+            if (isCurrentlyExpanded) {
+                // Đóng: Xóa khỏi expanded và hủy listener nếu có
                 newExpanded.delete(itemId);
+                const unsub = adjustmentUnsubscribes.current.get(itemId);
+                if (unsub) {
+                    unsub();
+                    adjustmentUnsubscribes.current.delete(itemId);
+                }
             } else {
+                // Mở: Thêm vào expanded và tạo listener nếu chưa có
                 newExpanded.add(itemId);
+                
+                // Chỉ tạo listener nếu chưa có
+                if (!adjustmentUnsubscribes.current.has(itemId)) {
+                    const adjQuery = query(
+                        collection(db, "projects", projectId, "planningItems", itemId, "adjustments"),
+                        orderBy("createdAt", "desc")
+                    );
+
+                    const unsubscribeAdjustments = onSnapshot(adjQuery, (adjSnapshot) => {
+                        const fetchedAdjustments = adjSnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+                        setAdjustmentsData((prevData) => ({
+                            ...prevData,
+                            [itemId]: fetchedAdjustments,
+                        }));
+                    });
+
+                    adjustmentUnsubscribes.current.set(itemId, unsubscribeAdjustments);
+                }
             }
+            
             setExpandedRows(newExpanded);
         },
-        [expandedRows]
+        [expandedRows, projectId]
     );
 
     const handleOpenModalForAdd = (item) => {
@@ -1175,27 +1203,13 @@ export default function PlanningTab({ projectId }) {
             setPlanningItems(newItems);
             setLoading(false);
 
-            // 2. Lắng nghe các thay đổi trên 'adjustments' (chi tiết phát sinh) cho mỗi item
+            // ✅ TỐI ƯU: Không tạo listener cho tất cả items ngay lập tức
+            // Chỉ tạo listener khi user mở rộng (expand) item đó
             // Hủy các listener cũ trước khi tạo mới để tránh memory leak
             adjustmentUnsubscribes.current.forEach((unsub) => unsub());
             adjustmentUnsubscribes.current.clear();
-
-            newItems.forEach((item) => {
-                const adjQuery = query(
-                    collection(db, "projects", projectId, "planningItems", item.id, "adjustments"),
-                    orderBy("createdAt", "desc")
-                );
-
-                const unsubscribeAdjustments = onSnapshot(adjQuery, (adjSnapshot) => {
-                    const fetchedAdjustments = adjSnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-                    setAdjustmentsData((prevData) => ({
-                        ...prevData,
-                        [item.id]: fetchedAdjustments,
-                    }));
-                });
-
-                adjustmentUnsubscribes.current.set(item.id, unsubscribeAdjustments);
-            });
+            
+            // Không tạo listeners ở đây nữa - sẽ tạo khi handleToggleRow được gọi
         }, (error) => {
             console.error("Snapshot error for planning items:", error);
             setLoading(false);

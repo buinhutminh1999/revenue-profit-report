@@ -44,7 +44,9 @@ const ALLOWED_FILE_TYPES = {
 };
 
 // --- Component Vùng Kéo-Thả (Style bằng MUI) ---
-const DropzoneArea = styled(Box)(({ theme, isDragActive, file }) => ({
+const DropzoneArea = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'isDragActive' && prop !== 'file',
+})(({ theme, isDragActive, file }) => ({
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',

@@ -332,22 +332,22 @@ export default function AssetTransferPage() {
             (err) => { console.error("Error loading departments:", err); setError(err); setLoading(false); }
         );
         const unsubAssets = onSnapshot(
-            query(collection(db, "assets")),
+            query(collection(db, "assets"), limit(100)),
             (qs) => setAssets(qs.docs.map((d) => ({ id: d.id, ...d.data() }))),
             (err) => { console.error("Error loading assets:", err); setError(err); }
         );
         const unsubTransfers = onSnapshot(
-            query(collection(db, "transfers"), fsOrderBy("date", "desc")),
+            query(collection(db, "transfers"), fsOrderBy("date", "desc"), limit(50)),
             (qs) => { setTransfers(qs.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoading(false); },
             (err) => { console.error("Error loading transfers:", err); setError(err); setLoading(false); }
         );
         const unsubRequests = onSnapshot(
-            query(collection(db, "asset_requests"), fsOrderBy("createdAt", "desc")),
+            query(collection(db, "asset_requests"), fsOrderBy("createdAt", "desc"), limit(50)),
             (qs) => { setAssetRequests(qs.docs.map((d) => ({ id: d.id, ...d.data() }))); },
             (err) => { console.error("Error loading requests:", err); setError(err); }
         );
         const unsubReports = onSnapshot(
-            query(collection(db, "inventory_reports"), fsOrderBy("createdAt", "desc")),
+            query(collection(db, "inventory_reports"), fsOrderBy("createdAt", "desc"), limit(50)),
             (qs) => { setInventoryReports(qs.docs.map((d) => ({ id: d.id, ...d.data() }))); },
             (err) => { console.error("Error loading reports:", err); setError(err); }
         );
