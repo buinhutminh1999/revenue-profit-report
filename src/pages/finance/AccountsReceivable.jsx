@@ -1,14 +1,16 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import toast, { Toaster } from 'react-hot-toast';
 import {
     Box, Typography, Paper, FormControl, InputLabel, Select, MenuItem, Stack, Grid, Skeleton,
     Chip, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, TextField
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, TextField,
+    useTheme, alpha, Tooltip, Zoom
 } from "@mui/material";
 import {
     ArchiveOutlined, TrendingUp, TrendingDown, AttachMoney, ErrorOutline,
-    Add as AddIcon, Delete as DeleteIcon
+    Add as AddIcon, Delete as DeleteIcon, FilterList, Save, CloudUpload,
+    Inbox
 } from "@mui/icons-material";
 import { NumericFormat } from "react-number-format";
 import { db } from "../../services/firebase-config";
@@ -17,18 +19,17 @@ import {
 } from "firebase/firestore";
 import { toNum } from "../../utils/numberUtils";
 import { EmptyState, SkeletonTable } from "../../components/common";
-import { Inbox } from "@mui/icons-material";
 
 // =================================================================
-// START: INLINE EDITABLE CELL COMPONENT (PHIÊN BẢN SỬA LỖI CĂN LỀ)
+// START: INLINE EDITABLE CELL COMPONENT
 // =================================================================
 const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel }) => {
     const [currentValue, setCurrentValue] = useState(value);
     const inputRef = useRef(null);
+    const theme = useTheme();
 
     useEffect(() => {
         if (inputRef.current) {
-            // Dùng setTimeout để đảm bảo input đã được render hoàn toàn trước khi focus
             setTimeout(() => inputRef.current.focus(), 0);
         }
     }, []);
@@ -52,16 +53,14 @@ const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel }) => {
         }
     };
 
-    // ✅ SỬA LỖI CĂN LỀ:
-    // 1. Thêm `sx` để component chiếm toàn bộ chiều cao/rộng của TableCell.
-    // 2. Target vào class nội bộ `.MuiInputBase-root` để nó cũng chiếm 100% chiều cao.
-    // 3. Đặt padding vào bên trong `.MuiInputBase-input` để căn lề chữ.
     const commonSx = {
         width: '100%',
         height: '100%',
         '& .MuiInputBase-root': {
             height: '100%',
             boxSizing: 'border-box',
+            fontSize: '0.875rem',
+            fontWeight: 500,
         },
     };
 
@@ -77,14 +76,16 @@ const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel }) => {
                 onKeyDown={handleKeyDown}
                 fullWidth
                 inputRef={inputRef}
-                sx={commonSx} // Áp dụng style chung
+                sx={commonSx}
                 InputProps={{
                     disableUnderline: true,
                     sx: {
-                        // Style cho thẻ input bên trong
                         '& input': {
                             textAlign: 'right',
-                            padding: '6px 16px', // Bù lại padding của TableCell
+                            padding: '8px 16px',
+                            color: theme.palette.primary.main,
+                            bgcolor: alpha(theme.palette.primary.main, 0.05),
+                            transition: 'all 0.2s',
                         }
                     }
                 }}
@@ -101,24 +102,24 @@ const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel }) => {
             onKeyDown={handleKeyDown}
             fullWidth
             inputRef={inputRef}
-            sx={commonSx} // Áp dụng style chung
+            sx={commonSx}
             InputProps={{
                 disableUnderline: true,
                 sx: {
-                    // Style cho thẻ input bên trong
                     '& input': {
-                        padding: '6px 16px', // Bù lại padding của TableCell
+                        padding: '8px 16px',
+                        color: theme.palette.text.primary,
+                        bgcolor: alpha(theme.palette.action.hover, 0.05),
                     }
                 }
             }}
         />
     );
 };
-// =================================================================
-// END: INLINE EDITABLE CELL COMPONENT
-// =================================================================
 
+// =================================================================
 // DATA & CONFIG
+// =================================================================
 const categories = [
     {
         id: 'thi_cong',
@@ -152,30 +153,109 @@ const tableColumns = [
     { field: "closingCredit", headerName: "Trả Trước CK", type: "number" },
 ];
 
+// =================================================================
 // HELPER COMPONENTS
-const MetricCard = ({ title, value, icon, color, loading }) => (
-    <Paper variant="outlined" sx={{ p: 2, display: 'flex', alignItems: 'center', height: '100%', borderRadius: 2 }}>
-        <Box sx={{ mr: 2, color: `${color}.main` }}>{icon}</Box>
-        <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{title}</Typography>
-            {loading ? <Skeleton width={80} /> : <Typography variant="h6" fontWeight="600"><NumericFormat value={toNum(value)} displayType="text" thousandSeparator="," /></Typography>}
-        </Box>
-    </Paper>
-);
+// =================================================================
+const MetricCard = ({ title, value, icon, color, loading, index }) => {
+    const theme = useTheme();
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: index * 0.1 }}
+            style={{ height: '100%' }}
+        >
+            <Paper
+                elevation={0}
+                sx={{
+                    p: 3,
+                    height: '100%',
+                    borderRadius: 4,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    background: theme.palette.mode === 'light'
+                        ? `linear-gradient(135deg, ${alpha('#fff', 0.9)}, ${alpha('#fff', 0.7)})`
+                        : `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.9)}, ${alpha(theme.palette.background.paper, 0.7)})`,
+                    backdropFilter: 'blur(10px)',
+                    border: `1px solid ${alpha(theme.palette[color].main, 0.2)}`,
+                    boxShadow: `0 8px 32px ${alpha(theme.palette[color].main, 0.1)}`,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                        transform: 'translateY(-5px)',
+                        boxShadow: `0 12px 40px ${alpha(theme.palette[color].main, 0.2)}`,
+                        border: `1px solid ${alpha(theme.palette[color].main, 0.4)}`,
+                    }
+                }}
+            >
+                <Box sx={{ position: 'relative', zIndex: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <Box
+                            sx={{
+                                p: 1.5,
+                                borderRadius: 3,
+                                bgcolor: alpha(theme.palette[color].main, 0.1),
+                                color: theme.palette[color].main,
+                                display: 'flex',
+                                mr: 2
+                            }}
+                        >
+                            {icon}
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                            {title}
+                        </Typography>
+                    </Box>
+                    {loading ? (
+                        <Skeleton width="60%" height={40} />
+                    ) : (
+                        <Typography
+                            variant="h5"
+                            fontWeight={800}
+                            sx={{
+                                color: theme.palette[color].dark,
+                                textShadow: '0 2px 10px rgba(0,0,0,0.05)'
+                            }}
+                        >
+                            <NumericFormat value={toNum(value)} displayType="text" thousandSeparator="," />
+                        </Typography>
+                    )}
+                </Box>
+                {/* Decorative circle */}
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        top: -20,
+                        right: -20,
+                        width: 100,
+                        height: 100,
+                        borderRadius: '50%',
+                        bgcolor: alpha(theme.palette[color].main, 0.05),
+                        zIndex: 0
+                    }}
+                />
+            </Paper>
+        </motion.div>
+    );
+};
+
 const NoRowsOverlay = () => (
     <EmptyState
-        icon={<Inbox sx={{ fontSize: 64 }} />}
-        title="Chưa có dữ liệu công nợ phải thu"
-        description="Không có dữ liệu công nợ phải thu cho quý và năm đã chọn. Hãy thêm dữ liệu mới hoặc chọn quý/năm khác."
+        icon={<Inbox sx={{ fontSize: 64, color: 'text.secondary', opacity: 0.5 }} />}
+        title="Chưa có dữ liệu"
+        description="Không có dữ liệu công nợ cho kỳ này."
         size="small"
     />
 );
+
 const CurrencyDisplay = ({ value }) => (
     <NumericFormat value={toNum(value)} displayType="text" thousandSeparator="," />
 );
 
-// CORE LOGIC & UI COMPONENT
+// =================================================================
+// MAIN COMPONENT
+// =================================================================
 export default function AccountsReceivable() {
+    const theme = useTheme();
     const currentYear = new Date().getFullYear();
     const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
     const quarterOptions = [{ value: 1, label: "Quý 1" }, { value: 2, label: "Quý 2" }, { value: 3, label: "Quý 3" }, { value: 4, label: "Quý 4" }];
@@ -229,16 +309,16 @@ export default function AccountsReceivable() {
     };
 
     const confirmPaste = async () => {
-        if (!pasteContext || !editingCell) return;
+        if (!pasteContext) return;
         setPasteDialogOpen(false);
-        const { text, category } = pasteContext;
+        const { text, category, startField } = pasteContext;
         const parsedRows = text.split('\n').filter(row => row.trim() !== '').map(row => row.split('\t'));
         if (parsedRows.length === 0) return;
 
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
         const promise = new Promise(async (resolve, reject) => {
             try {
-                const startColumnIndex = tableColumns.findIndex(col => col.field === editingCell.field);
+                const startColumnIndex = tableColumns.findIndex(col => col.field === startField);
                 if (startColumnIndex === -1) return reject("Vui lòng chọn một ô dữ liệu hợp lệ để dán.");
 
                 const batch = writeBatch(db);
@@ -386,7 +466,7 @@ export default function AccountsReceivable() {
 
             event.preventDefault();
             const text = event.clipboardData.getData('text/plain');
-            setPasteContext({ text, category: categoryToPaste });
+            setPasteContext({ text, category: categoryToPaste, startField: editingCell.field });
             setPasteDialogOpen(true);
         };
         const container = tableContainerRef.current;
@@ -396,45 +476,204 @@ export default function AccountsReceivable() {
 
     const summaryData = useMemo(() => displayRows.find(row => row.type === 'grand-total') || {}, [displayRows]);
 
-    const pageVariants = { initial: { opacity: 0, y: 20 }, in: { opacity: 1, y: 0 }, out: { opacity: 0, y: -20 } };
-
     return (
-        <Box sx={{ p: { xs: 2, sm: 3 }, bgcolor: '#f4f6f8' }} >
+        <Box
+            sx={{
+                bgcolor: "background.default",
+                minHeight: "100vh",
+                p: { xs: 2, sm: 3, md: 4 },
+                position: "relative",
+            }}
+        >
+            {/* Decorative background elements */}
+            <Box
+                sx={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    width: "40%",
+                    height: "40%",
+                    background: `radial-gradient(circle at top right, ${alpha(theme.palette.primary.main, 0.08)}, transparent)`,
+                    pointerEvents: "none",
+                    zIndex: 0,
+                }}
+            />
+
             <Toaster position="bottom-right" toastOptions={{ duration: 4000 }} />
-            <motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={{ duration: 0.4 }}>
-                <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+            >
+                {/* HEADER SECTION */}
+                <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    justifyContent="space-between"
+                    alignItems={{ xs: "flex-start", md: "center" }}
+                    spacing={3}
+                    sx={{ mb: 4, position: "relative", zIndex: 1 }}
+                >
                     <Box>
-                        <Typography variant="h4" fontWeight={700}>Báo Cáo Công Nợ Phải Thu</Typography>
-                        <Typography variant="body1" color="text.secondary">Tổng hợp và quản lý công nợ theo quý.</Typography>
+                        <Typography
+                            variant="h4"
+                            fontWeight="800"
+                            sx={{
+                                mb: 1,
+                                background: theme.palette.mode === "light"
+                                    ? `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`
+                                    : `linear-gradient(135deg, ${theme.palette.primary.light}, ${theme.palette.primary.main})`,
+                                backgroundClip: "text",
+                                WebkitBackgroundClip: "text",
+                                WebkitTextFillColor: "transparent",
+                            }}
+                        >
+                            Báo Cáo Công Nợ Phải Thu
+                        </Typography>
+                        <Typography variant="body1" color="text.secondary" sx={{ fontSize: "0.95rem" }}>
+                            Tổng hợp và quản lý công nợ phải thu theo quý
+                        </Typography>
                     </Box>
-                    <Paper variant="outlined" sx={{ p: 1, borderRadius: 2 }}>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                            <FormControl variant="outlined" size="small" sx={{ minWidth: 120 }}><InputLabel>Quý</InputLabel><Select value={selectedQuarter} label="Quý" onChange={(e) => setSelectedQuarter(e.target.value)}>{quarterOptions.map((o) => (<MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>))}</Select></FormControl>
-                            <FormControl variant="outlined" size="small" sx={{ minWidth: 110 }}><InputLabel>Năm</InputLabel><Select value={selectedYear} label="Năm" onChange={(e) => setSelectedYear(e.target.value)}>{yearOptions.map((y) => (<MenuItem key={y} value={y}>{y}</MenuItem>))}</Select></FormControl>
+
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            p: 1,
+                            borderRadius: 3,
+                            bgcolor: "background.paper",
+                            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                            boxShadow: `0 4px 12px ${alpha(theme.palette.common.black, 0.05)}`,
+                        }}
+                    >
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                            <FormControl variant="outlined" size="small" sx={{ minWidth: 120 }}>
+                                <InputLabel>Quý</InputLabel>
+                                <Select
+                                    value={selectedQuarter}
+                                    label="Quý"
+                                    onChange={(e) => setSelectedQuarter(e.target.value)}
+                                >
+                                    {quarterOptions.map((o) => (
+                                        <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                            <FormControl variant="outlined" size="small" sx={{ minWidth: 110 }}>
+                                <InputLabel>Năm</InputLabel>
+                                <Select
+                                    value={selectedYear}
+                                    label="Năm"
+                                    onChange={(e) => setSelectedYear(e.target.value)}
+                                >
+                                    {yearOptions.map((y) => (
+                                        <MenuItem key={y} value={y}>{y}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
                         </Stack>
                     </Paper>
                 </Stack>
 
-                <Grid container spacing={3} sx={{ mb: 3 }}>
-                    <Grid size={{ xs: 12, sm: 6, md: 3 }}><MetricCard title="Phải thu đầu kỳ" value={summaryData.openingDebit} icon={<ArchiveOutlined fontSize="large" />} color="info" loading={isLoading} /></Grid>
-                    <Grid size={{ xs: 12, sm: 6, md: 3 }}><MetricCard title="Phát sinh phải thu" value={summaryData.debitIncrease} icon={<TrendingUp fontSize="large" />} color="warning" loading={isLoading} /></Grid>
-                    <Grid size={{ xs: 12, sm: 6, md: 3 }}><MetricCard title="Đã thu trong kỳ" value={summaryData.creditDecrease} icon={<TrendingDown fontSize="large" />} color="success" loading={isLoading} /></Grid>
-                    <Grid size={{ xs: 12, sm: 6, md: 3 }}><MetricCard title="Phải thu cuối kỳ" value={summaryData.closingDebit} icon={<AttachMoney fontSize="large" />} color="error" loading={isLoading} /></Grid>
+                {/* SUMMARY CARDS */}
+                <Grid container spacing={3} sx={{ mb: 4, position: "relative", zIndex: 1 }}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                        <MetricCard
+                            title="Phải thu đầu kỳ"
+                            value={summaryData.openingDebit}
+                            icon={<ArchiveOutlined fontSize="large" />}
+                            color="info"
+                            loading={isLoading}
+                            index={0}
+                        />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                        <MetricCard
+                            title="Phát sinh phải thu"
+                            value={summaryData.debitIncrease}
+                            icon={<TrendingUp fontSize="large" />}
+                            color="warning"
+                            loading={isLoading}
+                            index={1}
+                        />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                        <MetricCard
+                            title="Đã thu trong kỳ"
+                            value={summaryData.creditDecrease}
+                            icon={<TrendingDown fontSize="large" />}
+                            color="success"
+                            loading={isLoading}
+                            index={2}
+                        />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                        <MetricCard
+                            title="Phải thu cuối kỳ"
+                            value={summaryData.closingDebit}
+                            icon={<AttachMoney fontSize="large" />}
+                            color="error"
+                            loading={isLoading}
+                            index={3}
+                        />
+                    </Grid>
                 </Grid>
 
-                <Paper ref={tableContainerRef} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-                    <TableContainer sx={{ maxHeight: '70vh' }}>
-                        <Table stickyHeader size="small">
+                {/* MAIN TABLE */}
+                <Paper
+                    ref={tableContainerRef}
+                    elevation={0}
+                    sx={{
+                        borderRadius: 4,
+                        overflow: 'hidden',
+                        boxShadow: theme.palette.mode === 'light'
+                            ? "0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)"
+                            : "0 4px 20px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2)",
+                        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                        position: "relative",
+                        zIndex: 1,
+                        bgcolor: "background.paper",
+                    }}
+                >
+                    <TableContainer sx={{ maxHeight: 'calc(100vh - 350px)' }}>
+                        <Table stickyHeader size="medium">
                             <TableHead>
                                 <TableRow>
                                     {tableColumns.map(col => (
-                                        <TableCell key={col.field} align={col.type === 'number' ? 'right' : 'left'} sx={{ minWidth: 140 }}>
+                                        <TableCell
+                                            key={col.field}
+                                            align={col.type === 'number' ? 'right' : 'left'}
+                                            sx={{
+                                                bgcolor: alpha(theme.palette.primary.main, 0.04),
+                                                color: theme.palette.primary.dark,
+                                                fontWeight: 700,
+                                                fontSize: '0.85rem',
+                                                py: 2,
+                                                minWidth: 140,
+                                                borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                                                backdropFilter: 'blur(10px)',
+                                            }}
+                                        >
                                             {col.headerName.split('/ ').map((line, index) => (
-                                                <React.Fragment key={index}>{line}{index < col.headerName.split('/ ').length - 1 && <br />}</React.Fragment>
+                                                <React.Fragment key={index}>
+                                                    {line}
+                                                    {index < col.headerName.split('/ ').length - 1 && <br />}
+                                                </React.Fragment>
                                             ))}
                                         </TableCell>
                                     ))}
-                                    <TableCell align="center">Actions</TableCell>
+                                    <TableCell
+                                        align="center"
+                                        sx={{
+                                            bgcolor: alpha(theme.palette.primary.main, 0.04),
+                                            color: theme.palette.primary.dark,
+                                            fontWeight: 700,
+                                            fontSize: '0.85rem',
+                                            py: 2,
+                                            borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                                        }}
+                                    >
+                                        Thao tác
+                                    </TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -448,11 +687,52 @@ export default function AccountsReceivable() {
                                     displayRows.map((row) => {
                                         const isDataRow = row.type === 'data';
                                         const getRowSx = () => {
-                                            const baseStyles = { '& > td, & > th': { border: 0 } };
-                                            if (row.type === 'grand-total') return { ...baseStyles, backgroundColor: 'primary.dark', color: 'primary.contrastText', '& > *': { fontWeight: 'bold' } };
-                                            if (row.type === 'parent-header') return { ...baseStyles, backgroundColor: 'primary.light', '& > *': { fontWeight: 600 } };
-                                            if (row.type === 'group-header') return { ...baseStyles, backgroundColor: 'grey.100', '& > *': { fontWeight: 600 } };
-                                            if (isDataRow) return { ...baseStyles, borderBottom: '1px solid', borderColor: 'divider', backgroundColor: row.rowIndex % 2 === 1 ? '#f9f9f9' : 'transparent', '&:hover': { backgroundColor: '#f0f0f0' } };
+                                            const baseStyles = {
+                                                transition: 'all 0.2s',
+                                                '& > td': {
+                                                    borderColor: alpha(theme.palette.divider, 0.5),
+                                                }
+                                            };
+
+                                            if (row.type === 'grand-total') return {
+                                                ...baseStyles,
+                                                background: `linear-gradient(90deg, ${theme.palette.primary.dark}, ${theme.palette.primary.main})`,
+                                                '& > td': {
+                                                    color: '#fff',
+                                                    fontWeight: 'bold',
+                                                    fontSize: '0.95rem',
+                                                    borderBottom: 'none'
+                                                }
+                                            };
+
+                                            if (row.type === 'parent-header') return {
+                                                ...baseStyles,
+                                                bgcolor: alpha(theme.palette.primary.main, 0.12),
+                                                '& > td': {
+                                                    color: theme.palette.primary.dark,
+                                                    fontWeight: 700,
+                                                    fontSize: '0.9rem',
+                                                }
+                                            };
+
+                                            if (row.type === 'group-header') return {
+                                                ...baseStyles,
+                                                bgcolor: alpha(theme.palette.action.hover, 0.5),
+                                                '& > td': {
+                                                    color: theme.palette.text.primary,
+                                                    fontWeight: 600,
+                                                }
+                                            };
+
+                                            if (isDataRow) return {
+                                                ...baseStyles,
+                                                bgcolor: row.rowIndex % 2 === 1 ? alpha(theme.palette.action.hover, 0.3) : 'transparent',
+                                                '&:hover': {
+                                                    bgcolor: alpha(theme.palette.primary.main, 0.04),
+                                                    transform: 'scale(1.001)', // Subtle lift
+                                                }
+                                            };
+
                                             return baseStyles;
                                         };
 
@@ -467,10 +747,14 @@ export default function AccountsReceivable() {
                                                             key={col.field}
                                                             align={col.type === 'number' ? 'right' : 'left'}
                                                             onClick={() => isEditable && setEditingCell({ rowId: row.id, field: col.field })}
-                                                            // ✅ SỬA LỖI CĂN LỀ: Xóa padding của ô cha khi đang sửa
                                                             sx={{
                                                                 cursor: isEditable ? 'pointer' : 'default',
-                                                                padding: isEditing ? 0 : '6px 16px'
+                                                                padding: isEditing ? 0 : '12px 16px',
+                                                                position: 'relative',
+                                                                '&:hover': isEditable && !isEditing ? {
+                                                                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                                                                    boxShadow: 'inset 0 0 0 1px ' + alpha(theme.palette.primary.main, 0.2)
+                                                                } : {}
                                                             }}
                                                         >
                                                             {isEditing && isEditable ? (
@@ -483,21 +767,79 @@ export default function AccountsReceivable() {
                                                                     onCancel={() => setEditingCell(null)}
                                                                 />
                                                             ) : (
-                                                                col.field === 'project' ? row.project :
+                                                                col.field === 'project' ? (
+                                                                    <Typography variant="body2" sx={{ fontWeight: isDataRow ? 400 : 600 }}>
+                                                                        {row.project}
+                                                                    </Typography>
+                                                                ) : (
                                                                     (row[col.field] != null) && (
-                                                                        (col.field === 'debitIncrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]} />} color="warning" size="small" /> :
-                                                                            (col.field === 'creditDecrease' && toNum(row[col.field]) > 0 && isDataRow) ? <Chip label={<CurrencyDisplay value={row[col.field]} />} color="success" size="small" /> :
-                                                                                <Typography variant="body2" sx={{ fontWeight: (col.field.includes('closing')) && isDataRow ? 'bold' : 'inherit' }}>
+                                                                        (col.field === 'debitIncrease' && toNum(row[col.field]) > 0 && isDataRow) ?
+                                                                            <Chip
+                                                                                label={<CurrencyDisplay value={row[col.field]} />}
+                                                                                size="small"
+                                                                                sx={{
+                                                                                    bgcolor: alpha(theme.palette.warning.main, 0.1),
+                                                                                    color: theme.palette.warning.dark,
+                                                                                    fontWeight: 600,
+                                                                                    borderRadius: 1.5
+                                                                                }}
+                                                                            /> :
+                                                                            (col.field === 'creditDecrease' && toNum(row[col.field]) > 0 && isDataRow) ?
+                                                                                <Chip
+                                                                                    label={<CurrencyDisplay value={row[col.field]} />}
+                                                                                    size="small"
+                                                                                    sx={{
+                                                                                        bgcolor: alpha(theme.palette.success.main, 0.1),
+                                                                                        color: theme.palette.success.dark,
+                                                                                        fontWeight: 600,
+                                                                                        borderRadius: 1.5
+                                                                                    }}
+                                                                                /> :
+                                                                                <Typography
+                                                                                    variant="body2"
+                                                                                    sx={{
+                                                                                        fontWeight: (col.field.includes('closing')) && isDataRow ? 700 : 'inherit',
+                                                                                        color: (col.field.includes('closing')) && isDataRow && toNum(row[col.field]) !== 0 ? theme.palette.error.main : 'inherit'
+                                                                                    }}
+                                                                                >
                                                                                     <CurrencyDisplay value={row[col.field]} />
                                                                                 </Typography>
                                                                     )
+                                                                )
                                                             )}
                                                         </TableCell>
                                                     )
                                                 })}
                                                 <TableCell align="center" sx={{ minWidth: 100 }}>
-                                                    {row.type === 'data' && (<IconButton size="small" onClick={() => handleDeleteRow(row.id)}><DeleteIcon fontSize="small" /></IconButton>)}
-                                                    {row.type === 'group-header' && (<IconButton size="small" onClick={() => handleAddRow(row.categoryId)}><AddIcon fontSize="small" /></IconButton>)}
+                                                    {row.type === 'data' && (
+                                                        <Tooltip title="Xóa dòng">
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => handleDeleteRow(row.id)}
+                                                                sx={{
+                                                                    color: theme.palette.text.secondary,
+                                                                    '&:hover': { color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.1) }
+                                                                }}
+                                                            >
+                                                                <DeleteIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    )}
+                                                    {row.type === 'group-header' && (
+                                                        <Tooltip title="Thêm dòng mới">
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => handleAddRow(row.categoryId)}
+                                                                sx={{
+                                                                    color: theme.palette.primary.main,
+                                                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+                                                                }}
+                                                            >
+                                                                <AddIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    )}
                                                 </TableCell>
                                             </TableRow>
                                         );
@@ -511,15 +853,45 @@ export default function AccountsReceivable() {
                 </Paper>
             </motion.div>
 
-            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-                <DialogTitle>Xác nhận xóa</DialogTitle>
-                <DialogContent><DialogContentText>Bạn có chắc chắn muốn xóa dòng này không? Thao tác này không thể hoàn tác.</DialogContentText></DialogContent>
-                <DialogActions><Button onClick={() => setDeleteDialogOpen(false)}>Hủy bỏ</Button><Button onClick={confirmDelete} color="error" autoFocus>Xóa</Button></DialogActions>
+            {/* DIALOGS */}
+            <Dialog
+                open={deleteDialogOpen}
+                onClose={() => setDeleteDialogOpen(false)}
+                PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Xác nhận xóa</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Bạn có chắc chắn muốn xóa dòng này không? Thao tác này không thể hoàn tác.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteDialogOpen(false)} sx={{ borderRadius: 2 }}>Hủy bỏ</Button>
+                    <Button onClick={confirmDelete} variant="contained" color="error" sx={{ borderRadius: 2 }}>
+                        Xóa
+                    </Button>
+                </DialogActions>
             </Dialog>
-            <Dialog open={pasteDialogOpen} onClose={() => setPasteDialogOpen(false)}>
-                <DialogTitle>Xác nhận dán dữ liệu</DialogTitle>
-                <DialogContent><DialogContentText>Thao tác này sẽ <strong>XOÁ TOÀN BỘ</strong> dữ liệu hiện có trong nhóm được chọn và thay thế bằng dữ liệu mới.<br />Bạn có chắc chắn muốn tiếp tục không?</DialogContentText></DialogContent>
-                <DialogActions><Button onClick={() => setPasteDialogOpen(false)}>Hủy bỏ</Button><Button onClick={confirmPaste} color="primary" autoFocus>Tiếp tục</Button></DialogActions>
+
+            <Dialog
+                open={pasteDialogOpen}
+                onClose={() => setPasteDialogOpen(false)}
+                PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Xác nhận dán dữ liệu</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Thao tác này sẽ <strong>XOÁ TOÀN BỘ</strong> dữ liệu hiện có trong nhóm được chọn và thay thế bằng dữ liệu mới.
+                        <br /><br />
+                        Bạn có chắc chắn muốn tiếp tục không?
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPasteDialogOpen(false)} sx={{ borderRadius: 2 }}>Hủy bỏ</Button>
+                    <Button onClick={confirmPaste} variant="contained" color="primary" sx={{ borderRadius: 2 }}>
+                        Tiếp tục
+                    </Button>
+                </DialogActions>
             </Dialog>
         </Box>
     );

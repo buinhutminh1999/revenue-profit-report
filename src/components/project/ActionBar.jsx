@@ -167,6 +167,22 @@ export default function EnhancedActionBar({
                     <Tooltip title="Thêm dòng (Ctrl/Cmd + N)"><IconButton color="primary" onClick={onAddRow}><Add /></IconButton></Tooltip>
                     <Tooltip title="Import (Ctrl/Cmd + I)"><IconButton color="primary" onClick={handleUploadClick}><CloudUpload /></IconButton></Tooltip>
                     <Tooltip title="Export (Ctrl/Cmd + E)"><IconButton color="primary" onClick={() => onExport(costItems)}><FileDownload /></IconButton></Tooltip>
+
+                    {/* Mobile Finalize/Undo Buttons */}
+                    {isProjectFinalized ? (
+                        <Tooltip title="Hủy quyết toán">
+                            <IconButton color="warning" onClick={onUndoFinalize}>
+                                <RestartAlt />
+                            </IconButton>
+                        </Tooltip>
+                    ) : (
+                        <Tooltip title="Quyết toán">
+                            <IconButton color="secondary" onClick={onFinalizeProject}>
+                                <TaskAlt />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+
                     <Tooltip title="Lưu (Ctrl/Cmd + S)">
                         <IconButton color="success" onClick={onSave} disabled={saving}>
                             {saving ? <CircularProgress size={22} /> : <Save />}

@@ -114,6 +114,7 @@ const StickyCell = styled(TableCell, {
 
 
 // Dán và thay thế toàn bộ component này trong file BalanceSheet.js
+// Dán và thay thế toàn bộ component này trong file BalanceSheet.js
 const CalculationDetailDialog = ({ open, onClose, data }) => {
     const theme = useTheme();
 
@@ -180,32 +181,71 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
         await saveWorkbook(workbook, `${data.title.replace(/\s/g, '_')}.xlsx`);
     };
 
-    const headerHeight = 40;
+    const headerHeight = 50;
+
+    // --- STYLED COMPONENTS FOR DIALOG ---
+    const GlassDialogTitle = styled(DialogTitle)(({ theme }) => ({
+        padding: theme.spacing(3),
+        background: alpha(theme.palette.background.paper, 0.4),
+        backdropFilter: 'blur(10px)',
+        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    }));
+
+    const GlassTableCell = styled(TableCell)(({ theme }) => ({
+        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
+        color: theme.palette.text.primary,
+    }));
+
+    const GlassTableHeadCell = styled(TableCell)(({ theme }) => ({
+        backgroundColor: alpha(theme.palette.background.paper, 0.8),
+        backdropFilter: 'blur(12px)',
+        color: theme.palette.text.secondary,
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        fontSize: '0.75rem',
+        letterSpacing: '0.5px',
+        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+        zIndex: 10,
+    }));
+
+    const MotionTableRow = motion(TableRow);
 
     const renderTable = () => {
         if (data.type === 'constructionPayablesSummary') {
             return (
-                <Table size="small" stickyHeader>
+                <Table size="medium" stickyHeader>
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Tên Công Trình</TableCell>
-                            <TableCell sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Diễn Giải</TableCell>
-                            <TableCell align="right" sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Cuối Kỳ Có</TableCell>
-                            <TableCell align="right" sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Cuối Kỳ Nợ</TableCell>
-                            <TableCell align="right" sx={{ backgroundColor: 'background.paper', fontWeight: 'bold', zIndex: 10 }}>Kết quả</TableCell>
+                            <GlassTableHeadCell>Tên Công Trình</GlassTableHeadCell>
+                            <GlassTableHeadCell>Diễn Giải</GlassTableHeadCell>
+                            <GlassTableHeadCell align="right">Cuối Kỳ Có</GlassTableHeadCell>
+                            <GlassTableHeadCell align="right">Cuối Kỳ Nợ</GlassTableHeadCell>
+                            <GlassTableHeadCell align="right" sx={{ color: theme.palette.primary.main }}>Kết quả</GlassTableHeadCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {data.items.length > 0 ? data.items.map((item, index) => (
-                            <TableRow key={index} hover>
-                                <TableCell>{item.projectName}</TableCell>
-                                <TableCell>{item.description}</TableCell>
-                                <TableCell align="right">{formatNumber(item.carryover)}</TableCell>
-                                <TableCell align="right">{formatNumber(item.tonCuoiKy)}</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(item.result)}</TableCell>
-                            </TableRow>
+                            <MotionTableRow
+                                key={index}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.03, duration: 0.3 }}
+                                sx={{
+                                    '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.04) },
+                                    transition: 'background-color 0.2s'
+                                }}
+                            >
+                                <GlassTableCell sx={{ fontWeight: 500 }}>{item.projectName}</GlassTableCell>
+                                <GlassTableCell>{item.description}</GlassTableCell>
+                                <GlassTableCell align="right" sx={{ fontFamily: 'monospace' }}>{formatNumber(item.carryover)}</GlassTableCell>
+                                <GlassTableCell align="right" sx={{ fontFamily: 'monospace' }}>{formatNumber(item.tonCuoiKy)}</GlassTableCell>
+                                <GlassTableCell align="right" sx={{ fontWeight: 'bold', color: theme.palette.primary.main, fontFamily: 'monospace' }}>{formatNumber(item.result)}</GlassTableCell>
+                            </MotionTableRow>
                         )) : (
-                            <TableRow><TableCell colSpan={5} align="center" sx={{ py: 4 }}><Typography color="text.secondary">Không có khoản mục chi tiết nào.</Typography></TableCell></TableRow>
+                            <TableRow><TableCell colSpan={5} align="center" sx={{ py: 8 }}><Typography color="text.secondary">Không có khoản mục chi tiết nào.</Typography></TableCell></TableRow>
                         )}
                     </TableBody>
                 </Table>
@@ -213,42 +253,61 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
         }
 
         return (
-            <Table size="small" stickyHeader>
+            <Table size="medium" stickyHeader>
                 <TableHead>
                     <TableRow>
-                        <TableCell sx={{ width: '30%', backgroundColor: 'background.paper', zIndex: 10 }}>Khoản Mục</TableCell>
-                        <TableCell align="right" sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Nợ Phải Trả CK</TableCell>
-                        <TableCell align="right" sx={{ backgroundColor: 'background.paper', zIndex: 10 }}>Nợ Phải Trả ĐK (debt)</TableCell>
-                        <TableCell align="right" sx={{ backgroundColor: 'background.paper', fontWeight: 'bold', zIndex: 10 }}>Kết quả</TableCell>
+                        <GlassTableHeadCell sx={{ width: '30%' }}>Khoản Mục</GlassTableHeadCell>
+                        <GlassTableHeadCell align="right">Nợ Phải Trả CK</GlassTableHeadCell>
+                        <GlassTableHeadCell align="right">Nợ Phải Trả ĐK (debt)</GlassTableHeadCell>
+                        <GlassTableHeadCell align="right" sx={{ color: theme.palette.primary.main }}>Kết quả</GlassTableHeadCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {Object.keys(groupedData).length > 0 ? Object.keys(groupedData).map(projectName => (
+                    {Object.keys(groupedData).length > 0 ? Object.keys(groupedData).map((projectName, groupIndex) => (
                         <React.Fragment key={projectName}>
                             <TableRow>
-                                <TableCell colSpan={4} sx={{ fontWeight: 'bold', backgroundColor: theme.palette.grey[200], position: 'sticky', top: headerHeight, zIndex: 5 }}>
-                                    Công trình: {projectName}
+                                <TableCell colSpan={4} sx={{
+                                    fontWeight: 'bold',
+                                    backgroundColor: alpha(theme.palette.secondary.main, 0.08),
+                                    color: theme.palette.secondary.dark,
+                                    position: 'sticky',
+                                    top: headerHeight,
+                                    zIndex: 5,
+                                    backdropFilter: 'blur(8px)',
+                                    borderBottom: `1px solid ${alpha(theme.palette.secondary.main, 0.1)}`,
+                                    py: 1.5
+                                }}>
+                                    <Stack direction="row" alignItems="center" spacing={1}>
+                                        <Box sx={{ width: 4, height: 16, bgcolor: 'secondary.main', borderRadius: 1 }} />
+                                        <Typography variant="subtitle2" fontWeight={700}>Công trình: {projectName}</Typography>
+                                    </Stack>
                                 </TableCell>
                             </TableRow>
                             {groupedData[projectName].items.map((item, index) => (
-                                <TableRow key={index} sx={{ '&:nth-of-type(odd)': { backgroundColor: theme.palette.background.default } }}>
-                                    <TableCell sx={{ pl: 4 }}>{item.description}</TableCell>
-                                    <TableCell align="right">{formatNumber(item.noPhaiTraCK)}</TableCell>
-                                    <TableCell align="right">{formatNumber(item.debt)}</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(item.result)}</TableCell>
-                                </TableRow>
+                                <MotionTableRow
+                                    key={index}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: index * 0.02, duration: 0.3 }}
+                                    sx={{ '&:hover': { backgroundColor: alpha(theme.palette.action.hover, 0.5) } }}
+                                >
+                                    <GlassTableCell sx={{ pl: 4 }}>{item.description}</GlassTableCell>
+                                    <GlassTableCell align="right" sx={{ fontFamily: 'monospace' }}>{formatNumber(item.noPhaiTraCK)}</GlassTableCell>
+                                    <GlassTableCell align="right" sx={{ fontFamily: 'monospace' }}>{formatNumber(item.debt)}</GlassTableCell>
+                                    <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{formatNumber(item.result)}</GlassTableCell>
+                                </MotionTableRow>
                             ))}
-                            <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                                <TableCell align="right" sx={{ fontWeight: 'bold', fontStyle: 'italic' }}>Tổng công trình</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(groupedData[projectName].totals.noPhaiTraCK)}</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatNumber(groupedData[projectName].totals.debt)}</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                            <TableRow sx={{ backgroundColor: alpha(theme.palette.grey[500], 0.03) }}>
+                                <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontStyle: 'italic', color: 'text.secondary' }}>Tổng {projectName}</GlassTableCell>
+                                <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{formatNumber(groupedData[projectName].totals.noPhaiTraCK)}</GlassTableCell>
+                                <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{formatNumber(groupedData[projectName].totals.debt)}</GlassTableCell>
+                                <GlassTableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main', fontSize: '1.1em', fontFamily: 'monospace' }}>
                                     {formatNumber(groupedData[projectName].totals.result)}
-                                </TableCell>
+                                </GlassTableCell>
                             </TableRow>
                         </React.Fragment>
                     )) : (
-                        <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4 }}><Typography color="text.secondary">Không có khoản mục chi tiết nào.</Typography></TableCell></TableRow>
+                        <TableRow><TableCell colSpan={4} align="center" sx={{ py: 8 }}><Typography color="text.secondary">Không có khoản mục chi tiết nào.</Typography></TableCell></TableRow>
                     )}
                 </TableBody>
             </Table>
@@ -256,32 +315,85 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
     };
 
     return (
-        <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg" PaperProps={{ sx: { height: '90vh', borderRadius: 3 } }}>
-            <DialogTitle sx={{ p: 2, backgroundColor: 'background.paper', borderBottom: `1px solid ${theme.palette.divider}` }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Box>
-                        <Typography variant="h6" component="div">{data.title}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Chi tiết các khoản mục được dùng để tính tổng
-                        </Typography>
-                    </Box>
-                    <Stack direction="row" spacing={1}>
-                        <Button variant="outlined" startIcon={<DescriptionIcon />} onClick={handleExport} disabled={!data.items || data.items.length === 0}>
-                            Xuất Excel
-                        </Button>
-                        <IconButton onClick={onClose} sx={{ ml: 2 }}><CloseIcon /></IconButton>
-                    </Stack>
+        <Dialog
+            open={open}
+            onClose={onClose}
+            fullWidth
+            maxWidth="lg"
+            PaperProps={{
+                sx: {
+                    height: '90vh',
+                    borderRadius: 4,
+                    background: theme.palette.mode === 'dark'
+                        ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.6)} 0%, ${alpha(theme.palette.background.paper, 0.3)} 100%)`
+                        : `linear-gradient(135deg, ${alpha('#fff', 0.9)} 0%, ${alpha('#fff', 0.7)} 100%)`,
+                    backdropFilter: 'blur(20px)',
+                    border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+                    boxShadow: theme.shadows[10],
+                }
+            }}
+            TransitionComponent={motion.div}
+            TransitionProps={{
+                initial: { opacity: 0, scale: 0.9 },
+                animate: { opacity: 1, scale: 1 },
+                exit: { opacity: 0, scale: 0.9 },
+                transition: { duration: 0.3 }
+            }}
+        >
+            <GlassDialogTitle>
+                <Box>
+                    <Typography variant="h6" component="div" sx={{
+                        fontWeight: 700,
+                        background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent"
+                    }}>
+                        {data.title}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        Chi tiết các khoản mục cấu thành số dư
+                    </Typography>
+                </Box>
+                <Stack direction="row" spacing={1}>
+                    <Button
+                        variant="outlined"
+                        startIcon={<DescriptionIcon />}
+                        onClick={handleExport}
+                        disabled={!data.items || data.items.length === 0}
+                        sx={{ borderRadius: 2, textTransform: 'none' }}
+                    >
+                        Xuất Excel
+                    </Button>
+                    <IconButton onClick={onClose} sx={{
+                        color: 'text.secondary',
+                        '&:hover': { backgroundColor: alpha(theme.palette.error.main, 0.1), color: theme.palette.error.main }
+                    }}>
+                        <CloseIcon />
+                    </IconButton>
                 </Stack>
-            </DialogTitle>
-            <DialogContent dividers sx={{ p: 0, bgcolor: 'action.hover' }}>
-                <TableContainer component={Paper} variant="outlined" sx={{ height: '100%', border: 'none' }}>
+            </GlassDialogTitle>
+
+            <DialogContent dividers sx={{ p: 0, border: 'none', background: 'transparent' }}>
+                <TableContainer sx={{ height: '100%', '&::-webkit-scrollbar': { width: 8 }, '&::-webkit-scrollbar-thumb': { borderRadius: 4, backgroundColor: alpha(theme.palette.grey[500], 0.3) } }}>
                     {renderTable()}
                 </TableContainer>
             </DialogContent>
-            <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}`, backgroundColor: 'background.paper' }}>
-                <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={2}>
-                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>TỔNG CỘNG TOÀN BỘ:</Typography>
-                    <Typography variant="h5" color="primary" sx={{ fontWeight: 'bold' }}>{formatNumber(data.total)}</Typography>
+
+            <Box sx={{
+                p: 3,
+                borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                background: alpha(theme.palette.background.paper, 0.4),
+                backdropFilter: 'blur(10px)'
+            }}>
+                <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={3}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.secondary' }}>TỔNG CỘNG TOÀN BỘ:</Typography>
+                    <Typography variant="h4" sx={{
+                        fontWeight: 800,
+                        color: theme.palette.primary.main,
+                        textShadow: `0px 2px 10px ${alpha(theme.palette.primary.main, 0.3)}`
+                    }}>
+                        {formatNumber(data.total)}
+                    </Typography>
                 </Stack>
             </Box>
         </Dialog>
@@ -353,7 +465,7 @@ const useMutateBalances = () => {
                     ...(field === 'dauKyNo' || field === 'dauKyCo' ? { isCarriedOver: false } : {})
                 }, { merge: true });
 
-                if (isEndField && !(nextData?.isCarriedOver === false)) {
+                if (isEndField) {
                     const nextField = field === 'cuoiKyNo' ? 'dauKyNo' : 'dauKyCo';
                     tx.set(nextRef, {
                         accountId,
@@ -387,7 +499,63 @@ const useMutateBalances = () => {
 };
 
 
-const ProcessReportToast = ({ t, successes, errors, warnings }) => (<Card sx={{ maxWidth: 400, pointerEvents: 'all' }} elevation={4}><CardContent><Typography variant="h6" gutterBottom>Kết quả xử lý</Typography>{successes.length > 0 && (<Alert severity="success" sx={{ mb: 1 }}> Cập nhật thành công: <strong>{successes.length} tài khoản</strong> </Alert>)}{errors.length > 0 && (<Alert severity="error" sx={{ mb: 1 }}> Thất bại: <strong>{errors.length} dòng</strong> <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}> {errors.slice(0, 5).map(e => <li key={e.row}>Dòng {e.row} (TK {e.accountId}): {e.message}</li>)} {errors.length > 5 && <li>... và {errors.length - 5} lỗi khác.</li>} </Box> </Alert>)}{warnings.length > 0 && (<Alert severity="warning"> Bỏ qua: <strong>{warnings.length} dòng</strong> <Box component="ul" sx={{ pl: 2, mb: 0, fontSize: '0.8rem', mt: 1 }}> {warnings.slice(0, 5).map(w => <li key={w.row}>Dòng {w.row}: {w.message}</li>)} {warnings.length > 5 && <li>... và {warnings.length - 5} cảnh báo khác.</li>} </Box> </Alert>)}</CardContent></Card>);
+const ProcessReportToast = ({ t, successes, errors, warnings }) => (
+    <Card sx={{ maxWidth: 450, pointerEvents: 'all', boxShadow: 6 }} elevation={6}>
+        <CardContent sx={{ p: 2 }}>
+            <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                Kết quả xử lý dữ liệu
+            </Typography>
+
+            {successes.length > 0 && (
+                <Alert severity="success" sx={{ mb: 1, '& .MuiAlert-message': { width: '100%' } }}>
+                    <Typography variant="body2">
+                        Cập nhật thành công: <strong>{successes.length} tài khoản</strong>
+                    </Typography>
+                </Alert>
+            )}
+
+            {errors.length > 0 && (
+                <Alert severity="error" sx={{ mb: 1, '& .MuiAlert-message': { width: '100%' } }}>
+                    <Typography variant="body2" fontWeight={600} gutterBottom>
+                        Thất bại: {errors.length} dòng
+                    </Typography>
+                    <Box component="ul" sx={{ pl: 2, mb: 0, mt: 0.5, fontSize: '0.85rem', maxHeight: 150, overflowY: 'auto' }}>
+                        {errors.slice(0, 5).map((e, i) => (
+                            <li key={i}>
+                                <strong>Dòng {e.row}</strong> ({e.accountId}): {e.message}
+                            </li>
+                        ))}
+                        {errors.length > 5 && (
+                            <li>... và {errors.length - 5} lỗi khác.</li>
+                        )}
+                    </Box>
+                </Alert>
+            )}
+
+            {warnings.length > 0 && (
+                <Alert severity="warning" sx={{ '& .MuiAlert-message': { width: '100%' } }}>
+                    <Typography variant="body2" fontWeight={600} gutterBottom>
+                        Cảnh báo: {warnings.length} dòng
+                    </Typography>
+                    <Box component="ul" sx={{ pl: 2, mb: 0, mt: 0.5, fontSize: '0.85rem', maxHeight: 100, overflowY: 'auto' }}>
+                        {warnings.slice(0, 5).map((w, i) => (
+                            <li key={i}>
+                                <strong>Dòng {w.row}:</strong> {w.message}
+                            </li>
+                        ))}
+                        {warnings.length > 5 && (
+                            <li>... và {warnings.length - 5} cảnh báo khác.</li>
+                        )}
+                    </Box>
+                </Alert>
+            )}
+
+            <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                <Button size="small" onClick={() => toast.dismiss(t.id)}>Đóng</Button>
+            </Box>
+        </CardContent>
+    </Card>
+);
 
 const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation, onShowDetails }) => {
     const [isEditing, setIsEditing] = useState(false);
@@ -571,9 +739,6 @@ const BalanceSheet = () => {
     // Logic đồng bộ hóa dữ liệu từ các nguồn khác
     useEffect(() => {
         const syncExternalData = async () => {
-            // >>> THÊM DÒNG NÀY VÀO ĐỂ DỪNG LOGIC TỰ ĐỘNG Ở Q1 2025 <<<
-            if (selectedYear === 2025 && selectedQuarter === 1) return;
-
             if (!accounts || !balances || isBalancesLoading) return;
 
             const toNumber = (value) => {
@@ -583,15 +748,65 @@ const BalanceSheet = () => {
                 return isNaN(parseFloat(cleanedValue)) ? 0 : parseFloat(cleanedValue);
             };
 
+            const updates = [];
+            const batch = writeBatch(db);
+            let hasUpdates = false;
+
+            // Helper để thêm update vào batch
+            const addUpdateToBatch = (accountId, field, value) => {
+                const currentVal = balances[accountId]?.[field];
+                // Chỉ update nếu giá trị khác biệt (so sánh tương đối để tránh lỗi float)
+                if (Math.abs((currentVal || 0) - value) > 1) {
+                    const docId = `${accountId}_${selectedYear}_${selectedQuarter}`;
+                    const docRef = doc(db, BALANCES_COLLECTION, docId);
+
+                    const updateData = {
+                        accountId,
+                        year: selectedYear,
+                        quarter: selectedQuarter,
+                        [field]: value
+                    };
+                    batch.set(docRef, updateData, { merge: true });
+
+                    // Logic Carry Over (Tự động chuyển sang kỳ sau)
+                    if (field === 'cuoiKyNo' || field === 'cuoiKyCo') {
+                        let nextYear = selectedYear;
+                        let nextQuarter = selectedQuarter + 1;
+                        if (nextQuarter > 4) {
+                            nextQuarter = 1;
+                            nextYear = selectedYear + 1;
+                        }
+                        const nextDocId = `${accountId}_${nextYear}_${nextQuarter}`;
+                        const nextDocRef = doc(db, BALANCES_COLLECTION, nextDocId);
+
+                        const nextField = field === 'cuoiKyNo' ? 'dauKyNo' : 'dauKyCo';
+                        batch.set(nextDocRef, {
+                            accountId,
+                            year: nextYear,
+                            quarter: nextQuarter,
+                            [nextField]: value,
+                            isCarriedOver: true,
+                            lockReason: 'carried_over',
+                            carriedFromYear: selectedYear,
+                            carriedFromQuarter: selectedQuarter,
+                            carriedFromField: field,
+                            carriedFromDocId: docId,
+                            carriedUpdatedAt: serverTimestamp()
+                        }, { merge: true });
+                    }
+                    hasUpdates = true;
+                }
+            };
+
             try {
-                // --- Phần 1: Đồng bộ từ Báo cáo Công nợ (GIỮ NGUYÊN NHƯ CŨ) ---
+                // --- Phần 1: Đồng bộ từ Báo cáo Công nợ ---
                 const receivableDocRef = doc(db, `accountsReceivable/${selectedYear}/quarters`, `Q${selectedQuarter}`);
                 const receivableDocSnap = await getDoc(receivableDocRef);
 
                 if (receivableDocSnap.exists()) {
                     const receivableData = receivableDocSnap.data();
                     const rules = {
-                        '131': { field: 'cuoiKyCo', source: receivableData?.kh_sx_ut?.openingDebit },
+                        '131': { field: 'cuoiKyCo', source: receivableData?.kh_sx_ut?.openingDebit }, // Lưu ý: check lại field mapping nếu cần
                         '132': { field: 'cuoiKyNo', source: receivableData?.kh_dt?.openingDebit },
                         '133': { field: 'cuoiKyNo', source: receivableData?.pt_kh_sx?.openingDebit },
                         '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.openingDebit },
@@ -599,24 +814,23 @@ const BalanceSheet = () => {
                         '139': { field: 'cuoiKyCo', source: receivableData?.grand_total?.openingCredit },
                         '140': { field: 'cuoiKyNo', source: receivableData?.pt_dd_ct?.openingDebit },
                         '142': { field: 'cuoiKyNo', source: receivableData?.pt_sv_sx?.openingDebit },
-
                     };
                     for (const accountId in rules) {
                         const rule = rules[accountId];
-                        if (typeof rule.source === 'number' && rule.source !== balances[accountId]?.[rule.field]) {
-                            updateBalanceMutation.mutate({ accountId, year: selectedYear, quarter: selectedQuarter, field: rule.field, value: rule.source });
+                        if (typeof rule.source === 'number') {
+                            addUpdateToBatch(accountId, rule.field, rule.source);
                         }
                     }
                 }
 
-                // --- Phần 2: Đồng bộ từ công trình VỚI LOGIC MỚI CHO 332, 333, 338, 339 ---
+                // --- Phần 2: Đồng bộ từ công trình ---
                 const projectsQuery = query(collection(db, 'projects'));
                 const projectsSnapshot = await getDocs(projectsQuery);
 
                 let totalFor338 = 0;
                 let totalFor332 = 0;
                 let totalFor333 = 0;
-                let totalFor339 = 0; // Gom 339 vào đây
+                let totalFor339 = 0;
 
                 if (!projectsSnapshot.empty) {
                     const allProjectsData = projectsSnapshot.docs.map(p => ({ id: p.id, ...p.data() }));
@@ -630,7 +844,6 @@ const BalanceSheet = () => {
                             const grandTotalRevenue = items.reduce((sum, item) => sum + toNumber(item.revenue || 0), 0);
 
                             items.forEach(item => {
-                                // Công thức tính chung giống TK 338
                                 const psNo = grandTotalRevenue > 0 ? toNumber(item.noPhaiTraCK) : 0;
                                 const psGiam = grandTotalRevenue === 0 ? toNumber(item.directCost) : toNumber(item.debt);
                                 const dauKyNo = toNumber(item.debt);
@@ -639,7 +852,6 @@ const BalanceSheet = () => {
                                 const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
                                 const result = cuoiKyNo - cuoiKyCo;
 
-                                // Phân loại kết quả vào đúng tài khoản
                                 if (item.description === "Chi phí dự phòng rủi ro") totalFor338 += result;
                                 if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-VT')) totalFor332 += result;
                                 if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-NC')) totalFor333 += result;
@@ -649,86 +861,39 @@ const BalanceSheet = () => {
                     });
                 }
 
-                // Cập nhật các tài khoản vào Firestore
-                if (totalFor338 !== balances['338']?.cuoiKyCo) { updateBalanceMutation.mutate({ accountId: '338', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor338 }); }
-                if (totalFor332 !== balances['332']?.cuoiKyCo) { updateBalanceMutation.mutate({ accountId: '332', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor332 }); }
-                if (totalFor333 !== balances['333']?.cuoiKyCo) { updateBalanceMutation.mutate({ accountId: '333', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor333 }); }
-                if (totalFor339 !== balances['339']?.cuoiKyCo) { updateBalanceMutation.mutate({ accountId: '339', year: selectedYear, quarter: selectedQuarter, field: 'cuoiKyCo', value: totalFor339 }); }
-                // --- Phần 3: Đồng bộ cho TK 152 (NGUYÊN VẬT LIỆU) ---
-                try {
-                    const factoryProjectId = 'HKZyMDRhyXJzJiOauzVe';
-                    const materialDocRef = doc(db, `projects/${factoryProjectId}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`);
-                    const materialDocSnap = await getDoc(materialDocRef);
+                addUpdateToBatch('338', 'cuoiKyCo', totalFor338);
+                addUpdateToBatch('332', 'cuoiKyCo', totalFor332);
+                addUpdateToBatch('333', 'cuoiKyCo', totalFor333);
+                addUpdateToBatch('339', 'cuoiKyCo', totalFor339);
 
-                    let totalFor152 = 0;
+                // --- Phần 3 & 4: Đồng bộ TK 152, 155 ---
+                const factoryProjectId = 'HKZyMDRhyXJzJiOauzVe';
+                const materialDocRef = doc(db, `projects/${factoryProjectId}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`);
+                const materialDocSnap = await getDoc(materialDocRef);
 
-                    if (materialDocSnap.exists()) {
-                        const data = materialDocSnap.data();
-                        if (data.items && Array.isArray(data.items)) {
-                            // Tìm đến đúng khoản mục "NGUYÊN VẬT LIỆU"
-                            const materialItem = data.items.find(item => item.description === "+ NGUYÊN VẬT LIỆU");
+                if (materialDocSnap.exists()) {
+                    const data = materialDocSnap.data();
+                    if (data.items && Array.isArray(data.items)) {
+                        const materialItem = data.items.find(item => item.description === "+ NGUYÊN VẬT LIỆU");
+                        if (materialItem) addUpdateToBatch('152', 'cuoiKyNo', toNumber(materialItem.tonKhoUngKH));
 
-                            if (materialItem) {
-                                // Lấy giá trị từ trường `tonKhoUngKH`
-                                totalFor152 = toNumber(materialItem.tonKhoUngKH);
-                            }
-                        }
+                        const thanhPhamItem = data.items.find(item => item.description === "+ THÀNH PHẨM");
+                        if (thanhPhamItem) addUpdateToBatch('155', 'cuoiKyNo', toNumber(thanhPhamItem.tonKhoUngKH));
                     }
-
-                    // Chỉ cập nhật nếu giá trị mới khác với giá trị hiện tại
-                    if (totalFor152 !== balances['152']?.cuoiKyNo) {
-                        updateBalanceMutation.mutate({
-                            accountId: '152',
-                            year: selectedYear,
-                            quarter: selectedQuarter,
-                            field: 'cuoiKyNo',
-                            value: totalFor152
-                        });
-                    }
-                } catch (err) {
-                    console.error("Lỗi khi đồng bộ TK 152:", err);
                 }
-                // --- Phần 4: Đồng bộ cho TK 155 (+ THÀNH PHẨM) ---
-                try {
-                    const factoryProjectId_155 = 'HKZyMDRhyXJzJiOauzVe';
-                    const thanhPhamDocRef = doc(db, `projects/${factoryProjectId_155}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`);
-                    const thanhPhamDocSnap = await getDoc(thanhPhamDocRef);
 
-                    let totalFor155 = 0;
-
-                    if (thanhPhamDocSnap.exists()) {
-                        const data = thanhPhamDocSnap.data();
-                        if (data.items && Array.isArray(data.items)) {
-                            // Tìm đến đúng khoản mục "+ THÀNH PHẨM"
-                            const thanhPhamItem = data.items.find(item => item.description === "+ THÀNH PHẨM");
-
-                            if (thanhPhamItem) {
-                                // Lấy giá trị từ trường `tonKhoUngKH`
-                                totalFor155 = toNumber(thanhPhamItem.tonKhoUngKH);
-                            }
-                        }
-                    }
-
-                    // Chỉ cập nhật nếu giá trị mới khác với giá trị hiện tại
-                    if (totalFor155 !== balances['155']?.cuoiKyNo) {
-                        updateBalanceMutation.mutate({
-                            accountId: '155',
-                            year: selectedYear,
-                            quarter: selectedQuarter,
-                            field: 'cuoiKyNo',
-                            value: totalFor155
-                        });
-                    }
-                } catch (err) {
-                    console.error("Lỗi khi đồng bộ TK 155:", err);
+                if (hasUpdates) {
+                    await batch.commit();
+                    console.log("Đã đồng bộ dữ liệu ngoài thành công.");
+                    queryClient.invalidateQueries(['accountBalances', selectedYear, selectedQuarter]);
                 }
+
             } catch (error) {
                 console.error("Lỗi khi đồng bộ dữ liệu ngoài:", error);
-                toast.error("Không thể đồng bộ dữ liệu ngoài.");
             }
         };
         syncExternalData();
-    }, [selectedYear, selectedQuarter, accounts, balances, updateBalanceMutation, isBalancesLoading]);
+    }, [selectedYear, selectedQuarter, accounts, balances, isBalancesLoading]);
 
     const handleShowDetails = useCallback(async (accountId) => {
         // Chỉ chạy cho các tài khoản được hỗ trợ xem chi tiết
@@ -814,6 +979,86 @@ const BalanceSheet = () => {
             toast.error("Không thể lấy dữ liệu chi tiết.", { id: toastId });
         }
     }, [selectedYear, selectedQuarter]);
+    const handleSyncToNextQuarter = async () => {
+        if (!balances || Object.keys(balances).length === 0) {
+            toast.error("Không có dữ liệu để đồng bộ.");
+            return;
+        }
+
+        const confirmation = window.confirm(`Bạn có chắc chắn muốn đồng bộ số dư cuối kỳ hiện tại sang đầu kỳ sau không?\n\nThao tác này sẽ cập nhật số dư đầu kỳ của Quý ${selectedQuarter === 4 ? 1 : selectedQuarter + 1}/${selectedQuarter === 4 ? selectedYear + 1 : selectedYear} dựa trên số dư cuối kỳ hiện tại.`);
+        if (!confirmation) return;
+
+        const toastId = toast.loading("Đang đồng bộ dữ liệu sang kỳ sau...");
+        try {
+            let nextYear = selectedYear;
+            let nextQuarter = selectedQuarter + 1;
+            if (nextQuarter > 4) {
+                nextQuarter = 1;
+                nextYear = selectedYear + 1;
+            }
+
+            const batch = writeBatch(db);
+            const nextRef = doc(db, BALANCES_COLLECTION, 'temp').parent; // Collection ref
+
+            // 1. Lấy dữ liệu kỳ sau để so sánh (xử lý phantom accounts)
+            const nextQQuery = query(collection(db, BALANCES_COLLECTION), where("year", "==", nextYear), where("quarter", "==", nextQuarter));
+            const nextQSnapshot = await getDocs(nextQQuery);
+            const nextQuarterBalances = {};
+            nextQSnapshot.forEach(doc => { nextQuarterBalances[doc.data().accountId] = doc.data(); });
+
+            const processedAccountIds = new Set();
+
+            // 2. Duyệt qua số dư kỳ hiện tại và đẩy sang kỳ sau
+            Object.values(balances).forEach(account => {
+                const accountId = account.accountId;
+                processedAccountIds.add(accountId);
+
+                const nextDocId = `${accountId}_${nextYear}_${nextQuarter}`;
+                const nextDocRef = doc(db, BALANCES_COLLECTION, nextDocId);
+
+                batch.set(nextDocRef, {
+                    accountId,
+                    year: nextYear,
+                    quarter: nextQuarter,
+                    dauKyNo: account.cuoiKyNo || 0,
+                    dauKyCo: account.cuoiKyCo || 0,
+                    isCarriedOver: true,
+                    lockReason: 'carried_over',
+                    carriedFromYear: selectedYear,
+                    carriedFromQuarter: selectedQuarter,
+                    carriedUpdatedAt: serverTimestamp()
+                }, { merge: true });
+            });
+
+            // 3. Xử lý các tài khoản có ở kỳ sau nhưng không có (hoặc = 0) ở kỳ hiện tại (Phantom accounts)
+            // Nếu kỳ hiện tại không có dữ liệu, thì đầu kỳ sau phải về 0
+            Object.values(nextQuarterBalances).forEach(nextAccount => {
+                if (!processedAccountIds.has(nextAccount.accountId)) {
+                    // Tài khoản này tồn tại ở kỳ sau nhưng không có trong danh sách balances kỳ này
+                    // Nghĩa là kỳ này chưa có phát sinh hoặc đã bị xóa.
+                    // Ta cần reset đầu kỳ sau về 0.
+                    if (nextAccount.dauKyNo > 0 || nextAccount.dauKyCo > 0) {
+                        const nextDocId = `${nextAccount.accountId}_${nextYear}_${nextQuarter}`;
+                        const nextDocRef = doc(db, BALANCES_COLLECTION, nextDocId);
+                        batch.set(nextDocRef, {
+                            dauKyNo: 0,
+                            dauKyCo: 0,
+                            isCarriedOver: true,
+                            carriedUpdatedAt: serverTimestamp()
+                        }, { merge: true });
+                    }
+                }
+            });
+
+            await batch.commit();
+            toast.success(`Đã đồng bộ thành công sang Quý ${nextQuarter}/${nextYear}`, { id: toastId });
+            queryClient.invalidateQueries(['accountBalances', nextYear, nextQuarter]);
+        } catch (error) {
+            console.error("Lỗi khi đồng bộ sang kỳ sau:", error);
+            toast.error(`Lỗi đồng bộ: ${error.message}`, { id: toastId });
+        }
+    };
+
     const handleDeleteByPeriod = async () => {
         const confirmation = window.confirm(`BẠN CÓ CHẮC CHẮN MUỐN XÓA TOÀN BỘ DỮ LIỆU SỐ DƯ CỦA QUÝ ${selectedQuarter}/${selectedYear} KHÔNG?\n\n⚠️ Thao tác này KHÔNG THỂ hoàn tác!`);
         if (!confirmation) return;
@@ -879,6 +1124,12 @@ const BalanceSheet = () => {
             let accountId = columns[0]?.trim();
 
             if (!accountId) { return; }
+
+            // Kiểm tra đủ cột dữ liệu
+            if (columns.length < 5) {
+                errors.push({ row: rowNum, accountId: accountId, message: `Thiếu dữ liệu (chỉ tìm thấy ${columns.length} cột).` });
+                return;
+            }
 
             // Xử lý tìm ID nếu matchMode là name
             if (matchMode === 'name') {
@@ -1078,6 +1329,10 @@ const BalanceSheet = () => {
                         <Divider />
                         <MenuItem onClick={() => { handleDeleteByPeriod(); setActionsMenuAnchor(null); }} sx={{ color: 'error.main' }} disabled={isDeleting || isBalancesLoading || !balances || Object.keys(balances).length === 0}>
                             <ListItemIcon><DeleteForeverIcon fontSize="small" color="error" /></ListItemIcon>Xóa dữ liệu kỳ
+                        </MenuItem>
+                        <Divider />
+                        <MenuItem onClick={() => { handleSyncToNextQuarter(); setActionsMenuAnchor(null); }} disabled={isBalancesLoading || !balances || Object.keys(balances).length === 0}>
+                            <ListItemIcon><RefreshIcon fontSize="small" color="primary" /></ListItemIcon>Đồng bộ sang kỳ sau
                         </MenuItem>
                     </Menu>
                 </GlassHeader>

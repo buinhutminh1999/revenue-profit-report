@@ -15,6 +15,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import Header from "./Header";
 import Sidebar from "./Sidebar";
+import WhatsNewDialog from "../common/WhatsNewDialog";
 
 const SIDEBAR_WIDTH_EXPANDED = 240;
 const SIDEBAR_WIDTH_COLLAPSED = 64;
@@ -189,6 +190,7 @@ export default function ModernLayout() {
           </AnimatePresence>
         </Box>
       </Box>
+      <WhatsNewDialog />
     </Box>
   );
 }

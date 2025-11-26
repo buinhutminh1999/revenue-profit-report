@@ -611,11 +611,27 @@ export default function ActualCostsTab({ projectId }) {
 
                     // Lấy trạng thái quyết toán từ document
                     const docData = docSnap.exists() ? docSnap.data() : {};
-                    const finalized = docData.isFinalized === true || docData.isFinalized === "true";
-                    console.log(`📊 onSnapshot: isFinalized = ${finalized}`, docData.isFinalized, 'isFinalizing:', isFinalizing);
-                    // Chỉ cập nhật từ onSnapshot nếu không đang trong quá trình quyết toán
-                    if (!isFinalizing) {
-                        setIsProjectFinalized(finalized);
+
+                    // Kiểm tra flag ở document level
+                    const docLevelFinalized = docData.isFinalized === true || docData.isFinalized === "true";
+
+                    // Kiểm tra flag ở item level (fallback cho dữ liệu cũ)
+                    const items = docData.items || [];
+                    const hasFinalizedItems = items.some(item => item.isFinalized === true || item.isFinalized === "true");
+
+                    const finalized = docLevelFinalized || hasFinalizedItems;
+
+                    console.log(`📊 onSnapshot: isFinalized = ${finalized} (Doc: ${docLevelFinalized}, Items: ${hasFinalizedItems})`, 'isFinalizing:', isFinalizing);
+
+                    // LOGIC CẬP NHẬT STATE TỪ SNAPSHOT:
+                    // 1. Nếu dữ liệu từ DB báo là ĐÃ quyết toán (finalized = true) -> Luôn cập nhật state thành true (ưu tiên sự thật từ DB).
+                    // 2. Nếu dữ liệu từ DB báo là CHƯA quyết toán (finalized = false):
+                    //    - Nếu đang trong quá trình xử lý (isFinalizing = true) -> Bỏ qua (để tránh UI bị giật về false do stale data).
+                    //    - Nếu không (isFinalizing = false) -> Cập nhật state thành false.
+                    if (finalized) {
+                        setIsProjectFinalized(true);
+                    } else if (!isFinalizing) {
+                        setIsProjectFinalized(false);
                     }
 
                     const rawItems = (
@@ -1270,7 +1286,7 @@ export default function ActualCostsTab({ projectId }) {
             // Đợi một chút để Firestore sync, sau đó cho phép onSnapshot cập nhật lại
             setTimeout(() => {
                 setIsFinalizing(false);
-            }, 2000);
+            }, 5000);
         } catch (err) {
             // Nếu có lỗi, reset lại state
             console.error('❌ Finalize failed, resetting isProjectFinalized to false');

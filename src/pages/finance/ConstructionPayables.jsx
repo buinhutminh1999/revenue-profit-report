@@ -576,15 +576,13 @@ const ConstructionPayables = () => {
             let dauKyNo = toNum(item.debt);
             let dauKyCo = toNum(item.openingCredit);
 
-            // 💡 LOGIC ĐIỀU CHỈNH ĐẦU KỲ (cho Bảng Tổng Hợp):
+            // ✅ THAY ĐỔI: Lọc bỏ hoàn toàn -VT và -NC đối với công trình Nhà máy (cho Bảng Tổng Hợp)
             if (
                 projectType === 'Nhà máy' &&
                 (projectCode.includes('-VT') || projectCode.includes('-NC'))
             ) {
-                dauKyNo = 0; // Buộc Đầu Kỳ Nợ = 0
-                dauKyCo = 0; // Buộc Đầu Kỳ Có = 0
+                return; // Bỏ qua, không tính vào tổng hợp
             }
-            // ------------------------------------
 
             // ✅ THAY ĐỔI: Sử dụng grandTotalRevenue của từng project
             const projectGrandTotalRevenue = grandTotalRevenueByProject[item.projectId] || 0;
@@ -862,14 +860,24 @@ const ConstructionPayables = () => {
             (p) => p.id === selectedProject.projectId
         );
         const projectType = projectDetails?.type; // Lấy type: 'Nhà máy', 'Thi công', v.v...
+
         const grandTotalRevenue = sortedDetailItems.reduce(
             (sum, item) => sum + toNum(item.revenue || 0),
             0
         );
 
+        // ✅ THAY ĐỔI: Lọc bỏ -VT và -NC đối với công trình Nhà máy
+        let effectiveItems = sortedDetailItems;
+        if (projectType === 'Nhà máy') {
+            effectiveItems = sortedDetailItems.filter(item => {
+                const pCode = (item.project || '').toUpperCase();
+                return !pCode.includes('-VT') && !pCode.includes('-NC');
+            });
+        }
+
         // --- BƯỚC 2: XỬ LÝ VÀ NHÓM DỮ LIỆU ---
         const result = [];
-        const groupedByProject = sortedDetailItems.reduce((acc, item) => {
+        const groupedByProject = effectiveItems.reduce((acc, item) => {
             const key = item.project;
             (acc[key] = acc[key] || []).push(item);
             return acc;
@@ -885,18 +893,9 @@ const ConstructionPayables = () => {
                 const processedItems = itemsInGroup.map((item) => {
 
                     // 💡 LOGIC MỚI: ĐIỀU CHỈNH ĐẦU KỲ CHO DÒNG CHI TIẾT
-                    const projectCode = (item.project || '').toUpperCase();
+                    // (Đã bỏ logic set về 0 cho -VT/-NC vì đã lọc ở trên)
                     let dauKyNo = toNum(item.debt);
                     let dauKyCo = toNum(item.openingCredit);
-
-                    if (
-                        projectType === 'Nhà máy' &&
-                        (projectCode.includes('-VT') || projectCode.includes('-NC'))
-                    ) {
-                        dauKyNo = 0; // Buộc Đầu Kỳ Nợ = 0
-                        dauKyCo = 0; // Buộc Đầu Kỳ Có = 0
-                    }
-                    // -------------------------------------------------------------
 
                     const psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
                     // Giữ nguyên công thức PS Giảm theo logic cũ của bạn
@@ -961,18 +960,9 @@ const ConstructionPayables = () => {
                 const singleItem = itemsInGroup[0];
 
                 // 💡 LOGIC MỚI: ĐIỀU CHỈNH ĐẦU KỲ CHO DÒNG CHI TIẾT
-                const projectCode = (singleItem.project || '').toUpperCase();
+                // (Đã bỏ logic set về 0 cho -VT/-NC vì đã lọc ở trên)
                 let dauKyNo = toNum(singleItem.debt);
                 let dauKyCo = toNum(singleItem.openingCredit);
-
-                if (
-                    projectType === 'Nhà máy' &&
-                    (projectCode.includes('-VT') || projectCode.includes('-NC'))
-                ) {
-                    dauKyNo = 0; // Buộc Đầu Kỳ Nợ = 0
-                    dauKyCo = 0; // Buộc Đầu Kỳ Có = 0
-                }
-                // -------------------------------------------------------------
 
                 const psNoValue = grandTotalRevenue > 0 ? toNum(singleItem.noPhaiTraCK) : 0;
                 const psGiamValue = grandTotalRevenue === 0 ? toNum(singleItem.directCost) : toNum(singleItem.debt);
