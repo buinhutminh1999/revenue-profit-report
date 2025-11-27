@@ -10,7 +10,7 @@ import {
 import {
     ArchiveOutlined, TrendingUp, TrendingDown, AttachMoney, ErrorOutline,
     Add as AddIcon, Delete as DeleteIcon, FilterList, Save, CloudUpload,
-    Inbox
+    Inbox, ContentCopy
 } from "@mui/icons-material";
 import { NumericFormat } from "react-number-format";
 import { db } from "../../services/firebase-config";
@@ -270,14 +270,7 @@ export default function AccountsReceivable() {
     const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
     const [pasteContext, setPasteContext] = useState(null);
-
-    // CRUD & Data Logic
-    const handleAddRow = useCallback(async (categoryId) => {
-        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
-        const newRowData = { project: "Nội dung mới", category: categoryId, openingDebit: 0, openingCredit: 0, debitIncrease: 0, creditDecrease: 0, closingDebit: 0, closingCredit: 0 };
-        const promise = addDoc(collection(db, collectionPath), newRowData);
-        toast.promise(promise, { loading: 'Đang thêm dòng mới...', success: 'Thêm dòng thành công!', error: 'Lỗi khi thêm dòng mới.' });
-    }, [selectedYear, selectedQuarter]);
+    const [prevQuarterRows, setPrevQuarterRows] = useState([]);
 
     const handleDeleteRow = useCallback((id) => {
         setItemToDelete(id);
@@ -315,128 +308,70 @@ export default function AccountsReceivable() {
         const parsedRows = text.split('\n').filter(row => row.trim() !== '').map(row => row.split('\t'));
         if (parsedRows.length === 0) return;
 
-        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
-
         // Helper to check if prev data exists for a row (by project name)
         const hasPrevData = (projectName) => {
             if (!prevQuarterRows || prevQuarterRows.length === 0) return false;
             return prevQuarterRows.some(p => p.category === category && (p.project || '').trim().toLowerCase() === (projectName || '').trim().toLowerCase());
         };
 
+        const startColumnIndex = tableColumns.findIndex(col => col.field === startField);
+        if (startColumnIndex === -1) return toast.error("Vui lòng chọn một ô dữ liệu hợp lệ để dán.");
+
+        // Analyze if we are pasting into Opening Balance columns
+        let touchesOpening = false;
+        let missingPrevData = false;
+
+        // We need to know which columns are being pasted into
+        const targetColumns = [];
+        if (parsedRows.length > 0) {
+            parsedRows[0].forEach((_, cellIndex) => {
+                const targetColumnIndex = startColumnIndex + cellIndex;
+                if (targetColumnIndex < tableColumns.length) {
+                    targetColumns.push(tableColumns[targetColumnIndex].field);
+                }
+            });
+        }
+
+        const openingFields = ['openingDebit', 'openingCredit'];
+        const touchingOpeningFields = targetColumns.filter(f => openingFields.includes(f));
+
+        if (touchingOpeningFields.length > 0) {
+            for (const rowData of parsedRows) {
+                const projectColIdx = targetColumns.indexOf('project');
+                let projectName = '';
+                if (projectColIdx !== -1) {
+                    projectName = rowData[projectColIdx];
+                }
+
+                if (projectName && !hasPrevData(projectName)) {
+                    missingPrevData = true;
+                }
+            }
+            touchesOpening = true;
+        }
+
+        let skipOpeningBalances = false;
+
+        if (touchesOpening && missingPrevData) {
+            const confirm = window.confirm(
+                "Phát hiện một số dòng không có số dư từ quý trước để chuyển sang.\n\n" +
+                "Bạn có muốn sử dụng số dư đầu kỳ từ dữ liệu dán không?\n" +
+                "- OK: Sử dụng số liệu dán.\n" +
+                "- Cancel: Bỏ qua cột đầu kỳ (để trống)."
+            );
+            if (!confirm) {
+                skipOpeningBalances = true;
+            }
+        }
+
+        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
         const promise = new Promise(async (resolve, reject) => {
             try {
-                const startColumnIndex = tableColumns.findIndex(col => col.field === startField);
-                if (startColumnIndex === -1) return reject("Vui lòng chọn một ô dữ liệu hợp lệ để dán.");
-
-                // Analyze if we are pasting into Opening Balance columns
-                let touchesOpening = false;
-                let missingPrevData = false;
-
-                // We need to know which columns are being pasted into
-                const targetColumns = [];
-                if (parsedRows.length > 0) {
-                    parsedRows[0].forEach((_, cellIndex) => {
-                        const targetColumnIndex = startColumnIndex + cellIndex;
-                        if (targetColumnIndex < tableColumns.length) {
-                            targetColumns.push(tableColumns[targetColumnIndex].field);
-                        }
-                    });
-                }
-
-                const openingFields = ['openingDebit', 'openingCredit'];
-                const touchingOpeningFields = targetColumns.filter(f => openingFields.includes(f));
-
-                if (touchingOpeningFields.length > 0) {
-                    // Check each row being pasted
-                    for (const rowData of parsedRows) {
-                        // Find project name column index in the paste data? 
-                        // Or assume the paste includes the project name?
-                        // If we are pasting starting from 'project' column, we can know the project name.
-                        // If we are pasting starting from 'openingDebit', we might NOT know the project name if it's not in the paste.
-                        // However, the requirement says "copy from excel...". Usually includes the name.
-                        // Let's assume if 'project' field is in targetColumns, we use it.
-                        // If not, we can't easily match against prev rows by name.
-                        // BUT, if we are replacing ALL rows for a category (which the logic does: batch.delete),
-                        // then the new rows ARE the rows.
-
-                        // Wait, the current logic DELETES existing rows for the category and replaces them.
-                        // So the pasted rows become the new rows.
-                        // We need to check if these NEW rows have a match in prev quarter.
-
-                        const projectColIdx = targetColumns.indexOf('project');
-                        let projectName = '';
-                        if (projectColIdx !== -1) {
-                            projectName = rowData[projectColIdx];
-                        }
-
-                        if (projectName && !hasPrevData(projectName)) {
-                            missingPrevData = true;
-                        }
-                    }
-                    touchesOpening = true;
-                }
-
-                let skipOpeningBalances = false;
-
-                if (touchesOpening) {
-                    if (missingPrevData) {
-                        const confirm = window.confirm(
-                            "Phát hiện một số dòng không có số dư từ quý trước để chuyển sang.\n\n" +
-                            "Bạn có muốn sử dụng số dư đầu kỳ từ dữ liệu dán không?\n" +
-                            "- OK: Sử dụng số liệu dán.\n" +
-                            "- Cancel: Bỏ qua cột đầu kỳ (để trống)."
-                        );
-                        if (!confirm) {
-                            skipOpeningBalances = true;
-                        }
-                    } else {
-                        // If prev data exists, we ALWAYS skip pasting opening balances to enforce carryover
-                        // UNLESS the user explicitly wants to overwrite? 
-                        // The requirement says: "không được sửa Phải Thu ĐK... trong quá trình copy mà quý trước không có... thì thông báo"
-                        // Implies: if prev has data -> MUST NOT EDIT (Skip).
-                        // If prev NO data -> Ask.
-                        skipOpeningBalances = true;
-                        // Wait, if missingPrevData is FALSE, it means ALL rows have prev data.
-                        // So we should skip pasting opening balances for ALL rows.
-                        // BUT, what if some have and some don't?
-                        // The logic above sets missingPrevData = true if ANY row is missing.
-                        // So if missingPrevData is FALSE, it means ALL rows have prev data. -> Skip pasting.
-
-                        // What if missingPrevData is TRUE? (Some missing, some present).
-                        // User clicked OK -> Use pasted data (overwriting carryover? No, carryover logic in displayRows overrides DB).
-                        // Wait, displayRows logic: if prevRow exists, it overrides.
-                        // So even if we save pasted data to DB, displayRows will IGNORE it if prevRow exists.
-                        // So we don't strictly need to skip saving to DB if displayRows handles it.
-                        // BUT, for data integrity, it's better not to save junk to DB if we know it's locked.
-
-                        // However, for the case where prev data is MISSING, displayRows won't override.
-                        // So saving to DB is crucial.
-
-                        // So:
-                        // 1. If prev data exists -> displayRows overrides. Saving to DB doesn't matter much, but better to skip to keep DB clean (0).
-                        // 2. If prev data MISSING -> displayRows does nothing. Saving to DB is required.
-
-                        // Refined Logic:
-                        // We will iterate row by row during batch.set.
-                        // For each row, check if prev data exists.
-                        // If YES -> Set openingDebit/Credit to 0 (or keep empty) in DB. (Display will show carryover).
-                        // If NO -> 
-                        //    If user said OK -> Save pasted value.
-                        //    If user said Cancel -> Save 0.
-                    }
-                }
-
                 const batch = writeBatch(db);
-                const collectionRef = collection(db, collectionPath);
-                const q = query(collectionRef, where("category", "==", category));
-                const existingDocsSnapshot = await getDocs(q);
-                existingDocsSnapshot.forEach(doc => batch.delete(doc.ref));
-
                 parsedRows.forEach(rowData => {
                     const newRowData = { category: category };
                     tableColumns.forEach(col => newRowData[col.field] = col.type === 'number' ? 0 : '');
 
-                    // Extract project name for checking
                     let projectName = '';
                     const projectColIdx = targetColumns.indexOf('project');
                     if (projectColIdx !== -1) projectName = rowData[projectColIdx];
@@ -448,14 +383,10 @@ export default function AccountsReceivable() {
                         if (targetColumnIndex < tableColumns.length) {
                             const column = tableColumns[targetColumnIndex];
 
-                            // Logic for Opening Balances
                             if (openingFields.includes(column.field)) {
                                 if (rowHasPrevData) {
-                                    // If prev data exists, we ignore pasted value (set to 0 in DB).
-                                    // The UI will show the carryover value from prev quarter.
                                     newRowData[column.field] = 0;
                                 } else {
-                                    // No prev data.
                                     if (skipOpeningBalances) {
                                         newRowData[column.field] = 0;
                                     } else {
@@ -463,7 +394,6 @@ export default function AccountsReceivable() {
                                     }
                                 }
                             } else {
-                                // Normal column
                                 newRowData[column.field] = column.type === 'number' ? toNum(cellValue) : cellValue;
                             }
                         }
@@ -472,21 +402,70 @@ export default function AccountsReceivable() {
                     batch.set(newDocRef, newRowData);
                 });
                 await batch.commit();
-                resolve(`Đã cập nhật ${parsedRows.length} dòng thành công!`);
+                resolve(`Đã thêm ${parsedRows.length} dòng thành công!`);
             } catch (error) { reject("Đã xảy ra lỗi khi dán dữ liệu."); }
         });
         toast.promise(promise, { loading: 'Đang xử lý dữ liệu dán...', success: msg => msg, error: err => err });
         setPasteContext(null);
     };
 
-    const [prevQuarterRows, setPrevQuarterRows] = useState([]);
+    const handleCopyFromPrevQuarter = async () => {
+        if (!prevQuarterRows || prevQuarterRows.length === 0) {
+            toast.error("Không có dữ liệu từ quý trước để sao chép.");
+            return;
+        }
+
+        const confirm = window.confirm(
+            `Tìm thấy ${prevQuarterRows.length} dòng dữ liệu từ quý trước.\n` +
+            "Bạn có muốn sao chép các dòng chưa có sang quý này không?"
+        );
+        if (!confirm) return;
+
+        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
+        const batch = writeBatch(db);
+        let addedCount = 0;
+
+        try {
+            prevQuarterRows.forEach(prevRow => {
+                const exists = rows.some(curr =>
+                    curr.category === prevRow.category &&
+                    (curr.project || '').trim().toLowerCase() === (prevRow.project || '').trim().toLowerCase()
+                );
+
+                if (!exists) {
+                    const newDocRef = doc(collection(db, collectionPath));
+                    const newRowData = {
+                        category: prevRow.category,
+                        project: prevRow.project,
+                        openingDebit: toNum(prevRow.closingDebit),
+                        openingCredit: toNum(prevRow.closingCredit),
+                        debitIncrease: 0,
+                        creditDecrease: 0,
+                        closingDebit: 0,
+                        closingCredit: 0
+                    };
+                    batch.set(newDocRef, newRowData);
+                    addedCount++;
+                }
+            });
+
+            if (addedCount > 0) {
+                await batch.commit();
+                toast.success(`Đã sao chép ${addedCount} dòng từ quý trước.`);
+            } else {
+                toast.success("Tất cả dữ liệu từ quý trước đã có trong quý này.", { icon: 'ℹ️' });
+            }
+        } catch (error) {
+            console.error("Error copying from prev quarter:", error);
+            toast.error("Lỗi khi sao chép dữ liệu.");
+        }
+    };
 
     const updateAndSaveTotals = useCallback(async (currentRows, year, quarter, prevRows = []) => {
         const summaryData = {};
         const numericFields = tableColumns.filter(c => c.type === 'number').map(c => c.field);
         const zeroSummary = numericFields.reduce((acc, field) => ({ ...acc, [field]: 0 }), {});
 
-        // Helper to get carryover value
         const getCarryoverValue = (row, field) => {
             if (!prevRows || prevRows.length === 0) return null;
             const prevRow = prevRows.find(p => p.category === row.category && (p.project || '').trim().toLowerCase() === (row.project || '').trim().toLowerCase());
@@ -500,7 +479,6 @@ export default function AccountsReceivable() {
             return filteredRows.reduce((acc, row) => {
                 numericFields.forEach(key => {
                     let val = toNum(row[key]);
-                    // Override with carryover for calculation if exists
                     const carryoverVal = getCarryoverValue(row, key);
                     if (carryoverVal !== null) val = carryoverVal;
                     acc[key] += val;
@@ -542,6 +520,8 @@ export default function AccountsReceivable() {
             toast.error("Không thể lưu số liệu tổng hợp.");
         }
     }, []);
+
+
 
     useEffect(() => {
         setIsLoading(true);
@@ -762,6 +742,27 @@ export default function AccountsReceivable() {
                                     ))}
                                 </Select>
                             </FormControl>
+
+                            <Tooltip title="Sao chép dữ liệu còn thiếu từ quý trước">
+                                <Button
+                                    variant="outlined"
+                                    startIcon={<ContentCopy />}
+                                    onClick={handleCopyFromPrevQuarter}
+                                    size="small"
+                                    sx={{
+                                        height: 40,
+                                        borderRadius: 2,
+                                        borderColor: alpha(theme.palette.primary.main, 0.3),
+                                        color: theme.palette.primary.main,
+                                        '&:hover': {
+                                            borderColor: theme.palette.primary.main,
+                                            bgcolor: alpha(theme.palette.primary.main, 0.05)
+                                        }
+                                    }}
+                                >
+                                    Sao chép từ kỳ trước
+                                </Button>
+                            </Tooltip>
                         </Stack>
                     </Paper>
                 </Stack>
@@ -1084,7 +1085,7 @@ export default function AccountsReceivable() {
                 <DialogTitle sx={{ fontWeight: 700 }}>Xác nhận dán dữ liệu</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        Thao tác này sẽ <strong>XOÁ TOÀN BỘ</strong> dữ liệu hiện có trong nhóm được chọn và thay thế bằng dữ liệu mới.
+                        Dữ liệu dán sẽ được <strong>THÊM VÀO</strong> danh sách hiện có (không xóa dữ liệu cũ).
                         <br /><br />
                         Bạn có chắc chắn muốn tiếp tục không?
                     </DialogContentText>
@@ -1096,6 +1097,8 @@ export default function AccountsReceivable() {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+
         </Box>
     );
 }
