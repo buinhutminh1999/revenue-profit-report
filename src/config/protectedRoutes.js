@@ -22,25 +22,25 @@ export const PROTECTED_ROUTES = [
         group: 'Quyền Hạn Chức Năng Đặc Biệt' // Đặt vào nhóm đặc biệt để dễ quản lý
     },
     // ===============================
-    
+
     // === QUYỀN HẠN GHI/CHỈNH SỬA DỮ LIỆU KẾ HOẠCH ===
-    { 
+    {
         path: 'material-price-comparison/edit-ke-hoach', // Quyền Ghi Kế Hoạch
-        name: 'So Sánh Giá Vật Tư (Ghi Kế Hoạch/Copy)', 
+        name: 'So Sánh Giá Vật Tư (Ghi Kế Hoạch/Copy)',
         group: 'Quyền Hạn Chức Năng Đặc Biệt'
     },
-    
+
     // === QUYỀN HẠN GHI/CHỈNH SỬA DỮ LIỆU PHÒNG CUNG ỨNG (KEY MỚI) ===
-    { 
+    {
         path: 'material-price-comparison/edit-phong-cung-ung', // <-- KEY MỚI ĐÃ THÊM
-        name: 'So Sánh Giá Vật Tư (Ghi Phòng Cung Ứng)', 
+        name: 'So Sánh Giá Vật Tư (Ghi Phòng Cung Ứng)',
         group: 'Quyền Hạn Chức Năng Đặc Biệt'
     },
     // ================================================================
     // === QUYỀN HẠN GHI/CHỈNH SỬA BÁO GIÁ (KEY MỚI) ===
-    { 
-        path: 'material-price-comparison/edit-bao-gia', 
-        name: 'So Sánh Giá Vật Tư (Ghi Báo Giá NCC)', 
+    {
+        path: 'material-price-comparison/edit-bao-gia',
+        name: 'So Sánh Giá Vật Tư (Ghi Báo Giá NCC)',
         group: 'Quyền Hạn Chức Năng Đặc Biệt'
     },
     {
@@ -64,6 +64,7 @@ export const PROTECTED_ROUTES = [
     { path: 'reports/quarterly-cost-allocation', name: 'Báo cáo Phân bổ Chi phí', group: 'Báo cáo' },
     { path: 'reports/profit-year', name: 'Báo Cáo Lợi Nhuận Năm', group: 'Báo cáo' },
     { path: 'reports/overall', name: 'Báo Cáo Tổng Quát', group: 'Báo cáo' },
+    { path: 'reports/internal-tax-report', name: 'Báo Cáo Thuế Nội Bộ', group: 'Báo cáo' },
 ];
 
 // Helper để nhóm các routes lại thành object, tiện cho việc render trong UI

@@ -69,6 +69,7 @@ const DocumentDetail = lazy(() => import('../pages/documents/DocumentDetail'));
 const MaterialPriceComparisonDetail = lazy(() => import('../pages/finance/MaterialPriceComparisonDetail'));
 // THÊM DÒNG MỚI NÀY (CHO TRANG DANH SÁCH):
 const MaterialPriceComparison = lazy(() => import('../pages/finance/MaterialPriceComparison'));
+const InternalTaxReport = lazy(() => import('../pages/finance/InternalTaxReport'));
 
 // --- LAZY-LOAD CÁC TRANG CỦA MODULE CHẤM CÔNG ---
 const AttendanceDashboard = lazy(() => import('../pages/attendance/AttendanceDashboard'));
@@ -163,6 +164,7 @@ function AppRoutes() {
                             <Route path="overall" element={<RequireEmailAccess pathKey="reports/overall">{lazyLoad(OverallReportPage)}</RequireEmailAccess>} />
                             <Route path="capital-utilization" element={<RequireEmailAccess pathKey="reports/capital-utilization">{lazyLoad(CapitalUtilizationReport)}</RequireEmailAccess>} />
                             <Route path="quarterly-cost-allocation" element={<RequireEmailAccess pathKey="reports/quarterly-cost-allocation">{lazyLoad(QuarterlyCostAllocationReport)}</RequireEmailAccess>} />
+                            <Route path="internal-tax-report" element={<RequireEmailAccess pathKey="reports/internal-tax-report">{lazyLoad(InternalTaxReport)}</RequireEmailAccess>} />
                         </Route>
                         <Route path="cost-allocation-quarter" element={<RequireRole><RequireEmailAccess pathKey="cost-allocation-quarter">{lazyLoad(CostAllocationQuarter)}</RequireEmailAccess></RequireRole>} />
                         <Route path="chart-of-accounts" element={<RequireRole><RequireEmailAccess pathKey="chart-of-accounts">{lazyLoad(ChartOfAccountsPage)}</RequireEmailAccess></RequireRole>} />

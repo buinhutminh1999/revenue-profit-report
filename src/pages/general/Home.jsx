@@ -15,7 +15,7 @@ import {
     AccountBalance as Landmark, Assignment as ClipboardList, ImportContacts as BookUser, PieChart, ShowChart as LineChart, TrendingUp,
     RuleFolder as FileCheck2, Assessment as FileBarChart2, SwapHoriz as ArrowRightLeft, GppBad as ShieldOff,
     HowToReg as UserCheck, Search, AssignmentTurnedIn as ClipboardCheck, Close as X, FilterList as Filter, AutoAwesome as Sparkles, Star,
-    TrendingDown, MonitorHeart as Activity, Bolt as Zap
+    TrendingDown, MonitorHeart as Activity, Bolt as Zap, Description
 } from '@mui/icons-material';
 
 // Enhanced Styled Card với glassmorphism
@@ -147,6 +147,7 @@ const Home = () => {
         { category: 'Báo Cáo', icon: <FileBarChart2 sx={{ fontSize: 26 }} />, title: "Báo cáo Phân bổ Chi phí", to: "/reports/quarterly-cost-allocation", desc: "Phân bổ chi phí theo doanh thu dự án", color: '#0d9488' },
         { category: 'Báo Cáo', icon: <LineChart sx={{ fontSize: 26 }} />, title: 'Báo Cáo Lợi Nhuận Năm', to: '/reports/profit-year', desc: 'Xem báo cáo tổng kết năm', color: '#10b981' },
         { category: 'Báo Cáo', icon: <PieChart sx={{ fontSize: 26 }} />, title: 'Báo Cáo Tổng Quát', to: '/reports/overall', desc: 'Tổng hợp tình hình hoạt động', color: '#6366f1' },
+        { category: 'Báo Cáo', icon: <Description sx={{ fontSize: 26 }} />, title: 'Báo Cáo Thuế Nội Bộ', to: '/reports/internal-tax-report', desc: 'Quản lý hóa đơn và bảng kê', color: '#8b5cf6', isNew: true },
     ];
 
     useEffect(() => {
