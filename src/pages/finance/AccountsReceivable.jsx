@@ -272,6 +272,27 @@ export default function AccountsReceivable() {
     const [pasteContext, setPasteContext] = useState(null);
     const [prevQuarterRows, setPrevQuarterRows] = useState([]);
 
+    const handleAddRow = async (categoryId) => {
+        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
+        try {
+            const newRow = {
+                category: categoryId,
+                project: '',
+                openingDebit: 0,
+                openingCredit: 0,
+                debitIncrease: 0,
+                creditDecrease: 0,
+                closingDebit: 0,
+                closingCredit: 0
+            };
+            await addDoc(collection(db, collectionPath), newRow);
+            toast.success("Đã thêm dòng mới");
+        } catch (error) {
+            console.error("Error adding row:", error);
+            toast.error("Lỗi khi thêm dòng mới.");
+        }
+    };
+
     const handleDeleteRow = useCallback((id) => {
         setItemToDelete(id);
         setDeleteDialogOpen(true);
@@ -308,102 +329,124 @@ export default function AccountsReceivable() {
         const parsedRows = text.split('\n').filter(row => row.trim() !== '').map(row => row.split('\t'));
         if (parsedRows.length === 0) return;
 
-        // Helper to check if prev data exists for a row (by project name)
-        const hasPrevData = (projectName) => {
-            if (!prevQuarterRows || prevQuarterRows.length === 0) return false;
-            return prevQuarterRows.some(p => p.category === category && (p.project || '').trim().toLowerCase() === (projectName || '').trim().toLowerCase());
-        };
-
         const startColumnIndex = tableColumns.findIndex(col => col.field === startField);
         if (startColumnIndex === -1) return toast.error("Vui lòng chọn một ô dữ liệu hợp lệ để dán.");
 
-        // Analyze if we are pasting into Opening Balance columns
-        let touchesOpening = false;
-        let missingPrevData = false;
-
-        // We need to know which columns are being pasted into
-        const targetColumns = [];
-        if (parsedRows.length > 0) {
-            parsedRows[0].forEach((_, cellIndex) => {
-                const targetColumnIndex = startColumnIndex + cellIndex;
-                if (targetColumnIndex < tableColumns.length) {
-                    targetColumns.push(tableColumns[targetColumnIndex].field);
-                }
-            });
-        }
-
-        const openingFields = ['openingDebit', 'openingCredit'];
-        const touchingOpeningFields = targetColumns.filter(f => openingFields.includes(f));
-
-        if (touchingOpeningFields.length > 0) {
-            for (const rowData of parsedRows) {
-                const projectColIdx = targetColumns.indexOf('project');
-                let projectName = '';
-                if (projectColIdx !== -1) {
-                    projectName = rowData[projectColIdx];
-                }
-
-                if (projectName && !hasPrevData(projectName)) {
-                    missingPrevData = true;
-                }
-            }
-            touchesOpening = true;
-        }
-
-        let skipOpeningBalances = false;
-
-        if (touchesOpening && missingPrevData) {
-            const confirm = window.confirm(
-                "Phát hiện một số dòng không có số dư từ quý trước để chuyển sang.\n\n" +
-                "Bạn có muốn sử dụng số dư đầu kỳ từ dữ liệu dán không?\n" +
-                "- OK: Sử dụng số liệu dán.\n" +
-                "- Cancel: Bỏ qua cột đầu kỳ (để trống)."
-            );
-            if (!confirm) {
-                skipOpeningBalances = true;
-            }
-        }
+        // Helper to find prev data
+        const getPrevData = (projectName) => {
+            if (!prevQuarterRows || prevQuarterRows.length === 0) return null;
+            return prevQuarterRows.find(p => p.category === category && (p.project || '').trim().toLowerCase() === (projectName || '').trim().toLowerCase());
+        };
 
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
+
         const promise = new Promise(async (resolve, reject) => {
             try {
                 const batch = writeBatch(db);
-                parsedRows.forEach(rowData => {
-                    const newRowData = { category: category };
-                    tableColumns.forEach(col => newRowData[col.field] = col.type === 'number' ? 0 : '');
+                let updatedCount = 0;
+                let addedCount = 0;
 
-                    let projectName = '';
-                    const projectColIdx = targetColumns.indexOf('project');
-                    if (projectColIdx !== -1) projectName = rowData[projectColIdx];
+                for (const rowData of parsedRows) {
+                    // Determine Project Name from paste data
+                    let projectVal = '';
+                    let projectColFound = false;
 
-                    const rowHasPrevData = hasPrevData(projectName);
-
+                    // Check if we are pasting into the project column or if it's included in the range
                     rowData.forEach((cellValue, cellIndex) => {
                         const targetColumnIndex = startColumnIndex + cellIndex;
                         if (targetColumnIndex < tableColumns.length) {
-                            const column = tableColumns[targetColumnIndex];
-
-                            if (openingFields.includes(column.field)) {
-                                if (rowHasPrevData) {
-                                    newRowData[column.field] = 0;
-                                } else {
-                                    if (skipOpeningBalances) {
-                                        newRowData[column.field] = 0;
-                                    } else {
-                                        newRowData[column.field] = column.type === 'number' ? toNum(cellValue) : cellValue;
-                                    }
-                                }
-                            } else {
-                                newRowData[column.field] = column.type === 'number' ? toNum(cellValue) : cellValue;
+                            if (tableColumns[targetColumnIndex].field === 'project') {
+                                projectVal = cellValue;
+                                projectColFound = true;
                             }
                         }
                     });
-                    const newDocRef = doc(collection(db, collectionPath));
-                    batch.set(newDocRef, newRowData);
-                });
+
+                    // If we didn't find a project name in the paste (e.g. pasting only numbers), 
+                    // we can't check for duplicates by name effectively unless we are on a specific row.
+                    // But confirmPaste is usually for adding NEW rows or bulk pasting.
+                    // If pasting into existing rows, the user usually selects a cell and pastes.
+                    // But here we are iterating parsedRows.
+                    // If the user selected a cell in an EXISTING row and pasted multiple lines, 
+                    // the first line goes to the active row, subsequent lines might go to... where?
+                    // The current logic treats ALL pasted rows as potentially new or matching existing ones by name.
+                    // If 'project' is not in the pasted columns, we can't identify the project to check for duplicates.
+                    // In that case, we might just be creating new rows with empty names? 
+                    // Or if the user is pasting into "Debit" column for the *current* row?
+                    // The current implementation of `confirmPaste` seems designed to ADD rows (batch.set with newDocRef).
+                    // It doesn't seem to support "Paste over existing rows" in the sense of updating the *currently selected* row and the ones below it visually.
+                    // It creates NEW docs.
+                    // So, if 'project' is missing, we can't check for duplicates. We'll just add.
+
+                    const existingRow = projectVal ? rows.find(r => r.category === category && (r.project || '').trim().toLowerCase() === (projectVal || '').trim().toLowerCase()) : null;
+
+                    if (existingRow) {
+                        // DUPLICATE FOUND - UPDATE
+                        const updateData = {};
+                        const prevRow = getPrevData(projectVal);
+
+                        // Enforce Opening Balance Rule
+                        if (prevRow) {
+                            updateData.openingDebit = toNum(prevRow.closingDebit);
+                            updateData.openingCredit = toNum(prevRow.closingCredit);
+                        } else {
+                            updateData.openingDebit = 0;
+                            updateData.openingCredit = 0;
+                        }
+
+                        // Update other fields from paste
+                        rowData.forEach((cellValue, cellIndex) => {
+                            const targetColumnIndex = startColumnIndex + cellIndex;
+                            if (targetColumnIndex < tableColumns.length) {
+                                const field = tableColumns[targetColumnIndex].field;
+                                // Skip opening balance fields (already handled) and project (already matched)
+                                if (field !== 'openingDebit' && field !== 'openingCredit') {
+                                    updateData[field] = tableColumns[targetColumnIndex].type === 'number' ? toNum(cellValue) : cellValue;
+                                }
+                            }
+                        });
+
+                        const docRef = doc(db, collectionPath, existingRow.id);
+                        batch.update(docRef, updateData);
+                        updatedCount++;
+                    } else {
+                        // NEW ROW
+                        const newRowData = { category: category };
+                        tableColumns.forEach(col => newRowData[col.field] = col.type === 'number' ? 0 : '');
+
+                        rowData.forEach((cellValue, cellIndex) => {
+                            const targetColumnIndex = startColumnIndex + cellIndex;
+                            if (targetColumnIndex < tableColumns.length) {
+                                const col = tableColumns[targetColumnIndex];
+                                newRowData[col.field] = col.type === 'number' ? toNum(cellValue) : cellValue;
+                            }
+                        });
+
+                        // Attempt to link with prev quarter if project name matches
+                        if (projectVal) {
+                            const prevRow = getPrevData(projectVal);
+                            if (prevRow) {
+                                newRowData.openingDebit = toNum(prevRow.closingDebit);
+                                newRowData.openingCredit = toNum(prevRow.closingCredit);
+                            }
+                        }
+
+                        const newDocRef = doc(collection(db, collectionPath));
+                        batch.set(newDocRef, newRowData);
+                        addedCount++;
+                    }
+                }
+
                 await batch.commit();
-                resolve(`Đã thêm ${parsedRows.length} dòng thành công!`);
-            } catch (error) { reject("Đã xảy ra lỗi khi dán dữ liệu."); }
+                let messages = [];
+                if (addedCount > 0) messages.push(`Đã thêm ${addedCount} dòng mới.`);
+                if (updatedCount > 0) messages.push(`Đã cập nhật ${updatedCount} dòng trùng: Số liệu phát sinh/cuối kỳ theo dữ liệu dán, đầu kỳ lấy từ quý trước.`);
+                if (messages.length === 0) messages.push("Không có thay đổi nào.");
+                resolve(messages.join('. '));
+            } catch (error) {
+                console.error(error);
+                reject("Đã xảy ra lỗi khi dán dữ liệu.");
+            }
         });
         toast.promise(promise, { loading: 'Đang xử lý dữ liệu dán...', success: msg => msg, error: err => err });
         setPasteContext(null);
