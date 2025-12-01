@@ -273,6 +273,42 @@ export default function AccountsReceivable() {
     const [groupToDelete, setGroupToDelete] = useState(null);
     const [pasteContext, setPasteContext] = useState(null);
     const [prevQuarterRows, setPrevQuarterRows] = useState([]);
+    const [displayRows, setDisplayRows] = useState([]);
+
+    useEffect(() => {
+        setIsLoading(true);
+        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
+        const q = query(collection(db, collectionPath));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetchedRows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setRows(fetchedRows);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching rows:", error);
+            toast.error("Lỗi khi tải dữ liệu.");
+            setIsLoading(false);
+        });
+
+        let prevYear = selectedYear;
+        let prevQuarter = selectedQuarter - 1;
+        if (prevQuarter === 0) {
+            prevQuarter = 4;
+            prevYear -= 1;
+        }
+        const prevCollectionPath = `accountsReceivable/${prevYear}/quarters/Q${prevQuarter}/rows`;
+        const prevQ = query(collection(db, prevCollectionPath));
+
+        const unsubscribePrev = onSnapshot(prevQ, (snapshot) => {
+            const fetchedPrevRows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setPrevQuarterRows(fetchedPrevRows);
+        });
+
+        return () => {
+            unsubscribe();
+            unsubscribePrev();
+        };
+    }, [selectedYear, selectedQuarter]);
 
     const handleAddRow = async (categoryId) => {
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
@@ -495,22 +531,42 @@ export default function AccountsReceivable() {
 
         const confirm = window.confirm(
             `Tìm thấy ${prevQuarterRows.length} dòng dữ liệu từ quý trước.\n` +
-            "Bạn có muốn sao chép các dòng chưa có sang quý này không?"
+            "Hệ thống sẽ:\n" +
+            "1. Thêm các dòng còn thiếu vào quý này.\n" +
+            "2. CẬP NHẬT số dư đầu kỳ cho các dòng đã có (khớp theo tên).\n\n" +
+            "Bạn có muốn tiếp tục không?"
         );
         if (!confirm) return;
 
         const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
         const batch = writeBatch(db);
         let addedCount = 0;
+        let updatedCount = 0;
 
         try {
+            // 1. Iterate through Prev Quarter Rows to Add or Update
             prevQuarterRows.forEach(prevRow => {
-                const exists = rows.some(curr =>
+                const existingRow = rows.find(curr =>
                     curr.category === prevRow.category &&
                     (curr.project || '').trim().toLowerCase() === (prevRow.project || '').trim().toLowerCase()
                 );
 
-                if (!exists) {
+                if (existingRow) {
+                    // Update existing row's opening balance
+                    const docRef = doc(db, collectionPath, existingRow.id);
+                    const newOpeningDebit = toNum(prevRow.closingDebit);
+                    const newOpeningCredit = toNum(prevRow.closingCredit);
+
+                    // Only update if different to save writes
+                    if (toNum(existingRow.openingDebit) !== newOpeningDebit || toNum(existingRow.openingCredit) !== newOpeningCredit) {
+                        batch.update(docRef, {
+                            openingDebit: newOpeningDebit,
+                            openingCredit: newOpeningCredit
+                        });
+                        updatedCount++;
+                    }
+                } else {
+                    // Add new row
                     const newDocRef = doc(collection(db, collectionPath));
                     const newRowData = {
                         category: prevRow.category,
@@ -527,11 +583,11 @@ export default function AccountsReceivable() {
                 }
             });
 
-            if (addedCount > 0) {
+            if (addedCount > 0 || updatedCount > 0) {
                 await batch.commit();
-                toast.success(`Đã sao chép ${addedCount} dòng từ quý trước.`);
+                toast.success(`Hoàn tất: Thêm ${addedCount} dòng, Cập nhật ${updatedCount} dòng.`);
             } else {
-                toast.success("Tất cả dữ liệu từ quý trước đã có trong quý này.", { icon: 'ℹ️' });
+                toast.success("Dữ liệu đã đồng bộ, không có thay đổi nào.", { icon: '✅' });
             }
         } catch (error) {
             console.error("Error copying from prev quarter:", error);
@@ -539,132 +595,78 @@ export default function AccountsReceivable() {
         }
     };
 
+
     const updateAndSaveTotals = useCallback(async (currentRows, year, quarter, prevRows = []) => {
-        const summaryData = {};
+        const result = [];
         const numericFields = tableColumns.filter(c => c.type === 'number').map(c => c.field);
         const zeroSummary = numericFields.reduce((acc, field) => ({ ...acc, [field]: 0 }), {});
+        const grandTotal = { ...zeroSummary };
+        let dataRowIndex = 0;
 
-        const getCarryoverValue = (row, field) => {
-            if (!prevRows || prevRows.length === 0) return null;
-            const prevRow = prevRows.find(p => p.category === row.category && (p.project || '').trim().toLowerCase() === (row.project || '').trim().toLowerCase());
-            if (!prevRow) return null;
-            if (field === 'openingDebit') return toNum(prevRow.closingDebit);
-            if (field === 'openingCredit') return toNum(prevRow.closingCredit);
-            return null;
-        };
+        // Track used previous rows to prevent double counting
+        const usedPrevRowIds = new Set();
 
         const calculateSummary = (filteredRows) => {
             return filteredRows.reduce((acc, row) => {
+                let carryoverDebit = 0;
+                let carryoverCredit = 0;
+
+                // Determine carryover for this row
+                if (prevRows && prevRows.length > 0) {
+                    // Find ALL matches
+                    const matches = prevRows.filter(p => p.category === row.category && (p.project || '').trim().toLowerCase() === (row.project || '').trim().toLowerCase());
+
+                    // Find the first one that hasn't been used
+                    const unusedMatch = matches.find(p => !usedPrevRowIds.has(p.id));
+
+                    if (unusedMatch) {
+                        carryoverDebit = toNum(unusedMatch.closingDebit);
+                        carryoverCredit = toNum(unusedMatch.closingCredit);
+                        usedPrevRowIds.add(unusedMatch.id); // Mark as used
+                    }
+                }
+
                 numericFields.forEach(key => {
                     let val = toNum(row[key]);
-                    const carryoverVal = getCarryoverValue(row, key);
-                    if (carryoverVal !== null) val = carryoverVal;
+
+                    // Override if it's an opening balance field
+                    if (key === 'openingDebit') val = carryoverDebit;
+                    else if (key === 'openingCredit') val = carryoverCredit;
+
                     acc[key] += val;
                 });
                 return acc;
             }, { ...zeroSummary });
         };
 
-        categories.forEach(category => {
-            if (category.children && category.children.length > 0) {
-                const parentTotal = { ...zeroSummary };
-                category.children.forEach(child => {
-                    const childRows = currentRows.filter(row => row.category === child.id);
-                    const childSummary = calculateSummary(childRows);
-                    summaryData[child.id] = childSummary;
-                    numericFields.forEach(key => parentTotal[key] += childSummary[key]);
-                });
-                summaryData[category.id] = parentTotal;
-            } else {
-                const categoryRows = currentRows.filter(row => row.category === category.id);
-                summaryData[category.id] = calculateSummary(categoryRows);
-            }
-        });
-
-        const grandTotal = { ...zeroSummary };
-        categories.forEach(category => {
-            const categoryTotal = summaryData[category.id];
-            if (categoryTotal) {
-                numericFields.forEach(key => grandTotal[key] += categoryTotal[key]);
-            }
-        });
-        summaryData['grand_total'] = grandTotal;
-
-        try {
-            const summaryDocRef = doc(db, `accountsReceivable/${year}/quarters`, `Q${quarter}`);
-            await setDoc(summaryDocRef, summaryData, { merge: true });
-        } catch (error) {
-            console.error("Lỗi khi lưu số tổng:", error);
-            toast.error("Không thể lưu số liệu tổng hợp.");
-        }
-    }, []);
-
-
-
-    useEffect(() => {
-        setIsLoading(true);
-        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
-
-        // Calculate previous quarter
-        let prevYear = selectedYear;
-        let prevQuarter = selectedQuarter - 1;
-        if (prevQuarter === 0) {
-            prevQuarter = 4;
-            prevYear = selectedYear - 1;
-        }
-        const prevCollectionPath = `accountsReceivable/${prevYear}/quarters/Q${prevQuarter}/rows`;
-
-        // Fetch current rows
-        const q = query(collection(db, collectionPath));
-        const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-            const fetchedRows = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), type: 'data' }));
-
-            // Fetch previous rows (one-time fetch is usually enough, but real-time is better if user is editing prev quarter)
-            // For simplicity and performance, we'll fetch once here or subscribe. 
-            // Let's fetch once for now to avoid complex subscription management, 
-            // but ideally we should subscribe if we want instant updates from prev quarter.
-            // Given the requirement, fetching once on load/change of quarter is standard.
-            try {
-                const prevQ = query(collection(db, prevCollectionPath));
-                const prevSnapshot = await getDocs(prevQ);
-                const fetchedPrevRows = prevSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setPrevQuarterRows(fetchedPrevRows);
-                setRows(fetchedRows);
-                updateAndSaveTotals(fetchedRows, selectedYear, selectedQuarter, fetchedPrevRows);
-            } catch (err) {
-                console.error("Error fetching prev quarter:", err);
-                setRows(fetchedRows); // Still set current rows even if prev fails
-            }
-
-            setIsLoading(false);
-        }, (error) => {
-            setIsLoading(false);
-            toast.error("Không thể tải dữ liệu từ máy chủ.");
-        });
-        return () => unsubscribe();
-    }, [selectedYear, selectedQuarter, updateAndSaveTotals]);
-
-    const displayRows = useMemo(() => {
-        if (isLoading) return [];
-        let dataRowIndex = 0;
-        const result = [];
-        const grandTotal = { openingDebit: 0, openingCredit: 0, debitIncrease: 0, creditDecrease: 0, closingDebit: 0, closingCredit: 0 };
-        const zeroSummary = { ...grandTotal };
-
-        // Helper to merge carryover
         const mergeCarryover = (row) => {
-            if (!prevQuarterRows || prevQuarterRows.length === 0) return row;
-            const prevRow = prevQuarterRows.find(p => p.category === row.category && (p.project || '').trim().toLowerCase() === (row.project || '').trim().toLowerCase());
-            if (prevRow) {
-                return {
-                    ...row,
-                    openingDebit: toNum(prevRow.closingDebit),
-                    openingCredit: toNum(prevRow.closingCredit),
-                    isOpeningDebitLocked: true,
-                    isOpeningCreditLocked: true
-                };
+            let carryoverDebit = 0;
+            let carryoverCredit = 0;
+            let isOpeningDebitLocked = false;
+            let isOpeningCreditLocked = false;
+
+            if (prevRows && prevRows.length > 0) {
+                const matches = prevRows.filter(p => p.category === row.category && (p.project || '').trim().toLowerCase() === (row.project || '').trim().toLowerCase());
+                const unusedMatch = matches.find(p => !usedPrevRowIds.has(p.id));
+
+                if (unusedMatch) {
+                    carryoverDebit = toNum(unusedMatch.closingDebit);
+                    carryoverCredit = toNum(unusedMatch.closingCredit);
+                    usedPrevRowIds.add(unusedMatch.id);
+                    isOpeningDebitLocked = true;
+                    isOpeningCreditLocked = true;
+                }
             }
-            return row;
+
+            const newRow = { ...row };
+            if (isOpeningDebitLocked) newRow.openingDebit = carryoverDebit;
+            if (isOpeningCreditLocked) newRow.openingCredit = carryoverCredit;
+
+            return {
+                ...newRow,
+                isOpeningDebitLocked,
+                isOpeningCreditLocked
+            };
         };
 
         categories.forEach(category => {
@@ -673,13 +675,14 @@ export default function AccountsReceivable() {
 
             if (category.children && category.children.length > 0) {
                 category.children.forEach(child => {
+                    // Note: map() runs sequentially, so usedPrevRowIds will be populated in order
                     const categoryRows = rows.filter(row => row.category === child.id).map(mergeCarryover);
                     const childSummary = categoryRows.reduce((acc, row) => {
                         Object.keys(zeroSummary).forEach(key => acc[key] += toNum(row[key]));
                         return acc;
                     }, { ...zeroSummary });
                     childDisplayRows.push({ id: `header-${child.id}`, type: 'group-header', project: child.label, categoryId: child.id, ...childSummary });
-                    categoryRows.forEach(row => childDisplayRows.push({ ...row, rowIndex: dataRowIndex++ }));
+                    categoryRows.forEach(row => childDisplayRows.push({ ...row, type: 'data', rowIndex: dataRowIndex++ }));
                     Object.keys(zeroSummary).forEach(key => categorySummary[key] += childSummary[key]);
                 });
 
@@ -687,7 +690,7 @@ export default function AccountsReceivable() {
                 result.push(...childDisplayRows);
             } else {
                 const categoryRows = rows.filter(row => row.category === category.id).map(mergeCarryover);
-                categoryRows.forEach(row => childDisplayRows.push({ ...row, rowIndex: dataRowIndex++ }));
+                categoryRows.forEach(row => childDisplayRows.push({ ...row, type: 'data', rowIndex: dataRowIndex++ }));
                 const summary = categoryRows.reduce((acc, row) => {
                     Object.keys(zeroSummary).forEach(key => acc[key] += toNum(row[key]));
                     return acc;
@@ -703,6 +706,10 @@ export default function AccountsReceivable() {
         result.push({ id: 'grand-total', type: 'grand-total', project: 'TỔNG CỘNG TOÀN BỘ', ...grandTotal });
         return result;
     }, [rows, isLoading, prevQuarterRows]);
+
+    useEffect(() => {
+        updateAndSaveTotals(rows, selectedYear, selectedQuarter, prevQuarterRows).then(setDisplayRows);
+    }, [rows, selectedYear, selectedQuarter, prevQuarterRows, updateAndSaveTotals]);
 
     useEffect(() => {
         const handlePaste = (event) => {
