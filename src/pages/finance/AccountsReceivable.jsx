@@ -268,7 +268,9 @@ export default function AccountsReceivable() {
 
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
+    const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
+    const [groupToDelete, setGroupToDelete] = useState(null);
     const [pasteContext, setPasteContext] = useState(null);
     const [prevQuarterRows, setPrevQuarterRows] = useState([]);
 
@@ -306,6 +308,39 @@ export default function AccountsReceivable() {
             toast.promise(promise, { loading: 'Đang xóa...', success: 'Đã xóa thành công!', error: 'Lỗi khi xóa.' });
             setItemToDelete(null);
         }
+    };
+
+    const handleDeleteGroup = (categoryId) => {
+        setGroupToDelete(categoryId);
+        setDeleteGroupDialogOpen(true);
+    };
+
+    const confirmDeleteGroup = async () => {
+        if (!groupToDelete) return;
+        setDeleteGroupDialogOpen(false);
+        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
+
+        // Find all rows belonging to this category
+        const rowsToDelete = rows.filter(r => r.category === groupToDelete);
+        if (rowsToDelete.length === 0) {
+            toast.error("Không có dữ liệu nào trong nhóm này để xóa.");
+            setGroupToDelete(null);
+            return;
+        }
+
+        const batch = writeBatch(db);
+        rowsToDelete.forEach(row => {
+            const docRef = doc(db, collectionPath, row.id);
+            batch.delete(docRef);
+        });
+
+        const promise = batch.commit();
+        toast.promise(promise, {
+            loading: `Đang xóa ${rowsToDelete.length} dòng...`,
+            success: `Đã xóa thành công ${rowsToDelete.length} dòng!`,
+            error: 'Lỗi khi xóa nhóm.'
+        });
+        setGroupToDelete(null);
     };
 
     const handleUpdateCell = async (rowId, field, newValue) => {
@@ -1073,19 +1108,35 @@ export default function AccountsReceivable() {
                                                         </Tooltip>
                                                     )}
                                                     {row.type === 'group-header' && (
-                                                        <Tooltip title="Thêm dòng mới">
-                                                            <IconButton
-                                                                size="small"
-                                                                onClick={() => handleAddRow(row.categoryId)}
-                                                                sx={{
-                                                                    color: theme.palette.primary.main,
-                                                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                                                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
-                                                                }}
-                                                            >
-                                                                <AddIcon fontSize="small" />
-                                                            </IconButton>
-                                                        </Tooltip>
+                                                        <Box>
+                                                            <Tooltip title="Xóa tất cả dòng trong nhóm này">
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={() => handleDeleteGroup(row.categoryId)}
+                                                                    sx={{
+                                                                        mr: 1,
+                                                                        color: theme.palette.error.main,
+                                                                        bgcolor: alpha(theme.palette.error.main, 0.1),
+                                                                        '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) }
+                                                                    }}
+                                                                >
+                                                                    <DeleteIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                            <Tooltip title="Thêm dòng mới">
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={() => handleAddRow(row.categoryId)}
+                                                                    sx={{
+                                                                        color: theme.palette.primary.main,
+                                                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+                                                                    }}
+                                                                >
+                                                                    <AddIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        </Box>
                                                     )}
                                                 </TableCell>
                                             </TableRow>
@@ -1137,6 +1188,27 @@ export default function AccountsReceivable() {
                     <Button onClick={() => setPasteDialogOpen(false)} sx={{ borderRadius: 2 }}>Hủy bỏ</Button>
                     <Button onClick={confirmPaste} variant="contained" color="primary" sx={{ borderRadius: 2 }}>
                         Tiếp tục
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={deleteGroupDialogOpen}
+                onClose={() => setDeleteGroupDialogOpen(false)}
+                PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Xác nhận xóa nhóm</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Bạn có chắc chắn muốn xóa <strong>TẤT CẢ</strong> các dòng trong nhóm này không?
+                        <br />
+                        Thao tác này sẽ xóa vĩnh viễn dữ liệu và không thể hoàn tác.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteGroupDialogOpen(false)} sx={{ borderRadius: 2 }}>Hủy bỏ</Button>
+                    <Button onClick={confirmDeleteGroup} variant="contained" color="error" sx={{ borderRadius: 2 }}>
+                        Xóa tất cả
                     </Button>
                 </DialogActions>
             </Dialog>

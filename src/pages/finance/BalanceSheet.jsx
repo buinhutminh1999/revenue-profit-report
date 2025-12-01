@@ -39,9 +39,9 @@ const BALANCES_COLLECTION = 'accountBalances';
 const syncedCellsConfig = {
     '152': ['cuoiKyNo'],
     '155': ['cuoiKyNo'],
-    '131': ['cuoiKyCo'], '132': ['cuoiKyNo'], '133': ['cuoiKyNo'], '134': ['cuoiKyNo'], '142': ['cuoiKyNo'],
+    '131': ['cuoiKyNo'], '132': ['cuoiKyNo'], '133': ['cuoiKyNo'], '134': ['cuoiKyNo'], '142': ['cuoiKyNo'],
     '135': ['cuoiKyNo'], '339': ['cuoiKyCo'], '338': ['cuoiKyCo'],
-    '139': ['cuoiKyCo'], '140': ['cuoiKyNo'], '332': ['cuoiKyCo'], '333': ['cuoiKyCo'],
+    '139': ['cuoiKyNo'], '140': ['cuoiKyNo'], '332': ['cuoiKyCo'], '333': ['cuoiKyCo'],
 
 };
 
@@ -806,14 +806,14 @@ const BalanceSheet = () => {
                 if (receivableDocSnap.exists()) {
                     const receivableData = receivableDocSnap.data();
                     const rules = {
-                        '131': { field: 'cuoiKyCo', source: receivableData?.kh_sx_ut?.openingDebit }, // Lưu ý: check lại field mapping nếu cần
-                        '132': { field: 'cuoiKyNo', source: receivableData?.kh_dt?.openingDebit },
-                        '133': { field: 'cuoiKyNo', source: receivableData?.pt_kh_sx?.openingDebit },
-                        '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.openingDebit },
-                        '135': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.openingDebit },
-                        '139': { field: 'cuoiKyCo', source: receivableData?.grand_total?.openingCredit },
+                        '131': { field: 'cuoiKyNo', source: receivableData?.kh_sx_ut?.closingDebit },
+                        '132': { field: 'cuoiKyNo', source: receivableData?.kh_dt?.closingDebit },
+                        '133': { field: 'cuoiKyNo', source: receivableData?.pt_kh_sx?.closingDebit },
+                        '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.closingDebit },
+                        '135': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.closingCredit },
+                        '139': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.closingDebit },
                         '140': { field: 'cuoiKyNo', source: receivableData?.pt_dd_ct?.openingDebit },
-                        '142': { field: 'cuoiKyNo', source: receivableData?.pt_sv_sx?.openingDebit },
+                        '142': { field: 'cuoiKyNo', source: receivableData?.pt_sv_sx?.closingDebit },
                     };
                     for (const accountId in rules) {
                         const rule = rules[accountId];
