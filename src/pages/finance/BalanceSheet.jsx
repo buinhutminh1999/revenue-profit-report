@@ -815,8 +815,8 @@ const BalanceSheet = () => {
                         '132': { field: 'cuoiKyNo', source: receivableData?.kh_dt?.closingDebit },
                         // '133': { field: 'cuoiKyNo', source: receivableData?.pt_kh_sx?.closingDebit }, // Removed: Now synced from rows aggregation
                         '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.closingDebit },
-                        '135': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.closingCredit },
-                        '139': { field: 'cuoiKyCo', source: receivableData?.pt_cdt_xd?.closingDebit },
+                        '135': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.closingDebit },
+                        '139': { field: 'cuoiKyCo', source: receivableData?.pt_cdt_xd?.closingCredit },
                         '140': { field: 'cuoiKyNo', source: receivableData?.pt_dd_ct?.closingDebit },
                         '142': { field: 'cuoiKyNo', source: receivableData?.pt_sv_sx?.closingDebit },
                     };
