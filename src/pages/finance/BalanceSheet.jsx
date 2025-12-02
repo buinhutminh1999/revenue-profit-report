@@ -744,7 +744,7 @@ const BalanceSheet = () => {
             if (!accounts || !balances || isBalancesLoading) return;
 
             // Skip sync for Q1 2025 to allow manual editing
-            if (selectedYear === 2025 && selectedQuarter === 1) return;
+            // if (selectedYear === 2025 && selectedQuarter === 1) return;
 
             const toNumber = (value) => {
                 if (typeof value === 'number') return value;
@@ -813,11 +813,11 @@ const BalanceSheet = () => {
                     const rules = {
                         '131': { field: 'cuoiKyCo', source: receivableData?.kh_sx_ut?.closingDebit },
                         '132': { field: 'cuoiKyNo', source: receivableData?.kh_dt?.closingDebit },
-                        '133': { field: 'cuoiKyNo', source: receivableData?.pt_kh_sx?.closingDebit },
+                        // '133': { field: 'cuoiKyNo', source: receivableData?.pt_kh_sx?.closingDebit }, // Removed: Now synced from rows aggregation
                         '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.closingDebit },
                         '135': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.closingCredit },
                         '139': { field: 'cuoiKyCo', source: receivableData?.pt_cdt_xd?.closingDebit },
-                        '140': { field: 'cuoiKyNo', source: receivableData?.pt_dd_ct?.openingDebit },
+                        '140': { field: 'cuoiKyNo', source: receivableData?.pt_dd_ct?.closingDebit },
                         '142': { field: 'cuoiKyNo', source: receivableData?.pt_sv_sx?.closingDebit },
                     };
                     for (const accountId in rules) {
@@ -828,62 +828,82 @@ const BalanceSheet = () => {
                     }
                 }
 
+                // --- NEW: Sync Account 133 from AccountsReceivable Rows (Category: pt_kh_sx) ---
+                const arRowsQuery = query(
+                    collection(db, `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`),
+                    where('category', '==', 'pt_kh_sx')
+                );
+                const arRowsSnapshot = await getDocs(arRowsQuery);
+
+                const totalClosingDebit = arRowsSnapshot.empty ? 0 : arRowsSnapshot.docs.reduce((sum, doc) => {
+                    const data = doc.data();
+                    return sum + toNumber(data.closingDebit || 0);
+                }, 0);
+
+                addUpdateToBatch('133', 'cuoiKyNo', totalClosingDebit);
+
                 // --- Phần 2: Đồng bộ từ công trình ---
-                const projectsQuery = query(collection(db, 'projects'));
-                const projectsSnapshot = await getDocs(projectsQuery);
+                // Skip for Q1 2025 to allow manual editing
+                if (!(selectedYear === 2025 && selectedQuarter === 1)) {
+                    const projectsQuery = query(collection(db, 'projects'));
+                    const projectsSnapshot = await getDocs(projectsQuery);
 
-                let totalFor338 = 0;
-                let totalFor332 = 0;
-                let totalFor333 = 0;
-                let totalFor339 = 0;
+                    let totalFor338 = 0;
+                    let totalFor332 = 0;
+                    let totalFor333 = 0;
+                    let totalFor339 = 0;
 
-                if (!projectsSnapshot.empty) {
-                    const allProjectsData = projectsSnapshot.docs.map(p => ({ id: p.id, ...p.data() }));
-                    const quarterDocPromises = allProjectsData.map(p => getDoc(doc(db, `projects/${p.id}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`)));
-                    const quarterDocSnapshots = await Promise.all(quarterDocPromises);
+                    if (!projectsSnapshot.empty) {
+                        const allProjectsData = projectsSnapshot.docs.map(p => ({ id: p.id, ...p.data() }));
+                        const quarterDocPromises = allProjectsData.map(p => getDoc(doc(db, `projects/${p.id}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`)));
+                        const quarterDocSnapshots = await Promise.all(quarterDocPromises);
 
-                    quarterDocSnapshots.forEach((quarterDocSnap, index) => {
-                        if (quarterDocSnap.exists()) {
-                            const projectInfo = allProjectsData[index];
-                            const items = quarterDocSnap.data().items || [];
-                            const grandTotalRevenue = items.reduce((sum, item) => sum + toNumber(item.revenue || 0), 0);
+                        quarterDocSnapshots.forEach((quarterDocSnap, index) => {
+                            if (quarterDocSnap.exists()) {
+                                const projectInfo = allProjectsData[index];
+                                const items = quarterDocSnap.data().items || [];
+                                const grandTotalRevenue = items.reduce((sum, item) => sum + toNumber(item.revenue || 0), 0);
 
-                            items.forEach(item => {
-                                const psNo = grandTotalRevenue > 0 ? toNumber(item.noPhaiTraCK) : 0;
-                                const psGiam = grandTotalRevenue === 0 ? toNumber(item.directCost) : toNumber(item.debt);
-                                const dauKyNo = toNumber(item.debt);
-                                const dauKyCo = toNumber(item.openingCredit);
-                                const cuoiKyNo = Math.max(dauKyNo + psNo - psGiam - dauKyCo, 0);
-                                const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
-                                const result = cuoiKyNo - cuoiKyCo;
+                                items.forEach(item => {
+                                    const psNo = grandTotalRevenue > 0 ? toNumber(item.noPhaiTraCK) : 0;
+                                    const psGiam = grandTotalRevenue === 0 ? toNumber(item.directCost) : toNumber(item.debt);
+                                    const dauKyNo = toNumber(item.debt);
+                                    const dauKyCo = toNumber(item.openingCredit);
+                                    const cuoiKyNo = Math.max(dauKyNo + psNo - psGiam - dauKyCo, 0);
+                                    const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
+                                    const result = cuoiKyNo - cuoiKyCo;
 
-                                if (item.description === "Chi phí dự phòng rủi ro") totalFor338 += result;
-                                if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-VT')) totalFor332 += result;
-                                if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-NC')) totalFor333 += result;
-                                if (item.description === "Chi phí NC + VT để bảo hành công trình") totalFor339 += result;
-                            });
-                        }
-                    });
+                                    if (item.description === "Chi phí dự phòng rủi ro") totalFor338 += result;
+                                    if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-VT')) totalFor332 += result;
+                                    if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-NC')) totalFor333 += result;
+                                    if (item.description === "Chi phí NC + VT để bảo hành công trình") totalFor339 += result;
+                                });
+                            }
+                        });
+                    }
+
+                    addUpdateToBatch('338', 'cuoiKyCo', totalFor338);
+                    addUpdateToBatch('332', 'cuoiKyCo', totalFor332);
+                    addUpdateToBatch('333', 'cuoiKyCo', totalFor333);
+                    addUpdateToBatch('339', 'cuoiKyCo', totalFor339);
                 }
 
-                addUpdateToBatch('338', 'cuoiKyCo', totalFor338);
-                addUpdateToBatch('332', 'cuoiKyCo', totalFor332);
-                addUpdateToBatch('333', 'cuoiKyCo', totalFor333);
-                addUpdateToBatch('339', 'cuoiKyCo', totalFor339);
-
                 // --- Phần 3 & 4: Đồng bộ TK 152, 155 ---
-                const factoryProjectId = 'HKZyMDRhyXJzJiOauzVe';
-                const materialDocRef = doc(db, `projects/${factoryProjectId}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`);
-                const materialDocSnap = await getDoc(materialDocRef);
+                // Skip for Q1 2025 to allow manual editing
+                if (!(selectedYear === 2025 && selectedQuarter === 1)) {
+                    const factoryProjectId = 'HKZyMDRhyXJzJiOauzVe';
+                    const materialDocRef = doc(db, `projects/${factoryProjectId}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`);
+                    const materialDocSnap = await getDoc(materialDocRef);
 
-                if (materialDocSnap.exists()) {
-                    const data = materialDocSnap.data();
-                    if (data.items && Array.isArray(data.items)) {
-                        const materialItem = data.items.find(item => item.description === "+ NGUYÊN VẬT LIỆU");
-                        if (materialItem) addUpdateToBatch('152', 'cuoiKyNo', toNumber(materialItem.tonKhoUngKH));
+                    if (materialDocSnap.exists()) {
+                        const data = materialDocSnap.data();
+                        if (data.items && Array.isArray(data.items)) {
+                            const materialItem = data.items.find(item => item.description === "+ NGUYÊN VẬT LIỆU");
+                            if (materialItem) addUpdateToBatch('152', 'cuoiKyNo', toNumber(materialItem.tonKhoUngKH));
 
-                        const thanhPhamItem = data.items.find(item => item.description === "+ THÀNH PHẨM");
-                        if (thanhPhamItem) addUpdateToBatch('155', 'cuoiKyNo', toNumber(thanhPhamItem.tonKhoUngKH));
+                            const thanhPhamItem = data.items.find(item => item.description === "+ THÀNH PHẨM");
+                            if (thanhPhamItem) addUpdateToBatch('155', 'cuoiKyNo', toNumber(thanhPhamItem.tonKhoUngKH));
+                        }
                     }
                 }
 
