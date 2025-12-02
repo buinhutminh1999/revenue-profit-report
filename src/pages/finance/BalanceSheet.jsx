@@ -805,42 +805,45 @@ const BalanceSheet = () => {
 
             try {
                 // --- Phần 1: Đồng bộ từ Báo cáo Công nợ ---
-                const receivableDocRef = doc(db, `accountsReceivable/${selectedYear}/quarters`, `Q${selectedQuarter}`);
-                const receivableDocSnap = await getDoc(receivableDocRef);
+                // Skip for Q1 2025 to allow manual editing
+                if (!(selectedYear === 2025 && selectedQuarter === 1)) {
+                    const receivableDocRef = doc(db, `accountsReceivable/${selectedYear}/quarters`, `Q${selectedQuarter}`);
+                    const receivableDocSnap = await getDoc(receivableDocRef);
 
-                if (receivableDocSnap.exists()) {
-                    const receivableData = receivableDocSnap.data();
-                    const rules = {
-                        '131': { field: 'cuoiKyCo', source: receivableData?.kh_sx_ut?.closingDebit },
-                        '132': { field: 'cuoiKyNo', source: receivableData?.kh_dt?.closingDebit },
-                        // '133': { field: 'cuoiKyNo', source: receivableData?.pt_kh_sx?.closingDebit }, // Removed: Now synced from rows aggregation
-                        '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.closingDebit },
-                        '135': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.closingDebit },
-                        '139': { field: 'cuoiKyCo', source: receivableData?.pt_cdt_xd?.closingCredit },
-                        '140': { field: 'cuoiKyNo', source: receivableData?.pt_dd_ct?.closingDebit },
-                        '142': { field: 'cuoiKyNo', source: receivableData?.pt_sv_sx?.closingDebit },
-                    };
-                    for (const accountId in rules) {
-                        const rule = rules[accountId];
-                        if (typeof rule.source === 'number') {
-                            addUpdateToBatch(accountId, rule.field, rule.source);
+                    if (receivableDocSnap.exists()) {
+                        const receivableData = receivableDocSnap.data();
+                        const rules = {
+                            '131': { field: 'cuoiKyCo', source: receivableData?.kh_sx_ut?.closingDebit },
+                            '132': { field: 'cuoiKyNo', source: receivableData?.kh_dt?.closingDebit },
+                            // '133': { field: 'cuoiKyNo', source: receivableData?.pt_kh_sx?.closingDebit }, // Removed: Now synced from rows aggregation
+                            '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.closingDebit },
+                            '135': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.closingDebit },
+                            '139': { field: 'cuoiKyCo', source: receivableData?.pt_cdt_xd?.closingCredit },
+                            '140': { field: 'cuoiKyNo', source: receivableData?.pt_dd_ct?.closingDebit },
+                            '142': { field: 'cuoiKyNo', source: receivableData?.pt_sv_sx?.closingDebit },
+                        };
+                        for (const accountId in rules) {
+                            const rule = rules[accountId];
+                            if (typeof rule.source === 'number') {
+                                addUpdateToBatch(accountId, rule.field, rule.source);
+                            }
                         }
                     }
+
+                    // --- NEW: Sync Account 133 from AccountsReceivable Rows (Category: pt_kh_sx) ---
+                    const arRowsQuery = query(
+                        collection(db, `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`),
+                        where('category', '==', 'pt_kh_sx')
+                    );
+                    const arRowsSnapshot = await getDocs(arRowsQuery);
+
+                    const totalClosingDebit = arRowsSnapshot.empty ? 0 : arRowsSnapshot.docs.reduce((sum, doc) => {
+                        const data = doc.data();
+                        return sum + toNumber(data.closingDebit || 0);
+                    }, 0);
+
+                    addUpdateToBatch('133', 'cuoiKyNo', totalClosingDebit);
                 }
-
-                // --- NEW: Sync Account 133 from AccountsReceivable Rows (Category: pt_kh_sx) ---
-                const arRowsQuery = query(
-                    collection(db, `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`),
-                    where('category', '==', 'pt_kh_sx')
-                );
-                const arRowsSnapshot = await getDocs(arRowsQuery);
-
-                const totalClosingDebit = arRowsSnapshot.empty ? 0 : arRowsSnapshot.docs.reduce((sum, doc) => {
-                    const data = doc.data();
-                    return sum + toNumber(data.closingDebit || 0);
-                }, 0);
-
-                addUpdateToBatch('133', 'cuoiKyNo', totalClosingDebit);
 
                 // --- Phần 2: Đồng bộ từ công trình ---
                 // Skip for Q1 2025 to allow manual editing
