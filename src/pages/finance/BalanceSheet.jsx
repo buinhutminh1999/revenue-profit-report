@@ -332,13 +332,6 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
                     boxShadow: theme.shadows[10],
                 }
             }}
-            TransitionComponent={motion.div}
-            TransitionProps={{
-                initial: { opacity: 0, scale: 0.9 },
-                animate: { opacity: 1, scale: 1 },
-                exit: { opacity: 0, scale: 0.9 },
-                transition: { duration: 0.3 }
-            }}
         >
             <GlassDialogTitle>
                 <Box>

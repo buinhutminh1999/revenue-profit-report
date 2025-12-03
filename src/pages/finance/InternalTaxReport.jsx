@@ -351,6 +351,20 @@ const PurchaseInvoiceRow = React.memo(({ row, index, isSelected, handleMouseDown
             <TableCell align="center">{formatPercentage(rate)}</TableCell>
             <TableCell>
                 <InputBase
+                    value={row.costType || ""}
+                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'costType', e.target.value)}
+                    onBlur={(e) => handleSavePurchaseCell(row.id, 'costType', e.target.value)}
+                    fullWidth
+                    multiline
+                    sx={{
+                        fontSize: '0.875rem', p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                />
+            </TableCell>
+            <TableCell>
+                <InputBase
                     value={row.project || ""}
                     onChange={(e) => handleUpdatePurchaseCell(row.id, 'project', e.target.value)}
                     onBlur={(e) => handleSavePurchaseCell(row.id, 'project', e.target.value)}
@@ -445,7 +459,7 @@ export default function InternalTaxReport() {
     const [openAddPurchaseDialog, setOpenAddPurchaseDialog] = useState(false);
     const [newPurchaseInvoice, setNewPurchaseInvoice] = useState({
         invoiceNo: "", date: "", seller: "", sellerTax: "", valueNoTax: "", tax: "", total: "",
-        rate: "", project: "", buyer: "", nk: "", group: 1
+        rate: "", project: "", buyer: "", nk: "", group: 1, costType: ""
     });
 
     // Filter states
@@ -599,6 +613,7 @@ export default function InternalTaxReport() {
                     (item.seller && item.seller.toLowerCase().includes(term)) ||
                     (item.sellerTax && item.sellerTax.toLowerCase().includes(term)) ||
                     (item.project && item.project.toLowerCase().includes(term)) ||
+                    (item.costType && item.costType.toLowerCase().includes(term)) ||
                     (cleanTerm && (
                         itemValueNoTax.includes(cleanTerm) ||
                         itemTax.includes(cleanTerm) ||
@@ -1046,7 +1061,8 @@ export default function InternalTaxReport() {
                         let valueNoTax = cols[6 + base] || "0";
                         let tax = cols[7 + base] || "0";
                         let rate = cols[8 + base] || "";
-                        let project = cols[9 + base] || ""; // Mapping "Tên người mua" to project field
+                        let costType = cols[9 + base] || ""; // New column
+                        let project = cols[10 + base] || ""; // Shifted
 
                         // Heuristic: If seller is empty but sellerTax has content that looks like a name (not a tax code), swap them
                         // Tax code usually contains only numbers and maybe dashes, length 9-14.
@@ -1055,14 +1071,18 @@ export default function InternalTaxReport() {
                         const hasLetters = (str) => /[a-zA-ZÀ-ỹ]/.test(str);
 
                         // Special case for user's specific format:
-                        // 0: STT, 1: Buyer, 2: Invoice, 3: Date, 4: Empty, 5: Seller, 6: Empty, 7: Empty, 8: TaxCode, 9: Value, 10: Tax, 11: Rate, 13: Project
+                        // 0: STT, 1: Buyer, 2: Invoice, 3: Date, 4: Empty, 5: Seller, 6: Empty, 7: Empty, 8: TaxCode, 9: Value, 10: Tax, 11: Rate, 12: CostType, 13: Project
                         if (cols.length >= 10 && isTaxCodeLike(cols[8 + base]) && hasLetters(cols[5 + base])) {
                             seller = cols[5 + base];
                             sellerTax = cols[8 + base];
                             valueNoTax = cols[9 + base];
                             tax = cols[10 + base];
                             rate = cols[11 + base];
-                            project = cols[13 + base] || "";
+                            // costType might be at 12? Assuming standard shift
+                            // Update: User data shows CostType is at 13 (CPBH), and 12 is empty.
+                            // Project (Tên người mua) is at 15 (KHỎE), and 14 is empty.
+                            costType = cols[13 + base] || "";
+                            project = cols[15 + base] || "";
                         } else {
                             if (!seller && sellerTax && !isTaxCodeLike(sellerTax) && hasLetters(sellerTax)) {
                                 seller = sellerTax;
@@ -1091,6 +1111,7 @@ export default function InternalTaxReport() {
                             total: totalVal.toString(),
                             rate: rate,
                             project: project,
+                            costType: costType,
                             buyer: buyer,
                             nk: ""
                         });
@@ -1458,6 +1479,20 @@ export default function InternalTaxReport() {
                                     </TableSortLabel>
                                     <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_rate`, groupId)}>
                                         <FilterList fontSize="small" color={columnFilters[`${groupId}_rate`] ? "primary" : "action"} />
+                                    </IconButton>
+                                </Box>
+                            </TableCell>
+                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                    <TableSortLabel
+                                        active={sortConfigPurchase.key === 'costType'}
+                                        direction={sortConfigPurchase.key === 'costType' ? sortConfigPurchase.direction : 'asc'}
+                                        onClick={() => handleRequestSortPurchase('costType')}
+                                    >
+                                        Loại chi phí
+                                    </TableSortLabel>
+                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_costType`, groupId)}>
+                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_costType`] ? "primary" : "action"} />
                                     </IconButton>
                                 </Box>
                             </TableCell>
@@ -2003,6 +2038,9 @@ export default function InternalTaxReport() {
                         </Grid>
                         <Grid item xs={12} sm={4}>
                             <TextField label="Thuế suất" name="rate" value={newPurchaseInvoice.rate} onChange={handlePurchaseInputChange} fullWidth size="small" />
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                            <TextField label="Loại chi phí" name="costType" value={newPurchaseInvoice.costType} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
                         <Grid item xs={12} sm={4}>
                             <TextField label="Công trình" name="project" value={newPurchaseInvoice.project} onChange={handlePurchaseInputChange} fullWidth size="small" />
