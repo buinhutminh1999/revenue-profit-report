@@ -813,7 +813,7 @@ const BalanceSheet = () => {
                     if (receivableDocSnap.exists()) {
                         const receivableData = receivableDocSnap.data();
                         const rules = {
-                            '131': { field: 'cuoiKyCo', source: receivableData?.kh_sx_ut?.closingDebit },
+                            // '131': { field: 'cuoiKyCo', source: receivableData?.kh_sx_ut?.closingDebit }, // Removed: Now synced from rows aggregation
                             '132': { field: 'cuoiKyNo', source: receivableData?.kh_dt?.closingDebit },
                             // '133': { field: 'cuoiKyNo', source: receivableData?.pt_kh_sx?.closingDebit }, // Removed: Now synced from rows aggregation
                             '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.closingDebit },
@@ -843,6 +843,20 @@ const BalanceSheet = () => {
                     }, 0);
 
                     addUpdateToBatch('133', 'cuoiKyNo', totalClosingDebit);
+
+                    // --- NEW: Sync Account 131 from AccountsReceivable Rows (Category: kh_sx_ut) ---
+                    const arRowsQuery131 = query(
+                        collection(db, `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`),
+                        where('category', '==', 'kh_sx_ut')
+                    );
+                    const arRowsSnapshot131 = await getDocs(arRowsQuery131);
+
+                    const totalClosingCredit131 = arRowsSnapshot131.empty ? 0 : arRowsSnapshot131.docs.reduce((sum, doc) => {
+                        const data = doc.data();
+                        return sum + toNumber(data.closingCredit || 0); // Lấy cột Trả Trước CK
+                    }, 0);
+
+                    addUpdateToBatch('131', 'cuoiKyCo', totalClosingCredit131);
                 }
 
                 // --- Phần 2: Đồng bộ từ công trình ---

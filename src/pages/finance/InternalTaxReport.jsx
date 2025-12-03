@@ -3,20 +3,375 @@ import {
     Box, Paper, Typography, Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Chip, useTheme, alpha, Stack, FormControl, InputLabel, Select, MenuItem, Button, Dialog, DialogTitle,
     DialogContent, DialogActions, TextField, Grid, InputAdornment, Snackbar, Alert, CircularProgress,
-    Card, CardContent, IconButton, Tooltip, Backdrop, Avatar, AvatarGroup, Menu, Checkbox, ListItemText, TablePagination, InputBase
+    Card, CardContent, IconButton, Tooltip, Backdrop, Avatar, AvatarGroup, Menu, Checkbox, ListItemText, TablePagination, InputBase, TableSortLabel
 } from '@mui/material';
 import { Description, Receipt, FilterList, Assessment, Add, ContentPaste, Search, Refresh, Save, Delete, CloudUpload } from '@mui/icons-material';
 import { InternalTaxService } from '../../services/internalTaxService';
 import VATReportTab from './VATReportTab';
-
 function CustomTabPanel(props) {
     const { children, value, index, ...other } = props;
+
     return (
-        <div role="tabpanel" hidden={value !== index} id={`simple-tabpanel-${index}`} aria-labelledby={`simple-tab-${index}`} {...other}>
-            <Box sx={{ p: 3 }}>{children}</Box>
+        <div
+            role="tabpanel"
+            hidden={value !== index}
+            id={`simple-tabpanel-${index}`}
+            aria-labelledby={`simple-tab-${index}`}
+            {...other}
+        >
+            <Box sx={{ p: 3 }}>
+                {children}
+            </Box>
         </div>
     );
 }
+
+
+
+
+
+const parseCurrency = (str) => {
+    if (!str) return 0;
+    if (typeof str === 'number') return str;
+    let cleanStr = str.trim();
+    let isNegative = false;
+    if (cleanStr.startsWith('(') && cleanStr.endsWith(')')) {
+        isNegative = true;
+        cleanStr = cleanStr.slice(1, -1);
+    } else if (cleanStr.startsWith('-')) {
+        isNegative = true;
+        cleanStr = cleanStr.slice(1);
+    }
+    let result = 0;
+    if ((cleanStr.match(/,/g) || []).length > 1) {
+        result = parseFloat(cleanStr.replace(/,/g, ''));
+    } else {
+        result = parseFloat(cleanStr.replace(/\./g, '').replace(/,/g, '.'));
+    }
+    if (isNaN(result)) return 0;
+    return isNegative ? -result : result;
+};
+
+const formatCurrency = (num) => {
+    if (isNaN(num)) return "0";
+    return new Intl.NumberFormat('vi-VN').format(Math.round(num));
+};
+
+const formatPercentage = (num) => {
+    if (isNaN(num)) return "0%";
+    return new Intl.NumberFormat('vi-VN', { style: 'percent', maximumFractionDigits: 2 }).format(num);
+};
+
+const InvoiceRow = React.memo(({ row, index, actualIndex, isSelected, handleMouseDown, handleMouseEnter, handleUpdateCell, handleSaveCell, theme, handleDragStart, handleDragOver, handleDrop, dragIndex }) => {
+    return (
+        <TableRow
+            onMouseDown={(event) => handleMouseDown(event, row.id)}
+            onMouseEnter={() => handleMouseEnter(row.id)}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, dragIndex)}
+            selected={isSelected}
+            sx={{
+                '&:last-child td, &:last-child th': { border: 0 },
+                '&:hover': { bgcolor: '#f1f5f9' },
+                cursor: 'pointer',
+                bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.1) : 'inherit',
+                transition: 'background-color 0.2s'
+            }}
+        >
+            <TableCell
+                align="center"
+                draggable
+                onDragStart={(e) => handleDragStart(e, dragIndex)}
+                sx={{ cursor: 'grab', '&:active': { cursor: 'grabbing' } }}
+            >
+                {actualIndex}
+            </TableCell>
+            <TableCell>
+                <InputBase
+                    value={row.sellerName}
+                    onChange={(e) => handleUpdateCell(row.id, 'sellerName', e.target.value)}
+                    onBlur={(e) => handleSaveCell(row.id, 'sellerName', e.target.value)}
+                    fullWidth
+                    multiline
+                    sx={{
+                        fontSize: '0.875rem',
+                        p: 0.5,
+                        borderRadius: 1,
+                        transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                />
+            </TableCell>
+            <TableCell align="center" sx={{ fontWeight: 600 }}>
+                <InputBase
+                    value={row.invoiceNumber}
+                    onChange={(e) => handleUpdateCell(row.id, 'invoiceNumber', e.target.value)}
+                    onBlur={(e) => handleSaveCell(row.id, 'invoiceNumber', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem', textAlign: 'center', fontWeight: 600,
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                    inputProps={{ style: { textAlign: 'center' } }}
+                />
+            </TableCell>
+            <TableCell align="center" sx={{ color: 'text.secondary' }}>
+                <InputBase
+                    value={row.date}
+                    onChange={(e) => handleUpdateCell(row.id, 'date', e.target.value)}
+                    onBlur={(e) => handleSaveCell(row.id, 'date', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem', textAlign: 'center', color: 'text.secondary',
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                    inputProps={{ style: { textAlign: 'center' } }}
+                />
+            </TableCell>
+            <TableCell>
+                <InputBase
+                    value={row.buyerName}
+                    onChange={(e) => handleUpdateCell(row.id, 'buyerName', e.target.value)}
+                    onBlur={(e) => handleSaveCell(row.id, 'buyerName', e.target.value)}
+                    fullWidth
+                    multiline
+                    sx={{
+                        fontSize: '0.875rem',
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                />
+            </TableCell>
+            <TableCell align="center">
+                <InputBase
+                    value={row.buyerTaxCode}
+                    onChange={(e) => handleUpdateCell(row.id, 'buyerTaxCode', e.target.value)}
+                    onBlur={(e) => handleSaveCell(row.id, 'buyerTaxCode', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem', textAlign: 'center',
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                    inputProps={{ style: { textAlign: 'center' } }}
+                />
+            </TableCell>
+            <TableCell align="right" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
+                <InputBase
+                    value={row.totalNoTax}
+                    onChange={(e) => handleUpdateCell(row.id, 'totalNoTax', e.target.value)}
+                    onBlur={(e) => handleSaveCell(row.id, 'totalNoTax', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem', textAlign: 'right', fontWeight: 600, color: theme.palette.primary.main,
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                    inputProps={{ style: { textAlign: 'right' } }}
+                />
+            </TableCell>
+            <TableCell align="right">
+                <InputBase
+                    value={row.taxAmount}
+                    onChange={(e) => handleUpdateCell(row.id, 'taxAmount', e.target.value)}
+                    onBlur={(e) => handleSaveCell(row.id, 'taxAmount', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem', textAlign: 'right',
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                    inputProps={{ style: { textAlign: 'right' } }}
+                />
+            </TableCell>
+            <TableCell>
+                <InputBase
+                    value={row.note || ""}
+                    onChange={(e) => handleUpdateCell(row.id, 'note', e.target.value)}
+                    onBlur={(e) => handleSaveCell(row.id, 'note', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem',
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                />
+            </TableCell>
+        </TableRow>
+    );
+}, (prevProps, nextProps) => {
+    return (
+        prevProps.row === nextProps.row &&
+        prevProps.isSelected === nextProps.isSelected &&
+        prevProps.index === nextProps.index &&
+        prevProps.actualIndex === nextProps.actualIndex
+    );
+});
+
+const PurchaseInvoiceRow = React.memo(({ row, index, isSelected, handleMouseDown, handleMouseEnter, handleUpdatePurchaseCell, handleSavePurchaseCell, theme, handleDragStart, handleDragOver, handleDrop }) => {
+    const valueNoTax = parseCurrency(row.valueNoTax);
+    const tax = parseCurrency(row.tax);
+    const rate = valueNoTax !== 0 ? tax / valueNoTax : 0;
+
+    return (
+        <TableRow
+            onMouseDown={(event) => handleMouseDown(event, row.id)}
+            onMouseEnter={() => handleMouseEnter(row.id)}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, index)}
+            selected={isSelected}
+            sx={{
+                '&:last-child td, &:last-child th': { border: 0 },
+                '&:hover': { bgcolor: '#f1f5f9' },
+                cursor: 'pointer',
+                bgcolor: isSelected ? alpha(theme.palette.secondary.main, 0.1) : 'inherit'
+            }}
+        >
+            <TableCell
+                align="center"
+                draggable
+                onDragStart={(e) => handleDragStart(e, index)}
+                sx={{ cursor: 'grab', '&:active': { cursor: 'grabbing' } }}
+            >
+                {index + 1}
+            </TableCell>
+            <TableCell>
+                <InputBase
+                    value={row.buyer || ""}
+                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'buyer', e.target.value)}
+                    onBlur={(e) => handleSavePurchaseCell(row.id, 'buyer', e.target.value)}
+                    fullWidth
+                    multiline
+                    sx={{
+                        fontSize: '0.875rem', p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                />
+            </TableCell>
+            <TableCell align="center" sx={{ fontWeight: 600 }}>
+                <InputBase
+                    value={row.invoiceNo || ""}
+                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'invoiceNo', e.target.value)}
+                    onBlur={(e) => handleSavePurchaseCell(row.id, 'invoiceNo', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem', textAlign: 'center', fontWeight: 600,
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                    inputProps={{ style: { textAlign: 'center' } }}
+                />
+            </TableCell>
+            <TableCell align="center">
+                <InputBase
+                    value={row.date || ""}
+                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'date', e.target.value)}
+                    onBlur={(e) => handleSavePurchaseCell(row.id, 'date', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem', textAlign: 'center',
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                    inputProps={{ style: { textAlign: 'center' } }}
+                />
+            </TableCell>
+            <TableCell>
+                <InputBase
+                    value={row.seller || ""}
+                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'seller', e.target.value)}
+                    onBlur={(e) => handleSavePurchaseCell(row.id, 'seller', e.target.value)}
+                    fullWidth
+                    multiline
+                    sx={{
+                        fontSize: '0.875rem', p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                />
+            </TableCell>
+            <TableCell align="center">
+                <InputBase
+                    value={row.sellerTax || ""}
+                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'sellerTax', e.target.value)}
+                    onBlur={(e) => handleSavePurchaseCell(row.id, 'sellerTax', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem', textAlign: 'center',
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                    inputProps={{ style: { textAlign: 'center' } }}
+                />
+            </TableCell>
+            <TableCell align="right">
+                <InputBase
+                    value={row.valueNoTax || "0"}
+                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'valueNoTax', e.target.value)}
+                    onBlur={(e) => handleSavePurchaseCell(row.id, 'valueNoTax', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem', textAlign: 'right',
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                    inputProps={{ style: { textAlign: 'right' } }}
+                />
+            </TableCell>
+            <TableCell align="right">
+                <InputBase
+                    value={row.tax || "0"}
+                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'tax', e.target.value)}
+                    onBlur={(e) => handleSavePurchaseCell(row.id, 'tax', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem', textAlign: 'right',
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                    inputProps={{ style: { textAlign: 'right' } }}
+                />
+            </TableCell>
+            <TableCell align="center">{formatPercentage(rate)}</TableCell>
+            <TableCell>
+                <InputBase
+                    value={row.project || ""}
+                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'project', e.target.value)}
+                    onBlur={(e) => handleSavePurchaseCell(row.id, 'project', e.target.value)}
+                    fullWidth
+                    multiline
+                    sx={{
+                        fontSize: '0.875rem', p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                />
+            </TableCell>
+        </TableRow>
+    );
+}, (prevProps, nextProps) => {
+    return (
+        prevProps.row === nextProps.row &&
+        prevProps.isSelected === nextProps.isSelected &&
+        prevProps.index === nextProps.index
+    );
+});
 
 const ColumnFilterMenu = ({ anchorEl, open, onClose, options, selectedValues, onChange, onClear }) => {
     const [searchTerm, setSearchTerm] = useState("");
@@ -65,6 +420,8 @@ const ColumnFilterMenu = ({ anchorEl, open, onClose, options, selectedValues, on
     );
 };
 
+
+
 export default function InternalTaxReport() {
     const theme = useTheme();
     const [value, setValue] = useState(0);
@@ -99,9 +456,9 @@ export default function InternalTaxReport() {
 
     // Pagination States
     const [pageGeneral, setPageGeneral] = useState(0);
-    const [rowsPerPageGeneral, setRowsPerPageGeneral] = useState(50);
+    const [rowsPerPageGeneral, setRowsPerPageGeneral] = useState(25);
     const [pagePurchase, setPagePurchase] = useState(0);
-    const [rowsPerPagePurchase, setRowsPerPagePurchase] = useState(50);
+    const [rowsPerPagePurchase, setRowsPerPagePurchase] = useState(25);
 
     // Debounced Search
     const [displaySearchTerm, setDisplaySearchTerm] = useState("");
@@ -214,42 +571,21 @@ export default function InternalTaxReport() {
         return null;
     };
 
-    const parseCurrency = (str) => {
-        if (!str) return 0;
-        if (typeof str === 'number') return str;
-        let cleanStr = str.trim();
-        let isNegative = false;
-        if (cleanStr.startsWith('(') && cleanStr.endsWith(')')) {
-            isNegative = true;
-            cleanStr = cleanStr.slice(1, -1);
-        } else if (cleanStr.startsWith('-')) {
-            isNegative = true;
-            cleanStr = cleanStr.slice(1);
-        }
-        let result = 0;
-        if ((cleanStr.match(/,/g) || []).length > 1) {
-            result = parseFloat(cleanStr.replace(/,/g, ''));
-        } else {
-            result = parseFloat(cleanStr.replace(/\./g, '').replace(/,/g, '.'));
-        }
-        if (isNaN(result)) return 0;
-        return isNegative ? -result : result;
+    const [sortConfigGeneral, setSortConfigGeneral] = useState({ key: 'stt', direction: 'asc' });
+    const [sortConfigPurchase, setSortConfigPurchase] = useState({ key: 'stt', direction: 'asc' });
+
+    const handleRequestSortGeneral = (property) => {
+        const isAsc = sortConfigGeneral.key === property && sortConfigGeneral.direction === 'asc';
+        setSortConfigGeneral({ key: property, direction: isAsc ? 'desc' : 'asc' });
     };
 
-    const formatCurrency = (num) => {
-        if (isNaN(num)) return "0";
-        return new Intl.NumberFormat('vi-VN').format(Math.round(num));
+    const handleRequestSortPurchase = (property) => {
+        const isAsc = sortConfigPurchase.key === property && sortConfigPurchase.direction === 'asc';
+        setSortConfigPurchase({ key: property, direction: isAsc ? 'desc' : 'asc' });
     };
-
-    const formatPercentage = (num) => {
-        if (isNaN(num)) return "0%";
-        return `${(num * 100).toFixed(0)}%`;
-    };
-
-    const [sortBy, setSortBy] = useState('stt');
     const [activePurchaseGroup, setActivePurchaseGroup] = useState(1);
 
-    const processInvoiceData = (data, searchTerm, columnFilters, sortBy, groupId = null) => {
+    const processInvoiceData = (data, searchTerm, columnFilters, sortConfig, groupId = null) => {
         let processed = [...data];
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
@@ -287,21 +623,44 @@ export default function InternalTaxReport() {
             }
         });
         processed.sort((a, b) => {
-            if (sortBy === 'stt') {
+            const { key, direction } = sortConfig;
+            const multiplier = direction === 'asc' ? 1 : -1;
+
+            let valA = a[key];
+            let valB = b[key];
+
+            if (key === 'stt') {
                 const sttA = a.stt || 0;
                 const sttB = b.stt || 0;
-                if (sttA !== sttB) return sttA - sttB;
+                if (sttA !== sttB) return (sttA - sttB) * multiplier;
                 const timeA = a.createdAt?.seconds || 0;
                 const timeB = b.createdAt?.seconds || 0;
-                return timeA - timeB;
-            } else {
+                return (timeA - timeB) * multiplier;
+            }
+
+            if (key === 'date') {
                 const dateA = parseDate(a.date);
                 const dateB = parseDate(b.date);
-                if (!dateA || !dateB) return 0;
+                if (!dateA && !dateB) return 0;
+                if (!dateA) return 1 * multiplier;
+                if (!dateB) return -1 * multiplier;
                 const timeA = new Date(dateA.year, dateA.month - 1, dateA.day).getTime();
                 const timeB = new Date(dateB.year, dateB.month - 1, dateB.day).getTime();
-                return timeA - timeB;
+                return (timeA - timeB) * multiplier;
             }
+
+            const numericKeys = ['valueNoTax', 'tax', 'total', 'rate'];
+            if (numericKeys.includes(key)) {
+                valA = parseCurrency(valA);
+                valB = parseCurrency(valB);
+                return (valA - valB) * multiplier;
+            }
+
+            if (valA === valB) return 0;
+            if (valA === null || valA === undefined) return 1 * multiplier;
+            if (valB === null || valB === undefined) return -1 * multiplier;
+
+            return valA.toString().localeCompare(valB.toString()) * multiplier;
         });
         return processed;
     };
@@ -322,9 +681,9 @@ export default function InternalTaxReport() {
     const group3Data = useMemo(() => localPurchaseInvoices.filter(i => i.group === 3), [localPurchaseInvoices]);
     const group4Data = useMemo(() => localPurchaseInvoices.filter(i => i.group === 4), [localPurchaseInvoices]);
 
-    const filteredGroup1 = useMemo(() => processInvoiceData(group1Data, searchTerm, columnFilters, sortBy, 1), [group1Data, searchTerm, columnFilters, sortBy]);
-    const filteredGroup3 = useMemo(() => processInvoiceData(group3Data, searchTerm, columnFilters, sortBy, 3), [group3Data, searchTerm, columnFilters, sortBy]);
-    const filteredGroup4 = useMemo(() => processInvoiceData(group4Data, searchTerm, columnFilters, sortBy, 4), [group4Data, searchTerm, columnFilters, sortBy]);
+    const filteredGroup1 = useMemo(() => processInvoiceData(group1Data, searchTerm, columnFilters, sortConfigPurchase, 1), [group1Data, searchTerm, columnFilters, sortConfigPurchase]);
+    const filteredGroup3 = useMemo(() => processInvoiceData(group3Data, searchTerm, columnFilters, sortConfigPurchase, 3), [group3Data, searchTerm, columnFilters, sortConfigPurchase]);
+    const filteredGroup4 = useMemo(() => processInvoiceData(group4Data, searchTerm, columnFilters, sortConfigPurchase, 4), [group4Data, searchTerm, columnFilters, sortConfigPurchase]);
 
     const totalsGroup1 = useMemo(() => calculateTotals(filteredGroup1), [filteredGroup1]);
     const totalsGroup3 = useMemo(() => calculateTotals(filteredGroup3), [filteredGroup3]);
@@ -342,7 +701,7 @@ export default function InternalTaxReport() {
     }, [totalsGroup1, totalsGroup3, totalsGroup4]);
 
     const filteredGeneralInvoices = useMemo(() => {
-        let data = localGeneralInvoices;
+        let data = [...localGeneralInvoices];
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             const cleanTerm = term.replace(/[^0-9]/g, '');
@@ -372,24 +731,47 @@ export default function InternalTaxReport() {
             }
         });
         data.sort((a, b) => {
-            if (sortBy === 'stt') {
+            const { key, direction } = sortConfigGeneral;
+            const multiplier = direction === 'asc' ? 1 : -1;
+
+            let valA = a[key];
+            let valB = b[key];
+
+            if (key === 'stt') {
                 const sttA = a.stt || 0;
                 const sttB = b.stt || 0;
-                if (sttA !== sttB) return sttA - sttB;
+                if (sttA !== sttB) return (sttA - sttB) * multiplier;
                 const timeA = a.createdAt?.seconds || 0;
                 const timeB = b.createdAt?.seconds || 0;
-                return timeA - timeB;
-            } else {
+                return (timeA - timeB) * multiplier;
+            }
+
+            if (key === 'date') {
                 const dateA = parseDate(a.date);
                 const dateB = parseDate(b.date);
-                if (!dateA || !dateB) return 0;
+                if (!dateA && !dateB) return 0;
+                if (!dateA) return 1 * multiplier;
+                if (!dateB) return -1 * multiplier;
                 const timeA = new Date(dateA.year, dateA.month - 1, dateA.day).getTime();
                 const timeB = new Date(dateB.year, dateB.month - 1, dateB.day).getTime();
-                return timeA - timeB;
+                return (timeA - timeB) * multiplier;
             }
+
+            const numericKeys = ['totalNoTax', 'taxAmount', 'totalPayment'];
+            if (numericKeys.includes(key)) {
+                valA = parseCurrency(valA);
+                valB = parseCurrency(valB);
+                return (valA - valB) * multiplier;
+            }
+
+            if (valA === valB) return 0;
+            if (valA === null || valA === undefined) return 1 * multiplier;
+            if (valB === null || valB === undefined) return -1 * multiplier;
+
+            return valA.toString().localeCompare(valB.toString()) * multiplier;
         });
         return data;
-    }, [localGeneralInvoices, searchTerm, columnFilters, sortBy]);
+    }, [localGeneralInvoices, searchTerm, columnFilters, sortConfigGeneral]);
 
     const generalTotals = useMemo(() => {
         return filteredGeneralInvoices.reduce((acc, item) => {
@@ -652,11 +1034,47 @@ export default function InternalTaxReport() {
 
                     rows.forEach((row, index) => {
                         const cols = row.split('\t').map(c => c.trim());
-                        const hasSTT = cols.length >= 12;
-                        const offset = hasSTT ? 0 : -1;
-                        const invoiceNo = cols[1 + offset] || "";
-                        const seller = cols[3 + offset] || "";
-                        const valueNoTax = cols[5 + offset] || "0";
+                        // Format mới: STT, Tên Công ty mua, Số HĐ, Ngày, Tên người bán, MST, Doanh thu, Thuế, Thuế suất, Tên người mua
+                        const hasSTT = /^\d+$/.test(cols[0]) && cols[0].length < 5;
+                        const base = hasSTT ? 0 : -1;
+
+                        let buyer = cols[1 + base] || "";
+                        let invoiceNo = cols[2 + base] || "";
+                        let date = cols[3 + base] || "";
+                        let seller = cols[4 + base] || "";
+                        let sellerTax = cols[5 + base] || "";
+                        let valueNoTax = cols[6 + base] || "0";
+                        let tax = cols[7 + base] || "0";
+                        let rate = cols[8 + base] || "";
+                        let project = cols[9 + base] || ""; // Mapping "Tên người mua" to project field
+
+                        // Heuristic: If seller is empty but sellerTax has content that looks like a name (not a tax code), swap them
+                        // Tax code usually contains only numbers and maybe dashes, length 9-14.
+                        // Name usually contains letters.
+                        const isTaxCodeLike = (str) => /^[0-9-]+$/.test(str) && str.length >= 9 && str.length <= 14;
+                        const hasLetters = (str) => /[a-zA-ZÀ-ỹ]/.test(str);
+
+                        // Special case for user's specific format:
+                        // 0: STT, 1: Buyer, 2: Invoice, 3: Date, 4: Empty, 5: Seller, 6: Empty, 7: Empty, 8: TaxCode, 9: Value, 10: Tax, 11: Rate, 13: Project
+                        if (cols.length >= 10 && isTaxCodeLike(cols[8 + base]) && hasLetters(cols[5 + base])) {
+                            seller = cols[5 + base];
+                            sellerTax = cols[8 + base];
+                            valueNoTax = cols[9 + base];
+                            tax = cols[10 + base];
+                            rate = cols[11 + base];
+                            project = cols[13 + base] || "";
+                        } else {
+                            if (!seller && sellerTax && !isTaxCodeLike(sellerTax) && hasLetters(sellerTax)) {
+                                seller = sellerTax;
+                                sellerTax = "";
+                            } else if (seller && !sellerTax && isTaxCodeLike(seller)) {
+                                // If seller has tax code and sellerTax is empty, swap
+                                sellerTax = seller;
+                                seller = "";
+                            }
+                        }
+
+                        const totalVal = parseCurrency(valueNoTax) + parseCurrency(tax);
 
                         if (!invoiceNo && !seller && parseCurrency(valueNoTax) === 0) return;
                         if (invoiceNo.trim().toLowerCase().includes("tổng")) return;
@@ -665,16 +1083,16 @@ export default function InternalTaxReport() {
                             stt: maxStt + index + 1,
                             group: targetGroup,
                             invoiceNo: invoiceNo,
-                            date: cols[2 + offset] || "",
+                            date: date,
                             seller: seller,
-                            sellerTax: cols[4 + offset] || "",
+                            sellerTax: sellerTax,
                             valueNoTax: valueNoTax,
-                            tax: cols[6 + offset] || "0",
-                            total: cols[7 + offset] || "0",
-                            rate: cols[8 + offset] || "",
-                            project: cols[9 + offset] || "",
-                            buyer: cols[10 + offset] || "",
-                            nk: cols[11 + offset] || ""
+                            tax: tax,
+                            total: totalVal.toString(),
+                            rate: rate,
+                            project: project,
+                            buyer: buyer,
+                            nk: ""
                         });
                     });
                     if (duplicates.length > 0) alert(`Phát hiện trùng lặp...`);
@@ -694,10 +1112,26 @@ export default function InternalTaxReport() {
         return () => window.removeEventListener('paste', handlePaste);
     }, [value, localGeneralInvoices, localPurchaseInvoices, month, year, activePurchaseGroup, group1Data, group3Data, group4Data]);
 
-    const handleMouseDown = (event, id) => {
+    // Optimization: Use ref to access latest state in callbacks without changing function identity
+    const stateRef = React.useRef({
+        value, selectedIds, filteredGeneralInvoices, activePurchaseGroup,
+        filteredGroup1, filteredGroup3, filteredGroup4, isDragging, dragStartId
+    });
+
+    useEffect(() => {
+        stateRef.current = {
+            value, selectedIds, filteredGeneralInvoices, activePurchaseGroup,
+            filteredGroup1, filteredGroup3, filteredGroup4, isDragging, dragStartId
+        };
+    }, [value, selectedIds, filteredGeneralInvoices, activePurchaseGroup, filteredGroup1, filteredGroup3, filteredGroup4, isDragging, dragStartId]);
+
+    const handleMouseDown = React.useCallback((event, id) => {
+        const { value, selectedIds, filteredGeneralInvoices, activePurchaseGroup, filteredGroup1, filteredGroup3, filteredGroup4 } = stateRef.current;
+
         if (event.shiftKey) event.preventDefault();
         setIsDragging(true);
         setDragStartId(id);
+
         let newSelected = [...selectedIds];
         const selectedIndex = selectedIds.indexOf(id);
         const currentData = value === 0 ? filteredGeneralInvoices : (activePurchaseGroup === 3 ? filteredGroup3 : (activePurchaseGroup === 4 ? filteredGroup4 : filteredGroup1));
@@ -724,9 +1158,11 @@ export default function InternalTaxReport() {
             newSelected = [id];
         }
         setSelectedIds(newSelected);
-    };
+    }, []);
 
-    const handleMouseEnter = (id) => {
+    const handleMouseEnter = React.useCallback((id) => {
+        const { value, filteredGeneralInvoices, activePurchaseGroup, filteredGroup1, filteredGroup3, filteredGroup4, isDragging, dragStartId } = stateRef.current;
+
         if (!isDragging || !dragStartId) return;
         const currentData = value === 0 ? filteredGeneralInvoices : (activePurchaseGroup === 3 ? filteredGroup3 : (activePurchaseGroup === 4 ? filteredGroup4 : filteredGroup1));
         const startIndex = currentData.findIndex(item => item.id === dragStartId);
@@ -737,7 +1173,7 @@ export default function InternalTaxReport() {
             const rangeIds = currentData.slice(start, end + 1).map(item => item.id);
             setSelectedIds(rangeIds);
         }
-    };
+    }, []);
 
     useEffect(() => {
         const handleMouseUp = () => {
@@ -775,23 +1211,41 @@ export default function InternalTaxReport() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [value, selectedIds]);
 
-    const handleUpdateCell = (id, field, value) => {
+    const handleUpdateCell = React.useCallback((id, field, value) => {
         setLocalGeneralInvoices(prev => prev.map(item => {
             if (item.id === id) {
                 return { ...item, [field]: value };
             }
             return item;
         }));
-    };
+    }, []);
 
-    const handleSaveCell = async (id, field, value) => {
+    const handleSaveCell = React.useCallback(async (id, field, value) => {
         try {
             await InternalTaxService.updateGeneralInvoice(id, { [field]: value });
         } catch (error) {
             console.error("Update failed", error);
             showSnackbar("Lỗi khi cập nhật", "error");
         }
-    };
+    }, []);
+
+    const handleUpdatePurchaseCell = React.useCallback((id, field, value) => {
+        setLocalPurchaseInvoices(prev => prev.map(item => {
+            if (item.id === id) {
+                return { ...item, [field]: value };
+            }
+            return item;
+        }));
+    }, []);
+
+    const handleSavePurchaseCell = React.useCallback(async (id, field, value) => {
+        try {
+            await InternalTaxService.updatePurchaseInvoice(id, { [field]: value });
+        } catch (error) {
+            console.error("Update failed", error);
+            showSnackbar("Lỗi khi cập nhật", "error");
+        }
+    }, []);
 
     const handleDeleteAllGeneral = async () => {
         if (window.confirm(`Bạn có chắc chắn muốn xóa TẤT CẢ hóa đơn bán ra tháng ${month}/${year}? Hành động này không thể hoàn tác!`)) {
@@ -823,6 +1277,86 @@ export default function InternalTaxReport() {
         }
     };
 
+    const handleDragStart = (e, index) => {
+        e.dataTransfer.setData("text/plain", index);
+        e.dataTransfer.effectAllowed = "move";
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+    };
+
+    const handleRowDrop = async (e, dropIndex) => {
+        e.preventDefault();
+        const dragIndexStr = e.dataTransfer.getData("text/plain");
+        if (!dragIndexStr && dragIndexStr !== 0) return;
+        const dragIndex = parseInt(dragIndexStr, 10);
+        if (dragIndex === dropIndex) return;
+
+        if (sortConfigPurchase.key !== 'stt') {
+            showSnackbar("Vui lòng sắp xếp theo STT để kéo thả", "warning");
+            return;
+        }
+
+        const currentData = activePurchaseGroup === 3 ? filteredGroup3 : (activePurchaseGroup === 4 ? filteredGroup4 : filteredGroup1);
+
+        if (dragIndex < 0 || dragIndex >= currentData.length || dropIndex < 0 || dropIndex >= currentData.length) return;
+
+        const newData = [...currentData];
+        const [draggedItem] = newData.splice(dragIndex, 1);
+        newData.splice(dropIndex, 0, draggedItem);
+
+        const updatedVisibleData = newData.map((item, idx) => ({ ...item, stt: idx + 1 }));
+
+        setLocalPurchaseInvoices(prev => {
+            const updatedMap = new Map(updatedVisibleData.map(item => [item.id, item]));
+            return prev.map(item => updatedMap.get(item.id) || item);
+        });
+
+        try {
+            await InternalTaxService.updatePurchaseInvoicesBatch(updatedVisibleData);
+        } catch (error) {
+            console.error("Failed to reorder", error);
+            showSnackbar("Lỗi khi lưu thứ tự mới", "error");
+        }
+    };
+
+    const handleRowDropGeneral = async (e, dropIndex) => {
+        e.preventDefault();
+        const dragIndexStr = e.dataTransfer.getData("text/plain");
+        if (!dragIndexStr && dragIndexStr !== 0) return;
+        const dragIndex = parseInt(dragIndexStr, 10);
+        if (dragIndex === dropIndex) return;
+
+        if (sortConfigGeneral.key !== 'stt') {
+            showSnackbar("Vui lòng sắp xếp theo STT để kéo thả", "warning");
+            return;
+        }
+
+        const currentData = filteredGeneralInvoices;
+
+        if (dragIndex < 0 || dragIndex >= currentData.length || dropIndex < 0 || dropIndex >= currentData.length) return;
+
+        const newData = [...currentData];
+        const [draggedItem] = newData.splice(dragIndex, 1);
+        newData.splice(dropIndex, 0, draggedItem);
+
+        const updatedVisibleData = newData.map((item, idx) => ({ ...item, stt: idx + 1 }));
+
+        setLocalGeneralInvoices(prev => {
+            const updatedMap = new Map(updatedVisibleData.map(item => [item.id, item]));
+            return prev.map(item => updatedMap.get(item.id) || item);
+        });
+
+        try {
+            await InternalTaxService.updateGeneralInvoicesBatch(updatedVisibleData);
+        } catch (error) {
+            console.error("Failed to reorder general invoices", error);
+            showSnackbar("Lỗi khi lưu thứ tự mới", "error");
+        }
+    };
+
     const renderPurchaseTable = (data, totals, groupName, groupId) => (
         <Box
             onClick={() => setActivePurchaseGroup(groupId)}
@@ -842,114 +1376,167 @@ export default function InternalTaxReport() {
             <TableContainer sx={{ maxHeight: 600 }}>
                 <Table stickyHeader sx={{ minWidth: 1200 }} aria-label={`purchase invoices table group ${groupId}`}>
                     <TableHead>
-                        <TableRow sx={{ '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10 } }}>
-                            <TableCell>STT</TableCell>
-                            <TableCell>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    Số hóa đơn
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_invoiceNo`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_invoiceNo`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
+                        <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10, top: 0, borderBottom: '1px solid #e2e8f0' } }}>
+                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                <TableSortLabel
+                                    active={sortConfigPurchase.key === 'stt'}
+                                    direction={sortConfigPurchase.key === 'stt' ? sortConfigPurchase.direction : 'asc'}
+                                    onClick={() => handleRequestSortPurchase('stt')}
+                                >
+                                    STT
+                                </TableSortLabel>
                             </TableCell>
-                            <TableCell>Ngày lập</TableCell>
-                            <TableCell>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    Tên người bán
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_seller`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_seller`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
-                            </TableCell>
-                            <TableCell>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    MST người bán
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_sellerTax`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_sellerTax`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
-                            </TableCell>
-                            <TableCell>Giá trị chưa thuế</TableCell>
-                            <TableCell>Thuế GTGT</TableCell>
-                            <TableCell>Tổng cộng</TableCell>
-                            <TableCell>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    Thuế suất
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_rate`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_rate`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
-                            </TableCell>
-                            <TableCell>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    Công trình
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_project`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_project`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
-                            </TableCell>
-                            <TableCell>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    Tên người mua
+                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                    <TableSortLabel
+                                        active={sortConfigPurchase.key === 'buyer'}
+                                        direction={sortConfigPurchase.key === 'buyer' ? sortConfigPurchase.direction : 'asc'}
+                                        onClick={() => handleRequestSortPurchase('buyer')}
+                                    >
+                                        Tên Công ty mua
+                                    </TableSortLabel>
                                     <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_buyer`, groupId)}>
                                         <FilterList fontSize="small" color={columnFilters[`${groupId}_buyer`] ? "primary" : "action"} />
                                     </IconButton>
                                 </Box>
                             </TableCell>
-                            <TableCell>NK</TableCell>
+                            <TableCell colSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>Hóa đơn, chứng từ, biên lai nộp thuế</TableCell>
+                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                    <TableSortLabel
+                                        active={sortConfigPurchase.key === 'seller'}
+                                        direction={sortConfigPurchase.key === 'seller' ? sortConfigPurchase.direction : 'asc'}
+                                        onClick={() => handleRequestSortPurchase('seller')}
+                                    >
+                                        Tên người bán
+                                    </TableSortLabel>
+                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_seller`, groupId)}>
+                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_seller`] ? "primary" : "action"} />
+                                    </IconButton>
+                                </Box>
+                            </TableCell>
+                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                    <TableSortLabel
+                                        active={sortConfigPurchase.key === 'sellerTax'}
+                                        direction={sortConfigPurchase.key === 'sellerTax' ? sortConfigPurchase.direction : 'asc'}
+                                        onClick={() => handleRequestSortPurchase('sellerTax')}
+                                    >
+                                        Mã số thuế người bán
+                                    </TableSortLabel>
+                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_sellerTax`, groupId)}>
+                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_sellerTax`] ? "primary" : "action"} />
+                                    </IconButton>
+                                </Box>
+                            </TableCell>
+                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                <TableSortLabel
+                                    active={sortConfigPurchase.key === 'valueNoTax'}
+                                    direction={sortConfigPurchase.key === 'valueNoTax' ? sortConfigPurchase.direction : 'asc'}
+                                    onClick={() => handleRequestSortPurchase('valueNoTax')}
+                                >
+                                    Giá trị HHDV mua vào chưa có thuế
+                                </TableSortLabel>
+                            </TableCell>
+                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                <TableSortLabel
+                                    active={sortConfigPurchase.key === 'tax'}
+                                    direction={sortConfigPurchase.key === 'tax' ? sortConfigPurchase.direction : 'asc'}
+                                    onClick={() => handleRequestSortPurchase('tax')}
+                                >
+                                    Thuế GTGT đủ điều kiện khấu trừ thuế
+                                </TableSortLabel>
+                            </TableCell>
+                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                    <TableSortLabel
+                                        active={sortConfigPurchase.key === 'rate'}
+                                        direction={sortConfigPurchase.key === 'rate' ? sortConfigPurchase.direction : 'asc'}
+                                        onClick={() => handleRequestSortPurchase('rate')}
+                                    >
+                                        Thuế suất
+                                    </TableSortLabel>
+                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_rate`, groupId)}>
+                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_rate`] ? "primary" : "action"} />
+                                    </IconButton>
+                                </Box>
+                            </TableCell>
+                            <TableCell rowSpan={2} align="center">
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                    <TableSortLabel
+                                        active={sortConfigPurchase.key === 'project'}
+                                        direction={sortConfigPurchase.key === 'project' ? sortConfigPurchase.direction : 'asc'}
+                                        onClick={() => handleRequestSortPurchase('project')}
+                                    >
+                                        Tên người mua
+                                    </TableSortLabel>
+                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_project`, groupId)}>
+                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_project`] ? "primary" : "action"} />
+                                    </IconButton>
+                                </Box>
+                            </TableCell>
+                        </TableRow>
+                        <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10, top: 50, borderBottom: '1px solid #e2e8f0' } }}>
+                            <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                    <TableSortLabel
+                                        active={sortConfigPurchase.key === 'invoiceNo'}
+                                        direction={sortConfigPurchase.key === 'invoiceNo' ? sortConfigPurchase.direction : 'asc'}
+                                        onClick={() => handleRequestSortPurchase('invoiceNo')}
+                                    >
+                                        Số hóa đơn
+                                    </TableSortLabel>
+                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_invoiceNo`, groupId)}>
+                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_invoiceNo`] ? "primary" : "action"} />
+                                    </IconButton>
+                                </Box>
+                            </TableCell>
+                            <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                <TableSortLabel
+                                    active={sortConfigPurchase.key === 'date'}
+                                    direction={sortConfigPurchase.key === 'date' ? sortConfigPurchase.direction : 'asc'}
+                                    onClick={() => handleRequestSortPurchase('date')}
+                                >
+                                    Ngày, tháng, năm lập hóa đơn
+                                </TableSortLabel>
+                            </TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {data.length > 0 ? (
                             data.map((row, index) => {
-                                const valueNoTax = parseCurrency(row.valueNoTax);
-                                const tax = parseCurrency(row.tax);
-                                const rate = valueNoTax !== 0 ? tax / valueNoTax : 0;
-                                const total = valueNoTax + tax;
                                 const isSelected = selectedIds.indexOf(row.id) !== -1;
 
                                 return (
-                                    <TableRow
+                                    <PurchaseInvoiceRow
                                         key={row.id || index}
-                                        onMouseDown={(event) => handleMouseDown(event, row.id)}
-                                        onMouseEnter={() => handleMouseEnter(row.id)}
-                                        selected={isSelected}
-                                        sx={{
-                                            '&:last-child td, &:last-child th': { border: 0 },
-                                            '&:hover': { bgcolor: '#f1f5f9' },
-                                            cursor: 'pointer',
-                                            bgcolor: isSelected ? alpha(theme.palette.secondary.main, 0.1) : 'inherit'
-                                        }}
-                                    >
-                                        <TableCell>{index + 1}</TableCell>
-                                        <TableCell sx={{ fontWeight: 600 }}>{row.invoiceNo}</TableCell>
-                                        <TableCell>{row.date}</TableCell>
-                                        <TableCell>{row.seller}</TableCell>
-                                        <TableCell>{row.sellerTax}</TableCell>
-                                        <TableCell align="right">{row.valueNoTax}</TableCell>
-                                        <TableCell align="right">{row.tax}</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.secondary.main }}>{formatCurrency(parseCurrency(row.total))}</TableCell>
-                                        <TableCell align="center">{formatPercentage(rate)}</TableCell>
-                                        <TableCell>{row.project}</TableCell>
-                                        <TableCell>{row.buyer}</TableCell>
-                                        <TableCell>{row.nk}</TableCell>
-                                    </TableRow>
+                                        row={row}
+                                        index={index}
+                                        isSelected={isSelected}
+                                        handleMouseDown={handleMouseDown}
+                                        handleMouseEnter={handleMouseEnter}
+                                        handleUpdatePurchaseCell={handleUpdatePurchaseCell}
+                                        handleSavePurchaseCell={handleSavePurchaseCell}
+                                        theme={theme}
+                                        handleDragStart={handleDragStart}
+                                        handleDragOver={handleDragOver}
+                                        handleDrop={handleRowDrop}
+                                    />
                                 );
                             })
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={12} align="center" sx={{ py: 3, color: 'text.secondary' }}>
-                                    Chưa có dữ liệu
+                                <TableCell colSpan={10} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                                    Không có dữ liệu
                                 </TableCell>
                             </TableRow>
                         )}
                         {data.length > 0 && (
                             <TableRow sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1) }}>
-                                <TableCell colSpan={5} align="right" sx={{ fontWeight: 700 }}>{groupName}:</TableCell>
+                                <TableCell colSpan={6} align="right" sx={{ fontWeight: 700 }}>{groupName}:</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(totals.valueNoTax)}</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(totals.tax)}</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(totals.total)}</TableCell>
-                                <TableCell colSpan={4}></TableCell>
+                                <TableCell colSpan={2}></TableCell>
                             </TableRow>
                         )}
                     </TableBody>
@@ -1063,10 +1650,24 @@ export default function InternalTaxReport() {
                         <Table stickyHeader sx={{ minWidth: 1200 }} aria-label="general invoices table">
                             <TableHead>
                                 <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 20, top: 0, textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' } }}>
-                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>STT</TableCell>
+                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                        <TableSortLabel
+                                            active={sortConfigGeneral.key === 'stt'}
+                                            direction={sortConfigGeneral.key === 'stt' ? sortConfigGeneral.direction : 'asc'}
+                                            onClick={() => handleRequestSortGeneral('stt')}
+                                        >
+                                            STT
+                                        </TableSortLabel>
+                                    </TableCell>
                                     <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                                            Tên người bán
+                                            <TableSortLabel
+                                                active={sortConfigGeneral.key === 'sellerName'}
+                                                direction={sortConfigGeneral.key === 'sellerName' ? sortConfigGeneral.direction : 'asc'}
+                                                onClick={() => handleRequestSortGeneral('sellerName')}
+                                            >
+                                                Tên người bán
+                                            </TableSortLabel>
                                             <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'sellerName')}>
                                                 <FilterList fontSize="small" color={columnFilters['sellerName'] ? "primary" : "action"} />
                                             </IconButton>
@@ -1075,7 +1676,13 @@ export default function InternalTaxReport() {
                                     <TableCell colSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>Hóa đơn, chứng từ bán ra</TableCell>
                                     <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                                            Tên người mua
+                                            <TableSortLabel
+                                                active={sortConfigGeneral.key === 'buyerName'}
+                                                direction={sortConfigGeneral.key === 'buyerName' ? sortConfigGeneral.direction : 'asc'}
+                                                onClick={() => handleRequestSortGeneral('buyerName')}
+                                            >
+                                                Tên người mua
+                                            </TableSortLabel>
                                             <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'buyerName')}>
                                                 <FilterList fontSize="small" color={columnFilters['buyerName'] ? "primary" : "action"} />
                                             </IconButton>
@@ -1083,26 +1690,70 @@ export default function InternalTaxReport() {
                                     </TableCell>
                                     <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                                            Mã số thuế người mua
+                                            <TableSortLabel
+                                                active={sortConfigGeneral.key === 'buyerTaxCode'}
+                                                direction={sortConfigGeneral.key === 'buyerTaxCode' ? sortConfigGeneral.direction : 'asc'}
+                                                onClick={() => handleRequestSortGeneral('buyerTaxCode')}
+                                            >
+                                                Mã số thuế người mua
+                                            </TableSortLabel>
                                             <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'buyerTaxCode')}>
                                                 <FilterList fontSize="small" color={columnFilters['buyerTaxCode'] ? "primary" : "action"} />
                                             </IconButton>
                                         </Box>
                                     </TableCell>
-                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>Doanh thu chưa có thuế GTGT</TableCell>
-                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>Thuế GTGT</TableCell>
-                                    <TableCell rowSpan={2} align="center">Ghi chú</TableCell>
+                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                        <TableSortLabel
+                                            active={sortConfigGeneral.key === 'totalNoTax'}
+                                            direction={sortConfigGeneral.key === 'totalNoTax' ? sortConfigGeneral.direction : 'asc'}
+                                            onClick={() => handleRequestSortGeneral('totalNoTax')}
+                                        >
+                                            Doanh thu chưa có thuế GTGT
+                                        </TableSortLabel>
+                                    </TableCell>
+                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                        <TableSortLabel
+                                            active={sortConfigGeneral.key === 'taxAmount'}
+                                            direction={sortConfigGeneral.key === 'taxAmount' ? sortConfigGeneral.direction : 'asc'}
+                                            onClick={() => handleRequestSortGeneral('taxAmount')}
+                                        >
+                                            Thuế GTGT
+                                        </TableSortLabel>
+                                    </TableCell>
+                                    <TableCell rowSpan={2} align="center">
+                                        <TableSortLabel
+                                            active={sortConfigGeneral.key === 'note'}
+                                            direction={sortConfigGeneral.key === 'note' ? sortConfigGeneral.direction : 'asc'}
+                                            onClick={() => handleRequestSortGeneral('note')}
+                                        >
+                                            Ghi chú
+                                        </TableSortLabel>
+                                    </TableCell>
                                 </TableRow>
                                 <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10, top: 50, textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' } }}>
                                     <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                                            Số hóa đơn
+                                            <TableSortLabel
+                                                active={sortConfigGeneral.key === 'invoiceNumber'}
+                                                direction={sortConfigGeneral.key === 'invoiceNumber' ? sortConfigGeneral.direction : 'asc'}
+                                                onClick={() => handleRequestSortGeneral('invoiceNumber')}
+                                            >
+                                                Số hóa đơn
+                                            </TableSortLabel>
                                             <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'invoiceNumber')}>
                                                 <FilterList fontSize="small" color={columnFilters['invoiceNumber'] ? "primary" : "action"} />
                                             </IconButton>
                                         </Box>
                                     </TableCell>
-                                    <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>Ngày, tháng, năm lập hóa đơn</TableCell>
+                                    <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                        <TableSortLabel
+                                            active={sortConfigGeneral.key === 'date'}
+                                            direction={sortConfigGeneral.key === 'date' ? sortConfigGeneral.direction : 'asc'}
+                                            onClick={() => handleRequestSortGeneral('date')}
+                                        >
+                                            Ngày, tháng, năm lập hóa đơn
+                                        </TableSortLabel>
+                                    </TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -1114,99 +1765,22 @@ export default function InternalTaxReport() {
                                             const isSelected = selectedIds.indexOf(row.id) !== -1;
 
                                             return (
-                                                <TableRow
+                                                <InvoiceRow
                                                     key={row.id || index}
-                                                    onMouseDown={(event) => handleMouseDown(event, row.id)}
-                                                    onMouseEnter={() => handleMouseEnter(row.id)}
-                                                    selected={isSelected}
-                                                    sx={{
-                                                        '&:last-child td, &:last-child th': { border: 0 },
-                                                        '&:hover': { bgcolor: '#f1f5f9' },
-                                                        cursor: 'pointer',
-                                                        bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.1) : 'inherit'
-                                                    }}
-                                                >
-                                                    <TableCell align="center">{actualIndex}</TableCell>
-                                                    <TableCell>
-                                                        <InputBase
-                                                            value={row.sellerName}
-                                                            onChange={(e) => handleUpdateCell(row.id, 'sellerName', e.target.value)}
-                                                            onBlur={(e) => handleSaveCell(row.id, 'sellerName', e.target.value)}
-                                                            fullWidth
-                                                            multiline
-                                                            sx={{ fontSize: '0.875rem' }}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell align="center" sx={{ fontWeight: 600 }}>
-                                                        <InputBase
-                                                            value={row.invoiceNumber}
-                                                            onChange={(e) => handleUpdateCell(row.id, 'invoiceNumber', e.target.value)}
-                                                            onBlur={(e) => handleSaveCell(row.id, 'invoiceNumber', e.target.value)}
-                                                            fullWidth
-                                                            sx={{ fontSize: '0.875rem', textAlign: 'center', fontWeight: 600 }}
-                                                            inputProps={{ style: { textAlign: 'center' } }}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell align="center" sx={{ color: 'text.secondary' }}>
-                                                        <InputBase
-                                                            value={row.date}
-                                                            onChange={(e) => handleUpdateCell(row.id, 'date', e.target.value)}
-                                                            onBlur={(e) => handleSaveCell(row.id, 'date', e.target.value)}
-                                                            fullWidth
-                                                            sx={{ fontSize: '0.875rem', textAlign: 'center', color: 'text.secondary' }}
-                                                            inputProps={{ style: { textAlign: 'center' } }}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <InputBase
-                                                            value={row.buyerName}
-                                                            onChange={(e) => handleUpdateCell(row.id, 'buyerName', e.target.value)}
-                                                            onBlur={(e) => handleSaveCell(row.id, 'buyerName', e.target.value)}
-                                                            fullWidth
-                                                            multiline
-                                                            sx={{ fontSize: '0.875rem' }}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell align="center">
-                                                        <InputBase
-                                                            value={row.buyerTaxCode}
-                                                            onChange={(e) => handleUpdateCell(row.id, 'buyerTaxCode', e.target.value)}
-                                                            onBlur={(e) => handleSaveCell(row.id, 'buyerTaxCode', e.target.value)}
-                                                            fullWidth
-                                                            sx={{ fontSize: '0.875rem', textAlign: 'center' }}
-                                                            inputProps={{ style: { textAlign: 'center' } }}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell align="right" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
-                                                        <InputBase
-                                                            value={row.totalNoTax}
-                                                            onChange={(e) => handleUpdateCell(row.id, 'totalNoTax', e.target.value)}
-                                                            onBlur={(e) => handleSaveCell(row.id, 'totalNoTax', e.target.value)}
-                                                            fullWidth
-                                                            sx={{ fontSize: '0.875rem', textAlign: 'right', fontWeight: 600, color: theme.palette.primary.main }}
-                                                            inputProps={{ style: { textAlign: 'right' } }}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell align="right">
-                                                        <InputBase
-                                                            value={row.taxAmount}
-                                                            onChange={(e) => handleUpdateCell(row.id, 'taxAmount', e.target.value)}
-                                                            onBlur={(e) => handleSaveCell(row.id, 'taxAmount', e.target.value)}
-                                                            fullWidth
-                                                            sx={{ fontSize: '0.875rem', textAlign: 'right' }}
-                                                            inputProps={{ style: { textAlign: 'right' } }}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <InputBase
-                                                            value={row.note || ""}
-                                                            onChange={(e) => handleUpdateCell(row.id, 'note', e.target.value)}
-                                                            onBlur={(e) => handleSaveCell(row.id, 'note', e.target.value)}
-                                                            fullWidth
-                                                            sx={{ fontSize: '0.875rem' }}
-                                                        />
-                                                    </TableCell>
-                                                </TableRow>
+                                                    row={row}
+                                                    index={index}
+                                                    actualIndex={actualIndex}
+                                                    isSelected={isSelected}
+                                                    handleMouseDown={handleMouseDown}
+                                                    handleMouseEnter={handleMouseEnter}
+                                                    handleUpdateCell={handleUpdateCell}
+                                                    handleSaveCell={handleSaveCell}
+                                                    theme={theme}
+                                                    handleDragStart={handleDragStart}
+                                                    handleDragOver={handleDragOver}
+                                                    handleDrop={handleRowDropGeneral}
+                                                    dragIndex={pageGeneral * rowsPerPageGeneral + index}
+                                                />
                                             );
                                         })
                                 ) : (
@@ -1457,7 +2031,7 @@ export default function InternalTaxReport() {
                 onClear={handleClearColumnFilter}
             />
 
-            <Snackbar open={!!snackbar.message} autoHideDuration={6000} onClose={handleCloseSnackbar}>
+            <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar}>
                 <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
                     {snackbar.message}
                 </Alert>

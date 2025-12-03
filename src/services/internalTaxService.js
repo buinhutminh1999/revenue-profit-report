@@ -60,6 +60,20 @@ export const InternalTaxService = {
         }
     },
 
+    updateGeneralInvoicesBatch: async (invoices) => {
+        try {
+            const batch = writeBatch(db);
+            invoices.forEach(inv => {
+                const docRef = doc(db, GENERAL_COLLECTION, inv.id);
+                batch.update(docRef, { stt: inv.stt });
+            });
+            await batch.commit();
+        } catch (error) {
+            console.error("Error batch updating general invoices:", error);
+            throw error;
+        }
+    },
+
     addGeneralInvoicesBatch: async (invoices, month, year) => {
         try {
             const batch = writeBatch(db);
@@ -136,6 +150,33 @@ export const InternalTaxService = {
             return { ...invoice, id: docRef.id };
         } catch (error) {
             console.error("Error adding purchase invoice:", error);
+            throw error;
+        }
+    },
+
+    updatePurchaseInvoice: async (id, data) => {
+        try {
+            const docRef = doc(db, PURCHASE_COLLECTION, id);
+            await updateDoc(docRef, data);
+        } catch (error) {
+            console.error("Error updating purchase invoice:", error);
+            throw error;
+        }
+    },
+
+    updatePurchaseInvoicesBatch: async (invoices) => {
+        try {
+            const batch = writeBatch(db);
+            invoices.forEach(inv => {
+                const docRef = doc(db, PURCHASE_COLLECTION, inv.id);
+                // Only update stt for now, or full object?
+                // Let's update stt and potentially other fields if needed.
+                // For reordering, we mostly care about stt.
+                batch.update(docRef, { stt: inv.stt });
+            });
+            await batch.commit();
+        } catch (error) {
+            console.error("Error batch updating purchase invoices:", error);
             throw error;
         }
     },
