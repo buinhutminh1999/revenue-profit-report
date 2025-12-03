@@ -9,7 +9,8 @@ import {
     deleteDoc,
     writeBatch,
     getDocs,
-    serverTimestamp
+    serverTimestamp,
+    updateDoc
 } from 'firebase/firestore';
 
 const GENERAL_COLLECTION = 'internal_general_invoices';
@@ -45,6 +46,16 @@ export const InternalTaxService = {
             return { ...invoice, id: docRef.id };
         } catch (error) {
             console.error("Error adding general invoice:", error);
+            throw error;
+        }
+    },
+
+    updateGeneralInvoice: async (id, data) => {
+        try {
+            const docRef = doc(db, GENERAL_COLLECTION, id);
+            await updateDoc(docRef, data);
+        } catch (error) {
+            console.error("Error updating general invoice:", error);
             throw error;
         }
     },

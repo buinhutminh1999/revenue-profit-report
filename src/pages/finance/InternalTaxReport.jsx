@@ -3,7 +3,7 @@ import {
     Box, Paper, Typography, Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Chip, useTheme, alpha, Stack, FormControl, InputLabel, Select, MenuItem, Button, Dialog, DialogTitle,
     DialogContent, DialogActions, TextField, Grid, InputAdornment, Snackbar, Alert, CircularProgress,
-    Card, CardContent, IconButton, Tooltip, Backdrop, Avatar, AvatarGroup, Menu, Checkbox, ListItemText, TablePagination
+    Card, CardContent, IconButton, Tooltip, Backdrop, Avatar, AvatarGroup, Menu, Checkbox, ListItemText, TablePagination, InputBase
 } from '@mui/material';
 import { Description, Receipt, FilterList, Assessment, Add, ContentPaste, Search, Refresh, Save, Delete, CloudUpload } from '@mui/icons-material';
 import { InternalTaxService } from '../../services/internalTaxService';
@@ -498,32 +498,144 @@ export default function InternalTaxReport() {
 
                     rows.forEach((row, index) => {
                         const cols = row.split('\t').map(c => c.trim());
-                        const hasSTT = cols.length >= 19;
-                        const offset = hasSTT ? 0 : -1;
-                        const invoiceNumber = cols[3 + offset] || "";
+                        if (cols.length < 2) return;
+
+                        let invoiceNumber = "";
+                        let date = "";
+                        let buyerName = "";
+                        let buyerTaxCode = "";
+                        let totalNoTax = "0";
+                        let taxAmount = "0";
+                        let note = "";
+                        let formSymbol = "";
+                        let invoiceSymbol = "";
+                        let sellerTaxCode = "";
+                        let sellerName = "";
+                        let buyerAddress = "";
+                        let totalPayment = "0";
+
+                        // Logic phân loại format dữ liệu
+                        if (cols.length >= 14) {
+                            // Format đầy đủ (như cũ)
+                            const hasSTT = cols.length >= 19;
+                            const offset = hasSTT ? 0 : -1;
+                            formSymbol = cols[1 + offset] || "";
+                            invoiceSymbol = cols[2 + offset] || "";
+                            invoiceNumber = cols[3 + offset] || "";
+                            date = cols[4 + offset] || "";
+                            sellerTaxCode = cols[5 + offset] || "";
+                            sellerName = cols[6 + offset] || "";
+                            buyerTaxCode = cols[7 + offset] || "";
+                            buyerName = cols[8 + offset] || "";
+                            buyerAddress = cols[9 + offset] || "";
+                            totalNoTax = cols[10 + offset] || "0";
+                            taxAmount = cols[11 + offset] || "0";
+                            // tradeDiscount = cols[12 + offset]
+                            totalPayment = cols[14 + offset] || "0";
+                        } else {
+                            // Format rút gọn (User đang copy từ bảng hiển thị hoặc file excel rút gọn)
+                            // Sử dụng logic "Neo" vào cột Mã Số Thuế (MST) để định vị các cột khác
+
+                            const hasSTT = /^\d+$/.test(cols[0]) && cols[0].length < 5;
+                            const base = hasSTT ? 1 : 0;
+
+                            // Cột đầu tiên sau STT thường là Tên người bán
+                            sellerName = cols[base] || "";
+
+                            // Hàm kiểm tra MST: chuỗi số dài từ 9-14 ký tự
+                            const isTaxCode = (str) => {
+                                if (!str) return false;
+                                const clean = str.replace(/[^0-9]/g, '');
+                                return clean.length >= 9 && clean.length <= 14 && /^[0-9-]+$/.test(str);
+                            };
+
+                            // Tìm vị trí cột MST
+                            // Quét từ base + 1 trở đi
+                            let taxIndex = -1;
+                            for (let i = base + 1; i < cols.length; i++) {
+                                if (isTaxCode(cols[i])) {
+                                    taxIndex = i;
+                                    break;
+                                }
+                            }
+
+                            if (taxIndex !== -1) {
+                                // Đã tìm thấy MST
+                                buyerTaxCode = cols[taxIndex];
+                                totalNoTax = cols[taxIndex + 1] || "0";
+                                taxAmount = cols[taxIndex + 2] || "0";
+                                note = cols[taxIndex + 3] || "";
+
+                                // Tìm Tên người mua: Quét ngược từ MST về phía trước
+                                let buyerIndex = -1;
+                                for (let i = taxIndex - 1; i > base; i--) {
+                                    if (cols[i] && cols[i].trim() !== "") {
+                                        buyerIndex = i;
+                                        break;
+                                    }
+                                }
+
+                                if (buyerIndex !== -1) {
+                                    buyerName = cols[buyerIndex];
+
+                                    // Các cột giữa Tên người bán (base) và Tên người mua (buyerIndex) là thông tin hóa đơn
+                                    // Thường là: [Số HĐ] [Ngày]
+                                    const midStart = base + 1;
+                                    const midEnd = buyerIndex;
+
+                                    if (midEnd > midStart) {
+                                        invoiceNumber = cols[midStart] || "";
+                                        // Nếu có nhiều hơn 1 cột ở giữa, cột thứ 2 là ngày
+                                        if (midEnd - midStart >= 2) {
+                                            date = cols[midStart + 1] || "";
+                                        }
+                                    }
+                                } else {
+                                    // Không tìm thấy tên người mua
+                                    invoiceNumber = cols[base + 1] || "";
+                                    date = cols[base + 2] || "";
+                                }
+                            } else {
+                                // Fallback: Nếu không tìm thấy MST
+                                invoiceNumber = cols[base + 1] || "";
+                                date = cols[base + 2] || "";
+                                buyerName = cols[base + 3] || "";
+                                buyerTaxCode = cols[base + 4] || "";
+                                totalNoTax = cols[base + 5] || "0";
+                                taxAmount = cols[base + 6] || "0";
+                            }
+
+                            // Tính tổng thanh toán
+                            const val = parseCurrency(totalNoTax);
+                            const tax = parseCurrency(taxAmount);
+                            totalPayment = (val + tax).toString();
+                        }
+
                         if (localGeneralInvoices.some(inv => inv.invoiceNumber === invoiceNumber)) {
                             duplicates.push(invoiceNumber);
                             return;
                         }
+
                         newItems.push({
                             stt: maxStt + index + 1,
-                            formSymbol: cols[1 + offset] || "",
-                            invoiceSymbol: cols[2 + offset] || "",
+                            formSymbol: formSymbol,
+                            invoiceSymbol: invoiceSymbol,
                             invoiceNumber: invoiceNumber,
-                            date: cols[4 + offset] || "",
-                            sellerTaxCode: cols[5 + offset] || "",
-                            sellerName: cols[6 + offset] || "",
-                            buyerTaxCode: cols[7 + offset] || "",
-                            buyerName: cols[8 + offset] || "",
-                            buyerAddress: cols[9 + offset] || "",
-                            totalNoTax: cols[10 + offset] || "0",
-                            taxAmount: cols[11 + offset] || "0",
-                            tradeDiscount: cols[12 + offset] || "0",
-                            totalPayment: cols[14 + offset] || "0",
-                            currency: cols[15 + offset] || "VND",
-                            exchangeRate: cols[16 + offset] || "1.0",
-                            status: cols[17 + offset] || "Hóa đơn mới",
-                            checkResult: cols[18 + offset] || "Đã cấp mã hóa đơn"
+                            date: date,
+                            sellerTaxCode: sellerTaxCode,
+                            sellerName: sellerName,
+                            buyerTaxCode: buyerTaxCode,
+                            buyerName: buyerName,
+                            buyerAddress: buyerAddress,
+                            totalNoTax: totalNoTax,
+                            taxAmount: taxAmount,
+                            tradeDiscount: "0",
+                            totalPayment: totalPayment,
+                            currency: "VND",
+                            exchangeRate: "1.0",
+                            status: "Hóa đơn mới",
+                            checkResult: "Đã cấp mã hóa đơn",
+                            note: note
                         });
                     });
                     if (duplicates.length > 0) alert(`Phát hiện ${duplicates.length} hóa đơn trùng lặp...`);
@@ -662,6 +774,24 @@ export default function InternalTaxReport() {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [value, selectedIds]);
+
+    const handleUpdateCell = (id, field, value) => {
+        setLocalGeneralInvoices(prev => prev.map(item => {
+            if (item.id === id) {
+                return { ...item, [field]: value };
+            }
+            return item;
+        }));
+    };
+
+    const handleSaveCell = async (id, field, value) => {
+        try {
+            await InternalTaxService.updateGeneralInvoice(id, { [field]: value });
+        } catch (error) {
+            console.error("Update failed", error);
+            showSnackbar("Lỗi khi cập nhật", "error");
+        }
+    };
 
     const handleDeleteAllGeneral = async () => {
         if (window.confirm(`Bạn có chắc chắn muốn xóa TẤT CẢ hóa đơn bán ra tháng ${month}/${year}? Hành động này không thể hoàn tác!`)) {
@@ -932,61 +1062,47 @@ export default function InternalTaxReport() {
                     <TableContainer sx={{ maxHeight: 600 }}>
                         <Table stickyHeader sx={{ minWidth: 1200 }} aria-label="general invoices table">
                             <TableHead>
-                                <TableRow sx={{ '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10 } }}>
-                                    <TableCell>STT</TableCell>
-                                    <TableCell>Ký hiệu mẫu số</TableCell>
-                                    <TableCell>Ký hiệu hóa đơn</TableCell>
-                                    <TableCell>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            Số hóa đơn
-                                            <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'invoiceNumber')}>
-                                                <FilterList fontSize="small" color={columnFilters['invoiceNumber'] ? "primary" : "action"} />
-                                            </IconButton>
-                                        </Box>
-                                    </TableCell>
-                                    <TableCell>Ngày lập</TableCell>
-                                    <TableCell>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            MST người bán
-                                            <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'sellerTaxCode')}>
-                                                <FilterList fontSize="small" color={columnFilters['sellerTaxCode'] ? "primary" : "action"} />
-                                            </IconButton>
-                                        </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 20, top: 0, textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' } }}>
+                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>STT</TableCell>
+                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                                             Tên người bán
                                             <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'sellerName')}>
                                                 <FilterList fontSize="small" color={columnFilters['sellerName'] ? "primary" : "action"} />
                                             </IconButton>
                                         </Box>
                                     </TableCell>
-                                    <TableCell>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            MST người mua
-                                            <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'buyerTaxCode')}>
-                                                <FilterList fontSize="small" color={columnFilters['buyerTaxCode'] ? "primary" : "action"} />
-                                            </IconButton>
-                                        </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <TableCell colSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>Hóa đơn, chứng từ bán ra</TableCell>
+                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                                             Tên người mua
                                             <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'buyerName')}>
                                                 <FilterList fontSize="small" color={columnFilters['buyerName'] ? "primary" : "action"} />
                                             </IconButton>
                                         </Box>
                                     </TableCell>
-                                    <TableCell>Địa chỉ người mua</TableCell>
-                                    <TableCell>Tổng tiền chưa thuế</TableCell>
-                                    <TableCell>Tổng tiền thuế</TableCell>
-                                    <TableCell>Tổng tiền chiết khấu</TableCell>
-                                    <TableCell>Tổng tiền phí</TableCell>
-                                    <TableCell>Tổng tiền thanh toán</TableCell>
-                                    <TableCell>Đơn vị tiền tệ</TableCell>
-                                    <TableCell>Tỷ giá</TableCell>
-                                    <TableCell>Trạng thái</TableCell>
-                                    <TableCell>Kết quả kiểm tra</TableCell>
+                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                            Mã số thuế người mua
+                                            <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'buyerTaxCode')}>
+                                                <FilterList fontSize="small" color={columnFilters['buyerTaxCode'] ? "primary" : "action"} />
+                                            </IconButton>
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>Doanh thu chưa có thuế GTGT</TableCell>
+                                    <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>Thuế GTGT</TableCell>
+                                    <TableCell rowSpan={2} align="center">Ghi chú</TableCell>
+                                </TableRow>
+                                <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10, top: 50, textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' } }}>
+                                    <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                            Số hóa đơn
+                                            <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'invoiceNumber')}>
+                                                <FilterList fontSize="small" color={columnFilters['invoiceNumber'] ? "primary" : "action"} />
+                                            </IconButton>
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>Ngày, tháng, năm lập hóa đơn</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -995,9 +1111,6 @@ export default function InternalTaxReport() {
                                         .slice(pageGeneral * rowsPerPageGeneral, pageGeneral * rowsPerPageGeneral + rowsPerPageGeneral)
                                         .map((row, index) => {
                                             const actualIndex = pageGeneral * rowsPerPageGeneral + index + 1;
-                                            const noTax = parseCurrency(row.totalNoTax);
-                                            const tax = parseCurrency(row.taxAmount);
-                                            const feeRate = noTax !== 0 ? tax / noTax : 0;
                                             const isSelected = selectedIds.indexOf(row.id) !== -1;
 
                                             return (
@@ -1013,53 +1126,102 @@ export default function InternalTaxReport() {
                                                         bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.1) : 'inherit'
                                                     }}
                                                 >
-                                                    <TableCell>{actualIndex}</TableCell>
-                                                    <TableCell>{row.formSymbol}</TableCell>
-                                                    <TableCell>{row.invoiceSymbol}</TableCell>
-                                                    <TableCell sx={{ fontWeight: 600 }}>{row.invoiceNumber}</TableCell>
-                                                    <TableCell sx={{ color: 'text.secondary' }}>{row.date}</TableCell>
-                                                    <TableCell>{row.sellerTaxCode}</TableCell>
-                                                    <TableCell>{row.sellerName}</TableCell>
-                                                    <TableCell>{row.buyerTaxCode}</TableCell>
-                                                    <TableCell>{row.buyerName}</TableCell>
-                                                    <TableCell>{row.buyerAddress}</TableCell>
-                                                    <TableCell align="right" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>{row.totalNoTax}</TableCell>
-                                                    <TableCell align="right">{row.taxAmount}</TableCell>
-                                                    <TableCell align="right">{row.tradeDiscount}</TableCell>
-                                                    <TableCell align="right">{formatPercentage(feeRate)}</TableCell>
-                                                    <TableCell align="right" sx={{ fontWeight: 700 }}>{row.totalPayment}</TableCell>
-                                                    <TableCell>{row.currency}</TableCell>
-                                                    <TableCell>{row.exchangeRate}</TableCell>
+                                                    <TableCell align="center">{actualIndex}</TableCell>
                                                     <TableCell>
-                                                        <Chip
-                                                            label={row.status}
-                                                            size="small"
-                                                            color={row.status === "Hóa đơn mới" ? "success" : "warning"}
-                                                            variant="outlined"
+                                                        <InputBase
+                                                            value={row.sellerName}
+                                                            onChange={(e) => handleUpdateCell(row.id, 'sellerName', e.target.value)}
+                                                            onBlur={(e) => handleSaveCell(row.id, 'sellerName', e.target.value)}
+                                                            fullWidth
+                                                            multiline
+                                                            sx={{ fontSize: '0.875rem' }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell align="center" sx={{ fontWeight: 600 }}>
+                                                        <InputBase
+                                                            value={row.invoiceNumber}
+                                                            onChange={(e) => handleUpdateCell(row.id, 'invoiceNumber', e.target.value)}
+                                                            onBlur={(e) => handleSaveCell(row.id, 'invoiceNumber', e.target.value)}
+                                                            fullWidth
+                                                            sx={{ fontSize: '0.875rem', textAlign: 'center', fontWeight: 600 }}
+                                                            inputProps={{ style: { textAlign: 'center' } }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell align="center" sx={{ color: 'text.secondary' }}>
+                                                        <InputBase
+                                                            value={row.date}
+                                                            onChange={(e) => handleUpdateCell(row.id, 'date', e.target.value)}
+                                                            onBlur={(e) => handleSaveCell(row.id, 'date', e.target.value)}
+                                                            fullWidth
+                                                            sx={{ fontSize: '0.875rem', textAlign: 'center', color: 'text.secondary' }}
+                                                            inputProps={{ style: { textAlign: 'center' } }}
                                                         />
                                                     </TableCell>
                                                     <TableCell>
-                                                        <Chip label={row.checkResult} size="small" sx={{ color: theme.palette.info.dark, bgcolor: alpha(theme.palette.info.main, 0.1), fontWeight: 500 }} />
+                                                        <InputBase
+                                                            value={row.buyerName}
+                                                            onChange={(e) => handleUpdateCell(row.id, 'buyerName', e.target.value)}
+                                                            onBlur={(e) => handleSaveCell(row.id, 'buyerName', e.target.value)}
+                                                            fullWidth
+                                                            multiline
+                                                            sx={{ fontSize: '0.875rem' }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <InputBase
+                                                            value={row.buyerTaxCode}
+                                                            onChange={(e) => handleUpdateCell(row.id, 'buyerTaxCode', e.target.value)}
+                                                            onBlur={(e) => handleSaveCell(row.id, 'buyerTaxCode', e.target.value)}
+                                                            fullWidth
+                                                            sx={{ fontSize: '0.875rem', textAlign: 'center' }}
+                                                            inputProps={{ style: { textAlign: 'center' } }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell align="right" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
+                                                        <InputBase
+                                                            value={row.totalNoTax}
+                                                            onChange={(e) => handleUpdateCell(row.id, 'totalNoTax', e.target.value)}
+                                                            onBlur={(e) => handleSaveCell(row.id, 'totalNoTax', e.target.value)}
+                                                            fullWidth
+                                                            sx={{ fontSize: '0.875rem', textAlign: 'right', fontWeight: 600, color: theme.palette.primary.main }}
+                                                            inputProps={{ style: { textAlign: 'right' } }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                        <InputBase
+                                                            value={row.taxAmount}
+                                                            onChange={(e) => handleUpdateCell(row.id, 'taxAmount', e.target.value)}
+                                                            onBlur={(e) => handleSaveCell(row.id, 'taxAmount', e.target.value)}
+                                                            fullWidth
+                                                            sx={{ fontSize: '0.875rem', textAlign: 'right' }}
+                                                            inputProps={{ style: { textAlign: 'right' } }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <InputBase
+                                                            value={row.note || ""}
+                                                            onChange={(e) => handleUpdateCell(row.id, 'note', e.target.value)}
+                                                            onBlur={(e) => handleSaveCell(row.id, 'note', e.target.value)}
+                                                            fullWidth
+                                                            sx={{ fontSize: '0.875rem' }}
+                                                        />
                                                     </TableCell>
                                                 </TableRow>
                                             );
                                         })
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={19} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                                        <TableCell colSpan={9} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                                             Không có dữ liệu cho tháng {month}/{year}
                                         </TableCell>
                                     </TableRow>
                                 )}
                                 {filteredGeneralInvoices.length > 0 && (
                                     <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
-                                        <TableCell colSpan={10} align="right" sx={{ fontWeight: 700 }}>Tổng cộng:</TableCell>
+                                        <TableCell colSpan={6} align="right" sx={{ fontWeight: 700 }}>Tổng nhóm 4:</TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(generalTotals.totalNoTax)}</TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(generalTotals.taxAmount)}</TableCell>
-                                        <TableCell align="right"></TableCell>
-                                        <TableCell align="right"></TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(generalTotals.totalPayment)}</TableCell>
-                                        <TableCell colSpan={4}></TableCell>
+                                        <TableCell></TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
