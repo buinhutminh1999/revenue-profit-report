@@ -163,7 +163,7 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
                 { header: 'Tên Công Trình', key: 'projectName', width: 30 },
                 { header: 'Khoản Mục', key: 'description', width: 40 },
                 { header: 'Nợ Phải Trả CK', key: 'noPhaiTraCK', width: 15 },
-                { header: 'Nợ Phải Trả ĐK (debt)', key: 'debt', width: 15 },
+                { header: 'Nợ Phải Trả ĐK', key: 'debt', width: 15 },
                 { header: 'Kết quả', key: 'result', width: 15 }
             ];
         }
@@ -258,7 +258,7 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
                     <TableRow>
                         <GlassTableHeadCell sx={{ width: '30%' }}>Khoản Mục</GlassTableHeadCell>
                         <GlassTableHeadCell align="right">Nợ Phải Trả CK</GlassTableHeadCell>
-                        <GlassTableHeadCell align="right">Nợ Phải Trả ĐK (debt)</GlassTableHeadCell>
+                        <GlassTableHeadCell align="right">Nợ Phải Trả ĐK</GlassTableHeadCell>
                         <GlassTableHeadCell align="right" sx={{ color: theme.palette.primary.main }}>Kết quả</GlassTableHeadCell>
                     </TableRow>
                 </TableHead>
@@ -800,56 +800,51 @@ const BalanceSheet = () => {
                 // --- Phần 1: Đồng bộ từ Báo cáo Công nợ ---
                 // Skip for Q1 2025 to allow manual editing
                 if (!(selectedYear === 2025 && selectedQuarter === 1)) {
-                    const receivableDocRef = doc(db, `accountsReceivable/${selectedYear}/quarters`, `Q${selectedQuarter}`);
-                    const receivableDocSnap = await getDoc(receivableDocRef);
-
-                    if (receivableDocSnap.exists()) {
-                        const receivableData = receivableDocSnap.data();
-                        const rules = {
-                            // '131': { field: 'cuoiKyCo', source: receivableData?.kh_sx_ut?.closingDebit }, // Removed: Now synced from rows aggregation
-                            '132': { field: 'cuoiKyNo', source: receivableData?.kh_dt?.closingDebit },
-                            // '133': { field: 'cuoiKyNo', source: receivableData?.pt_kh_sx?.closingDebit }, // Removed: Now synced from rows aggregation
-                            '134': { field: 'cuoiKyNo', source: receivableData?.pt_nb_xn_sx?.closingDebit },
-                            '135': { field: 'cuoiKyNo', source: receivableData?.pt_cdt_xd?.closingDebit },
-                            '139': { field: 'cuoiKyCo', source: receivableData?.pt_cdt_xd?.closingCredit },
-                            '140': { field: 'cuoiKyNo', source: receivableData?.pt_dd_ct?.closingDebit },
-                            '142': { field: 'cuoiKyNo', source: receivableData?.pt_sv_sx?.closingDebit },
-                        };
-                        for (const accountId in rules) {
-                            const rule = rules[accountId];
-                            if (typeof rule.source === 'number') {
-                                addUpdateToBatch(accountId, rule.field, rule.source);
-                            }
-                        }
-                    }
-
-                    // --- NEW: Sync Account 133 from AccountsReceivable Rows (Category: pt_kh_sx) ---
-                    const arRowsQuery = query(
-                        collection(db, `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`),
-                        where('category', '==', 'pt_kh_sx')
-                    );
+                    // Lấy toàn bộ rows của AccountsReceivable cho quý này để tính tổng
+                    const arRowsQuery = query(collection(db, `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`));
                     const arRowsSnapshot = await getDocs(arRowsQuery);
 
-                    const totalClosingDebit = arRowsSnapshot.empty ? 0 : arRowsSnapshot.docs.reduce((sum, doc) => {
+                    // Khởi tạo object chứa tổng hợp theo category
+                    const aggregations = {};
+
+                    arRowsSnapshot.forEach(doc => {
                         const data = doc.data();
-                        return sum + toNumber(data.closingDebit || 0);
-                    }, 0);
+                        const cat = data.category;
+                        if (!cat) return;
 
-                    addUpdateToBatch('133', 'cuoiKyNo', totalClosingDebit);
+                        if (!aggregations[cat]) {
+                            aggregations[cat] = { closingDebit: 0, closingCredit: 0 };
+                        }
+                        aggregations[cat].closingDebit += toNumber(data.closingDebit || 0);
+                        aggregations[cat].closingCredit += toNumber(data.closingCredit || 0);
+                    });
 
-                    // --- NEW: Sync Account 131 from AccountsReceivable Rows (Category: kh_sx_ut) ---
-                    const arRowsQuery131 = query(
-                        collection(db, `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`),
-                        where('category', '==', 'kh_sx_ut')
-                    );
-                    const arRowsSnapshot131 = await getDocs(arRowsQuery131);
+                    // Helper để lấy số liệu an toàn
+                    const getAgg = (cat) => aggregations[cat] || { closingDebit: 0, closingCredit: 0 };
 
-                    const totalClosingCredit131 = arRowsSnapshot131.empty ? 0 : arRowsSnapshot131.docs.reduce((sum, doc) => {
-                        const data = doc.data();
-                        return sum + toNumber(data.closingCredit || 0); // Lấy cột Trả Trước CK
-                    }, 0);
+                    // 131 - Khách hàng SX ứng trước (Category: kh_sx_ut) - Lấy cột Trả Trước CK (Credit)
+                    addUpdateToBatch('131', 'cuoiKyCo', getAgg('kh_sx_ut').closingCredit);
 
-                    addUpdateToBatch('131', 'cuoiKyCo', totalClosingCredit131);
+                    // 132 - Phải thu KH-ĐT (Category: kh_dt) - Lấy cột Phải Thu CK (Debit)
+                    addUpdateToBatch('132', 'cuoiKyNo', getAgg('kh_dt').closingDebit);
+
+                    // 133 - Phải thu KH-SX (Category: pt_kh_sx) - Lấy cột Phải Thu CK (Debit)
+                    addUpdateToBatch('133', 'cuoiKyNo', getAgg('pt_kh_sx').closingDebit);
+
+                    // 134 - Phải thu nội bộ (Category: pt_nb_xn_sx)
+                    addUpdateToBatch('134', 'cuoiKyNo', getAgg('pt_nb_xn_sx').closingDebit);
+
+                    // 135 - Phải thu chủ đầu tư XD (Category: pt_cdt_xd)
+                    addUpdateToBatch('135', 'cuoiKyNo', getAgg('pt_cdt_xd').closingDebit);
+
+                    // 139 - Tiền ứng trước CĐT - XD (Category: pt_cdt_xd) - Lấy cột Trả Trước CK (Credit)
+                    addUpdateToBatch('139', 'cuoiKyCo', getAgg('pt_cdt_xd').closingCredit);
+
+                    // 140 - Nợ phải thu dở dang (Category: pt_dd_ct)
+                    addUpdateToBatch('140', 'cuoiKyNo', getAgg('pt_dd_ct').closingDebit);
+
+                    // 142 - Nợ phải thu Sao Việt (Category: pt_sv_sx)
+                    addUpdateToBatch('142', 'cuoiKyNo', getAgg('pt_sv_sx').closingDebit);
                 }
 
                 // --- Phần 2: Đồng bộ từ công trình ---

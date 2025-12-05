@@ -207,6 +207,20 @@ const InvoiceRow = React.memo(({ row, index, actualIndex, isSelected, handleMous
                     }}
                 />
             </TableCell>
+            <TableCell>
+                <InputBase
+                    value={row.costType || ""}
+                    onChange={(e) => handleUpdateCell(row.id, 'costType', e.target.value)}
+                    onBlur={(e) => handleSaveCell(row.id, 'costType', e.target.value)}
+                    fullWidth
+                    sx={{
+                        fontSize: '0.875rem',
+                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
+                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
+                    }}
+                />
+            </TableCell>
         </TableRow>
     );
 }, (prevProps, nextProps) => {
@@ -453,7 +467,8 @@ export default function InternalTaxReport() {
     const [newInvoice, setNewInvoice] = useState({
         formSymbol: "", invoiceSymbol: "", invoiceNumber: "", date: "", sellerTaxCode: "", sellerName: "",
         buyerTaxCode: "", buyerName: "", buyerAddress: "", totalNoTax: "", taxAmount: "", tradeDiscount: "",
-        totalPayment: "", currency: "VND", exchangeRate: "1.0", status: "Hóa đơn mới", checkResult: "Đã cấp mã hóa đơn"
+        totalPayment: "", currency: "VND", exchangeRate: "1.0", status: "Hóa đơn mới", checkResult: "Đã cấp mã hóa đơn",
+        note: "", costType: ""
     });
 
     const [openAddPurchaseDialog, setOpenAddPurchaseDialog] = useState(false);
@@ -730,6 +745,8 @@ export default function InternalTaxReport() {
                     (item.sellerTaxCode && item.sellerTaxCode.toLowerCase().includes(term)) ||
                     (item.buyerName && item.buyerName.toLowerCase().includes(term)) ||
                     (item.buyerTaxCode && item.buyerTaxCode.toLowerCase().includes(term)) ||
+                    (item.note && item.note.toLowerCase().includes(term)) ||
+                    (item.costType && item.costType.toLowerCase().includes(term)) ||
                     (cleanTerm && (
                         itemTotalNoTax.includes(cleanTerm) ||
                         itemTaxAmount.includes(cleanTerm) ||
@@ -822,7 +839,8 @@ export default function InternalTaxReport() {
             setNewInvoice({
                 formSymbol: "", invoiceSymbol: "", invoiceNumber: "", date: "", sellerTaxCode: "", sellerName: "",
                 buyerTaxCode: "", buyerName: "", buyerAddress: "", totalNoTax: "", taxAmount: "", tradeDiscount: "",
-                totalPayment: "", currency: "VND", exchangeRate: "1.0", status: "Hóa đơn mới", checkResult: "Đã cấp mã hóa đơn"
+                totalPayment: "", currency: "VND", exchangeRate: "1.0", status: "Hóa đơn mới", checkResult: "Đã cấp mã hóa đơn",
+                note: "", costType: ""
             });
         } catch (error) {
             console.error("Error adding invoice", error);
@@ -910,6 +928,7 @@ export default function InternalTaxReport() {
                         let sellerName = "";
                         let buyerAddress = "";
                         let totalPayment = "0";
+                        let costType = "";
 
                         // Logic phân loại format dữ liệu
                         if (cols.length >= 14) {
@@ -962,6 +981,7 @@ export default function InternalTaxReport() {
                                 totalNoTax = cols[taxIndex + 1] || "0";
                                 taxAmount = cols[taxIndex + 2] || "0";
                                 note = cols[taxIndex + 3] || "";
+                                costType = cols[taxIndex + 4] || "";
 
                                 // Tìm Tên người mua: Quét ngược từ MST về phía trước
                                 let buyerIndex = -1;
@@ -1032,7 +1052,8 @@ export default function InternalTaxReport() {
                             exchangeRate: "1.0",
                             status: "Hóa đơn mới",
                             checkResult: "Đã cấp mã hóa đơn",
-                            note: note
+                            note: note,
+                            costType: costType
                         });
                     });
                     if (duplicates.length > 0) alert(`Phát hiện ${duplicates.length} hóa đơn trùng lặp...`);
@@ -1764,6 +1785,20 @@ export default function InternalTaxReport() {
                                             Ghi chú
                                         </TableSortLabel>
                                     </TableCell>
+                                    <TableCell rowSpan={2} align="center">
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                            <TableSortLabel
+                                                active={sortConfigGeneral.key === 'costType'}
+                                                direction={sortConfigGeneral.key === 'costType' ? sortConfigGeneral.direction : 'asc'}
+                                                onClick={() => handleRequestSortGeneral('costType')}
+                                            >
+                                                Loại chi phí
+                                            </TableSortLabel>
+                                            <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, 'costType')}>
+                                                <FilterList fontSize="small" color={columnFilters['costType'] ? "primary" : "action"} />
+                                            </IconButton>
+                                        </Box>
+                                    </TableCell>
                                 </TableRow>
                                 <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10, top: 50, textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' } }}>
                                     <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
@@ -1820,7 +1855,7 @@ export default function InternalTaxReport() {
                                         })
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={9} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                                        <TableCell colSpan={10} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                                             Không có dữ liệu cho tháng {month}/{year}
                                         </TableCell>
                                     </TableRow>
@@ -1987,6 +2022,12 @@ export default function InternalTaxReport() {
                         </Grid>
                         <Grid item xs={12} sm={6}>
                             <TextField label="Kết quả kiểm tra" name="checkResult" value={newInvoice.checkResult} onChange={handleInputChange} fullWidth size="small" />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField label="Ghi chú" name="note" value={newInvoice.note} onChange={handleInputChange} fullWidth size="small" />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField label="Loại chi phí" name="costType" value={newInvoice.costType} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
                     </Grid>
                 </DialogContent>

@@ -417,65 +417,85 @@ export default function AccountsReceivable() {
                 let updatedCount = 0;
                 let addedCount = 0;
 
-                for (const rowData of parsedRows) {
-                    // Determine Project Name from paste data
-                    let projectVal = '';
-                    let projectColFound = false;
-
-                    // Check if we are pasting into the project column or if it's included in the range
+                // 1. Map parsed text to objects based on columns
+                const tempObjects = parsedRows.map(rowData => {
+                    const obj = {};
+                    let hasProject = false;
                     rowData.forEach((cellValue, cellIndex) => {
                         const targetColumnIndex = startColumnIndex + cellIndex;
                         if (targetColumnIndex < tableColumns.length) {
-                            if (tableColumns[targetColumnIndex].field === 'project') {
-                                projectVal = cellValue;
-                                projectColFound = true;
-                            }
+                            const col = tableColumns[targetColumnIndex];
+                            obj[col.field] = col.type === 'number' ? toNum(cellValue) : cellValue;
+                            if (col.field === 'project') hasProject = true;
                         }
                     });
+                    return { data: obj, hasProject };
+                });
 
-                    // If we didn't find a project name in the paste (e.g. pasting only numbers), 
-                    // we can't check for duplicates by name effectively unless we are on a specific row.
-                    // But confirmPaste is usually for adding NEW rows or bulk pasting.
-                    // If pasting into existing rows, the user usually selects a cell and pastes.
-                    // But here we are iterating parsedRows.
-                    // If the user selected a cell in an EXISTING row and pasted multiple lines, 
-                    // the first line goes to the active row, subsequent lines might go to... where?
-                    // The current logic treats ALL pasted rows as potentially new or matching existing ones by name.
-                    // If 'project' is not in the pasted columns, we can't identify the project to check for duplicates.
-                    // In that case, we might just be creating new rows with empty names? 
-                    // Or if the user is pasting into "Debit" column for the *current* row?
-                    // The current implementation of `confirmPaste` seems designed to ADD rows (batch.set with newDocRef).
-                    // It doesn't seem to support "Paste over existing rows" in the sense of updating the *currently selected* row and the ones below it visually.
-                    // It creates NEW docs.
-                    // So, if 'project' is missing, we can't check for duplicates. We'll just add.
+                // 2. Aggregate Duplicates in Paste Data
+                const aggregatedMap = new Map();
+                const uniqueRowsToProcess = [];
 
-                    const existingRow = projectVal ? rows.find(r => r.category === category && (r.project || '').trim().toLowerCase() === (projectVal || '').trim().toLowerCase()) : null;
+                tempObjects.forEach(item => {
+                    if (item.hasProject && item.data.project) {
+                        const key = item.data.project.trim().toLowerCase();
+                        if (aggregatedMap.has(key)) {
+                            const existing = aggregatedMap.get(key);
+                            // Sum numeric fields
+                            Object.keys(item.data).forEach(field => {
+                                const colDef = tableColumns.find(c => c.field === field);
+                                if (colDef && colDef.type === 'number') {
+                                    existing[field] = (existing[field] || 0) + (item.data[field] || 0);
+                                }
+                            });
+                        } else {
+                            // Clone data to avoid reference issues
+                            const newItem = { ...item.data };
+                            aggregatedMap.set(key, newItem);
+                            uniqueRowsToProcess.push(newItem);
+                        }
+                    } else {
+                        // If no project name (or not pasting project column), process as is
+                        uniqueRowsToProcess.push(item.data);
+                    }
+                });
+
+                // 3. Process to DB
+                for (const rowObj of uniqueRowsToProcess) {
+                    const projectVal = rowObj.project;
+
+                    // Find existing row in DB
+                    const existingRow = projectVal
+                        ? rows.find(r => r.category === category && (r.project || '').trim().toLowerCase() === (projectVal || '').trim().toLowerCase())
+                        : null;
 
                     if (existingRow) {
-                        // DUPLICATE FOUND - UPDATE
+                        // DUPLICATE FOUND IN DB - UPDATE
                         const updateData = {};
                         const prevRow = getPrevData(projectVal);
 
-                        // Enforce Opening Balance Rule
+                        // Enforce Opening Balance Rule from Prev Quarter
                         if (prevRow) {
                             updateData.openingDebit = toNum(prevRow.closingDebit);
                             updateData.openingCredit = toNum(prevRow.closingCredit);
-                        } else {
+                        } else if (rowObj.openingDebit !== undefined) {
+                            // If no prev row, use pasted/aggregated opening balance if present
+                            // (Or should we enforce 0? Old logic enforced 0 if `!prevRow`. Let's stick to safe defaults)
+                            // Old logic: "else { updateData.openingDebit = 0... }"
+                            // But maybe user pasted opening balance? 
+                            // The Request doesn't say "Fix opening balance logic", but "Accumulate paste".
+                            // Staying consistent with old logic: Enforce strict opening balance control.
                             updateData.openingDebit = 0;
                             updateData.openingCredit = 0;
                         }
 
-                        // Update other fields from paste
-                        rowData.forEach((cellValue, cellIndex) => {
-                            const targetColumnIndex = startColumnIndex + cellIndex;
-                            if (targetColumnIndex < tableColumns.length) {
-                                const field = tableColumns[targetColumnIndex].field;
-                                // Skip opening balance fields (already handled) and project (already matched)
-                                if (field !== 'openingDebit' && field !== 'openingCredit') {
-                                    updateData[field] = tableColumns[targetColumnIndex].type === 'number' ? toNum(cellValue) : cellValue;
-                                }
+                        // Update other fields from aggregated paste
+                        Object.keys(rowObj).forEach(field => {
+                            if (field !== 'openingDebit' && field !== 'openingCredit' && field !== 'project') {
+                                updateData[field] = rowObj[field];
                             }
                         });
+
 
                         const docRef = doc(db, collectionPath, existingRow.id);
                         batch.update(docRef, updateData);
@@ -483,14 +503,12 @@ export default function AccountsReceivable() {
                     } else {
                         // NEW ROW
                         const newRowData = { category: category };
+                        // Default all columns
                         tableColumns.forEach(col => newRowData[col.field] = col.type === 'number' ? 0 : '');
 
-                        rowData.forEach((cellValue, cellIndex) => {
-                            const targetColumnIndex = startColumnIndex + cellIndex;
-                            if (targetColumnIndex < tableColumns.length) {
-                                const col = tableColumns[targetColumnIndex];
-                                newRowData[col.field] = col.type === 'number' ? toNum(cellValue) : cellValue;
-                            }
+                        // Override with pasted data
+                        Object.keys(rowObj).forEach(field => {
+                            newRowData[field] = rowObj[field];
                         });
 
                         // Attempt to link with prev quarter if project name matches
@@ -511,7 +529,7 @@ export default function AccountsReceivable() {
                 await batch.commit();
                 let messages = [];
                 if (addedCount > 0) messages.push(`Đã thêm ${addedCount} dòng mới.`);
-                if (updatedCount > 0) messages.push(`Đã cập nhật ${updatedCount} dòng trùng: Số liệu phát sinh/cuối kỳ theo dữ liệu dán, đầu kỳ lấy từ quý trước.`);
+                if (updatedCount > 0) messages.push(`Đã cập nhật ${updatedCount} dòng.`);
                 if (messages.length === 0) messages.push("Không có thay đổi nào.");
                 resolve(messages.join('. '));
             } catch (error) {
