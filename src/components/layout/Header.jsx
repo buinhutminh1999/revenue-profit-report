@@ -113,23 +113,44 @@ const pathMap = {
 };
 
 // ---------- Notification Config ----------
+// ---------- Notification Config ----------
 const notificationConfig = {
     ASSET_CREATED: { icon: <PlusCircle htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã tạo tài sản mới **${target}**.` },
     ASSET_DELETED: { icon: <Trash2 htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã xóa tài sản **${target}**.` },
+
+    // Existing keys
     ASSET_REQUEST_CREATED: { icon: <FilePlus htmlColor="#0288d1" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã gửi yêu cầu thêm tài sản **${target}**.` },
     ASSET_REQUEST_DELETED: { icon: <Trash2 htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor) => `**${actor}** đã xóa một yêu cầu thay đổi.` },
-    ASSET_REQUEST_REJECTED: { icon: <X htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã từ chối yêu cầu cho tài sản **${target}**.` },
+    ASSET_REQUEST_REJECTED: { icon: <X htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** đã từ chối yêu cầu **${details?.displayId || target}**${details?.reason ? ` (Lý do: ${details.reason})` : ''}.` },
     ASSET_REQUEST_APPROVED: { icon: <Check htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã duyệt yêu cầu cho tài sản **${target}**.` },
-    ASSET_REQUEST_HC_APPROVED: { icon: <UserCheck htmlColor="#1976d2" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** (P.HC) đã duyệt yêu cầu cho **${target}**.` },
-    ASSET_REQUEST_KT_APPROVED: { icon: <Check htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** (P.KT) đã duyệt xong yêu cầu cho **${target}**.` },
+    ASSET_REQUEST_HC_APPROVED: { icon: <UserCheck htmlColor="#1976d2" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** (P.HC) đã duyệt yêu cầu **${target || ''}**.` },
+    ASSET_REQUEST_KT_APPROVED: { icon: <Check htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** (P.KT) đã duyệt xong yêu cầu **${details?.executedType || ''}**.` },
+
+    // NEW KEYS mapped to Backend Actions
+    ASSET_REQUEST_ADD_CREATED: { icon: <FilePlus htmlColor="#0288d1" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** gửi yêu cầu thêm **${details?.name || target}** (${details?.displayId || ''}).` },
+    ASSET_REQUEST_DELETE_CREATED: { icon: <Trash2 htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** gửi yêu cầu xóa **${details?.name || target}** (${details?.displayId || ''}).` },
+    ASSET_REQUEST_REDUCE_CREATED: { icon: <FilePen htmlColor="#ed6c02" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** gửi yêu cầu giảm SL **${details?.name || target}** (${details?.displayId || ''}).` },
+    ASSET_REQUEST_INCREASE_CREATED: { icon: <FilePlus htmlColor="#0288d1" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** gửi yêu cầu tăng SL **${details?.name || target}** (${details?.displayId || ''}).` },
+    ASSET_REQUEST_BATCH_ADD_CREATED: { icon: <FilePlus htmlColor="#0288d1" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** gửi ${details?.count} yêu cầu thêm tài sản mới.` },
+
+    ASSET_REQUEST_BLOCK_APPROVED: { icon: <Check htmlColor="#1976d2" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** (Khối) đã duyệt yêu cầu.` },
+
+    ASSET_BATCH_ADD_WITH_SKIP: { icon: <PlusCircle htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** nhập nhanh **${details?.created}** tài sản (Bỏ qua ${details?.skipped}).` },
+    ASSET_DATES_BATCH_UPDATED: { icon: <FilePen htmlColor="#1976d2" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** cập nhật ngày kiểm kê cho **${details?.count}** tài sản.` },
+
+    CLOSE_QUARTER: { icon: <Check htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** đã chốt số liệu **${details?.quarter}/${details?.year}**.` },
+    CLOSE_QUARTER_FAILED: { icon: <X htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor) => `**${actor}** chốt số liệu thất bại.` },
+
     TRANSFER_CREATED: { icon: <Send htmlColor="#0288d1" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã tạo phiếu luân chuyển **${target}**.` },
+    TRANSFER_CREATED_VIA_FUNC: { icon: <Send htmlColor="#0288d1" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** đã tạo phiếu luân chuyển **${details?.displayId || target}**.` },
+
     TRANSFER_DELETED: { icon: <Trash2 htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã xóa phiếu luân chuyển **${target}**.` },
-    TRANSFER_SIGNED: { icon: <FilePen htmlColor="#1976d2" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** đã ký **${details}** cho phiếu **${target}**.` },
+    TRANSFER_SIGNED: { icon: <FilePen htmlColor="#1976d2" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** đã ký **${details?.step || details}** cho phiếu **${target}**.` },
     REPORT_CREATED: { icon: <FilePlus htmlColor="#0288d1" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã tạo **${target}**.` },
-    REPORT_SIGNED: { icon: <Check htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** đã ký **${details}** cho **${target}**.` },
+    REPORT_SIGNED: { icon: <Check htmlColor="#2e7d32" sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** đã ký **${details?.step || details}** cho **${target}**.` },
     REPORT_DELETED: { icon: <Trash2 htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã xóa **${target}**.` },
     REPORT_DELETED_BY_CALLABLE: { icon: <Trash2 htmlColor="#d32f2f" sx={{ fontSize: 20 }} />, template: (actor, target) => `**${actor}** đã xóa **${target}** (qua tác vụ hệ thống).` },
-    DEFAULT: { icon: <Bell sx={{ fontSize: 20 }} />, template: (actor) => `**${actor}** đã thực hiện một hành động.` }
+    DEFAULT: { icon: <Bell sx={{ fontSize: 20 }} />, template: (actor, target, details) => `**${actor}** đã thực hiện một hành động${details?.type ? ` (${details.type})` : ''}.` }
 };
 
 export default function Header({ onSidebarToggle, isSidebarOpen }) {
@@ -608,7 +629,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                                     {config.template(
                                                         n.actor?.name || "Một người dùng",
                                                         n.target?.name || "",
-                                                        n.details?.step || ""
+                                                        n.details || {}
                                                     ).split('**').map((text, index) => (
                                                         <b key={index} style={{ color: n.isRead ? undefined : theme.palette.primary.main }}>{index % 2 === 1 ? text : text}</b>
                                                     ))}

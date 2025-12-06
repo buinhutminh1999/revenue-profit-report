@@ -42,7 +42,7 @@ const syncedCellsConfig = {
     '131': ['cuoiKyCo'], '132': ['cuoiKyNo'], '133': ['cuoiKyNo'], '134': ['cuoiKyNo'], '142': ['cuoiKyNo'],
     '135': ['cuoiKyNo'], '339': ['cuoiKyCo'], '338': ['cuoiKyCo'],
     '139': ['cuoiKyCo'], '140': ['cuoiKyNo'], '332': ['cuoiKyCo'], '333': ['cuoiKyCo'],
-
+    '33101': ['cuoiKyCo'], '33102': ['cuoiKyCo'],
 };
 
 // --- STYLED COMPONENTS (GLASSMORPHISM) ---
@@ -119,7 +119,7 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
     const theme = useTheme();
 
     const groupedData = useMemo(() => {
-        if (!data?.items || data.type !== 'itemDetail') return {};
+        if (!data?.items || data.type === 'constructionPayablesSummary') return {};
         const groupedByProject = data.items.reduce((acc, item) => {
             (acc[item.projectName] = acc[item.projectName] || []).push(item);
             return acc;
@@ -127,11 +127,12 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
         Object.keys(groupedByProject).forEach(projectName => {
             const items = groupedByProject[projectName];
             const totals = items.reduce((acc, item) => {
-                acc.noPhaiTraCK += item.noPhaiTraCK;
-                acc.debt += item.debt;
-                acc.result += item.result;
+                acc.noPhaiTraCK += item.noPhaiTraCK || 0;
+                acc.debt += item.debt || 0;
+                acc.noPhaiTraCKNM += item.noPhaiTraCKNM || 0;
+                acc.result += item.result || 0;
                 return acc;
-            }, { noPhaiTraCK: 0, debt: 0, result: 0 });
+            }, { noPhaiTraCK: 0, debt: 0, noPhaiTraCKNM: 0, result: 0 });
             groupedByProject[projectName] = { items, totals };
         });
         return groupedByProject;
@@ -157,6 +158,14 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
                 { header: 'Cuối Kỳ Có', key: 'carryover', width: 15 },
                 { header: 'Cuối Kỳ Nợ', key: 'tonCuoiKy', width: 15 },
                 { header: 'Kết quả', key: 'result', width: 15 }
+            ];
+        } else if (data.type === 'factoryPayables') {
+            columns = [
+                { header: 'Tên Công Trình', key: 'projectName', width: 30 },
+                { header: 'Khoản Mục', key: 'description', width: 40 },
+                { header: 'Nợ Phải Trả CK', key: 'noPhaiTraCK', width: 20 },
+                { header: 'Nợ Phải Trả CK NM', key: 'noPhaiTraCKNM', width: 20 },
+                { header: 'Kết quả (Tổng)', key: 'result', width: 20 }
             ];
         } else {
             columns = [
@@ -257,8 +266,17 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
                 <TableHead>
                     <TableRow>
                         <GlassTableHeadCell sx={{ width: '30%' }}>Khoản Mục</GlassTableHeadCell>
-                        <GlassTableHeadCell align="right">Nợ Phải Trả CK</GlassTableHeadCell>
-                        <GlassTableHeadCell align="right">Nợ Phải Trả ĐK</GlassTableHeadCell>
+                        {data.type === 'factoryPayables' ? (
+                            <>
+                                <GlassTableHeadCell align="right">Nợ Phải Trả CK</GlassTableHeadCell>
+                                <GlassTableHeadCell align="right">Nợ Phải Trả CK NM</GlassTableHeadCell>
+                            </>
+                        ) : (
+                            <>
+                                <GlassTableHeadCell align="right">Nợ Phải Trả CK</GlassTableHeadCell>
+                                <GlassTableHeadCell align="right">Nợ Phải Trả ĐK</GlassTableHeadCell>
+                            </>
+                        )}
                         <GlassTableHeadCell align="right" sx={{ color: theme.palette.primary.main }}>Kết quả</GlassTableHeadCell>
                     </TableRow>
                 </TableHead>
@@ -292,15 +310,33 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
                                     sx={{ '&:hover': { backgroundColor: alpha(theme.palette.action.hover, 0.5) } }}
                                 >
                                     <GlassTableCell sx={{ pl: 4 }}>{item.description}</GlassTableCell>
-                                    <GlassTableCell align="right" sx={{ fontFamily: 'monospace' }}>{formatNumber(item.noPhaiTraCK)}</GlassTableCell>
-                                    <GlassTableCell align="right" sx={{ fontFamily: 'monospace' }}>{formatNumber(item.debt)}</GlassTableCell>
+                                    {data.type === 'factoryPayables' ? (
+                                        <>
+                                            <GlassTableCell align="right" sx={{ fontFamily: 'monospace' }}>{formatNumber(item.noPhaiTraCK)}</GlassTableCell>
+                                            <GlassTableCell align="right" sx={{ fontFamily: 'monospace' }}>{formatNumber(item.noPhaiTraCKNM)}</GlassTableCell>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <GlassTableCell align="right" sx={{ fontFamily: 'monospace' }}>{formatNumber(item.noPhaiTraCK)}</GlassTableCell>
+                                            <GlassTableCell align="right" sx={{ fontFamily: 'monospace' }}>{formatNumber(item.debt)}</GlassTableCell>
+                                        </>
+                                    )}
                                     <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{formatNumber(item.result)}</GlassTableCell>
                                 </MotionTableRow>
                             ))}
                             <TableRow sx={{ backgroundColor: alpha(theme.palette.grey[500], 0.03) }}>
                                 <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontStyle: 'italic', color: 'text.secondary' }}>Tổng {projectName}</GlassTableCell>
-                                <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{formatNumber(groupedData[projectName].totals.noPhaiTraCK)}</GlassTableCell>
-                                <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{formatNumber(groupedData[projectName].totals.debt)}</GlassTableCell>
+                                {data.type === 'factoryPayables' ? (
+                                    <>
+                                        <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{formatNumber(groupedData[projectName].totals.noPhaiTraCK)}</GlassTableCell>
+                                        <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{formatNumber(groupedData[projectName].totals.noPhaiTraCKNM)}</GlassTableCell>
+                                    </>
+                                ) : (
+                                    <>
+                                        <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{formatNumber(groupedData[projectName].totals.noPhaiTraCK)}</GlassTableCell>
+                                        <GlassTableCell align="right" sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{formatNumber(groupedData[projectName].totals.debt)}</GlassTableCell>
+                                    </>
+                                )}
                                 <GlassTableCell align="right" sx={{ fontWeight: 'bold', color: 'primary.main', fontSize: '1.1em', fontFamily: 'monospace' }}>
                                     {formatNumber(groupedData[projectName].totals.result)}
                                 </GlassTableCell>
@@ -857,6 +893,8 @@ const BalanceSheet = () => {
                     let totalFor332 = 0;
                     let totalFor333 = 0;
                     let totalFor339 = 0;
+                    let totalFor33101 = 0;
+                    let totalFor33102 = 0;
 
                     if (!projectsSnapshot.empty) {
                         const allProjectsData = projectsSnapshot.docs.map(p => ({ id: p.id, ...p.data() }));
@@ -870,6 +908,7 @@ const BalanceSheet = () => {
                                 const grandTotalRevenue = items.reduce((sum, item) => sum + toNumber(item.revenue || 0), 0);
 
                                 items.forEach(item => {
+                                    // Logic cũ cho 338, 332, 333, 339
                                     const psNo = grandTotalRevenue > 0 ? toNumber(item.noPhaiTraCK) : 0;
                                     const psGiam = grandTotalRevenue === 0 ? toNumber(item.directCost) : toNumber(item.debt);
                                     const dauKyNo = toNumber(item.debt);
@@ -882,6 +921,18 @@ const BalanceSheet = () => {
                                     if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-VT')) totalFor332 += result;
                                     if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-NC')) totalFor333 += result;
                                     if (item.description === "Chi phí NC + VT để bảo hành công trình") totalFor339 += result;
+
+                                    // Logic mới cho 33101, 33102
+                                    if (projectInfo.type === 'Nhà máy') {
+                                        if (item.project?.includes('-VT') && item.description === "+ NỢ VẬT TƯ") {
+                                            const val = toNumber(item.noPhaiTraCK) + toNumber(item.noPhaiTraCKNM);
+                                            totalFor33101 += val;
+                                        }
+                                        if (item.project?.includes('-VT') && item.description === "+ NỢ NHÂN CÔNG") {
+                                            const val = toNumber(item.noPhaiTraCK) + toNumber(item.noPhaiTraCKNM);
+                                            totalFor33102 += val;
+                                        }
+                                    }
                                 });
                             }
                         });
@@ -891,6 +942,8 @@ const BalanceSheet = () => {
                     addUpdateToBatch('332', 'cuoiKyCo', totalFor332);
                     addUpdateToBatch('333', 'cuoiKyCo', totalFor333);
                     addUpdateToBatch('339', 'cuoiKyCo', totalFor339);
+                    addUpdateToBatch('33101', 'cuoiKyCo', totalFor33101);
+                    addUpdateToBatch('33102', 'cuoiKyCo', totalFor33102);
                 }
 
                 // --- Phần 3 & 4: Đồng bộ TK 152, 155 ---
@@ -927,7 +980,7 @@ const BalanceSheet = () => {
 
     const handleShowDetails = useCallback(async (accountId) => {
         // Chỉ chạy cho các tài khoản được hỗ trợ xem chi tiết
-        if (!['338', '339', '332', '333'].includes(accountId)) return;
+        if (!['338', '339', '332', '333', '33101', '33102'].includes(accountId)) return;
 
         const toastId = toast.loading("Đang lấy dữ liệu chi tiết...");
         const toNumber = (value) => {
@@ -940,10 +993,36 @@ const BalanceSheet = () => {
         try {
             // Cấu hình riêng cho từng tài khoản
             const accountConfigs = {
-                '338': { title: 'Chi tiết TK 338 (Chi phí dự phòng rủi ro)', filter: (item, proj) => item.description === "Chi phí dự phòng rủi ro" },
-                '332': { title: 'Chi tiết TK 332 (Vật tư)', filter: (item, proj) => proj.type !== 'Nhà máy' && item.project?.includes('-VT') },
-                '333': { title: 'Chi tiết TK 333 (Nhân công)', filter: (item, proj) => proj.type !== 'Nhà máy' && item.project?.includes('-NC') },
-                '339': { title: 'Chi tiết TK 339 (Bảo hành công trình)', filter: (item, proj) => item.description === "Chi phí NC + VT để bảo hành công trình" }
+                '338': {
+                    title: 'Chi tiết TK 338 (Chi phí dự phòng rủi ro)',
+                    filter: (item, proj) => item.description === "Chi phí dự phòng rủi ro",
+                    type: 'constructionPayablesSummary'
+                },
+                '332': {
+                    title: 'Chi tiết TK 332 (Vật tư)',
+                    filter: (item, proj) => proj.type !== 'Nhà máy' && item.project?.includes('-VT'),
+                    type: 'constructionPayablesSummary' // Hoặc type mặc định cũ
+                },
+                '333': {
+                    title: 'Chi tiết TK 333 (Nhân công)',
+                    filter: (item, proj) => proj.type !== 'Nhà máy' && item.project?.includes('-NC'),
+                    type: 'constructionPayablesSummary' // Hoặc type mặc định cũ
+                },
+                '339': {
+                    title: 'Chi tiết TK 339 (Bảo hành công trình)',
+                    filter: (item, proj) => item.description === "Chi phí NC + VT để bảo hành công trình",
+                    type: 'constructionPayablesSummary' // Hoặc type mặc định cũ
+                },
+                '33101': {
+                    title: 'Chi tiết TK 33101 (Phải trả người bán - Vật tư)',
+                    filter: (item, proj) => proj.type === 'Nhà máy' && item.project?.includes('-VT') && item.description === "+ NỢ VẬT TƯ",
+                    type: 'factoryPayables'
+                },
+                '33102': {
+                    title: 'Chi tiết TK 33102 (Phải trả người bán - Nhân công)',
+                    filter: (item, proj) => proj.type === 'Nhà máy' && item.project?.includes('-VT') && item.description === "+ NỢ NHÂN CÔNG",
+                    type: 'factoryPayables'
+                }
             };
 
             const currentConfig = accountConfigs[accountId];
@@ -966,7 +1045,6 @@ const BalanceSheet = () => {
             let totalValue = 0;
             const detailItems = [];
 
-            // Logic hiển thị chi tiết dùng chung cho cả 4 tài khoản
             quarterDocSnapshots.forEach((quarterDocSnap, index) => {
                 if (quarterDocSnap.exists()) {
                     const projectInfo = allProjectsData[index];
@@ -975,29 +1053,55 @@ const BalanceSheet = () => {
                     const filteredItems = items.filter(item => currentConfig.filter(item, projectInfo));
 
                     filteredItems.forEach(item => {
-                        const psNo = grandTotalRevenue > 0 ? toNumber(item.noPhaiTraCK) : 0;
-                        const psGiam = grandTotalRevenue === 0 ? toNumber(item.directCost) : toNumber(item.debt);
-                        const dauKyNo = toNumber(item.debt);
-                        const dauKyCo = toNumber(item.openingCredit);
-                        const cuoiKyNo = Math.max(dauKyNo + psNo - psGiam - dauKyCo, 0);
-                        const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
-                        const result = cuoiKyNo - cuoiKyCo;
-
-                        totalValue += result;
-                        detailItems.push({
+                        let result = 0;
+                        let itemData = {
                             projectName: projectInfo.name || 'Không rõ',
                             description: item.description,
-                            tonCuoiKy: cuoiKyNo, // Cuối Kỳ Nợ
-                            carryover: cuoiKyCo, // Cuối Kỳ Có
-                            result: result,
-                        });
+                        };
+
+                        if (currentConfig.type === 'factoryPayables') {
+                            // Logic riêng cho 33101 và 33102
+                            const noPhaiTraCK = toNumber(item.noPhaiTraCK);
+                            const noPhaiTraCKNM = toNumber(item.noPhaiTraCKNM);
+                            result = noPhaiTraCK + noPhaiTraCKNM;
+
+                            itemData = {
+                                ...itemData,
+                                noPhaiTraCK,
+                                noPhaiTraCKNM,
+                                result
+                            };
+                        } else {
+                            // Logic mặc định cho các tài khoản cũ (tính theo công thức phức tạp)
+                            const psNo = grandTotalRevenue > 0 ? toNumber(item.noPhaiTraCK) : 0;
+                            const psGiam = grandTotalRevenue === 0 ? toNumber(item.directCost) : toNumber(item.debt);
+                            const dauKyNo = toNumber(item.debt);
+                            const dauKyCo = toNumber(item.openingCredit);
+                            const cuoiKyNo = Math.max(dauKyNo + psNo - psGiam - dauKyCo, 0);
+                            const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
+                            const calcResult = cuoiKyNo - cuoiKyCo;
+
+                            result = calcResult;
+
+                            itemData = {
+                                ...itemData,
+                                noPhaiTraCK: item.noPhaiTraCK, // Có thể hiển thị raw value
+                                debt: item.debt,
+                                tonCuoiKy: cuoiKyNo,
+                                carryover: cuoiKyCo,
+                                result: result,
+                            };
+                        }
+
+                        totalValue += result;
+                        detailItems.push(itemData);
                     });
                 }
             });
 
             setDetailData({
                 title: currentConfig.title,
-                type: 'constructionPayablesSummary', // Luôn dùng dialog kiểu của TK 338
+                type: currentConfig.type,
                 items: detailItems,
                 total: totalValue
             });

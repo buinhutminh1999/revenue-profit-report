@@ -10,4 +10,5 @@ export const assetSchema = z.object({
     departmentId: z.string().min(1, "Vui lòng chọn phòng ban"),
     // Các trường khác nếu cần
     managementBlock: z.string().optional(),
+    id: z.string().optional(),
 });

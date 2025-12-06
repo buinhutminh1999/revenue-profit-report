@@ -332,7 +332,7 @@ export default function AssetTransferPage() {
             (err) => { console.error("Error loading departments:", err); setError(err); setLoading(false); }
         );
         const unsubAssets = onSnapshot(
-            query(collection(db, "assets"), limit(100)),
+            query(collection(db, "assets")),
             (qs) => setAssets(qs.docs.map((d) => ({ id: d.id, ...d.data() }))),
             (err) => { console.error("Error loading assets:", err); setError(err); }
         );
@@ -677,8 +677,8 @@ export default function AssetTransferPage() {
 
     // ✅ THÊM useMemo MỚI NÀY
     const paginatedAssets = useMemo(() => {
-        return filteredAssets.slice(0, visibleAssetCount);
-    }, [filteredAssets, visibleAssetCount]);
+        return filteredAssets;
+    }, [filteredAssets]);
     // Nhóm theo phòng ban để render header mỗi nhóm
     const groupedAssets = useMemo(() => {
         const map = new Map();
@@ -3700,6 +3700,9 @@ export default function AssetTransferPage() {
                 </DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1, minWidth: { sm: 420 } }} component="form" id="asset-form" onSubmit={handleSubmit(onSubmitAsset)}>
+                        {/* ✅ Fix: Register hidden ID field to ensure it exists in data */}
+                        <input type="hidden" {...register("id")} />
+
                         <TextField autoFocus label="Tên tài sản" fullWidth required
                             error={!!errors.name} helperText={errors.name?.message}
                             {...register("name")} />
