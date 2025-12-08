@@ -71,9 +71,6 @@ const MaterialPriceComparisonDetail = lazy(() => import('../pages/finance/Materi
 const MaterialPriceComparison = lazy(() => import('../pages/finance/MaterialPriceComparison'));
 const InternalTaxReport = lazy(() => import('../pages/finance/InternalTaxReport'));
 
-// --- LAZY-LOAD CÁC TRANG CỦA MODULE CHẤM CÔNG ---
-const AttendanceDashboard = lazy(() => import('../pages/attendance/AttendanceDashboard'));
-
 // --- LAZY-LOAD CÁC TRANG CỦA MODULE GIÁM SÁT THIẾT BỊ ---
 const DeviceMonitoringDashboard = lazy(() => import('../pages/monitoring/DeviceMonitoringDashboard'));
 // --- COMPONENT ĐỊNH TUYẾN CHÍNH ---
@@ -152,11 +149,7 @@ function AppRoutes() {
                             path="material-price-comparison/:tableId"
                             element={<RequireEmailAccess pathKey="material-price-comparison">{lazyLoad(MaterialPriceComparisonDetail)}</RequireEmailAccess>}
                         />
-                        {/* === MODULE CHẤM CÔNG === */}
-                        <Route path="attendance">
-                            <Route index element={<RequireEmailAccess pathKey="attendance">{lazyLoad(AttendanceDashboard)}</RequireEmailAccess>} />
 
-                        </Route>
                         <Route path="reports">
                             <Route path="profit-quarter" element={<RequireEmailAccess pathKey="reports/profit-quarter">{lazyLoad(ProfitReportQuarter)}</RequireEmailAccess>} />
                             <Route path="profit-year" element={<RequireEmailAccess pathKey="reports/profit-year">{lazyLoad(ProfitReportYear)}</RequireEmailAccess>} />
