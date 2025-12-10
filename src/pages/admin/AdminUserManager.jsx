@@ -9,18 +9,13 @@ import {
 } from "@mui/material";
 import { styled, alpha, useTheme } from "@mui/material/styles";
 import {
-  Delete, Email, PeopleAlt, LockOpen, Lock, MoreVert, Block,
-  CheckCircle, Warning, Edit, GroupAdd, AdminPanelSettings, SupervisorAccount, History,
-  Search, FilterList, CloudDownload, Add, VerifiedUser, GppBad
+  MoreVert, LockOpen, Lock, Delete,
+  // Add other icons as needed, retaining existing ones if used in UI
+  PeopleAlt, AdminPanelSettings, SupervisorAccount, CheckCircle, VerifiedUser, GppBad, Search, Add, History, Edit, Email
 } from "@mui/icons-material";
-import {
-  collection, getDocs, updateDoc, doc, setDoc, serverTimestamp,
-  writeBatch, addDoc, query, orderBy as fsOrderBy
-} from "firebase/firestore";
-import { getAuth, sendPasswordResetEmail } from "firebase/auth";
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { db } from "../../services/firebase-config";
-import { getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { useAdminUsers } from "../../hooks/useAdminUsers";
+// Removed unused Firestore imports since logic is in hook
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { userFormSchema } from "../../schemas/adminSchema";
@@ -111,19 +106,7 @@ const headCells = [
 ];
 
 /* ---------------- UTILS ---------------- */
-const logActivity = async (action, actor, target = null, details = {}) => {
-  try {
-    await addDoc(collection(db, "audit_logs"), {
-      action,
-      actor: { uid: actor?.uid, email: actor?.email || "" },
-      target: target ? { uid: target.uid, email: target.email } : null,
-      details,
-      timestamp: serverTimestamp(),
-    });
-  } catch (error) {
-    console.error("Error logging activity:", error);
-  }
-};
+// logActivity moved to hook
 
 function descendingComparator(a, b, orderBy) {
   if (b[orderBy] < a[orderBy]) return -1;
@@ -357,13 +340,22 @@ const UserFormDialog = ({ open, onClose, onSave, initialValues, isEdit, departme
 
 /* ---------------- MAIN PAGE ---------------- */
 export default function AdminUserManager() {
-  const [users, setUsers] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    users,
+    departments,
+    loading,
+    error,
+    refreshData,
+    createUser,
+    updateUser,
+    deleteUsers,
+    toggleLockUsers
+  } = useAdminUsers();
+
   const [feedback, setFeedback] = useState({ open: false, message: "", severity: "info" });
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("");
-  const [filterVerified, setFilterVerified] = useState("all"); // New filter state
+  const [filterVerified, setFilterVerified] = useState("all");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [order, setOrder] = useState("desc");
@@ -371,47 +363,18 @@ export default function AdminUserManager() {
   const [selected, setSelected] = useState([]);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [editUserOpen, setEditUserOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState({ title: "", content: "", onConfirm: () => { } });
+  // const [confirmOpen, setConfirmOpen] = useState(false); // Unused in original code? Keeping if needed or removing if unused. Seems unused variable `confirmAction` was also there.
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
-  const auth = getAuth();
-  const functions = getFunctions(getApp(), "asia-southeast1");
-  const deleteUserByUid = httpsCallable(functions, "deleteUserByUid");
-  const inviteUser = httpsCallable(functions, 'inviteUser');
+  const auth = getAuth(); // Still needed for passed user prop? or can hook provide? Hook provides logic, but UI might need auth.currentUser for some checks if any.
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const deptsSnapshot = await getDocs(query(collection(db, "departments"), fsOrderBy("name")));
-      const deptsList = deptsSnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setDepartments(deptsList);
-
-      const usersSnapshot = await getDocs(collection(db, "users"));
-      const usersList = usersSnapshot.docs.map((d) => {
-        const userData = d.data();
-        const primary = deptsList.find((x) => x.id === userData.primaryDepartmentId);
-        return {
-          uid: d.id,
-          ...userData,
-          departmentName: primary ? primary.name : "Chưa gán",
-          managedCount: (userData.managedDepartmentIds || []).length,
-          // Mock data if missing
-          createdAt: userData.createdAt || userData.metadata?.creationTime || null,
-          lastLogin: userData.lastLogin || userData.metadata?.lastSignInTime || null,
-          emailVerified: userData.emailVerified || false, // Ensure boolean
-        };
-      });
-      setUsers(usersList);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      setFeedback({ open: true, message: "Không thể tải dữ liệu.", severity: "error" });
+  // Error handling from hook
+  useEffect(() => {
+    if (error) {
+      setFeedback({ open: true, message: error, severity: "error" });
     }
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  }, [error]);
 
   const filteredUsers = useMemo(() =>
     users.filter((u) => {
@@ -467,30 +430,19 @@ export default function AdminUserManager() {
   };
 
   const handleCreateUser = async (data) => {
-    setLoading(true);
     try {
-      await inviteUser({ ...data, createdAt: serverTimestamp() });
-      await fetchData();
-      setFeedback({ open: true, message: `Đã gửi lời mời tới ${data.email}`, severity: "success" });
+      const res = await createUser(data);
+      setFeedback({ open: true, message: res.message, severity: "success" });
       setAddUserOpen(false);
     } catch (error) {
       setFeedback({ open: true, message: `Lỗi: ${error.message}`, severity: "error" });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleUpdateUser = async (data) => {
     try {
-      await updateDoc(doc(db, "users", currentUser.uid), {
-        displayName: data.displayName,
-        role: data.role,
-        primaryDepartmentId: data.primaryDepartmentId || null,
-        managedDepartmentIds: data.managedDepartmentIds || [],
-      });
-      await logActivity("USER_UPDATED", auth.currentUser, currentUser, data);
-      fetchData();
-      setFeedback({ open: true, message: "Cập nhật thành công!", severity: "success" });
+      const res = await updateUser(currentUser.uid, data, currentUser);
+      setFeedback({ open: true, message: res.message, severity: "success" });
       setEditUserOpen(false);
     } catch (error) {
       setFeedback({ open: true, message: `Lỗi: ${error.message}`, severity: "error" });
@@ -498,24 +450,18 @@ export default function AdminUserManager() {
   };
 
   const handleBulkAction = async (actionType) => {
-    const adminUser = auth.currentUser;
-    const batch = writeBatch(db);
-    const selectedUsers = users.filter((u) => selected.includes(u.uid));
+    const selectedUsersFn = users.filter((u) => selected.includes(u.uid)).map(u => u.uid);
 
     try {
+      let res;
       if (actionType === "delete") {
-        await Promise.all(selectedUsers.map(u => deleteUserByUid({ uid: u.uid })));
+        res = await deleteUsers(selectedUsersFn);
       } else {
-        selectedUsers.forEach(u => {
-          const ref = doc(db, "users", u.uid);
-          batch.update(ref, { locked: actionType === "lock" });
-        });
-        await batch.commit();
+        res = await toggleLockUsers(selectedUsersFn, actionType === "lock");
       }
-      await logActivity(`BULK_${actionType.toUpperCase()}`, adminUser, null, { count: selectedUsers.length });
-      fetchData();
+
       setSelected([]);
-      setFeedback({ open: true, message: "Thao tác thành công!", severity: "success" });
+      setFeedback({ open: true, message: res.message, severity: "success" });
     } catch (error) {
       setFeedback({ open: true, message: `Lỗi: ${error.message}`, severity: "error" });
     }

@@ -18,7 +18,6 @@ const headerMap = {
     "c2": "C2",
 };
 
-
 const normalize = (h) =>
     h
         .toString()

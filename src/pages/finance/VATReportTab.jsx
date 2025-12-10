@@ -10,250 +10,427 @@ import {
     TableRow,
     Typography,
     useTheme,
-    alpha
+    alpha,
+    TextField
 } from '@mui/material';
+import { DragHandle } from '@mui/icons-material';
+import { parseCurrency, formatCurrencyOrDash } from '../../utils/currencyHelpers';
+import { InternalTaxService } from '../../services/internalTaxService';
 
 const vatReportData = {
     previousPeriodTax: {
         label: "Tiền thuế còn được khấu trừ kỳ trước",
-        bk: "2.105.990.712",
-        bkct: "297.261.416",
-        bklx: "302.961.244",
-        kt: "70.200.619",
-        av: "1.655.106"
+        bk: 0,
+        bkct: 0,
+        bklx: 0,
+        kt: 0,
+        av: 0
     },
     output: {
         stt: 1,
         label: "ĐẦU RA",
-        items: [
-            {
-                name: "NHÀ MÁY",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "5.631.491.925", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "450.519.354", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "6.082.011.279", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "BÁN RA VẬT TƯ",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "-", bkct: "2.818.732.404", bklx: "4.606.821.629", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "-", bkct: "225.498.596", bklx: "61.673.481", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "380.252.511", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "-", bkct: "3.044.231.000", bklx: "-", kt: "5.048.747.621", av: "-" } // Note: Data seems slightly misaligned in user request for SAU THUẾ columns, adjusting best effort based on total
-                ]
-            },
-            {
-                name: "NHÀ HÁT KHỐI CHÍNH",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "KÈ KV CHỢ TÂN PHÚ",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "1.542.243.518", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "123.379.482", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "1.665.623.000", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "HỒ NGUYỄN DU",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "6.405.268.519", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "512.421.481", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "6.917.690.000", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "DA BLX",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            }
-        ],
-        totalTax: {
-            label: "TỔNG TIỀN THUẾ ĐẦU RA",
-            bk: "1.086.320.317",
-            bkct: "225.498.596",
-            bklx: "-",
-            kt: "441.925.992",
-            av: "-"
-        }
+        items: []
     },
     input: {
         stt: 2,
         label: "ĐẦU VÀO",
-        items: [
-            {
-                name: "NHÀ MÁY",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "7.274.867.311", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 5%", bk: "4.937.618", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "213.638.991", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "449.764.755", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "7.943.208.675", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "ĐƯỜNG 942",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "2.333.333", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "186.667", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "118.618.963", bkct: "-", bklx: "-", kt: "-", av: "-" }, // Duplicate VAT 10% in source? Keeping as is.
-                    { type: "SAU THUẾ", bk: "2.060.062.408", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "HT MÁI CHE BẢO TỒN CÁC HỐ- NHÀ KHẢO CỔ TẠI KHU DI TÍCH ÓC EO-BA THÊ",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "796.035.154", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 5%", bk: "18.857", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "3.971.756", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "74.601.110", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "874.626.877", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "KÈ CHỢ TÂN PHÚ",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "NHÀ HÁT KHỐI CHÍNH",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "40.008.254", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 5%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "3.184.570", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "20.112", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "43.212.936", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "QUỐC LỘ 91",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "-", bkct: "47.260.741", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "-", bkct: "3.780.859", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "-", bkct: "-", bklx: "51.041.600", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "KÈ LONG ĐIỀN",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "919.737.699", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "64.424.948", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "11.442.585", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "995.605.232", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "KÈ LONG KIẾN",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "2.264.377.523", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "111.400.825", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "83.221.065", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "2.458.999.412", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "NHÀ PHỤ TRỢ BIDV THOẠI SƠN",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "-", bkct: "58.409.436", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "-", bkct: "4.672.755", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "-", bkct: "-", bklx: "63.082.191", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "Tài sản",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "BẮC LONG XUYÊN",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "2.669.744", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "213.580", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "2.883.324", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            },
-            {
-                name: "CPQL",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "266.064.033", bkct: "165.577.373", bklx: "41.409.909", kt: "9.318.631", av: "1.090.000" },
-                    { type: "VAT 5%", bk: "37.762", bkct: "-", bklx: "7.619", kt: "-", av: "45.381" }, // Sum manually checked roughly
-                    { type: "VAT 8%", bk: "11.346.470", bkct: "8.156.095", bklx: "733.300", kt: "-", av: "20.235.865" }, // Check total column from user input
-                    { type: "VAT 10%", bk: "5.253.889", bkct: "520.230", bklx: "90.991", kt: "109.000", av: "5.974.110" },
-                    { type: "SAU THUẾ", bk: "282.702.154", bkct: "174.253.698", bklx: "41.500.900", kt: "10.059.550", av: "1.199.000" }
-                ]
-            },
-            {
-                name: "MUA VẬT TƯ BÁN LẠI",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "-", bkct: "3.641.066.295", bklx: "5.861.559.597", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "-", bkct: "291.285.304", bklx: "115.026.755", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "442.372.524", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "-", bkct: "3.932.351.599", bklx: "311.249.382", kt: "6.418.958.876", av: "-" }
-                ]
-            },
-            {
-                name: "NHẬP KHO",
-                rows: [
-                    { type: "TRƯỚC THUẾ", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 8%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "VAT 10%", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" },
-                    { type: "SAU THUẾ", bk: "-", bkct: "-", bklx: "-", kt: "-", av: "-" }
-                ]
-            }
-        ],
+        items: [],
         totalTax: {
             label: "TỔNG TIỀN THUẾ ĐẦU VÀO",
-            bk: "1.212.219.966",
-            bkct: "299.961.629",
-            bklx: "8.544.605",
-            kt: "558.140.198",
-            av: "109.000"
+            bk: 0,
+            bkct: 0,
+            bklx: 0,
+            kt: 0,
+            av: 0
         }
     }
 };
 
-export default function VATReportTab() {
+export default function VATReportTab({ generalInvoices = [], purchaseInvoices = [], month, year }) {
     const theme = useTheme();
 
-    // Helper to parse currency string to number
-    const parseCurrency = (str) => {
-        if (!str || str === '-') return 0;
-        if (typeof str === 'number') return str;
-        return parseFloat(str.replace(/\./g, '').replace(/,/g, '.'));
+    // Previous period tax state (from Firebase)
+    const [previousPeriodTax, setPreviousPeriodTax] = React.useState({ bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 });
+    const [editingCell, setEditingCell] = React.useState(null); // 'bk' | 'bkct' | 'bklx' | 'kt' | 'av' | null
+    const [editValue, setEditValue] = React.useState('');
+    const [saveStatus, setSaveStatus] = React.useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+    const [lastSaved, setLastSaved] = React.useState(null); // Timestamp
+
+    // Load previous period tax from Firebase (Real-time subscription)
+    React.useEffect(() => {
+        const unsubscribe = InternalTaxService.subscribeToPreviousPeriodTax(month, year, (data) => {
+            setPreviousPeriodTax(data);
+        });
+
+        // Cleanup subscription on unmount or when dependencies change
+        return () => unsubscribe();
+    }, [month, year]);
+
+    // Custom order for content items (costType)
+    const [customOrder, setCustomOrder] = React.useState(() => {
+        const saved = localStorage.getItem(`vat-content-order-${month}-${year}`);
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    // Drag state
+    const dragItem = React.useRef(null);
+    const dragOverItem = React.useRef(null);
+
+    // Use formatCurrencyOrDash from shared helpers (returns "-" for zero values)
+    const formatCurrency = formatCurrencyOrDash;
+
+    // Handle click-to-edit for previous period tax
+    const handleStartEdit = (company, currentValue) => {
+        // Prevent re-triggering if already editing this cell
+        if (editingCell === company) return;
+
+        setEditingCell(company);
+        // If value is 0, start with empty string to make typing easier
+        // Otherwise format existing value
+        setEditValue(currentValue === 0 ? '' : formatCurrency(currentValue));
     };
 
-    // Helper to format number to currency string
-    const formatCurrency = (num) => {
-        if (isNaN(num) || num === 0) return "-";
-        return new Intl.NumberFormat('vi-VN').format(Math.round(num));
+    const handleSaveCell = async (company) => {
+        try {
+            // Check if value actually changed to avoid unnecessary saves
+            const numValue = parseCurrency(editValue);
+            if (numValue === previousPeriodTax[company]) {
+                setEditingCell(null);
+                setEditValue('');
+                return;
+            }
+
+            const oldData = { ...previousPeriodTax };
+            const updated = { ...previousPeriodTax, [company]: numValue };
+
+            // Optimistic update
+            setPreviousPeriodTax(updated);
+            setEditingCell(null);
+            setEditValue('');
+            setSaveStatus('saving');
+
+            // Save to server
+            await InternalTaxService.savePreviousPeriodTax(month, year, updated);
+
+            setSaveStatus('saved');
+            setLastSaved(new Date());
+
+            // Reset status after 3 seconds
+            setTimeout(() => setSaveStatus('idle'), 3000);
+        } catch (error) {
+            console.error("Error saving previous period tax:", error);
+            setSaveStatus('error');
+            alert("Lỗi khi lưu dữ liệu! Vui lòng thử lại.");
+            // Revert optimistic update
+            // setPreviousPeriodTax(oldData); // Uncomment if we want strict revert, but maybe let user retry
+        }
     };
 
-    const renderSection = (sectionData) => {
+    const handleCancelEdit = () => {
+        setEditingCell(null);
+        setEditValue('');
+    };
+
+    const getColumnKey = (sellerName) => {
+        if (!sellerName) return 'bk'; // Default or handle obscurely
+        const upper = sellerName.toUpperCase();
+
+        // Normalize Vietnamese characters for better matching
+        const normalized = upper
+            .replace(/[ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ]/g, 'A')
+            .replace(/[ÈÉẸẺẼÊỀẾỆỂỄ]/g, 'E')
+            .replace(/[ÌÍỊỈĨ]/g, 'I')
+            .replace(/[ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ]/g, 'O')
+            .replace(/[ÙÚỤỦŨƯỪỨỰỬỮ]/g, 'U')
+            .replace(/[ỲÝỴỶỸ]/g, 'Y')
+            .replace(/Đ/g, 'D');
+
+        // Check for specific company identifiers
+        // BKCT = Bách Khoa Châu Thành
+        if (upper.includes("CHÂU THÀNH") || upper.includes("CHAU THANH") || normalized.includes("CHAU THANH") || upper.includes(" CT")) return 'bkct';
+        // BKLX = Bách Khoa Long Xuyên
+        if (upper.includes("LONG XUYÊN") || upper.includes("LONG XUYEN") || normalized.includes("LONG XUYEN") || upper.includes(" LX")) return 'bklx';
+        // KT = Kiến Tạo
+        if (upper.includes("KIẾN TẠO") || upper.includes("KIEN TAO") || normalized.includes("KIEN TAO")) return 'kt';
+        // AV = An Vương
+        if (upper.includes("AN VƯƠNG") || upper.includes("AN VUONG") || normalized.includes("AN VUONG")) return 'av';
+
+        return 'bk'; // Default to Bach Khoa generic if no other match
+    };
+
+    const processOutputData = React.useMemo(() => {
+        const groups = {};
+
+        // Group by Cost Type
+        generalInvoices.forEach(inv => {
+            const type = inv.costType || "KHÁC";
+            if (!groups[type]) {
+                groups[type] = {
+                    name: type,
+                    items: []
+                };
+            }
+            groups[type].items.push(inv);
+        });
+
+        // Sort by custom order if available, otherwise alphabetically
+        const allKeys = Object.keys(groups);
+
+        // Filter customOrder to only include keys that exist in current data
+        const validCustomOrder = customOrder.filter(key => allKeys.includes(key));
+
+        // Add any new keys that aren't in customOrder yet
+        const newKeys = allKeys.filter(key => !validCustomOrder.includes(key)).sort();
+        const orderedKeys = [...validCustomOrder, ...newKeys];
+
+        const resultItems = orderedKeys.map(costType => {
+            const invoices = groups[costType].items;
+
+            // Initialize rows structure
+            const rowData = {
+                "TRƯỚC THUẾ": { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 },
+                "VAT 8%": { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 },
+                "VAT 10%": { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 },
+                "SAU THUẾ": { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 }
+            };
+
+            invoices.forEach(inv => {
+                const colKey = getColumnKey(inv.sellerName);
+                const valNoTax = parseCurrency(inv.totalNoTax);
+                const valTax = parseCurrency(inv.taxAmount);
+                const valTotal = parseCurrency(inv.totalPayment);
+
+                // Classify VAT rate roughly or based on tax/noTax ratio if not explicit? 
+                // Using taxAmount / totalNoTax to guess rate if not provided?
+                // Actually internal tax report usually doesn't have explicit rate column in general invoices?
+                // Let's look at `InternalTaxReport.jsx` again. It has `taxAmount`.
+                // Let's assume standard logic: if tax > 0, classify rate.
+                let rateKey = "VAT 10%";
+                if (valNoTax > 0) {
+                    const r = valTax / valNoTax;
+                    if (r > 0.07 && r < 0.09) rateKey = "VAT 8%";
+                    else if (r > 0.09) rateKey = "VAT 10%";
+                    else if (r > 0) rateKey = "VAT 10%"; // Default
+                }
+
+                // Add to rows
+                rowData["TRƯỚC THUẾ"][colKey] += valNoTax;
+                if (valTax > 0) {
+                    rowData[rateKey][colKey] += valTax;
+                }
+                rowData["SAU THUẾ"][colKey] += valTotal;
+            });
+
+            const formatRow = (type) => ({
+                type,
+                bk: formatCurrency(rowData[type].bk),
+                bkct: formatCurrency(rowData[type].bkct),
+                bklx: formatCurrency(rowData[type].bklx),
+                kt: formatCurrency(rowData[type].kt),
+                av: formatCurrency(rowData[type].av)
+            });
+
+            // Filter out VAT rows if 0? Or keep standard structure?
+            // Keeping standard structure for consistency
+            return {
+                name: costType,
+                rows: [
+                    formatRow("TRƯỚC THUẾ"),
+                    formatRow("VAT 8%"),
+                    formatRow("VAT 10%"),
+                    formatRow("SAU THUẾ")
+                ]
+            };
+        });
+
+        // Calculate Totals
+        const totalTax = { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+        generalInvoices.forEach(inv => {
+            const colKey = getColumnKey(inv.sellerName);
+            totalTax[colKey] += parseCurrency(inv.taxAmount);
+        });
+
+        // Save total output tax to Firebase (for next month to use)
+        InternalTaxService.saveOutputTaxTotal(month, year, totalTax).catch(err => {
+            console.error("Error saving output tax total:", err);
+        });
+
+        return {
+            stt: 1,
+            label: "ĐẦU RA",
+            items: resultItems,
+            totalTax: {
+                label: "TỔNG TIỀN THUẾ ĐẦU RA",
+                bk: formatCurrency(totalTax.bk),
+                bkct: formatCurrency(totalTax.bkct),
+                bklx: formatCurrency(totalTax.bklx),
+                kt: formatCurrency(totalTax.kt),
+                av: formatCurrency(totalTax.av)
+            }
+        };
+
+    }, [generalInvoices, customOrder]);
+
+    // Process input data from purchase invoices
+    const processInputData = React.useMemo(() => {
+        const groups = {};
+
+        // Group by costType (Loại chi phí)
+        purchaseInvoices.forEach(inv => {
+            const type = inv.costType || "KHÁC";
+            if (!groups[type]) {
+                groups[type] = {
+                    name: type,
+                    items: []
+                };
+            }
+            groups[type].items.push(inv);
+        });
+
+        const allKeys = Object.keys(groups).sort();
+
+        const resultItems = allKeys.map(costType => {
+            const invoices = groups[costType].items;
+
+            // Initialize rows structure
+            const rowData = {
+                "TRƯỚC THUẾ": { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 },
+                "VAT 5%": { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 },
+                "VAT 8%": { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 },
+                "VAT 10%": { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 },
+                "SAU THUẾ": { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 }
+            };
+
+            invoices.forEach(inv => {
+                // For purchase invoices, use 'buyer' field to determine column
+                const colKey = getColumnKey(inv.buyer);
+                const valNoTax = parseCurrency(inv.valueNoTax);
+                const valTax = parseCurrency(inv.tax);
+                const valTotal = valNoTax + valTax;
+
+                // Classify VAT rate
+                let rateKey = "VAT 10%";
+                if (valNoTax > 0) {
+                    const r = valTax / valNoTax;
+                    if (r > 0.04 && r < 0.06) rateKey = "VAT 5%";
+                    else if (r > 0.07 && r < 0.09) rateKey = "VAT 8%";
+                    else if (r > 0.09) rateKey = "VAT 10%";
+                    else if (r > 0) rateKey = "VAT 10%";
+                }
+
+                // Add to rows
+                rowData["TRƯỚC THUẾ"][colKey] += valNoTax;
+                if (valTax > 0) {
+                    rowData[rateKey][colKey] += valTax;
+                }
+                rowData["SAU THUẾ"][colKey] += valTotal;
+            });
+
+            const formatRow = (type) => ({
+                type,
+                bk: formatCurrency(rowData[type].bk),
+                bkct: formatCurrency(rowData[type].bkct),
+                bklx: formatCurrency(rowData[type].bklx),
+                kt: formatCurrency(rowData[type].kt),
+                av: formatCurrency(rowData[type].av)
+            });
+
+            return {
+                name: costType,
+                rows: [
+                    formatRow("TRƯỚC THUẾ"),
+                    formatRow("VAT 5%"),
+                    formatRow("VAT 8%"),
+                    formatRow("VAT 10%"),
+                    formatRow("SAU THUẾ")
+                ]
+            };
+        });
+
+        // Calculate Total Input Tax
+        const totalTax = { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+        purchaseInvoices.forEach(inv => {
+            const colKey = getColumnKey(inv.buyer);
+            totalTax[colKey] += parseCurrency(inv.tax);
+        });
+
+        // Save total input tax to Firebase (for VAT calculation)
+        InternalTaxService.saveInputTaxTotal(month, year, totalTax).catch(err => {
+            console.error("Error saving input tax total:", err);
+        });
+
+        return {
+            stt: 2,
+            label: "ĐẦU VÀO",
+            items: resultItems,
+            totalTax: {
+                label: "TỔNG TIỀN THUẾ ĐẦU VÀO",
+                bk: formatCurrency(totalTax.bk),
+                bkct: formatCurrency(totalTax.bkct),
+                bklx: formatCurrency(totalTax.bklx),
+                kt: formatCurrency(totalTax.kt),
+                av: formatCurrency(totalTax.av)
+            }
+        };
+
+    }, [purchaseInvoices]);
+
+    // Merge dynamic output with static input/prev
+    // Update customOrder when items change
+    React.useEffect(() => {
+        const currentKeys = Object.keys(processOutputData.items.reduce((acc, item) => {
+            acc[item.name] = true;
+            return acc;
+        }, {}));
+
+        // Only update if we have new keys
+        const hasNewKeys = currentKeys.some(key => !customOrder.includes(key));
+        if (hasNewKeys) {
+            const validOrder = customOrder.filter(key => currentKeys.includes(key));
+            const newKeys = currentKeys.filter(key => !validOrder.includes(key)).sort();
+            const updatedOrder = [...validOrder, ...newKeys];
+            setCustomOrder(updatedOrder);
+            localStorage.setItem(`vat-content-order-${month}-${year}`, JSON.stringify(updatedOrder));
+        }
+    }, [processOutputData, month, year, customOrder]);
+
+    // Drag handlers
+    const handleDragStart = (index) => {
+        dragItem.current = index;
+    };
+
+    const handleDragEnter = (index) => {
+        dragOverItem.current = index;
+    };
+
+    const handleDragEnd = () => {
+        if (dragItem.current === null || dragOverItem.current === null) return;
+        if (dragItem.current === dragOverItem.current) {
+            dragItem.current = null;
+            dragOverItem.current = null;
+            return;
+        }
+
+        // Reorder the items
+        const newOrder = [...customOrder];
+        const draggedItem = newOrder[dragItem.current];
+        newOrder.splice(dragItem.current, 1);
+        newOrder.splice(dragOverItem.current, 0, draggedItem);
+
+        setCustomOrder(newOrder);
+        localStorage.setItem(`vat-content-order-${month}-${year}`, JSON.stringify(newOrder));
+
+        dragItem.current = null;
+        dragOverItem.current = null;
+    };
+
+    const displayData = {
+        ...vatReportData,
+        output: processOutputData,
+        input: processInputData
+    };
+
+    const renderSection = (sectionData, enableDrag = false) => {
         return (
             <>
                 {sectionData.items.map((item, index) => (
@@ -261,7 +438,20 @@ export default function VATReportTab() {
                         {item.rows.map((row, rowIndex) => {
                             const rowTotal = parseCurrency(row.bk) + parseCurrency(row.bkct) + parseCurrency(row.bklx) + parseCurrency(row.kt) + parseCurrency(row.av);
                             return (
-                                <TableRow key={`${index}-${rowIndex}`} sx={{ '&:hover': { bgcolor: '#f1f5f9' } }}>
+                                <TableRow
+                                    key={`${index}-${rowIndex}`}
+                                    draggable={enableDrag && rowIndex === 0}
+                                    onDragStart={() => enableDrag && rowIndex === 0 && handleDragStart(index)}
+                                    onDragEnter={() => enableDrag && rowIndex === 0 && handleDragEnter(index)}
+                                    onDragEnd={handleDragEnd}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    sx={{
+                                        '&:hover': { bgcolor: '#f1f5f9' },
+                                        '& .MuiTableCell-root': { fontWeight: row.type === 'SAU THUẾ' ? 700 : 'inherit' },
+                                        cursor: enableDrag && rowIndex === 0 ? 'move' : 'default',
+                                        opacity: dragItem.current === index ? 0.5 : 1
+                                    }}
+                                >
                                     {rowIndex === 0 && (
                                         <>
                                             {index === 0 && (
@@ -284,6 +474,15 @@ export default function VATReportTab() {
                                                 rowSpan={item.rows.length}
                                                 sx={{ fontWeight: 600, verticalAlign: 'middle' }}
                                             >
+                                                {enableDrag && (
+                                                    <DragHandle sx={{
+                                                        fontSize: '1.2rem',
+                                                        color: 'text.secondary',
+                                                        cursor: 'grab',
+                                                        verticalAlign: 'middle',
+                                                        mr: 0.5
+                                                    }} />
+                                                )}
                                                 {item.name}
                                             </TableCell>
                                         </>
@@ -300,7 +499,6 @@ export default function VATReportTab() {
                         })}
                     </React.Fragment>
                 ))}
-                {/* Section Total Row */}
                 {/* Section Total Row */}
                 <TableRow sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1) }}>
                     <TableCell colSpan={4} sx={{ fontWeight: 700, textAlign: 'center' }}>
@@ -325,10 +523,32 @@ export default function VATReportTab() {
         );
     };
 
+    const periodString = React.useMemo(() => {
+        if (!month || !year) return "";
+        const m = parseInt(month, 10);
+        const y = parseInt(year, 10);
+
+        // Start date: 26 of previous month
+        let startMonth = m - 1;
+        let startYear = y;
+        if (startMonth === 0) {
+            startMonth = 12;
+            startYear = y - 1;
+        }
+
+        const startStr = `26/${startMonth.toString().padStart(2, '0')}/${startYear}`;
+        const endStr = `25/${m.toString().padStart(2, '0')}/${y}`;
+
+        return `${startStr}-${endStr}`;
+    }, [month, year]);
+
+    const monthStr = month && year ? `T${month} ${year}` : "T-- ----";
+    const quarterStr = month ? `QUÝ ${Math.ceil(parseInt(month) / 3)}` : "QUÝ -";
+
     return (
         <Box>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: '#1e293b', textAlign: 'center' }}>
-                BÁO CÁO TÌNH HÌNH HÓA ĐƠN VAT (26/09/2025 - 25/10/2025)
+                BÁO CÁO TÌNH HÌNH HÓA ĐƠN VAT {periodString}
             </Typography>
             <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
                 <Table sx={{ minWidth: 1200 }} size="small" aria-label="vat report table">
@@ -339,49 +559,87 @@ export default function VATReportTab() {
                             <TableCell rowSpan={2} sx={{ fontWeight: 700, borderRight: 1, borderColor: 'divider' }}>NỘI DUNG</TableCell>
                             <TableCell rowSpan={2} sx={{ fontWeight: 700, borderRight: 1, borderColor: 'divider' }}>CHI TIẾT</TableCell>
                             <TableCell align="center" sx={{ fontWeight: 700, borderRight: 1, borderColor: 'divider' }}>BÁCH KHOA</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 700, borderRight: 1, borderColor: 'divider' }}>BÁCH KHOA CT</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 700, borderRight: 1, borderColor: 'divider' }}>BÁCH KHOA LX</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 700, borderRight: 1, borderColor: 'divider' }}>BÁCH KHOA<br />CHÂU THÀNH</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 700, borderRight: 1, borderColor: 'divider' }}>BÁCH KHOA<br />LONG XUYÊN</TableCell>
                             <TableCell align="center" sx={{ fontWeight: 700, borderRight: 1, borderColor: 'divider' }}>KIẾN TẠO</TableCell>
                             <TableCell align="center" sx={{ fontWeight: 700, borderRight: 1, borderColor: 'divider' }}>AN VƯƠNG</TableCell>
                             <TableCell align="center" sx={{ fontWeight: 700 }}>TỔNG CỘNG</TableCell>
                         </TableRow>
                         <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
-                            <TableCell align="center" sx={{ fontWeight: 600, fontSize: '0.8rem', borderRight: 1, borderColor: 'divider' }}>T10 2025</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 600, fontSize: '0.8rem', borderRight: 1, borderColor: 'divider' }}>T10 2025</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 600, fontSize: '0.8rem', borderRight: 1, borderColor: 'divider' }}>QUÝ 4</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 600, fontSize: '0.8rem', borderRight: 1, borderColor: 'divider' }}>QUÝ 4</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 600, fontSize: '0.8rem', borderRight: 1, borderColor: 'divider' }}>QUÝ 4</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 600, fontSize: '0.8rem', borderRight: 1, borderColor: 'divider' }}>{monthStr}</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 600, fontSize: '0.8rem', borderRight: 1, borderColor: 'divider' }}>{monthStr}</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 600, fontSize: '0.8rem', borderRight: 1, borderColor: 'divider' }}>{quarterStr}</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 600, fontSize: '0.8rem', borderRight: 1, borderColor: 'divider' }}>{quarterStr}</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 600, fontSize: '0.8rem', borderRight: 1, borderColor: 'divider' }}>{quarterStr}</TableCell>
                             <TableCell align="center" sx={{ fontWeight: 600, fontSize: '0.8rem' }}></TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {/* Previous Period Tax Row */}
-                        {/* Previous Period Tax Row */}
-                        <TableRow>
+                        {/* Previous Period Tax Row - Click to Edit */}
+                        <TableRow sx={{ bgcolor: alpha(theme.palette.info.main, 0.05) }}>
                             <TableCell colSpan={4} sx={{ fontWeight: 600, textAlign: 'right' }}>
-                                {vatReportData.previousPeriodTax.label}
+                                Tiền thuế còn được khấu trừ kỳ trước
+                                {saveStatus !== 'idle' && (
+                                    <Typography component="span" variant="caption" sx={{
+                                        ml: 2, fontWeight: 'normal',
+                                        color: saveStatus === 'error' ? 'error.main' : saveStatus === 'saving' ? 'warning.main' : 'success.main'
+                                    }}>
+                                        {saveStatus === 'saving' ? '(Đang lưu...)' :
+                                            saveStatus === 'error' ? '(Lỗi lưu!)' :
+                                                saveStatus === 'saved' ? '(Đã lưu)' : ''}
+                                    </Typography>
+                                )}
                             </TableCell>
-                            <TableCell align="right">{vatReportData.previousPeriodTax.bk}</TableCell>
-                            <TableCell align="right">{vatReportData.previousPeriodTax.bkct}</TableCell>
-                            <TableCell align="right">{vatReportData.previousPeriodTax.bklx}</TableCell>
-                            <TableCell align="right">{vatReportData.previousPeriodTax.kt}</TableCell>
-                            <TableCell align="right">{vatReportData.previousPeriodTax.av}</TableCell>
+                            {['bk', 'bkct', 'bklx', 'kt', 'av'].map(company => (
+                                <TableCell key={company} align="right">
+                                    {editingCell === company ? (
+                                        <TextField
+                                            size="small"
+                                            autoFocus
+                                            value={editValue}
+                                            onChange={(e) => setEditValue(e.target.value)}
+                                            onBlur={() => handleSaveCell(company)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleSaveCell(company);
+                                                if (e.key === 'Escape') handleCancelEdit();
+                                            }}
+                                            sx={{ width: '120px', '& input': { textAlign: 'right' } }}
+                                        />
+                                    ) : (
+                                        <Box
+                                            onClick={() => handleStartEdit(company, previousPeriodTax[company])}
+                                            sx={{
+                                                cursor: 'pointer',
+                                                p: 1,
+                                                minHeight: '32px', // Ensure clickable area even if empty
+                                                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
+                                                borderRadius: 1,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'flex-end'
+                                            }}
+                                        >
+                                            {formatCurrency(previousPeriodTax[company])}
+                                        </Box>
+                                    )}
+                                </TableCell>
+                            ))}
                             <TableCell align="right" sx={{ fontWeight: 700 }}>
                                 {formatCurrency(
-                                    parseCurrency(vatReportData.previousPeriodTax.bk) +
-                                    parseCurrency(vatReportData.previousPeriodTax.bkct) +
-                                    parseCurrency(vatReportData.previousPeriodTax.bklx) +
-                                    parseCurrency(vatReportData.previousPeriodTax.kt) +
-                                    parseCurrency(vatReportData.previousPeriodTax.av)
+                                    previousPeriodTax.bk +
+                                    previousPeriodTax.bkct +
+                                    previousPeriodTax.bklx +
+                                    previousPeriodTax.kt +
+                                    previousPeriodTax.av
                                 )}
                             </TableCell>
                         </TableRow>
 
                         {/* Output Section */}
-                        {renderSection(vatReportData.output)}
+                        {renderSection(displayData.output, true)}
 
                         {/* Input Section */}
-                        {renderSection(vatReportData.input)}
+                        {renderSection(displayData.input)}
                     </TableBody>
                 </Table>
             </TableContainer>

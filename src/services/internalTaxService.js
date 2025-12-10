@@ -6,6 +6,9 @@ import {
     onSnapshot,
     addDoc,
     doc,
+    getDoc,
+    getDocFromServer,
+    setDoc,
     deleteDoc,
     writeBatch,
     getDocs,
@@ -229,6 +232,150 @@ export const InternalTaxService = {
             await batch.commit();
         } catch (error) {
             console.error("Error deleting all purchase invoices for month:", error);
+            throw error;
+        }
+    },
+
+    // --- VAT Report Data ---
+
+    /**
+     * Get previous period tax for a specific month/year
+     * Auto-loads from previous month's input tax if not set
+     * Uses getDocFromServer to bypass cache and always get fresh data
+     */
+    getPreviousPeriodTax: async (month, year) => {
+        try {
+            // Normalize ID to ensure consistency (e.g. 2025_9 instead of 2025_09)
+            const docId = `${parseInt(year)}_${parseInt(month)}`;
+            const docRef = doc(db, 'vatReports', docId);
+
+            // Force read from server to avoid stale cache after F5
+            const docSnap = await getDocFromServer(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.previousPeriodTax) {
+                    return data.previousPeriodTax;
+                }
+            }
+
+            // Auto-load from previous month's input tax total
+            const pMonth = parseInt(month);
+            const pYear = parseInt(year);
+            const prevMonth = pMonth === 1 ? 12 : pMonth - 1;
+            const prevYear = pMonth === 1 ? pYear - 1 : pYear;
+
+            // Normalize prev ID
+            const prevDocId = `${prevYear}_${prevMonth}`;
+            const prevDocRef = doc(db, 'vatReports', prevDocId);
+            const prevDocSnap = await getDocFromServer(prevDocRef);
+
+            if (prevDocSnap.exists()) {
+                const prevData = prevDocSnap.data();
+                if (prevData.inputTaxTotal) {
+                    return prevData.inputTaxTotal;
+                }
+            }
+
+            // Default values
+            return { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+        } catch (error) {
+            console.error("Error getting previous period tax:", error);
+            return { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+        }
+    },
+
+    subscribeToPreviousPeriodTax: (month, year, callback) => {
+        const docId = `${parseInt(year)}_${parseInt(month)}`;
+        const docRef = doc(db, 'vatReports', docId);
+
+        return onSnapshot(docRef, async (docSnap) => {
+            // If data exists for this month, use it
+            if (docSnap.exists() && docSnap.data().previousPeriodTax) {
+                callback(docSnap.data().previousPeriodTax);
+            } else {
+                // If not, try to fetch from previous month [One-off check]
+                try {
+                    const pMonth = parseInt(month);
+                    const pYear = parseInt(year);
+                    const prevMonth = pMonth === 1 ? 12 : pMonth - 1;
+                    const prevYear = pMonth === 1 ? pYear - 1 : pYear;
+
+                    const prevDocId = `${prevYear}_${prevMonth}`;
+                    const prevDocRef = doc(db, 'vatReports', prevDocId);
+                    // Use getDoc to leverage cache if available, or fetch if needed
+                    const prevDocSnap = await getDoc(prevDocRef);
+
+                    if (prevDocSnap.exists() && prevDocSnap.data().inputTaxTotal) {
+                        callback(prevDocSnap.data().inputTaxTotal);
+                    } else {
+                        callback({ bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 });
+                    }
+                } catch (error) {
+                    console.error("Error fetching previous month tax data fallback:", error);
+                    callback({ bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 });
+                }
+            }
+        }, (error) => {
+            console.error("Error subscribing to previous period tax:", error);
+        });
+    },
+
+    /**
+     * Save previous period tax for a specific month/year
+     */
+    savePreviousPeriodTax: async (month, year, data) => {
+        try {
+            const docId = `${parseInt(year)}_${parseInt(month)}`;
+            const docRef = doc(db, 'vatReports', docId);
+            await setDoc(docRef, {
+                previousPeriodTax: data,
+                month: parseInt(month),
+                year: parseInt(year),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+        } catch (error) {
+            console.error("Error saving previous period tax:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Save output tax total for a specific month/year
+     * This will be used by next month as previousPeriodTax
+     */
+    saveOutputTaxTotal: async (month, year, data) => {
+        try {
+            const docId = `${parseInt(year)}_${parseInt(month)}`;
+            const docRef = doc(db, 'vatReports', docId);
+            await setDoc(docRef, {
+                outputTaxTotal: data,
+                month: parseInt(month),
+                year: parseInt(year),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+        } catch (error) {
+            console.error("Error saving output tax total:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Save input tax total for a specific month/year
+     * This will be used by next month as previousPeriodTax
+     */
+    saveInputTaxTotal: async (month, year, data) => {
+        try {
+            const docId = `${parseInt(year)}_${parseInt(month)}`;
+            const docRef = doc(db, 'vatReports', docId);
+            await setDoc(docRef, {
+                inputTaxTotal: data,
+                month: parseInt(month),
+                year: parseInt(year),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+        } catch (error) {
+            console.error("Error saving input tax total:", error);
             throw error;
         }
     }

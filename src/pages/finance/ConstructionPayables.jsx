@@ -48,19 +48,13 @@ import {
 import { exportToExcel } from "../../utils/excelUtils";
 import { NumericFormat } from "react-number-format";
 import { db } from "../../services/firebase-config";
-import {
-    collection,
-    doc,
-    getDocs,
-    query,
-    orderBy,
-    onSnapshot,
-} from "firebase/firestore";
 import { toNum } from "../../utils/numberUtils";
 import { getApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { ErrorState, EmptyState, SkeletonDataGrid } from "../../components/common";
 import { ErrorOutline as AlertCircle, Inbox } from "@mui/icons-material";
+import { useConstructionPayables } from "../../hooks/useConstructionPayables";
+import { useCategories } from "../../hooks/useCategories";
 
 const SORT_CONFIG = {
     "Thi công": { key: "orderThiCong" },
@@ -394,14 +388,18 @@ const ConstructionPayables = () => {
     const [selectedQuarter, setSelectedQuarter] = useState(1);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [selectedProject, setSelectedProject] = useState(null);
-    const [categories, setCategories] = useState([]);
     const [expandedGroups, setExpandedGroups] = useState([]);
 
-    const [projects, setProjects] = useState([]);
+    // Data Hooks
+    const { payablesData, projects, isLoading, error } = useConstructionPayables(selectedYear, selectedQuarter);
+    const isError = !!error;
 
-    const [payablesData, setPayablesData] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isError, setIsError] = useState(false);
+    // Categories Hook
+    const activeSortKey = useMemo(() => {
+        const type = projects.find(p => p.id === selectedProject?.projectId)?.type;
+        return SORT_CONFIG[type]?.key || "order";
+    }, [selectedProject, projects]);
+    const { categories } = useCategories(activeSortKey);
 
     const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
@@ -436,111 +434,7 @@ const ConstructionPayables = () => {
         setIsClosing(false);
     };
 
-    useEffect(() => {
-        if (!selectedProject) {
-            setCategories([]);
-            return;
-        }
 
-        const projectDetails = projects.find(
-            (p) => p.id === selectedProject.projectId
-        );
-        const projectType = projectDetails?.type;
-
-        const activeSortKey = SORT_CONFIG[projectType]?.key || "order";
-
-        const q = query(
-            collection(db, "categories"),
-            orderBy(activeSortKey, "asc")
-        );
-
-        const unsub = onSnapshot(q, (snap) => {
-            const fetchedCategories = snap.docs.map((d) => ({
-                id: d.id,
-                ...d.data(),
-            }));
-            setCategories(fetchedCategories);
-        });
-
-        return () => unsub();
-    }, [selectedProject, projects]);
-
-    useEffect(() => {
-        setIsLoading(true);
-        setIsError(false);
-        const quarterString = `Q${selectedQuarter}`;
-
-        const unsubscribers = new Map();
-
-        const setupListeners = async () => {
-            try {
-                const projectsSnapshot = await getDocs(
-                    collection(db, "projects")
-                );
-                const fetchedProjects = projectsSnapshot.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                }));
-                setProjects(fetchedProjects);
-
-                let allData = {};
-
-                fetchedProjects.forEach((project) => {
-                    const docPath = `projects/${project.id}/years/${selectedYear}/quarters/${quarterString}`;
-                    const docRef = doc(db, docPath);
-
-                    const listener = onSnapshot(
-                        docRef,
-                        (docSnap) => {
-                            const projectItems = [];
-                            if (
-                                docSnap.exists() &&
-                                Array.isArray(docSnap.data().items)
-                            ) {
-                                const quarterlyOverallRevenue = toNum(
-                                    docSnap.data().overallRevenue
-                                );
-                                docSnap.data().items.forEach((item, index) => {
-                                    projectItems.push({
-                                        ...item,
-                                        _id: `${docSnap.ref.path}-${index}`,
-                                        projectId: project.id,
-                                        projectDisplayName: project.name,
-                                        quarterlyOverallRevenue:
-                                            quarterlyOverallRevenue,
-                                    });
-                                });
-                            }
-
-                            allData[project.id] = projectItems;
-                            setPayablesData(Object.values(allData).flat());
-                        },
-                        (error) => {
-                            console.error(
-                                `Error listening to project ${project.id}:`,
-                                error
-                            );
-                            setIsError(true);
-                        }
-                    );
-
-                    unsubscribers.set(project.id, listener);
-                });
-
-                setIsLoading(false);
-            } catch (error) {
-                console.error("Error fetching initial project list:", error);
-                setIsError(true);
-                setIsLoading(false);
-            }
-        };
-
-        setupListeners();
-
-        return () => {
-            unsubscribers.forEach((unsub) => unsub());
-        };
-    }, [selectedYear, selectedQuarter]);
     const processedData = useMemo(() => {
         // Đảm bảo cả payablesData và projects đều có sẵn
         if (!payablesData || !projects) return [];

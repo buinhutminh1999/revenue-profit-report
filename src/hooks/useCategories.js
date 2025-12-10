@@ -1,18 +1,31 @@
-import { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../services/firebase-config';
+import { useState, useEffect } from "react";
+import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
+import { db } from "../services/firebase-config";
 
-export function useCategories() {
-    const [options, setOptions] = useState([]);
+export function useCategories(sortKey = "order") {
+    const [categories, setCategories] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
     useEffect(() => {
-        let m = true;
-        getDocs(collection(db, "categories")).then((snap) => {
-            if (!m) return;
-            setOptions(snap.docs.map((d) => d.data().label || d.id).sort());
+        setIsLoading(true);
+        const q = query(collection(db, "categories"), orderBy(sortKey, "asc"));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const list = snapshot.docs.map((d) => ({
+                id: d.id,
+                ...d.data(),
+            }));
+            setCategories(list);
+            setIsLoading(false);
+        }, (err) => {
+            console.error("Error fetching categories:", err);
+            setError(err);
+            setIsLoading(false);
         });
-        return () => {
-            m = false;
-        };
-    }, []);
-    return options;
+
+        return () => unsubscribe();
+    }, [sortKey]);
+
+    return { categories, isLoading, error };
 }

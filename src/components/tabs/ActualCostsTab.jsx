@@ -26,6 +26,13 @@ import CostTable from "../project/CostTable";
 import SummaryPanel from "../ui/SummaryPanel";
 import FormulaGuide from "../ui/FormulaGuide";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import { useActualCosts } from "../../hooks/useActualCosts";
+import { motion } from "framer-motion";
+
+
+// ... (keep defaultRow and helpers) ...
+// The tool won't touch lines I don't specify, so I can just target the imports and component definition.
+// Wait, I need to match the imports block top.
 
 const SORT_CONFIG = {
     "Thi công": { key: "orderThiCong" },
@@ -33,7 +40,6 @@ const SORT_CONFIG = {
     "KH-ĐT": { key: "orderKhdt" },
 };
 
-// ---------- Dữ liệu mặc định ----------
 export const defaultRow = {
     id: generateUniqueId(),
     project: "",
@@ -69,6 +75,10 @@ const transformProjectName = (name) => {
             .replace(/\s+/g, "") + "-CP"
     );
 };
+
+
+
+
 
 export const handleFileUpload = (
     input,
@@ -278,26 +288,39 @@ const validateData = (rows) => rows.every(validateRow);
 export default function ActualCostsTab({ projectId }) {
     const id = projectId;
     const navigate = useNavigate();
-    const [costItems, setCostItems] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState("");
-    const [debouncedSearch, setDebouncedSearch] = useState(""); // Debounced search value
     const [year, setYear] = useState(String(new Date().getFullYear()));
     const [quarter, setQuarter] = useState("Q1");
+
+    const {
+        costItems,
+        setCostItems,
+        loading,
+        error: hookError,
+        projectData,
+        projectTotalAmount,
+        overallRevenue,
+        setOverallRevenue,
+        isProjectFinalized,
+        categories,
+        saveItems
+    } = useActualCosts(id, year, quarter);
+
+    const [search, setSearch] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
     const [snackOpen, setSnackOpen] = useState(false);
     const [error, setError] = useState(null);
     const [editingCell, setEditingCell] = useState({ id: null, colKey: null });
-    const [overallRevenue, setOverallRevenue] = useState("");
     const [overallRevenueEditing, setOverallRevenueEditing] = useState(false);
-    const [projectTotalAmount, setProjectTotalAmount] = useState("");
-    const [categories, setCategories] = useState([]);
-    const [projectData, setProjectData] = useState(null);
-    const [costAllocations, setCostAllocations] = useState(null);
     const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
-    const [isProjectFinalized, setIsProjectFinalized] = useState(false);
-    const [isFinalizing, setIsFinalizing] = useState(false); // Flag để tránh onSnapshot override
+    const [isFinalizing, setIsFinalizing] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const setLoading = setIsProcessing;
 
-    const [initialDbLoadComplete, setInitialDbLoadComplete] = useState(false);
+    const setIsProjectFinalized = (val) => { console.log("State is managed by hook/DB", val); };
+
+    useEffect(() => {
+        if (hookError) setError(hookError);
+    }, [hookError]);
     // V State mới để quản lý dialog xác nhận (ĐÃ CÓ)
     const [confirmState, setConfirmState] = useState({
         open: false,
@@ -312,105 +335,7 @@ export default function ActualCostsTab({ projectId }) {
     const handleCloseConfirm = () => {
         setConfirmState((prev) => ({ ...prev, open: false }));
     };
-    useEffect(() => {
-        const fetchCostAllocations = async () => {
-            if (!year || !quarter) return;
-            const docId = `${year}_${quarter}`;
-            const docRef = doc(db, "costAllocations", docId);
-            const docSnap = await getDoc(docRef);
 
-            if (docSnap.exists()) {
-                setCostAllocations(docSnap.data().mainRows || []);
-            } else {
-                console.warn(`Không tìm thấy dữ liệu phân bổ cho ${docId}`);
-                setCostAllocations([]);
-            }
-        };
-
-        fetchCostAllocations();
-    }, [year, quarter]);
-
-    useEffect(() => {
-        if (
-            !initialDbLoadComplete ||
-            !projectData ||
-            !costAllocations ||
-            categories.length === 0
-        ) {
-            return;
-        }
-
-        const allocationStatusMap = new Map(
-            categories.map((cat) => [cat.label, cat.allowAllocation])
-        );
-
-        let hasChanges = false;
-        const updatedCostItems = costItems.map((item) => {
-            const isAllowed = allocationStatusMap.get(item.description) ?? true;
-
-            if (!isAllowed) {
-                if (item.allocated !== "0") {
-                    hasChanges = true;
-                    const newItem = { ...item, allocated: "0" };
-                    calcAllFields(newItem, {
-                        overallRevenue,
-                        projectTotalAmount,
-                        projectType: projectData?.type,
-                    });
-                    return newItem;
-                }
-            } else if (
-                projectData.type === "Nhà máy" &&
-                costAllocations.length > 0
-            ) {
-                const allocationData = costAllocations.find(
-                    (allocItem) => allocItem.name === item.description
-                );
-
-                if (
-                    allocationData &&
-                    allocationData.nhaMayValue !== undefined
-                ) {
-                    const sourceNhaMayValue = Number(
-                        parseNumber(allocationData.nhaMayValue || "0")
-                    );
-                    const currentDirectCost = Number(
-                        parseNumber(item.directCost || "0")
-                    );
-                    const newAllocatedValue = String(
-                        sourceNhaMayValue - currentDirectCost
-                    );
-
-                    if (item.allocated !== newAllocatedValue) {
-                        hasChanges = true;
-                        const newItem = {
-                            ...item,
-                            allocated: newAllocatedValue,
-                        };
-                        calcAllFields(newItem, {
-                            overallRevenue,
-                            projectTotalAmount,
-                            projectType: projectData?.type,
-                        });
-                        return newItem;
-                    }
-                }
-            }
-            return item;
-        });
-
-        if (hasChanges) {
-            setCostItems(updatedCostItems);
-        }
-    }, [
-        initialDbLoadComplete,
-        costItems,
-        costAllocations,
-        categories,
-        projectData,
-        overallRevenue,
-        projectTotalAmount,
-    ]);
 
     const columnsAll = useMemo(
         () => [
@@ -507,30 +432,7 @@ export default function ActualCostsTab({ projectId }) {
         }, []);
     }, [columnsAll, projectData]);
 
-    useEffect(() => {
-        setLoading(true);
-        setInitialDbLoadComplete(false);
-    }, [id, year, quarter]);
 
-    const activeSortKey = useMemo(() => {
-        const projectType = projectData?.type;
-        return SORT_CONFIG[projectType]?.key || "order";
-    }, [projectData]);
-
-    useEffect(() => {
-        const q = query(
-            collection(db, "categories"),
-            orderBy(activeSortKey, "asc")
-        );
-        const unsub = onSnapshot(q, (snap) => {
-            const fetchedCategories = snap.docs.map((d) => ({
-                id: d.id,
-                ...d.data(),
-            }));
-            setCategories(fetchedCategories);
-        });
-        return () => unsub();
-    }, [activeSortKey]);
 
     useEffect(() => {
         localStorage.setItem(
@@ -584,184 +486,7 @@ export default function ActualCostsTab({ projectId }) {
         [sumKeys]
     );
 
-    useEffect(() => {
-        if (!id || !year || !quarter) return;
 
-        const docRef = doc(
-            db,
-            "projects",
-            id,
-            "years",
-            year,
-            "quarters",
-            quarter
-        );
-
-        const unsubscribe = onSnapshot(
-            docRef,
-            (docSnap) => {
-                try {
-                    // Lấy overallRevenue từ server doc để dùng ngay (state setOverallRevenue sẽ tới chậm hơn 1 tick)
-                    const orvFromDoc = parseNumber(
-                        docSnap.exists()
-                            ? docSnap.data().overallRevenue ?? 0
-                            : 0
-                    );
-                    setOverallRevenue(orvFromDoc);
-
-                    // Lấy trạng thái quyết toán từ document
-                    const docData = docSnap.exists() ? docSnap.data() : {};
-
-                    // Kiểm tra flag ở document level
-                    const docLevelFinalized = docData.isFinalized === true || docData.isFinalized === "true";
-
-                    // Kiểm tra flag ở item level (fallback cho dữ liệu cũ)
-                    const items = docData.items || [];
-                    const hasFinalizedItems = items.some(item => item.isFinalized === true || item.isFinalized === "true");
-
-                    const finalized = docLevelFinalized || hasFinalizedItems;
-
-                    console.log(`📊 onSnapshot: isFinalized = ${finalized} (Doc: ${docLevelFinalized}, Items: ${hasFinalizedItems})`, 'isFinalizing:', isFinalizing);
-
-                    // LOGIC CẬP NHẬT STATE TỪ SNAPSHOT:
-                    // 1. Nếu dữ liệu từ DB báo là ĐÃ quyết toán (finalized = true) -> Luôn cập nhật state thành true (ưu tiên sự thật từ DB).
-                    // 2. Nếu dữ liệu từ DB báo là CHƯA quyết toán (finalized = false):
-                    //    - Nếu đang trong quá trình xử lý (isFinalizing = true) -> Bỏ qua (để tránh UI bị giật về false do stale data).
-                    //    - Nếu không (isFinalizing = false) -> Cập nhật state thành false.
-                    if (finalized) {
-                        setIsProjectFinalized(true);
-                    } else if (!isFinalizing) {
-                        setIsProjectFinalized(false);
-                    }
-
-                    const rawItems = (
-                        docSnap.exists() ? docSnap.data().items || [] : []
-                    ).map((item) => ({
-                        ...item,
-                        id: item.id || generateUniqueId(),
-                        project: (item.project || "").trim().toUpperCase(),
-                        description: (item.description || "").trim(),
-                    }));
-
-                    // 👉 Quan trọng: tính lại tất cả các cột công thức NGAY khi nhận realtime
-                    const recalculated = rawItems.map((row) => {
-                        const r = { ...row };
-                        calcAllFields(r, {
-                            overallRevenue: orvFromDoc, // dùng giá trị mới ngay
-                            projectTotalAmount, // có thể là state hiện tại
-                            projectType: projectData?.type, // nếu chưa có, effect khác của bạn sẽ tính lại sau
-                            isUserEditingNoPhaiTraCK: false,
-                        });
-                        return r;
-                    });
-
-                    setCostItems(recalculated);
-                } catch (err) {
-                    setError(
-                        "Lỗi khi xử lý dữ liệu thời gian thực: " + err.message
-                    );
-                } finally {
-                    setInitialDbLoadComplete(true);
-                    setLoading(false);
-                }
-            },
-            (err) => {
-                setError("Lỗi lắng nghe dữ liệu: " + err.message);
-                setLoading(false);
-            }
-        );
-
-        return () => unsubscribe();
-    }, [id, year, quarter, projectData, projectTotalAmount]);
-
-    useEffect(() => {
-        if (!id) return;
-        setProjectData(null);
-        const loadProjectData = async () => {
-            try {
-                const projectDocRef = doc(db, "projects", id);
-                const projectDocSnap = await getDoc(projectDocRef);
-                if (projectDocSnap.exists()) {
-                    const data = projectDocSnap.data();
-                    setProjectData(data);
-                    setProjectTotalAmount(data.totalAmount || "0");
-                } else {
-                    setProjectData(null);
-                    setProjectTotalAmount("0");
-                }
-            } catch (err) {
-                setError("Lỗi tải dữ liệu dự án: " + err.message);
-            }
-        };
-        loadProjectData();
-    }, [id]);
-
-    useEffect(() => {
-        if (!initialDbLoadComplete || !projectData || categories.length === 0) {
-            if (
-                initialDbLoadComplete &&
-                projectData &&
-                categories.length === 0
-            ) {
-                setLoading(false);
-            }
-            return;
-        }
-
-        const requiredCategories = categories.filter((cat) => {
-            const { type } = projectData;
-            if (type === "Thi công" && cat.isThiCong) {
-                return true;
-            }
-            if (type === "Nhà máy" && cat.isNhaMay) {
-                return true;
-            }
-            if (type === "KH-ĐT" && cat.isKhdt) {
-                return true;
-            }
-            return false;
-        });
-
-        const transformedProjName = transformProjectName(projectData.name);
-        const currentCostItems = [...costItems];
-
-        const newItemsToAdd = requiredCategories
-            .filter((cat) => {
-                return !currentCostItems.some(
-                    (item) =>
-                        item.project === transformedProjName &&
-                        item.description === cat.label
-                );
-            })
-            .map((cat) => ({
-                ...defaultRow,
-                id: generateUniqueId(),
-                project: transformedProjName,
-                description: cat.label,
-            }));
-
-        if (newItemsToAdd.length > 0) {
-            setCostItems((prevItems) => [...prevItems, ...newItemsToAdd]);
-        }
-
-        setLoading(false);
-    }, [initialDbLoadComplete, projectData, categories]);
-
-    useEffect(() => {
-        if (loading) return;
-
-        setCostItems((prev) =>
-            prev.map((row) => {
-                const newRow = { ...row };
-                calcAllFields(newRow, {
-                    overallRevenue,
-                    projectTotalAmount,
-                    projectType: projectData?.type,
-                });
-                return newRow;
-            })
-        );
-    }, [overallRevenue, projectTotalAmount, loading, projectData]);
 
     // Debounce search để tránh filter quá nhiều lần
     useEffect(() => {
@@ -1017,21 +742,9 @@ export default function ActualCostsTab({ projectId }) {
             setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
             return;
         }
-        setLoading(true);
-        try {
-            await setDoc(
-                doc(db, "projects", id, "years", year, "quarters", quarter),
-                {
-                    items: costItems,
-                    overallRevenue: Number(overallRevenue),
-                    updated_at: new Date().toISOString(),
-                }
-            );
+        const success = await saveItems(costItems, overallRevenue);
+        if (success) {
             setSnackOpen(true);
-        } catch (err) {
-            setError("Lỗi lưu dữ liệu: " + err.message);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -1421,6 +1134,10 @@ export default function ActualCostsTab({ projectId }) {
             >
                 {/* Modern Filters Card */}
                 <Box
+                    component={motion.div}
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
                     sx={{
                         mb: 3,
                         borderRadius: 3,
@@ -1447,6 +1164,10 @@ export default function ActualCostsTab({ projectId }) {
 
                 {/* Summary Panel with Modern Card */}
                 <Box
+                    component={motion.div}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.5, delay: 0.1 }}
                     sx={{
                         mb: 3,
                         borderRadius: 3,
@@ -1475,6 +1196,10 @@ export default function ActualCostsTab({ projectId }) {
 
                 {/* Modern Table Container */}
                 <Box
+                    component={motion.div}
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
                     sx={{
                         borderRadius: 3,
                         background: "rgba(255, 255, 255, 0.95)",

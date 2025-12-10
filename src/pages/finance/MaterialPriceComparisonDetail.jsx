@@ -9,11 +9,7 @@ import {
     useTheme
 } from '@mui/material';
 import { EmptyState, ErrorState, SkeletonDataGrid } from '../../components/common';
-
-// --- IMPORT HOOK AUTH THỰC TẾ ---
-import { useAuth } from '../../contexts/AuthContext';
-import { usePermissions } from '../../contexts/AuthContext'; // ✨ Import usePermissions để kiểm tra quyền
-// ----------------------------------------
+import { useMaterialPriceDetail } from '../../hooks/useMaterialPriceDetail';
 
 // --- IMPORT CÁC HOOK TỪ TANSTACK TABLE ---
 import {
@@ -453,275 +449,51 @@ const generateColumns = (isPhongCungUngUser, updateCellValue, tableId, nccUsers,
 const MaterialPriceComparisonDetail = () => {
     const theme = useTheme();
     const { tableId } = useParams();
-    const [data, setData] = useState([]);
-    const [projectInfo, setProjectInfo] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+
+    // Custom Hook
+    const {
+        data,
+        projectInfo,
+        loading,
+        error,
+        nccUsers,
+        currentUser,
+        isDeadlinePassed,
+        deadlineDate,
+        canEditKeHoach,
+        isPhongCungUngUser,
+        updateCellValue,
+        overwriteKeHoach,
+        extendDeadline
+    } = useMaterialPriceDetail(tableId);
+
     const [pastedKeHoachData, setPastedKeHoachData] = useState(null);
-    const [nccUsers, setNccUsers] = useState([]);
-    const [targetDeptId, setTargetDeptId] = useState(null);
 
     // ✨ State cho chức năng gia hạn
     const [openExtendDialog, setOpenExtendDialog] = useState(false);
     const [extendDays, setExtendDays] = useState('');
     const [isExtending, setIsExtending] = useState(false);
 
-    // ✨ Lấy currentUser từ useAuth và usePermissions để kiểm tra quyền
-    const { currentUser } = useAuth();
-    const { canEditKeHoach: hasEditKeHoachPermission } = usePermissions(); // ✨ Lấy quyền từ usePermissions
-
-    // ✨ Kiểm tra deadline đã hết chưa - Phải khai báo trước khi sử dụng trong useMemo
-    const [isDeadlinePassed, setIsDeadlinePassed] = useState(false);
-
-    const deadlineDate = useMemo(() => {
-        if (projectInfo?.createdAt && projectInfo.durationDays) {
-            const startDate = projectInfo.createdAt.toDate ? projectInfo.createdAt.toDate() : new Date(projectInfo.createdAt);
-            return addDays(startDate, projectInfo.durationDays);
-        }
-        return null;
-    }, [projectInfo]);
-
-    // --- KHAI BÁO CÁC CỜ QUYỀN TRỰC TIẾP ---
-    // ✨ Quyền ghi Kế hoạch: Admin hoặc người có quyền "Ghi Kế Hoạch", NHƯNG phải kiểm tra deadline
-    const canEditKeHoach = useMemo(() => {
-        if (isDeadlinePassed) return false; // Hết deadline thì không ai được sửa
-        // Admin hoặc người có quyền "material-price-comparison/edit-ke-hoach"
-        return currentUser?.role === 'admin' || hasEditKeHoachPermission;
-    }, [currentUser, hasEditKeHoachPermission, isDeadlinePassed]);
-
-    // ✨ Quyền ghi Cung Ứng/Báo Giá: Kiểm tra VAI TRÒ NHÂN VIÊN và ID phòng Cung Ứng, NHƯNG phải kiểm tra deadline
-    const isPhongCungUngUser = useMemo(() => {
-        if (isDeadlinePassed) return false; // Hết deadline thì không ai được sửa
-
-        if (!currentUser) return false;
-
-        // Admin luôn có quyền, không cần kiểm tra phòng ban
-        if (currentUser.role === 'admin') return true;
-
-        // Nếu không phải admin, cần kiểm tra targetDeptId
-        if (!targetDeptId) return false;
-
-        // Chấp nhận các vai trò bạn muốn cấp quyền ghi (ví dụ: nhan-vien, truong-phong, pho-phong)
-        const isAuthorizedRole = ['nhan-vien', 'truong-phong', 'pho-phong'].includes(currentUser.role);
-
-        // Kiểm tra xem người dùng có được gán phòng ban mục tiêu để quản lý không
-        const isManagingTargetDept = (currentUser.managedDepartmentIds || []).includes(targetDeptId);
-
-        // Bạn có thể chọn chỉ cần là người thuộc phòng đó:
-        // const isPrimaryDeptUser = currentUser.primaryDepartmentId === targetDeptId;
-
-        // Sử dụng logic phân quyền dựa trên quản lý phòng ban (ví dụ tốt hơn):
-        return isAuthorizedRole && isManagingTargetDept;
-    }, [currentUser, targetDeptId, isDeadlinePassed]);
-    // -------------------------------------------------------------------
-
-    useEffect(() => {
-        if (deadlineDate) {
-            const checkDeadline = () => {
-                const now = new Date();
-                const expired = now >= deadlineDate;
-                setIsDeadlinePassed(expired);
-            };
-            checkDeadline();
-            const interval = setInterval(checkDeadline, 60000); // Kiểm tra mỗi phút
-            return () => clearInterval(interval);
-        } else {
-            // Nếu không có deadlineDate, reset trạng thái
-            setIsDeadlinePassed(false);
-        }
-    }, [deadlineDate]);
-
-    // --- Listener tải dữ liệu NCC và thông tin bảng (Giữ nguyên) ---
-    const setupStaticListeners = useCallback(async () => {
-        if (!tableId) return;
-
-        try {
-            // 1. Tải thông tin Phòng ban và tìm ID
-            const deptsSnapshot = await getDocs(collection(db, "departments"));
-            const targetDept = deptsSnapshot.docs
-                .find(d => d.data().name === TARGET_DEPT_NAME);
-
-            let usersList = [];
-
-            if (targetDept) {
-                const targetId = targetDept.id;
-                setTargetDeptId(targetId); // Lưu ID phòng ban
-
-                // 2. Lấy người dùng thuộc phòng ban mục tiêu
-                const usersQuery = query(
-                    collection(db, "users"),
-                    where("primaryDepartmentId", "==", targetId)
-                );
-                const usersSnapshot = await getDocs(usersQuery);
-                usersList = usersSnapshot.docs.map(d => d.data());
-            }
-
-            if (usersList.length > 0) {
-                setNccUsers(usersList);
-            } else {
-                // FALLBACK: Sử dụng danh sách cứng nếu không tìm thấy người dùng thực
-                setNccUsers([{ displayName: "Kiên" }, { displayName: "Minh" }, { displayName: "Phúc" }, { displayName: "Vân" }]);
-            }
-
-            // 3. Tải thông tin bảng
-            const tableDocRef = doc(db, 'priceComparisonTables', tableId);
-            const docSnap = await getDoc(tableDocRef);
-            if (!docSnap.exists()) { throw new Error("Không tìm thấy bảng so sánh giá này."); }
-            setProjectInfo(docSnap.data());
-
-        } catch (err) {
-            console.error("Lỗi khi tải dữ liệu tĩnh:", err);
-            setError(err.message);
-        }
-    }, [tableId]);
-
-    // --- Listener Realtime cho Items (Giữ nguyên) ---
-    const setupItemsListener = useCallback(() => {
-        if (!tableId) return () => { };
-
-        const itemsColRef = collection(db, 'priceComparisonTables', tableId, 'items');
-
-        const unsubscribe = onSnapshot(itemsColRef, (querySnapshot) => {
-            const fetchedData = querySnapshot.docs.map((doc) => ({
-                id: doc.id,
-                stt: doc.data().stt,
-                ...doc.data()
-            }));
-
-            fetchedData.sort((a, b) => (a.stt || Infinity) - (b.stt || Infinity));
-            setData(fetchedData);
-            setLoading(false);
-        }, (err) => {
-            console.error("Lỗi Realtime Firestore:", err);
-            setError("Không thể thiết lập kết nối Realtime.");
-            setLoading(false);
-        });
-
-        return unsubscribe;
-    }, [tableId]);
+    // XỬ LÝ DEADLINE VÀ QUYỀN ĐÃ ĐƯỢC CHUYỂN VÀO HOOK
 
 
-    useEffect(() => {
-        setupStaticListeners();
-        const unsubscribeItems = setupItemsListener();
-
-        return () => {
-            unsubscribeItems();
-        };
-    }, [setupStaticListeners, setupItemsListener]);
+    // Listeners đã được xử lý trong Hook
 
 
-    // --- HÀM CẬP NHẬT INLINE (Sử dụng isPhongCungUngUser mới) ---
-    const updateCellValue = useCallback(async (docId, field, newValue) => {
-
-        // ✨ Kiểm tra deadline trước tiên
-        if (isDeadlinePassed) {
-            toast.error("Thời gian đánh giá đã hết hạn. Không thể chỉnh sửa dữ liệu nữa.");
-            return;
-        }
-
-        // ✨ Kiểm tra quyền cho các cột Kế Hoạch (stt, tenVatTu, donVi, khoiLuong)
-        const isKeHoachField = ['stt', 'tenVatTu', 'donVi', 'khoiLuong'].includes(field);
-
-        if (isKeHoachField) {
-            // Đối với cột Kế Hoạch: Chỉ người có quyền canEditKeHoach mới được sửa
-            if (!canEditKeHoach) {
-                toast.error("Bạn không có quyền chỉnh sửa thông tin Kế hoạch. Quyền này dành cho người có quyền 'Ghi Kế Hoạch'.");
-                return;
-            }
-        } else {
-            // Kiểm tra quyền cho cột báo giá (các trường có chứa _giaKoVAT hoặc _giaVAT)
-            const isBaoGiaField = field.includes('_giaKoVAT') || field.includes('_giaVAT');
-
-            if (isBaoGiaField) {
-                // Đối với cột báo giá: Admin được sửa tất cả, nhân viên chỉ được sửa của chính mình
-                const isAdmin = currentUser?.role === 'admin';
-
-                if (!isAdmin && isPhongCungUngUser) {
-                    // Lấy tên người dùng từ field (ví dụ: "kien_giaKoVAT" -> "kien")
-                    const fieldPrefix = field.split('_')[0];
-                    const currentUserPrefix = currentUser?.displayName?.toLowerCase().replace(/\s/g, '');
-
-                    if (fieldPrefix !== currentUserPrefix) {
-                        toast.error("Bạn chỉ được sửa báo giá của chính mình.");
-                        return;
-                    }
-                } else if (!isPhongCungUngUser) {
-                    toast.error("Bạn không có quyền chỉnh sửa báo giá. Quyền này dành cho Phòng Cung Ứng.");
-                    return;
-                }
-            } else {
-                // Đối với cột Cung ứng: Kiểm tra quyền chung
-                if (!isPhongCungUngUser) {
-                    toast.error("Bạn không có quyền chỉnh sửa mục này. Quyền này dành cho Phòng Cung Ứng.");
-                    return;
-                }
-            }
-        }
-
-        const itemsColRef = collection(db, 'priceComparisonTables', tableId, 'items');
-        const docRef = doc(itemsColRef, docId);
-
-        try {
-            await updateDoc(docRef, { [field]: newValue });
-            // onSnapshot sẽ cập nhật data
-            toast.success("Đã cập nhật thành công!", { duration: 1000 });
-        } catch (error) {
-            console.error("Lỗi cập nhật Firestore:", error);
-            // Thêm logic để kiểm tra lỗi Permission Denied từ Firebase
-            let errorMessage = "Lỗi khi lưu dữ liệu. Thử lại!";
-            if (error.code === 'permission-denied') {
-                errorMessage = "Lỗi phân quyền: Bạn không có quyền ghi dữ liệu này.";
-            }
-            toast.error(errorMessage);
-        }
-    }, [tableId, isPhongCungUngUser, currentUser, isDeadlinePassed, canEditKeHoach]);
+    // updateCellValue đã được xử lý trong Hook
 
     // -----------------------------------------------------
     // --- LOGIC GHI ĐÈ KẾ HOẠCH (Sử dụng canEditKeHoach mới) ---
     // -----------------------------------------------------
+    // -----------------------------------------------------
+    // --- LOGIC GHI ĐÈ KẾ HOẠCH (Sử dụng Hook) ---
+    // -----------------------------------------------------
     const handleOverwriteDataKeHoach = async () => {
-        // ✨ Kiểm tra deadline trước tiên
-        if (isDeadlinePassed) {
-            toast.error("Thời gian đánh giá đã hết hạn. Không thể ghi đè Kế hoạch nữa.");
-            return;
-        }
+        if (!pastedKeHoachData || pastedKeHoachData.length === 0) return;
 
-        if (!pastedKeHoachData || pastedKeHoachData.length === 0 || !canEditKeHoach) {
-            toast.error("Bạn không có quyền ghi đè Kế hoạch.");
-            return;
-        }
-
-        const loadingToast = toast.loading("Đang ghi đè dữ liệu Kế hoạch mới...");
-
-        try {
-            const oldListener = setupItemsListener();
-            oldListener();
-
-            const batch = writeBatch(db);
-            const itemsColRef = collection(db, 'priceComparisonTables', tableId, 'items');
-
-            const oldSnapshot = await getDocs(itemsColRef);
-            oldSnapshot.docs.forEach(doc => { batch.delete(doc.ref); });
-
-            pastedKeHoachData.forEach(item => {
-                const { id, ...itemToSave } = item;
-                const newItemRef = doc(itemsColRef);
-                batch.set(newItemRef, { ...itemToSave, createdAt: new Date() });
-            });
-
-            await batch.commit();
-
+        const success = await overwriteKeHoach(pastedKeHoachData);
+        if (success) {
             setPastedKeHoachData(null);
-
-            toast.dismiss(loadingToast);
-            toast.success(`Đã GHI ĐÈ toàn bộ ${pastedKeHoachData.length} vật tư Kế hoạch thành công!`);
-        } catch (err) {
-            console.error("Lỗi khi ghi đè:", err);
-            toast.dismiss(loadingToast);
-            toast.error('Lỗi khi ghi dữ liệu. Vui lòng thử lại.');
-        } finally {
-            setupItemsListener(); // Khôi phục Listener
         }
     };
 
@@ -775,75 +547,18 @@ const MaterialPriceComparisonDetail = () => {
     // ✨ HÀM XỬ LÝ GIA HẠN THỜI GIAN
     const handleExtendDeadline = async () => {
         const days = parseInt(extendDays, 10);
-
         if (isNaN(days) || days <= 0) {
             toast.error("Vui lòng nhập số ngày hợp lệ (lớn hơn 0).");
             return;
         }
 
-        // ✨ Kiểm tra quyền: Admin hoặc người có quyền "Ghi Kế Hoạch"
-        const canExtend = currentUser?.role === 'admin' || hasEditKeHoachPermission;
-        if (!currentUser || !canExtend) {
-            toast.error("Chỉ Admin hoặc người có quyền 'Kế Hoạch Đề Xuất Vật Tư' mới có quyền gia hạn thời gian.");
-            return;
-        }
-
-        if (!tableId) {
-            toast.error("Không tìm thấy ID bảng. Vui lòng tải lại trang.");
-            return;
-        }
-
         setIsExtending(true);
+        const success = await extendDeadline(days);
+        setIsExtending(false);
 
-        try {
-            const tableDocRef = doc(db, 'priceComparisonTables', tableId);
-            const currentDuration = projectInfo?.durationDays || 0;
-            const newDuration = currentDuration + days;
-
-            // Cập nhật Firestore
-            await updateDoc(tableDocRef, {
-                durationDays: newDuration
-            });
-
-            // ✨ Reload projectInfo từ Firestore để đảm bảo dữ liệu mới nhất
-            const updatedDoc = await getDoc(tableDocRef);
-            if (updatedDoc.exists()) {
-                const updatedData = updatedDoc.data();
-
-                // ✨ Cập nhật projectInfo - đảm bảo tạo object mới để trigger re-render
-                setProjectInfo({ ...updatedData });
-
-                // ✨ Tính lại deadlineDate ngay lập tức để đảm bảo UI cập nhật
-                if (updatedData.createdAt && updatedData.durationDays) {
-                    const startDate = updatedData.createdAt.toDate ? updatedData.createdAt.toDate() : new Date(updatedData.createdAt);
-                    const newDeadline = addDays(startDate, updatedData.durationDays);
-
-                    // Reset trạng thái hết hạn ngay lập tức
-                    const now = new Date();
-                    const stillExpired = now >= newDeadline;
-                    setIsDeadlinePassed(stillExpired);
-                }
-            } else {
-                // Fallback: cập nhật state trực tiếp nếu không load được
-                setProjectInfo(prev => ({
-                    ...prev,
-                    durationDays: newDuration
-                }));
-                setIsDeadlinePassed(false);
-            }
-
-            toast.success(`Đã gia hạn thêm ${days} ngày thành công! Deadline mới sẽ được cập nhật.`);
+        if (success) {
             setOpenExtendDialog(false);
             setExtendDays('');
-        } catch (error) {
-            console.error("Lỗi khi gia hạn:", error);
-            let errorMessage = "Lỗi khi gia hạn thời gian. Vui lòng thử lại.";
-            if (error.code === 'permission-denied') {
-                errorMessage = "Lỗi phân quyền: Bạn không có quyền cập nhật thời gian đánh giá.";
-            }
-            toast.error(errorMessage);
-        } finally {
-            setIsExtending(false);
         }
     };
     // -----------------------------------------------------

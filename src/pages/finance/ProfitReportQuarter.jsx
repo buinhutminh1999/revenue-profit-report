@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import React, { useState } from "react";
 import { createWorkbook, saveWorkbook } from "../../utils/excelUtils";
 import {
     Dialog,
@@ -10,8 +10,6 @@ import {
     Checkbox,
     Menu,
     ListItemText,
-} from "@mui/material";
-import {
     Box,
     Typography,
     Paper,
@@ -29,18 +27,15 @@ import {
     MenuItem,
     TextField,
     Button,
-    Switch,
-    FormControlLabel,
 } from "@mui/material";
 import { ViewColumn as ViewColumnIcon, Tv as TvIcon, Computer as ComputerIcon } from '@mui/icons-material';
-import { useTheme } from '@mui/material/styles'; // ✅ Thêm useTheme
+import { useTheme } from '@mui/material/styles';
 import SaveIcon from "@mui/icons-material/Save";
-import { collection, getDocs, setDoc, doc, getDoc, collectionGroup, onSnapshot } from "firebase/firestore";
+import FunctionsIcon from '@mui/icons-material/Functions';
+import { collection, setDoc, doc } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
 import { toNum, formatNumber } from "../../utils/numberUtils";
-import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import ProfitSummaryTable from "../../reports/ProfitSummaryTable";
-import FunctionsIcon from '@mui/icons-material/Functions';
 import ProfitReportFormulaGuide from '../../components/PerformanceReport/ProfitReportFormulaGuide';
 import {
     updateLDXRow, updateSalanRow, updateDTLNLDXRow, updateThuNhapKhacRow,
@@ -48,21 +43,34 @@ import {
     updateXayDungRow, updateSanXuatRow, updateGroupII1, calculateTotals,
     updateVuotCPRows, updateLoiNhuanRongRow
 } from "../../utils/profitReportCalculations";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { addProjectSchema } from "../../schemas/reportingSchemas";
+import { useProfitReportQuarter } from "../../hooks/useProfitReportQuarter";
+import toast from 'react-hot-toast';
 
 export default function ProfitReportQuarter() {
-    const theme = useTheme(); // ✅ Thêm useTheme để đảm bảo theme được load
+    const theme = useTheme();
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedQuarter, setSelectedQuarter] = useState("Q1");
-    const [rows, setRows] = useState([]);
-    const [tvMode, setTvMode] = useState(false); // ✅ Mặc định false cho PC/laptop
+
+    // Custom Hook
+    const {
+        rows,
+        setRows,
+        isLoading: loading,
+        summaryTargets,
+        setSummaryTargets,
+        refreshData,
+        saveReport
+    } = useProfitReportQuarter(selectedYear, selectedQuarter);
+
+    const [tvMode, setTvMode] = useState(false);
     const [editingCell, setEditingCell] = useState({ idx: -1, field: "" });
     const [addModal, setAddModal] = useState(false);
+    const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
 
-
-    const { register, handleSubmit, reset, formState: { errors }, control } = useForm({
+    const { register, handleSubmit, reset, formState: { errors } } = useForm({
         resolver: zodResolver(addProjectSchema),
         defaultValues: {
             group: "I.1. Dân Dụng + Giao Thông",
@@ -71,18 +79,7 @@ export default function ProfitReportQuarter() {
         }
     });
 
-    // const [addProject, setAddProject] = useState({ ... }); // REMOVED
-    const [loading, setLoading] = useState(false);
-    const [summaryTargets, setSummaryTargets] = useState({
-        revenueTargetXayDung: 0,
-        profitTargetXayDung: 0,
-        revenueTargetSanXuat: 0,
-        profitTargetSanXuat: 0,
-        revenueTargetDauTu: 0,
-        profitTargetDauTu: 0,
-    });
-    const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
-
+    // Handle Add Project
     const handleAddProject = async (data) => {
         try {
             const newProjectRef = doc(collection(db, "projects"));
@@ -128,27 +125,27 @@ export default function ProfitReportQuarter() {
                 updatedRows.splice(groupIndex + 1, 0, newRow);
                 setRows(updatedRows);
             } else {
-                // Fallback nếu không tìm thấy nhóm
                 setRows([...rows, newRow]);
             }
 
             setAddModal(false);
-            reset(); // Reset form
+            reset();
+            toast.success("Thêm công trình thành công!");
+            // Trigger refresh to ensure sync
+            // refreshData(); // Optional: might overwrite local optimisitc update if server not ready
         } catch (error) {
             console.error("Lỗi khi thêm công trình:", error);
+            toast.error("Có lỗi xảy ra khi thêm công trình");
         }
     };
-    // ======================================================================
-    // ✅ BẮT ĐẦU: DÁN TOÀN BỘ KHỐI CODE NÀY VÀO ĐÂY
-    // ======================================================================
 
     const [columnVisibility, setColumnVisibility] = useState({
         revenue: true,
         cost: true,
         profit: true,
-        profitMarginOnCost: true, // % LN / GIÁ VỐN
-        plannedProfitMargin: true, // % LN THEO KH
-        quarterlyProfitMargin: true, // % LN QUÍ
+        profitMarginOnCost: true,
+        plannedProfitMargin: true,
+        quarterlyProfitMargin: true,
         costOverQuarter: true,
         target: true,
         note: true,
@@ -190,771 +187,24 @@ export default function ProfitReportQuarter() {
 
     const cellStyle = {
         minWidth: tvMode ? 150 : 80,
-        fontSize: tvMode ? "1.2rem" : "0.9rem", // ✅ Tăng font size cho TV mode
+        fontSize: tvMode ? "1.2rem" : "0.9rem",
         px: tvMode ? 3 : 2,
-        py: tvMode ? 2.5 : 1, // ✅ Tăng khoảng cách dọc cho TV mode
+        py: tvMode ? 2.5 : 1,
         whiteSpace: "nowrap",
         verticalAlign: "middle",
         overflow: "hidden",
         textOverflow: "ellipsis",
-        border: tvMode ? "2px solid #ccc" : "1px solid #ccc", // ✅ Tăng border cho TV mode
-        fontWeight: tvMode ? 500 : 400, // ✅ Tăng font weight cho TV mode
+        border: tvMode ? "2px solid #ccc" : "1px solid #ccc",
+        fontWeight: tvMode ? 500 : 400,
     };
 
-    // =================================================================
-    // CÁC HÀM TÍNH TOÁN (HELPER FUNCTIONS)
-    // =================================================================
-
-    // DÁN TOÀN BỘ CODE NÀY VÀO VỊ TRÍ useEffect CŨ
-    useEffect(() => {
-        // Hàm này chứa toàn bộ logic lấy và xử lý dữ liệu của bạn
-        const processData = async () => {
-            console.log("Realtime update triggered! Reprocessing data...");
-            setLoading(true);
-
-            // ✅ BƯỚC 1: ĐIỀN LẠI LOGIC VÀO 2 HÀM NÀY
-            const getCostOverQuarter = async (fieldName) => {
-                try {
-                    const snap = await getDoc(
-                        doc(db, "costAllocationsQuarter", `${selectedYear}_${selectedQuarter}`)
-                    );
-                    if (snap.exists()) return toNum(snap.data()[fieldName]);
-                } catch { }
-                return 0;
-            };
-
-            const getCpVuotSanXuat = async () => {
-                try {
-                    const docRef = doc(db, `projects/HKZyMDRhyXJzJiOauzVe/years/${selectedYear}/quarters/${selectedQuarter}`);
-                    const docSnap = await getDoc(docRef);
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        if (Array.isArray(data.items) && data.items.length > 0) {
-                            return data.items.reduce((sum, item) => sum + toNum(item.cpVuot || 0), 0);
-                        }
-                        if (data.cpVuot !== undefined) {
-                            return toNum(data.cpVuot);
-                        }
-                    }
-                } catch (error) {
-                    console.error("Lỗi khi lấy cpVuot cho Sản xuất:", error);
-                }
-                return 0;
-            };
-
-            const [
-                projectsSnapshot,
-                cpVuotCurr,
-                cpVuotNhaMay,
-                cpVuotKhdt,
-                profitChangesDoc,
-            ] = await Promise.all([
-                getDocs(collection(db, "projects")),
-                getCostOverQuarter("totalThiCongCumQuarterOnly"),
-                getCpVuotSanXuat(),
-                getCostOverQuarter("totalKhdtCumQuarterOnly"),
-                getDoc(doc(db, "profitChanges", `${selectedYear}_${selectedQuarter}`)),
-            ]);
-
-            const projects = await Promise.all(
-                projectsSnapshot.docs.map(async (d) => {
-                    const data = d.data();
-                    let revenue = 0;
-                    let cost = 0;
-
-                    try {
-                        const qPath = `projects/${d.id}/years/${selectedYear}/quarters/${selectedQuarter}`;
-                        const qSnap = await getDoc(doc(db, qPath));
-
-                        if (qSnap.exists()) {
-                            // Lấy tổng doanh thu của quý (overallRevenue)
-                            revenue = toNum(qSnap.data().overallRevenue);
-
-                            // Lấy loại công trình để áp dụng logic điều kiện
-                            const projectType = (data.type || "").toLowerCase();
-
-                            // Bắt đầu kiểm tra điều kiện
-                            if (projectType.includes("nhà máy")) {
-                                // TRƯỜNG HỢP 1: NẾU LÀ CÔNG TRÌNH SẢN XUẤT (NHÀ MÁY)
-                                // -> Luôn tính chi phí bằng tổng của `totalCost`
-                                if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
-                                    cost = qSnap
-                                        .data()
-                                        .items.reduce(
-                                            (sum, item) => sum + toNum(item.totalCost || 0),
-                                            0
-                                        );
-                                }
-                            } else {
-                                // TRƯỜNG HỢP 2: CÁC LOẠI CÔNG TRÌNH CÒN LẠI (Dân dụng, Kè, CĐT, v.v.)
-                                // -> Áp dụng logic tính toán phức tạp
-                                if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
-                                    const totalItemsRevenue = qSnap
-                                        .data()
-                                        .items.reduce(
-                                            (sum, item) => sum + toNum(item.revenue || 0),
-                                            0
-                                        );
-
-                                    if (totalItemsRevenue === 0 && revenue === 0) {
-                                        // Điều kiện đặc biệt: Nếu cả 2 doanh thu = 0 -> chi phí = 0
-                                        cost = 0;
-                                    } else {
-                                        // Logic cũ
-                                        if (totalItemsRevenue === 0) {
-                                            // Nếu chỉ doanh thu chi tiết = 0 -> chi phí = tổng `cpSauQuyetToan`
-                                            cost = qSnap
-                                                .data()
-                                                .items.reduce(
-                                                    (sum, item) =>
-                                                        sum + toNum(item.cpSauQuyetToan || 0),
-                                                    0
-                                                );
-                                        } else {
-                                            // Nếu có doanh thu chi tiết -> chi phí = tổng `totalCost`
-                                            cost = qSnap
-                                                .data()
-                                                .items.reduce(
-                                                    (sum, item) =>
-                                                        sum + toNum(item.totalCost || 0),
-                                                    0
-                                                );
-                                        }
-                                    }
-                                } else if (revenue === 0) {
-                                    // Xử lý trường hợp không có 'items' và không có doanh thu
-                                    cost = 0;
-                                }
-                            }
-                        }
-                    } catch (error) {
-                        console.error("Lỗi khi lấy dữ liệu công trình:", d.id, error);
-                    }
-
-                    // Lợi nhuận luôn được tính lại dựa trên doanh thu và chi phí vừa xác định
-                    const profit = revenue - cost;
-                    const plannedProfitMargin = data.estimatedProfitMargin || null;
-
-                    // Trả về đối tượng công trình hoàn chỉnh để hiển thị
-                    return {
-                        projectId: d.id,
-                        name: data.name,
-                        revenue,
-                        cost,
-                        profit,
-                        percent: plannedProfitMargin,
-                        costOverQuarter: null,
-                        target: null,
-                        note: "",
-                        suggest: "",
-                        type: data.type || "",
-                        editable: true,
-                    };
-                })
-            );
-
-            // =================================================================
-            // ✅ KẾT THÚC KHỐI CODE THAY THẾ
-            // =================================================================
-
-            const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
-            const saved = await getDoc(
-                doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`)
-            );
-
-            const defaultTargets = {
-                revenueTargetXayDung: 0,
-                profitTargetXayDung: 0,
-                revenueTargetSanXuat: 0,
-                profitTargetSanXuat: 0,
-                revenueTargetDauTu: 0,
-                profitTargetDauTu: 0,
-            };
-            if (saved.exists() && saved.data().summaryTargets) {
-                setSummaryTargets({
-                    ...defaultTargets,
-                    ...saved.data().summaryTargets,
-                });
-            } else {
-                setSummaryTargets(defaultTargets);
-            }
-
-            let processedRows; // Khai báo biến ở ngoài để có thể truy cập trong cả if/else
-
-            if (
-                saved.exists() &&
-                Array.isArray(saved.data().rows) &&
-                saved.data().rows.length > 0
-            ) {
-                // BƯỚC 1: Lấy các hàng không phải là công trình (tiêu đề, tổng, v.v.) từ báo cáo đã lưu.
-                // Điều này giúp giữ lại các giá trị được nhập thủ công ở các hàng tổng hợp.
-                processedRows = saved
-                    .data()
-                    .rows.filter((savedRow) => !savedRow.projectId);
-                // --- BẮT ĐẦU SỬA LỖI ---
-                // Kiểm tra xem hàng "LỢI NHUẬN RÒNG" đã tồn tại trong dữ liệu đã lưu chưa
-                const loiNhuanRongExists = processedRows.some(
-                    (r) => (r.name || "").toUpperCase() === "LỢI NHUẬN RÒNG"
-                );
-
-                // Nếu chưa tồn tại, thêm nó vào cuối danh sách
-                if (!loiNhuanRongExists) {
-                    processedRows.push({
-                        name: "LỢI NHUẬN RÒNG",
-                        revenue: null,
-                        cost: null,
-                        profit: 0,
-                        percent: null,
-                        editable: false,
-                    });
-                }
-                // --- KẾT THÚC SỬA LỖI ---
-
-                // BƯỚC 2: Coi TẤT CẢ công trình từ database là "dự án mới" cần được chèn lại.
-                const newProjects = projects; // Lấy toàn bộ danh sách công trình mới nhất
-
-                // BƯỚC 3: Chạy lại logic chèn công trình vào các nhóm tương ứng.
-                // (Giữ nguyên đoạn code này như cũ)
-                // BÊN TRONG HÀM fetchData và khối if (saved.exists() ...)
-
-                // BƯỚC 3: Chạy lại logic chèn công trình vào các nhóm tương ứng.
-                if (newProjects.length > 0) {
-                    // ====================== BẮT ĐẦU CODE MỚI ======================
-
-                    // 1. Tách các dự án có tên chứa "KÈ" ra một nhóm riêng
-                    const keProjects = newProjects.filter((p) =>
-                        (p.name || "").toUpperCase().includes("KÈ")
-                    );
-                    // Các dự án còn lại không chứa "KÈ"
-                    const otherProjects = newProjects.filter(
-                        (p) => !(p.name || "").toUpperCase().includes("KÈ")
-                    );
-
-                    // 2. Ưu tiên chèn các dự án "KÈ" vào đúng nhóm "I.2. KÈ"
-                    if (keProjects.length > 0) {
-                        const keGroupIndex = processedRows.findIndex(
-                            (r) =>
-                                (r.name || "").trim().toUpperCase() ===
-                                "I.2. KÈ"
-                        );
-                        if (keGroupIndex !== -1) {
-                            processedRows.splice(
-                                keGroupIndex + 1,
-                                0,
-                                ...keProjects.map((p) => ({
-                                    ...p,
-                                    editable: true,
-                                }))
-                            );
-                        }
-                    }
-
-                    // 3. Sử dụng logic groupMapping cũ cho các dự án CÒN LẠI
-                    const groupMapping = {
-                        "Thi cong": "I.1. DÂN DỤNG + GIAO THÔNG",
-                        "Thi công": "I.1. DÂN DỤNG + GIAO THÔNG",
-                        CĐT: "I.3. CÔNG TRÌNH CÔNG TY CĐT",
-                        XNII: "I.4. XÍ NGHIỆP XD II",
-                        "KH-ĐT": "III. ĐẦU TƯ",
-                        "Nhà máy": "II.1. SẢN XUẤT",
-                    };
-
-                    Object.entries(groupMapping).forEach(
-                        ([type, groupName]) => {
-                            // Chỉ lọc từ các dự án còn lại (otherProjects)
-                            const projectsToAdd = otherProjects
-                                .filter((p) => p.type === type)
-                                .sort((a, b) => a.name.localeCompare(b.name)); // ✨ THÊM DÒNG NÀY
-                            if (projectsToAdd.length > 0) {
-                                const groupIndex = processedRows.findIndex(
-                                    (r) =>
-                                        (r.name || "").trim().toUpperCase() ===
-                                        groupName.toUpperCase()
-                                );
-                                if (groupIndex !== -1) {
-                                    processedRows.splice(
-                                        groupIndex + 1,
-                                        0,
-                                        ...projectsToAdd.map((p) => ({
-                                            ...p,
-                                            editable: true,
-                                        }))
-                                    );
-                                }
-                            }
-                        }
-                    );
-                    // ====================== KẾT THÚC CODE MỚI ======================
-                }
-            } else {
-                // Logic để tạo báo cáo mới khi chưa có dữ liệu lưu
-                const groupBy = (arr, cond) => arr.filter(cond);
-                const sumGroup = (group) => {
-                    const revenue = group.reduce(
-                        (s, r) => s + toNum(r.revenue),
-                        0
-                    );
-                    const cost = group.reduce((s, r) => s + toNum(r.cost), 0);
-                    const profit = revenue - cost;
-                    const percent = revenue ? (profit / revenue) * 100 : null;
-                    return { revenue, cost, profit, percent };
-                };
-                const groupI1 = groupBy(
-                    projects,
-                    (r) =>
-                        (r.type === "Thi cong" || r.type === "Thi công") &&
-                        (r.revenue !== 0 || r.cost !== 0) &&
-                        !(r.name || "").toUpperCase().includes("KÈ")
-                )
-                    .sort((a, b) => a.name.localeCompare(b.name)); // ✨ THÊM DÒNG NÀY
-
-                const groupI2 = groupBy(projects, (r) =>
-                    (r.name || "").toUpperCase().includes("KÈ")
-                );
-                const groupI3 = groupBy(projects, (r) => r.type === "CĐT");
-                const groupI4 = groupBy(projects, (r) => r.type === "XNII")
-                    .sort((a, b) => a.name.localeCompare(b.name)); // ✨ THÊM DÒNG NÀY
-                const groupII = projects.filter((r) =>
-                    (r.type || "").toLowerCase().includes("nhà máy")
-                );
-                const groupIII_DauTu = groupBy(
-                    projects,
-                    (r) => r.type === "KH-ĐT"
-                );
-
-                processedRows = [
-                    {
-                        name: "I. XÂY DỰNG",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        costOverQuarter: null,
-                    },
-                    {
-                        name: "I.1. Dân Dụng + Giao Thông",
-                        ...sumGroup(groupI1),
-                    },
-                    ...groupI1,
-                    { name: "I.2. KÈ", ...sumGroup(groupI2), percent: null },
-                    ...groupI2,
-                    {
-                        name: "I.3. CÔNG TRÌNH CÔNG TY CĐT",
-                        ...sumGroup(groupI3),
-                    },
-                    ...groupI3,
-                    { name: "I.4. Xí nghiệp XD II", ...sumGroup(groupI4) },
-                    ...groupI4,
-                    {
-                        name: "II. SẢN XUẤT",
-                        revenue: null,
-                        cost: null,
-                        profit: 0,
-                        percent: null,
-                    },
-                    {
-                        name: "II.1. SẢN XUẤT",
-                        ...sumGroup(groupII),
-                        costOverQuarter: null,
-                    },
-                    ...groupII.map((p) => ({ ...p, editable: false })),
-                    {
-                        name: "II.2. DT + LN ĐƯỢC CHIA TỪ LDX",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                    },
-                    {
-                        name: "LỢI NHUẬN LIÊN DOANH (LDX)",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        editable: true,
-                    },
-                    {
-                        name: "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        editable: true,
-                    },
-                    {
-                        name: "GIẢM LN LDX",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        editable: true,
-                    },
-                    {
-                        name: "II.3. DT + LN ĐƯỢC CHIA TỪ SÀ LAN (CTY)",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                    },
-                    {
-                        name: "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        editable: true,
-                    },
-                    {
-                        name: "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        editable: true,
-                    },
-                    {
-                        name: "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                    },
-                    {
-                        name: "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        editable: true,
-                    },
-                    {
-                        name: "III. ĐẦU TƯ",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        costOverQuarter: null,
-                    },
-                    ...groupIII_DauTu.map((p) => ({ ...p, editable: true })),
-                    {
-                        name: "TỔNG",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                    },
-                    {
-                        name: `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`,
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                    },
-                    {
-                        name: "V. GIẢM LỢI NHUẬN",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        editable: false,
-                    },
-                    {
-                        name: "VI. THU NHẬP KHÁC",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        editable: false,
-                    },
-                    {
-                        name: `VII. KHTSCĐ NĂM ${selectedYear}`,
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        editable: true,
-                    },
-                    {
-                        name: "VIII. GIẢM LÃI ĐT DỰ ÁN",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        editable: true,
-                    },
-                    {
-                        name: finalProfitRowName,
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                    },
-                    {
-                        name: `VƯỢT ${selectedQuarter}`,
-                        revenue: null,
-                        cost: null,
-                        profit: null,
-                        percent: null,
-                        editable: false,
-                    },
-                    {
-                        name: "+Vượt CP BPXD",
-                        revenue: null,
-                        cost: null,
-                        profit: 0,
-                        percent: null,
-                        editable: false,
-                    },
-                    {
-                        name: "+Vượt CP BPSX",
-                        revenue: null,
-                        cost: null,
-                        profit: 0,
-                        percent: null,
-                        editable: false,
-                    },
-                    {
-                        name: "+Vượt CP BPĐT",
-                        revenue: null,
-                        cost: null,
-                        profit: 0,
-                        percent: null,
-                        editable: false,
-                    },
-                    {
-                        name: "+ Chi phí đã trả trước",
-                        revenue: 0,
-                        cost: 0,
-                        profit: 0,
-                        percent: null,
-                        editable: true,
-                    },
-                    {
-                        // <-- THÊM HÀNG MỚI TẠI ĐÂY
-                        name: "LỢI NHUẬN RÒNG",
-                        revenue: null,
-                        cost: null,
-                        profit: 0,
-                        percent: null,
-                        editable: false, // Hàng này không cho phép sửa thủ công
-                    },
-                ];
-            }
-
-            const idxXD = processedRows.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
-            );
-            if (idxXD !== -1)
-                processedRows[idxXD].costOverQuarter = cpVuotCurr || 0;
-
-            const idxSX = processedRows.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
-            );
-            if (idxSX !== -1)
-                processedRows[idxSX].costOverQuarter = -toNum(cpVuotNhaMay) || 0;
-
-            const idxDT = processedRows.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === "III. ĐẦU TƯ"
-            );
-            if (idxDT !== -1)
-                processedRows[idxDT].costOverQuarter = cpVuotKhdt || 0;
-
-            let finalRows = processedRows;
-
-            let totalDecreaseProfit = 0;
-            let totalIncreaseProfit = 0;
-            if (profitChangesDoc.exists()) {
-                totalDecreaseProfit = toNum(
-                    profitChangesDoc.data().totalDecreaseProfit
-                );
-                totalIncreaseProfit = toNum(
-                    profitChangesDoc.data().totalIncreaseProfit
-                );
-            }
-            const idxV_update = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
-            );
-            if (idxV_update !== -1)
-                finalRows[idxV_update].profit = totalDecreaseProfit;
-
-            const idxVI_update = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
-            );
-            if (idxVI_update !== -1)
-                finalRows[idxVI_update].profit = totalIncreaseProfit;
-            // BƯỚC 1: Cập nhật các nhóm con và các mục chi tiết
-            finalRows = updateGroupI1(finalRows);
-            finalRows = updateGroupI2(finalRows);
-            finalRows = updateGroupI3(finalRows);
-            finalRows = updateGroupI4(finalRows);
-            finalRows = updateLDXRow(finalRows);
-            finalRows = updateDTLNLDXRow(finalRows);
-            finalRows = updateSalanRow(finalRows);
-            finalRows = updateThuNhapKhacRow(finalRows);
-            finalRows = updateGroupII1(finalRows);
-            finalRows = updateDauTuRow(finalRows);
-
-            // BƯỚC 2: Cập nhật các mục tổng hợp lớn (phụ thuộc vào các nhóm con)
-            finalRows = updateXayDungRow(finalRows);
-            finalRows = updateSanXuatRow(finalRows);
-
-            // BƯỚC 3: Tính toán dòng TỔNG (phụ thuộc vào các mục lớn)
-            finalRows = calculateTotals(finalRows);
-
-            // BƯỚC 4: Cập nhật Lợi nhuận Quý (phụ thuộc vào TỔNG)
-            const idxTotal = finalRows.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === "TỔNG"
-            );
-            const idxIV = finalRows.findIndex(
-                (r) =>
-                    (r.name || "").trim().toUpperCase() ===
-                    `IV. LỢI NHUẬN ${selectedQuarter}.${selectedYear}`.toUpperCase()
-            );
-            if (idxIV !== -1 && idxTotal !== -1) {
-                finalRows[idxIV].profit = toNum(finalRows[idxTotal].profit);
-            }
-
-            // BƯỚC 5: Tính "LỢI NHUẬN SAU GIẢM TRỪ" (phụ thuộc vào Lợi nhuận Quý và các mục V, VI, VII, VIII)
-            const idxV = finalRows.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === "V. GIẢM LỢI NHUẬN"
-            );
-            const idxVI = finalRows.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === "VI. THU NHẬP KHÁC"
-            );
-            const idxVII = finalRows.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === `VII. KHTSCĐ NĂM ${selectedYear}`.toUpperCase()
-            );
-            const idxVIII = finalRows.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === "VIII. GIẢM LÃI ĐT DỰ ÁN"
-            );
-            const idxLNFinal = finalRows.findIndex(
-                (r) => (r.name || "").trim().toUpperCase() === `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase()
-            );
-
-            if (
-                idxLNFinal !== -1 &&
-                idxIV !== -1 &&
-                idxV !== -1 &&
-                idxVI !== -1 &&
-                idxVII !== -1 &&
-                idxVIII !== -1
-            ) {
-                finalRows[idxLNFinal].profit =
-                    toNum(finalRows[idxIV].profit) -
-                    toNum(finalRows[idxV].profit) +
-                    toNum(finalRows[idxVI].profit) -
-                    toNum(finalRows[idxVII].profit) -
-                    toNum(finalRows[idxVIII].profit);
-            }
-
-            // BƯỚC 6: Cập nhật các khoản vượt chi
-            finalRows = updateVuotCPRows(finalRows, selectedQuarter);
-            // BƯỚC 7: Tính LỢI NHUẬN RÒNG
-            finalRows = updateLoiNhuanRongRow(finalRows, selectedQuarter, selectedYear);
-
-            const filteredRows = finalRows.filter((r) => {
-                const rev = toNum(r.revenue);
-                const cost = toNum(r.cost);
-                const profit = toNum(r.profit);
-                const nameUpper = (r.name || "").trim().toUpperCase();
-                if (
-                    nameUpper === "I.1. DÂN DỤNG + GIAO THÔNG" ||
-                    nameUpper === "I.2. KÈ"
-                ) {
-                    return rev !== 0 || cost !== 0 || profit !== 0;
-                }
-
-                const alwaysShowRows = [
-                    "LỢI NHUẬN LIÊN DOANH (LDX)",
-                    "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (LDX)",
-                    "GIẢM LN LDX",
-                    "LỢI NHUẬN LIÊN DOANH (SÀ LAN)",
-                    "LỢI NHUẬN PHẢI CHI ĐỐI TÁC LIÊN DOANH (SÀ LAN)",
-                    "LỢI NHUẬN BÁN SP NGOÀI (RON CỐNG + 68)",
-                ];
-                if (alwaysShowRows.includes(nameUpper)) {
-                    return true;
-                }
-
-                if (rev === 0 && cost === 0 && profit === 0) {
-                    if (
-                        /^[IVX]+\./.test(nameUpper) ||
-                        [
-                            "I. XÂY DỰNG",
-                            "II. SẢN XUẤT",
-                            "III. ĐẦU TƯ",
-                            "TỔNG",
-                            `VƯỢT ${selectedQuarter}`.toUpperCase(),
-                            "+VƯỢT CP BPXD",
-                            "+VƯỢT CP BPSX",
-                            "+VƯỢT CP BPĐT",
-                            `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase(),
-                            "+ CHI PHÍ ĐÃ TRẢ TRƯỚC",
-                            "LỢI NHUẬN RÒNG",
-                        ].includes(nameUpper)
-                    ) {
-                        return true;
-                    }
-                    return false;
-                }
-                return true;
-            });
-
-            setRows(filteredRows);
-            setLoading(false);
-        };
-
-        processData();
-
-        const unsubscribes = [];
-        const debouncedProcess = () => {
-            clearTimeout(window.reportDebounceTimeout);
-            window.reportDebounceTimeout = setTimeout(processData, 500);
-        };
-
-        unsubscribes.push(onSnapshot(collection(db, "projects"), (snapshot) => {
-            debouncedProcess();
-            if (window.projectListeners) {
-                window.projectListeners.forEach(unsub => unsub());
-            }
-            window.projectListeners = [];
-            snapshot.docs.forEach(docSnap => {
-                const projectId = docSnap.id;
-                const quarterRef = doc(db, `projects/${projectId}/years/${selectedYear}/quarters/${selectedQuarter}`);
-                const unsubProjectQuarter = onSnapshot(quarterRef, (qSnap) => {
-                    debouncedProcess();
-                });
-                window.projectListeners.push(unsubProjectQuarter);
-            });
-        }));
-
-        unsubscribes.push(onSnapshot(doc(db, "costAllocationsQuarter", `${selectedYear}_${selectedQuarter}`), debouncedProcess));
-        unsubscribes.push(onSnapshot(doc(db, "profitChanges", `${selectedYear}_${selectedQuarter}`), debouncedProcess));
-
-        return () => {
-            unsubscribes.forEach(unsub => unsub());
-            if (window.projectListeners) {
-                window.projectListeners.forEach(unsub => unsub());
-                window.projectListeners = [];
-            }
-            clearTimeout(window.reportDebounceTimeout);
-        };
-    }, [selectedYear, selectedQuarter]);
-
-    const handleSave = async (rowsToSave) => {
-        const rowsData = Array.isArray(rowsToSave) ? rowsToSave : rows;
-        const dataToSave = {
-            rows: rowsData,
-            summaryTargets: summaryTargets,
-            updatedAt: new Date().toISOString(),
-        };
-        await setDoc(
-            doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`),
-            dataToSave
-        );
-        console.log("Saved.");
+    const handleSave = async () => {
+        const success = await saveReport();
+        if (success) {
+            toast.success("Đã lưu báo cáo thành công!");
+        } else {
+            toast.error("Lưu báo cáo thất bại.");
+        }
     };
 
     const rowsHideRevenueCost = [
@@ -981,18 +231,7 @@ export default function ProfitReportQuarter() {
         return v;
     };
 
-    const isDetailUnderII1 = (idx) => {
-        const idxII1 = rows.findIndex((r) => (r.name || "").trim().toUpperCase() === "II.1. SẢN XUẤT");
-        const idxEnd = (() => {
-            for (let i = idxII1 + 1; i < rows.length; i++) {
-                const name = (rows[i].name || "").trim().toUpperCase();
-                if (name.startsWith("II.2") || name.startsWith("II.3") || name.startsWith("II.4") || name.startsWith("III.")) return i;
-            }
-            return rows.length;
-        })();
-        return idx > idxII1 && idx < idxEnd && !(rows[idx].name || "").match(/^[IVX]+\./);
-    };
-
+    // Helper for Cell Edit
     const handleCellChange = (e, idx, field) => {
         const rawValue = e.target.value;
         let newValue;
@@ -1012,6 +251,7 @@ export default function ProfitReportQuarter() {
         }
 
         let finalRows = newRows;
+        // Re-calculate all groups
         finalRows = updateGroupI1(finalRows);
         finalRows = updateGroupI2(finalRows);
         finalRows = updateGroupI3(finalRows);
@@ -1045,12 +285,6 @@ export default function ProfitReportQuarter() {
         setRows(finalRows);
     };
 
-    const isDetailUnderI1 = (idx) => {
-        const idxI1 = rows.findIndex((r) => (r.name || "").trim().toUpperCase() === "I.1. DÂN DỤNG + GIAO THÔNG");
-        const idxI2 = rows.findIndex((r) => (r.name || "").trim().toUpperCase() === "I.2. KÈ");
-        return idx > idxI1 && (idxI2 === -1 || idx < idxI2) && !(rows[idx].name || "").match(/^[IVX]+\./);
-    };
-
     const renderEditableCell = (r, idx, field, align = "right") => {
         const isEditing = editingCell.idx === idx && editingCell.field === field;
         const value = r[field];
@@ -1066,8 +300,24 @@ export default function ProfitReportQuarter() {
 
         const isProjectDetailRow = !!r.projectId;
         const allowEdit = (() => {
+            // Only verify logic here, structure seems fine
             if (disallowedFields.includes(field) || isCalcRow) return false;
             if (["target", "note", "suggest"].includes(field)) return true;
+            // Allow editing revenue/cost/profit for rows that are marked editable but are NOT project details (e.g. Total rows that are manually editable?)
+            // Actually, original code said: return r.editable && !isProjectDetailRow;
+            // But project rows ARE editable.
+            // Wait, original code:
+            // if (["revenue", "cost", "profit"].includes(field)) return r.editable && !isProjectDetailRow;
+            // This means project details CANNOT be edited for revenue/cost?
+            // That seems correct if they come from DB.
+            // "projects" items (I.1, etc) are summary rows? No.
+            // "processedRows" in hook has `editable: true` for projects.
+            // So `r.editable` is true. `isProjectDetailRow` is true (has projectId).
+            // So `!isProjectDetailRow` is false.
+            // So `revenue` cannot be edited for projects here?
+            // Let's check original code. Yes `!isProjectDetailRow`.
+            // This implies Project revenue/cost comes from Project details and is NOT editable in this report.
+            // Correct.
             if (["revenue", "cost", "profit"].includes(field)) return r.editable && !isProjectDetailRow;
             return false;
         })();
@@ -1224,14 +474,6 @@ export default function ProfitReportQuarter() {
         await saveWorkbook(workbook, `BaoCaoLoiNhuan_${selectedQuarter}_${selectedYear}_${dateStr}.xlsx`);
     };
 
-    const isDTLNLDX = (r) => {
-        const name = (r.name || "").trim().toUpperCase();
-        return (
-            name.includes("DT + LN ĐƯỢC CHIA TỪ LDX") ||
-            name.includes("DT + LN ĐƯỢC CHIA TỪ SÀ LAN")
-        );
-    };
-
     const getValueByName = (name, field) => {
         const row = rows.find(
             (r) => (r.name || "").trim().toUpperCase() === name.toUpperCase()
@@ -1254,235 +496,51 @@ export default function ProfitReportQuarter() {
     return (
         <Box sx={{ minHeight: "100vh", bgcolor: "#f7faff", py: 4 }}>
             {loading && (
-                <Box
-                    sx={{
-                        position: "fixed",
-                        top: 0,
-                        left: 0,
-                        width: "100vw",
-                        height: "100vh",
-                        bgcolor: "rgba(255,255,255,0.6)",
-                        display: "flex",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        zIndex: 1300,
-                    }}
-                >
-                    <CircularProgress
-                        size={tvMode ? 80 : 64}
-                        thickness={tvMode ? 5 : 4}
-                        color="primary"
-                    />
+                <Box sx={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", bgcolor: "rgba(255,255,255,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1300 }}>
+                    <CircularProgress size={tvMode ? 80 : 64} thickness={tvMode ? 5 : 4} color="primary" />
                 </Box>
             )}
-            <Paper
-                elevation={3}
-                sx={{
-                    p: tvMode ? { xs: 4, md: 5 } : { xs: 2, md: 4 },
-                    borderRadius: tvMode ? 4 : 3,
-                    bgcolor: tvMode ? "background.paper" : undefined,
-                    ...(tvMode && {
-                        background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
-                        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
-                    }),
-                }}
-            >
-                <Box
-                    sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 2,
-                        flexWrap: "wrap",
-                        gap: 2,
-                        rowGap: 2,
-                    }}
-                >
-                    <Typography
-                        variant={tvMode ? "h3" : "h6"}
-                        fontWeight={tvMode ? 800 : 700}
-                        color="primary"
-                        sx={{
-                            fontSize: tvMode ? { xs: "2rem", sm: "2.5rem", md: "3rem" } : { xs: 16, sm: 18, md: 20 },
-                            ...(tvMode && {
-                                textShadow: "2px 2px 4px rgba(0,0,0,0.1)",
-                            }),
-                        }}
-                    >
+            <Paper elevation={3} sx={{
+                p: tvMode ? { xs: 4, md: 5 } : { xs: 2, md: 4 },
+                borderRadius: tvMode ? 4 : 3,
+                bgcolor: tvMode ? "background.paper" : undefined,
+                ...(tvMode && { background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)", boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)" }),
+            }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2, flexWrap: "wrap", gap: 2, rowGap: 2 }}>
+                    <Typography variant={tvMode ? "h3" : "h6"} fontWeight={tvMode ? 800 : 700} color="primary" sx={{ fontSize: tvMode ? { xs: "2rem", sm: "2.5rem", md: "3rem" } : { xs: 16, sm: 18, md: 20 }, ...(tvMode && { textShadow: "2px 2px 4px rgba(0,0,0,0.1)" }) }}>
                         Báo cáo quý: {selectedQuarter}.{selectedYear}
                     </Typography >
-                    <Stack
-                        direction="row"
-                        spacing={1}
-                        useFlexGap
-                        flexWrap="wrap"
-                    >
-                        <Button
-                            variant="outlined"
-                            color="secondary"
-                            size={tvMode ? "large" : "medium"}
-                            startIcon={<FunctionsIcon sx={{ fontSize: tvMode ? 24 : undefined }} />}
-                            onClick={() => setFormulaDialogOpen(true)}
-                            sx={{
-                                borderRadius: 2,
-                                minWidth: tvMode ? 140 : 100,
-                                fontSize: tvMode ? "1.1rem" : undefined,
-                                px: tvMode ? 3 : undefined,
-                                py: tvMode ? 1.5 : undefined,
-                                fontWeight: tvMode ? 600 : undefined,
-                            }}
-                        >
+                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                        <Button variant="outlined" color="secondary" size={tvMode ? "large" : "medium"} startIcon={<FunctionsIcon sx={{ fontSize: tvMode ? 24 : undefined }} />} onClick={() => setFormulaDialogOpen(true)} sx={{ borderRadius: 2, minWidth: tvMode ? 140 : 100, fontSize: tvMode ? "1.1rem" : undefined, px: tvMode ? 3 : undefined, py: tvMode ? 1.5 : undefined, fontWeight: tvMode ? 600 : undefined }}>
                             Công Thức
                         </Button>
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            size={tvMode ? "large" : "medium"}
-                            startIcon={<SaveIcon sx={{ fontSize: tvMode ? 24 : undefined }} />}
-                            onClick={handleSave}
-                            sx={{
-                                borderRadius: 2,
-                                minWidth: tvMode ? 140 : 100,
-                                fontSize: tvMode ? "1.1rem" : undefined,
-                                px: tvMode ? 3 : undefined,
-                                py: tvMode ? 1.5 : undefined,
-                                fontWeight: tvMode ? 600 : undefined,
-                            }}
-                        >
+                        <Button variant="contained" color="primary" size={tvMode ? "large" : "medium"} startIcon={<SaveIcon sx={{ fontSize: tvMode ? 24 : undefined }} />} onClick={handleSave} sx={{ borderRadius: 2, minWidth: tvMode ? 140 : 100, fontSize: tvMode ? "1.1rem" : undefined, px: tvMode ? 3 : undefined, py: tvMode ? 1.5 : undefined, fontWeight: tvMode ? 600 : undefined }}>
                             Lưu
                         </Button>
-                        <Button
-                            variant="outlined"
-                            color="info"
-                            size={tvMode ? "large" : "medium"}
-                            onClick={handleExportExcel}
-                            sx={{
-                                borderRadius: 2,
-                                minWidth: tvMode ? 140 : 100,
-                                fontSize: tvMode ? "1.1rem" : undefined,
-                                px: tvMode ? 3 : undefined,
-                                py: tvMode ? 1.5 : undefined,
-                                fontWeight: tvMode ? 600 : undefined,
-                            }}
-                        >
+                        <Button variant="outlined" color="info" size={tvMode ? "large" : "medium"} onClick={handleExportExcel} sx={{ borderRadius: 2, minWidth: tvMode ? 140 : 100, fontSize: tvMode ? "1.1rem" : undefined, px: tvMode ? 3 : undefined, py: tvMode ? 1.5 : undefined, fontWeight: tvMode ? 600 : undefined }}>
                             Excel
                         </Button>
                         <FormControl size={tvMode ? "medium" : "small"} sx={{ minWidth: tvMode ? 140 : 100 }}>
                             <InputLabel sx={{ fontSize: tvMode ? "1rem" : undefined }}>Quý</InputLabel>
-                            <Select
-                                value={selectedQuarter}
-                                label="Chọn quý"
-                                onChange={(e) =>
-                                    setSelectedQuarter(e.target.value)
-                                }
-                                sx={{
-                                    fontSize: tvMode ? "1.1rem" : undefined,
-                                    height: tvMode ? "48px" : undefined,
-                                }}
-                            >
-                                {"Q1 Q2 Q3 Q4".split(" ").map((q) => (
-                                    <MenuItem key={q} value={q} sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>
-                                        {q}
-                                    </MenuItem>
-                                ))}
+                            <Select value={selectedQuarter} label="Chọn quý" onChange={(e) => setSelectedQuarter(e.target.value)} sx={{ fontSize: tvMode ? "1.1rem" : undefined, height: tvMode ? "48px" : undefined }}>
+                                {"Q1 Q2 Q3 Q4".split(" ").map((q) => (<MenuItem key={q} value={q} sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>{q}</MenuItem>))}
                             </Select>
                         </FormControl>
-                        <TextField
-                            size={tvMode ? "medium" : "small"}
-                            label="Năm"
-                            type="number"
-                            value={selectedYear}
-                            onChange={(e) =>
-                                setSelectedYear(Number(e.target.value))
-                            }
-                            sx={{
-                                minWidth: tvMode ? 120 : 80,
-                                "& .MuiInputBase-root": {
-                                    fontSize: tvMode ? "1.1rem" : undefined,
-                                    height: tvMode ? "48px" : undefined,
-                                },
-                                "& .MuiInputLabel-root": {
-                                    fontSize: tvMode ? "1rem" : undefined,
-                                }
-                            }}
-                        />
-                        {/* ✅ NÚT TOGGLE TV MODE */}
+                        <TextField size={tvMode ? "medium" : "small"} label="Năm" type="number" value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} sx={{ minWidth: tvMode ? 120 : 80, "& .MuiInputBase-root": { fontSize: tvMode ? "1.1rem" : undefined, height: tvMode ? "48px" : undefined }, "& .MuiInputLabel-root": { fontSize: tvMode ? "1rem" : undefined } }} />
                         <Tooltip title={tvMode ? "Chuyển sang chế độ PC/Laptop" : "Chuyển sang chế độ TV màn hình lớn"}>
-                            <Button
-                                variant={tvMode ? "contained" : "outlined"}
-                                size={tvMode ? "large" : "medium"}
-                                onClick={() => setTvMode(!tvMode)}
-                                startIcon={tvMode ? <TvIcon sx={{ fontSize: tvMode ? 24 : undefined }} /> : <ComputerIcon sx={{ fontSize: 20 }} />}
-                                sx={{
-                                    fontSize: tvMode ? "1.1rem" : undefined,
-                                    px: tvMode ? 3 : undefined,
-                                    py: tvMode ? 1.5 : undefined,
-                                    fontWeight: tvMode ? 600 : undefined,
-                                    minWidth: tvMode ? 160 : 140,
-                                    ...(tvMode && {
-                                        backgroundColor: theme.palette?.primary?.main || '#2081ED',
-                                        color: theme.palette?.primary?.contrastText || '#FFFFFF',
-                                        '&:hover': {
-                                            backgroundColor: theme.palette?.primary?.dark || '#105AB8',
-                                        },
-                                    }),
-                                }}
-                            >
+                            <Button variant={tvMode ? "contained" : "outlined"} size={tvMode ? "large" : "medium"} onClick={() => setTvMode(!tvMode)} startIcon={tvMode ? <TvIcon sx={{ fontSize: tvMode ? 24 : undefined }} /> : <ComputerIcon sx={{ fontSize: 20 }} />} sx={{ fontSize: tvMode ? "1.1rem" : undefined, px: tvMode ? 3 : undefined, py: tvMode ? 1.5 : undefined, fontWeight: tvMode ? 600 : undefined, minWidth: tvMode ? 160 : 140, ...(tvMode && { backgroundColor: theme.palette?.primary?.main || '#2081ED', color: theme.palette?.primary?.contrastText || '#FFFFFF', '&:hover': { backgroundColor: theme.palette?.primary?.dark || '#105AB8' } }) }}>
                                 {tvMode ? "Chế độ TV" : "Chế độ PC"}
                             </Button>
                         </Tooltip>
-                        <Button
-                            variant="outlined"
-                            color="success"
-                            size={tvMode ? "large" : "medium"}
-                            onClick={() => setAddModal(true)}
-                            sx={{
-                                borderRadius: 2,
-                                minWidth: tvMode ? 140 : 100,
-                                fontSize: tvMode ? "1.1rem" : undefined,
-                                px: tvMode ? 3 : undefined,
-                                py: tvMode ? 1.5 : undefined,
-                                fontWeight: tvMode ? 600 : undefined,
-                            }}
-                        >
+                        <Button variant="outlined" color="success" size={tvMode ? "large" : "medium"} onClick={() => setAddModal(true)} sx={{ borderRadius: 2, minWidth: tvMode ? 140 : 100, fontSize: tvMode ? "1.1rem" : undefined, px: tvMode ? 3 : undefined, py: tvMode ? 1.5 : undefined, fontWeight: tvMode ? 600 : undefined }}>
                             + Thêm
                         </Button>
-                        {/* ✅ BẮT ĐẦU: DÁN KHỐI CODE NÀY VÀO SAU NÚT "THÊM" */}
                         <Tooltip title="Ẩn/Hiện cột">
-                            <Button
-                                variant="outlined"
-                                size={tvMode ? "large" : "medium"}
-                                onClick={handleColumnMenuClick}
-                                startIcon={<ViewColumnIcon sx={{ fontSize: tvMode ? 24 : undefined }} />}
-                                sx={{
-                                    fontSize: tvMode ? "1.1rem" : undefined,
-                                    px: tvMode ? 3 : undefined,
-                                    py: tvMode ? 1.5 : undefined,
-                                    fontWeight: tvMode ? 600 : undefined,
-                                    minWidth: tvMode ? 140 : 100,
-                                }}
-                            >
+                            <Button variant="outlined" size={tvMode ? "large" : "medium"} onClick={handleColumnMenuClick} startIcon={<ViewColumnIcon sx={{ fontSize: tvMode ? 24 : undefined }} />} sx={{ fontSize: tvMode ? "1.1rem" : undefined, px: tvMode ? 3 : undefined, py: tvMode ? 1.5 : undefined, fontWeight: tvMode ? 600 : undefined, minWidth: tvMode ? 140 : 100 }}>
                                 Các cột
                             </Button>
                         </Tooltip>
-                        <Menu
-                            anchorEl={anchorEl}
-                            open={open}
-                            onClose={handleColumnMenuClose}
-                            PaperProps={{
-                                sx: {
-                                    ...(tvMode && {
-                                        minWidth: 250,
-                                        "& .MuiMenuItem-root": {
-                                            fontSize: "1.1rem",
-                                            padding: "12px 16px",
-                                        },
-                                        "& .MuiCheckbox-root": {
-                                            fontSize: "1.2rem",
-                                        },
-                                    })
-                                }
-                            }}
-                        >
+                        <Menu anchorEl={anchorEl} open={open} onClose={handleColumnMenuClose} PaperProps={{ sx: { ...(tvMode && { minWidth: 250, "& .MuiMenuItem-root": { fontSize: "1.1rem", padding: "12px 16px" }, "& .MuiCheckbox-root": { fontSize: "1.2rem" } }) } }}>
                             {Object.keys(columnVisibility).map((key) => (
                                 <MenuItem key={key} onClick={() => handleToggleColumn(key)}>
                                     <Checkbox checked={columnVisibility[key]} />
@@ -1492,59 +550,12 @@ export default function ProfitReportQuarter() {
                         </Menu>
                     </Stack>
                 </Box >
-                <ProfitSummaryTable
-                    data={summaryData}
-                    targets={summaryTargets}
-                    onTargetChange={handleSummaryTargetChange}
-                    tvMode={tvMode} // ✅ Truyền tvMode vào component
-                />
-                <TableContainer
-                    sx={{
-                        maxHeight: tvMode ? "80vh" : "75vh",
-                        minWidth: tvMode ? 1400 : 1200,
-                        overflowX: "auto",
-                        border: tvMode ? "3px solid #1565c0" : "1px solid #e0e0e0",
-                        borderRadius: tvMode ? 3 : 1,
-                        boxShadow: tvMode ? "0 4px 20px rgba(0, 0, 0, 0.1)" : undefined,
-                    }}
-                >
+                <ProfitSummaryTable data={summaryData} targets={summaryTargets} onTargetChange={handleSummaryTargetChange} tvMode={tvMode} />
+                <TableContainer sx={{ maxHeight: tvMode ? "80vh" : "75vh", minWidth: tvMode ? 1400 : 1200, overflowX: "auto", border: tvMode ? "3px solid #1565c0" : "1px solid #e0e0e0", borderRadius: tvMode ? 3 : 1, boxShadow: tvMode ? "0 4px 20px rgba(0, 0, 0, 0.1)" : undefined }}>
                     <Table size={tvMode ? "medium" : "small"} sx={{ minWidth: tvMode ? 1400 : 1200 }}>
-                        <TableHead
-                            sx={{
-                                position: "sticky",
-                                top: 0,
-                                zIndex: 100,
-                                backgroundColor: tvMode ? "#0d47a1" : "#1565c0", // ✅ Đậm hơn trong TV mode
-                                boxShadow: tvMode ? "0 2px 8px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.1)",
-
-                                "& th": {
-                                    color: "#ffffff !important",
-                                    backgroundColor: tvMode ? "#0d47a1 !important" : "#1565c0 !important",
-                                    fontWeight: tvMode ? 800 : 700, // ✅ Đậm hơn trong TV mode
-                                    fontSize: tvMode ? { xs: "1.3rem", sm: "1.4rem", md: "1.5rem" } : { xs: 12, sm: 14, md: 16 },
-                                    textAlign: "center",
-                                    borderBottom: tvMode ? "3px solid #fff" : "2px solid #fff",
-                                    whiteSpace: "nowrap",
-                                    px: tvMode ? 3 : 2,
-                                    py: tvMode ? 2 : 1,
-                                },
-                            }}
-                        >
+                        <TableHead sx={{ position: "sticky", top: 0, zIndex: 100, backgroundColor: tvMode ? "#0d47a1" : "#1565c0", boxShadow: tvMode ? "0 2px 8px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.1)", "& th": { color: "#ffffff !important", backgroundColor: tvMode ? "#0d47a1 !important" : "#1565c0 !important", fontWeight: tvMode ? 800 : 700, fontSize: tvMode ? { xs: "1.3rem", sm: "1.4rem", md: "1.5rem" } : { xs: 12, sm: 14, md: 16 }, textAlign: "center", borderBottom: tvMode ? "3px solid #fff" : "2px solid #fff", whiteSpace: "nowrap", px: tvMode ? 3 : 2, py: tvMode ? 2 : 1 } }}>
                             <TableRow>
-                                {/* Cột Công Trình luôn hiển thị */}
-                                <TableCell align="left" sx={{
-                                    minWidth: tvMode ? 400 : 300,
-                                    maxWidth: tvMode ? 400 : 300,
-                                    whiteSpace: "normal",
-                                    wordBreak: "break-word",
-                                    fontSize: tvMode ? "1.3rem" : undefined,
-                                    fontWeight: tvMode ? 800 : 700,
-                                    padding: tvMode ? "16px" : undefined,
-                                }}>
-                                    CÔNG TRÌNH
-                                </TableCell>
-
-                                {/* Các cột có điều kiện */}
+                                <TableCell align="left" sx={{ minWidth: tvMode ? 400 : 300, maxWidth: tvMode ? 400 : 300, whiteSpace: "normal", wordBreak: "break-word", fontSize: tvMode ? "1.3rem" : undefined, fontWeight: tvMode ? 800 : 700, padding: tvMode ? "16px" : undefined }}>CÔNG TRÌNH</TableCell>
                                 {columnVisibility.revenue && <TableCell align="center">DOANH THU</TableCell>}
                                 {columnVisibility.cost && <TableCell align="center">CHI PHÍ ĐÃ CHI</TableCell>}
                                 {columnVisibility.profit && <TableCell align="center">LỢI NHUẬN</TableCell>}
@@ -1559,165 +570,64 @@ export default function ProfitReportQuarter() {
                         </TableHead>
                         <TableBody>
                             {rows.map((r, idx) => (
-                                <TableRow
-                                    key={idx}
-                                    sx={{
-                                        height: tvMode ? { xs: 64, md: 72 } : { xs: 48, md: 56 },
-                                        bgcolor: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
-                                            ? (tvMode ? "#e1bee7" : "#f3e5f5")
-                                            : r.name?.includes("TỔNG")
-                                                ? (tvMode ? "#c8e6c9" : "#e8f5e9")
-                                                : r.name?.match(/^[IVX]+\./)
-                                                    ? (tvMode ? "#fff59d" : "#fff9c4")
-                                                    : idx % 2 === 0
-                                                        ? "#ffffff"
-                                                        : (tvMode ? "#f5f5f5" : "#f9f9f9"),
-                                        "&:hover": {
-                                            bgcolor: tvMode ? "#e3f2fd" : "#f5f5f5",
-                                            ...(tvMode ? {} : { transition: "background-color 0.2s" }), // ✅ Bỏ transition trong TV mode
-                                        },
-                                        borderBottom: tvMode ? "2px solid #e0e0e0" : "1px solid #e0e0e0",
-                                        fontWeight: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
-                                            ? (tvMode ? 900 : 900)
-                                            : r.name?.includes("TỔNG")
-                                                ? (tvMode ? 800 : 800)
-                                                : r.name?.match(/^[IVX]+\./)
-                                                    ? (tvMode ? 700 : 700)
-                                                    : (tvMode ? 500 : 400),
-                                        fontSize: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
-                                            ? (tvMode ? "1.4rem" : 20)
-                                            : r.name?.match(/^[IVX]+\./)
-                                                ? (tvMode ? "1.3rem" : 18)
-                                                : (tvMode ? "1.2rem" : "inherit"),
-                                    }}
-                                >
-                                    {/* Cột 1: CÔNG TRÌNH (Luôn hiển thị) */}
-                                    <TableCell
-                                        sx={{
-                                            minWidth: 300,
-                                            maxWidth: 300,
-                                            whiteSpace: "normal",
-                                            wordBreak: "break-word",
-                                            px: 2,
-                                            py: 1,
-                                            position: "sticky",
-                                            left: 0,
-                                            zIndex: 1,
-                                            backgroundColor: 'inherit', // Thừa hưởng màu nền từ TableRow
-                                        }}
-                                        title={r.name}
-                                    >
-                                        {r.name?.match(/^[IVX]+\./) && (
-                                            <KeyboardArrowRightIcon
-                                                fontSize={tvMode ? "medium" : "small"}
-                                                sx={{ verticalAlign: "middle", mr: 0.5 }}
-                                            />
-                                        )}
-                                        {r.name}
-                                    </TableCell>
-
-                                    {/* ✅ Bọc các cột còn lại trong điều kiện hiển thị */}
+                                <TableRow key={idx} sx={{ height: tvMode ? { xs: 64, md: 72 } : { xs: 48, md: 56 }, bgcolor: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ") ? (tvMode ? "#e1bee7" : "#f3e5f5") : r.name?.includes("TỔNG") ? (tvMode ? "#c8e6c9" : "#e8f5e9") : r.name?.match(/^[IVX]+\./) ? (tvMode ? "#fff59d" : "#fff9c4") : idx % 2 === 0 ? "#ffffff" : (tvMode ? "#f5f5f5" : "#f9f9f9"), "&:hover": { bgcolor: tvMode ? "#e3f2fd" : "#f5f5f5", ...(tvMode ? {} : { transition: "background-color 0.2s" }) }, borderBottom: tvMode ? "2px solid #e0e0e0" : "1px solid #e0e0e0", fontWeight: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ") ? (tvMode ? 900 : 900) : r.name?.includes("TỔNG") ? (tvMode ? 800 : 800) : r.name?.match(/^[IVX]+\./) ? (tvMode ? 700 : 700) : (tvMode ? 500 : 400), fontSize: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ") ? (tvMode ? "1.4rem" : 20) : r.name?.match(/^[IVX]+\./) ? (tvMode ? "1.3rem" : 18) : (tvMode ? "1.2rem" : "inherit") }}>
+                                    <TableCell sx={{ minWidth: 300, maxWidth: 300, whiteSpace: "normal", wordBreak: "break-word", py: tvMode ? 2 : 1.5, px: tvMode ? 3 : 2, fontSize: "inherit", fontWeight: "inherit", color: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ") ? (tvMode ? "#4a148c" : "#000") : "inherit" }}>{r.name}</TableCell>
                                     {columnVisibility.revenue && renderEditableCell(r, idx, "revenue")}
                                     {columnVisibility.cost && renderEditableCell(r, idx, "cost")}
-                                    {columnVisibility.profit && renderEditableCell(r, idx, "profit")}
-
-                                    {columnVisibility.profitMarginOnCost && (
-                                        <TableCell align="center" sx={cellStyle}>
-                                            {
-                                                isDetailUnderI1(idx) || isDetailUnderII1(idx)
-                                                    ? "–"
-                                                    : r.projectId && toNum(r.cost) > 0
-                                                        ? `${((toNum(r.profit) / toNum(r.cost)) * 100).toFixed(2)}%`
-                                                        : "–"
-                                            }
-                                        </TableCell>
-                                    )}
-
-                                    {columnVisibility.plannedProfitMargin && (
-                                        isDTLNLDX(r) ? (
-                                            <TableCell align="center" sx={{ ...cellStyle, px: 2, py: 1 }}>
-                                                <Typography sx={{ fontStyle: "italic", color: "#757575" }}>–</Typography>
-                                            </TableCell>
-                                        ) : (
-                                            renderEditableCell(r, idx, "percent", "center")
-                                        )
-                                    )}
-
-                                    {columnVisibility.quarterlyProfitMargin && (
-                                        <TableCell align="center" sx={{ ...cellStyle, px: 2, py: 1 }}>
-                                            {isDTLNLDX(r) ||
-                                                (r.name || "").trim().toUpperCase() === "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY" ||
-                                                (r.name || "").trim().toUpperCase() === "I.2. KÈ" ||
-                                                (r.name || "").trim().toUpperCase() === "TỔNG" ? (
-                                                <Typography sx={{ fontStyle: "italic", color: "#757575" }}>–</Typography>
-                                            ) : (
-                                                format(r.revenue ? (r.profit / r.revenue) * 100 : null, "percent", r)
-                                            )}
-                                        </TableCell>
-                                    )}
-
+                                    {columnVisibility.profit && <TableCell align="right" sx={cellStyle}>{format(r.profit)}</TableCell>}
+                                    {columnVisibility.profitMarginOnCost && <TableCell align="right" sx={cellStyle}>{toNum(r.cost) > 0 ? `${(toNum(r.profit) / toNum(r.cost) * 100).toFixed(2)}%` : "–"}</TableCell>}
+                                    {columnVisibility.plannedProfitMargin && <TableCell align="right" sx={cellStyle}>{r.percent != null ? `${toNum(r.percent).toFixed(2)}%` : "–"}</TableCell>}
+                                    {columnVisibility.quarterlyProfitMargin && <TableCell align="right" sx={cellStyle}>{toNum(r.revenue) > 0 ? `${(toNum(r.profit) / toNum(r.revenue) * 100).toFixed(2)}%` : "–"}</TableCell>}
                                     {columnVisibility.costOverQuarter && renderEditableCell(r, idx, "costOverQuarter")}
                                     {columnVisibility.target && renderEditableCell(r, idx, "target")}
-                                    {columnVisibility.note && renderEditableCell(r, idx, "note", "center")}
-                                    {columnVisibility.suggest && renderEditableCell(r, idx, "suggest", "center")}
+                                    {columnVisibility.note && renderEditableCell(r, idx, "note", "left")}
+                                    {columnVisibility.suggest && renderEditableCell(r, idx, "suggest", "left")}
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
                 </TableContainer>
-                <Dialog open={addModal} onClose={() => setAddModal(false)}>
-                    <DialogTitle sx={{ fontWeight: "bold" }}>Thêm Công Trình Mới</DialogTitle>
-                    <DialogContent sx={{ minWidth: 400, pt: 2 }}>
-                        <Stack spacing={2} sx={{ mt: 1 }} component="form" id="add-project-form" onSubmit={handleSubmit(handleAddProject)}>
-                            <Controller
-                                name="group"
-                                control={control}
-                                render={({ field }) => (
-                                    <TextField
-                                        select
-                                        label="Nhóm"
-                                        fullWidth
-                                        size="small"
-                                        {...field}
-                                        error={!!errors.group} helperText={errors.group?.message}
-                                    >
-                                        <MenuItem value="I.1. Dân Dụng + Giao Thông">I.1. Dân Dụng + Giao Thông</MenuItem>
-                                        <MenuItem value="I.2. KÈ">I.2. KÈ</MenuItem>
-                                        <MenuItem value="I.3. CÔNG TRÌNH CÔNG TY CĐT">I.3. CÔNG TRÌNH CÔNG TY CĐT</MenuItem>
-                                        <MenuItem value="I.4. Xí nghiệp XD II">I.4. Xí nghiệp XD II</MenuItem>
-                                        <MenuItem value="II.1. SẢN XUẤT">II.1. SẢN XUẤT</MenuItem>
-                                        <MenuItem value="III. ĐẦU TƯ">III. ĐẦU TƯ</MenuItem>
-                                    </TextField>
-                                )}
-                            />
+            </Paper>
 
-                            <TextField
-                                label="Tên công trình"
-                                fullWidth
-                                size="small"
-                                error={!!errors.name} helperText={errors.name?.message}
-                                {...register("name")}
-                            />
-                            <TextField
-                                label="Loại (VD: Nhà máy, Kè...)"
-                                fullWidth
-                                size="small"
-                                {...register("type")}
-                            />
-                        </Stack>
-                    </DialogContent>
-                    <DialogActions sx={{ pr: 3, pb: 2 }}>
-                        <Button onClick={() => setAddModal(false)}>Hủy</Button>
-                        <Button type="submit" form="add-project-form" variant="contained">
-                            Thêm
-                        </Button>
-                    </DialogActions>
-                </Dialog>
-            </Paper >
-            <ProfitReportFormulaGuide
-                open={formulaDialogOpen}
-                onClose={() => setFormulaDialogOpen(false)}
-            />
-        </Box >
+            {/* Modal Thêm Công Trình */}
+            <Dialog open={addModal} onClose={() => setAddModal(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Thêm công trình mới</DialogTitle>
+                <DialogContent>
+                    <Box component="form" sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+                        <FormControl fullWidth size="small" error={!!errors.group}>
+                            <InputLabel>Nhóm</InputLabel>
+                            <Select {...register("group")} defaultValue="I.1. Dân Dụng + Giao Thông" label="Nhóm">
+                                <MenuItem value="I.1. Dân Dụng + Giao Thông">I.1. Dân Dụng + Giao Thông</MenuItem>
+                                <MenuItem value="I.2. KÈ">I.2. KÈ</MenuItem>
+                                <MenuItem value="I.3. CÔNG TRÌNH CÔNG TY CĐT">I.3. CÔNG TRÌNH CÔNG TY CĐT</MenuItem>
+                                <MenuItem value="I.4. Xí nghiệp XD II">I.4. Xí nghiệp XD II</MenuItem>
+                                <MenuItem value="III. ĐẦU TƯ">III. ĐẦU TƯ</MenuItem>
+                            </Select>
+                        </FormControl>
+                        <TextField fullWidth size="small" label="Tên công trình" {...register("name")} error={!!errors.name} helperText={errors.name?.message} />
+                        <FormControl fullWidth size="small" error={!!errors.type}>
+                            <InputLabel>Loại</InputLabel>
+                            <Select {...register("type")} defaultValue="" label="Loại">
+                                <MenuItem value="Thi cong">Thi công</MenuItem>
+                                <MenuItem value="CĐT">CĐT</MenuItem>
+                                <MenuItem value="XNII">XNII</MenuItem>
+                                <MenuItem value="KH-ĐT">KH-ĐT</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setAddModal(false)}>Hủy</Button>
+                    <Button variant="contained" onClick={handleSubmit(handleAddProject)}>Lưu</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Dialog Giải Thích Công Thức */}
+            <Dialog open={formulaDialogOpen} onClose={() => setFormulaDialogOpen(false)} maxWidth="md" fullWidth>
+                <DialogTitle>Giải Thích Công Thức Tính Toán</DialogTitle>
+                <DialogContent dividers><ProfitReportFormulaGuide /></DialogContent>
+                <DialogActions><Button onClick={() => setFormulaDialogOpen(false)}>Đóng</Button></DialogActions>
+            </Dialog>
+        </Box>
     );
 }

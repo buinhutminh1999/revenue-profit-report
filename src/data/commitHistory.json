@@ -1,0 +1,1746 @@
+{
+  "generatedAt": "2025-12-08T01:54:31.429Z",
+  "totalCommits": 290,
+  "commits": [
+    {
+      "hash": "6598394",
+      "author": "buinhutminh1999",
+      "date": "2025-12-08T08:25:48+07:00",
+      "message": "Fix: Remove missing AttendanceDashboard import to resolve build error"
+    },
+    {
+      "hash": "ba460e5",
+      "author": "buinhutminh1999",
+      "date": "2025-12-06T14:46:49+07:00",
+      "message": "Feat: Implement details for accounts 33101/33102 and fix asset edit id"
+    },
+    {
+      "hash": "9115f51",
+      "author": "buinhutminh1999",
+      "date": "2025-12-05T17:19:22+07:00",
+      "message": "Fix Balance Sheet sync logic and aggregate duplicate rows in Accounts Receivable paste"
+    },
+    {
+      "hash": "2345815",
+      "author": "buinhutminh1999",
+      "date": "2025-12-03T17:07:26+07:00",
+      "message": "feat: add Cost Type column to Purchase Invoices and fix Balance Sheet dialog"
+    },
+    {
+      "hash": "d37701e",
+      "author": "buinhutminh1999",
+      "date": "2025-12-03T14:51:48+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "3820d59",
+      "author": "buinhutminh1999",
+      "date": "2025-12-03T09:53:45+07:00",
+      "message": "update thuế"
+    },
+    {
+      "hash": "cd05701",
+      "author": "buinhutminh1999",
+      "date": "2025-12-02T17:29:25+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "6de93e9",
+      "author": "buinhutminh1999",
+      "date": "2025-12-02T17:12:52+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "b402c99",
+      "author": "buinhutminh1999",
+      "date": "2025-12-02T15:42:34+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "75ea1de",
+      "author": "buinhutminh1999",
+      "date": "2025-12-02T11:23:52+07:00",
+      "message": "Allow manual editing of Balance Sheet for Q1 2025"
+    },
+    {
+      "hash": "ee4c2ae",
+      "author": "buinhutminh1999",
+      "date": "2025-12-01T17:29:00+07:00",
+      "message": "Fix AccountsReceivable displayRows error and enable editing"
+    },
+    {
+      "hash": "31aac9b",
+      "author": "buinhutminh1999",
+      "date": "2025-12-01T16:12:50+07:00",
+      "message": "Update AccountsReceivable (group delete), BalanceSheet (mapping rules), and numberUtils (VN format)"
+    },
+    {
+      "hash": "6f51389",
+      "author": "buinhutminh1999",
+      "date": "2025-12-01T14:34:41+07:00",
+      "message": "Update AccountsReceivable: Handle duplicates in paste (update existing, preserve opening balance) and improve success message"
+    },
+    {
+      "hash": "4223e7b",
+      "author": "buinhutminh1999",
+      "date": "2025-11-29T17:14:35+07:00",
+      "message": "Fix JSX errors and remove SpotlightTour component in InternalTaxReport"
+    },
+    {
+      "hash": "6ec32e1",
+      "author": "buinhutminh1999",
+      "date": "2025-11-29T10:26:56+07:00",
+      "message": "feat: Implement InternalTaxReport with Firebase persistence, improved UI, and data validation"
+    },
+    {
+      "hash": "609448f",
+      "author": "buinhutminh1999",
+      "date": "2025-11-27T16:51:48+07:00",
+      "message": "Fix syntax errors and restore functionality in AccountsReceivable"
+    },
+    {
+      "hash": "c391021",
+      "author": "buinhutminh1999",
+      "date": "2025-11-26T17:17:19+07:00",
+      "message": "feat: implement accounts receivable carryover and fix duplicate notifications"
+    },
+    {
+      "hash": "c409f45",
+      "author": "buinhutminh1999",
+      "date": "2025-11-26T16:33:11+07:00",
+      "message": "Fix Firestore errors, Sync Logic, and Modernize UI"
+    },
+    {
+      "hash": "404206b",
+      "author": "buinhutminh1999",
+      "date": "2025-11-26T14:46:09+07:00",
+      "message": "feat: modernize BalanceSheet UI and enhance paste functionality"
+    },
+    {
+      "hash": "adc188a",
+      "author": "buinhutminh1999",
+      "date": "2025-11-24T11:20:02+07:00",
+      "message": "feat: Automate version check using version.json"
+    },
+    {
+      "hash": "fadca6c",
+      "author": "buinhutminh1999",
+      "date": "2025-11-24T11:13:39+07:00",
+      "message": "feat: Secure Firebase config & Enhance Home UI/UX with Update Notification"
+    },
+    {
+      "hash": "66e32b0",
+      "author": "buinhutminh1999",
+      "date": "2025-11-22T18:16:49+07:00",
+      "message": "Restore missing PlanningTab.jsx file"
+    },
+    {
+      "hash": "3be287d",
+      "author": "buinhutminh1999",
+      "date": "2025-11-22T18:12:12+07:00",
+      "message": "Fix PlanningTab syntax errors, resolve DataGrid pagination issues, and migrate Grid to MUI v7"
+    },
+    {
+      "hash": "0e6d0dd",
+      "author": "buinhutminh1999",
+      "date": "2025-11-21T15:42:44+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "9897f07",
+      "author": "buinhutminh1999",
+      "date": "2025-11-21T15:17:32+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "d751b43",
+      "author": "buinhutminh1999",
+      "date": "2025-11-21T14:54:40+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "1ea5a72",
+      "author": "buinhutminh1999",
+      "date": "2025-11-21T08:40:56+07:00",
+      "message": "Fix Vercel build: Add Rollup Linux native binary to optionalDependencies"
+    },
+    {
+      "hash": "62201c4",
+      "author": "buinhutminh1999",
+      "date": "2025-11-21T08:36:44+07:00",
+      "message": "Simplify version.json generation: Use inline Node.js command in build script"
+    },
+    {
+      "hash": "b77f8ab",
+      "author": "buinhutminh1999",
+      "date": "2025-11-21T08:33:48+07:00",
+      "message": "Fix Vercel build: Use Vite plugin for version generation and fix date-fns locale imports"
+    },
+    {
+      "hash": "155df00",
+      "author": "buinhutminh1999",
+      "date": "2025-11-21T08:00:17+07:00",
+      "message": "Improve version generation script with better error handling"
+    },
+    {
+      "hash": "cfa4342",
+      "author": "buinhutminh1999",
+      "date": "2025-11-21T07:55:47+07:00",
+      "message": "Fix Vercel build: Add vite.config.js and Node.js version generation script"
+    },
+    {
+      "hash": "c5942c3",
+      "author": "buinhutminh1999",
+      "date": "2025-11-20T17:16:58+07:00",
+      "message": "feat: Modernize UI/UX and fix compatibility issues"
+    },
+    {
+      "hash": "33569d3",
+      "author": "buinhutminh1999",
+      "date": "2025-11-19T16:26:17+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "7441351",
+      "author": "buinhutminh1999",
+      "date": "2025-11-19T11:25:48+07:00",
+      "message": "feat: Cáº£i thiá»‡n toĂ n diá»‡n UI/UX vĂ  sá»­a lá»—i React Query v5"
+    },
+    {
+      "hash": "7e8c8ef",
+      "author": "buinhutminh1999",
+      "date": "2025-11-17T17:05:28+07:00",
+      "message": "update chi phí cho nhập khoan mục khi nhập công trình CHIPHIKHAC, điều chỉnh công thức khi nhập nợ phải trả đàu kỳ nhảy qua cuối kỳ, chỉnh công nợ phải trả -VT -NC nhà máy luôn bằng 0"
+    },
+    {
+      "hash": "cae94be",
+      "author": "buinhutminh1999",
+      "date": "2025-11-13T17:04:30+07:00",
+      "message": "update tài sản, công nợ phải trả cho xuất excel"
+    },
+    {
+      "hash": "658990b",
+      "author": "buinhutminh1999",
+      "date": "2025-11-13T14:21:17+07:00",
+      "message": "update trang tài sản, trang so sánh giá"
+    },
+    {
+      "hash": "4cf2fc9",
+      "author": "buinhutminh1999",
+      "date": "2025-11-11T16:00:27+07:00",
+      "message": "fix lỗi không upload file chấm công, báo cáo năm"
+    },
+    {
+      "hash": "ae806a6",
+      "author": "buinhutminh1999",
+      "date": "2025-11-10T16:45:37+07:00",
+      "message": "update trang báo cáo phân bổ chi phí"
+    },
+    {
+      "hash": "fce5f40",
+      "author": "buinhutminh1999",
+      "date": "2025-11-10T16:42:05+07:00",
+      "message": "update trang báo cáo phân bổ chi phí"
+    },
+    {
+      "hash": "59d6648",
+      "author": "buinhutminh1999",
+      "date": "2025-11-08T11:18:55+07:00",
+      "message": "update ..."
+    },
+    {
+      "hash": "aaed29e",
+      "author": "buinhutminh1999",
+      "date": "2025-11-05T11:40:52+07:00",
+      "message": "update trang báo cáo phân bổ chi phí sum sai, update tự động tính không cần thông qua %DT"
+    },
+    {
+      "hash": "e70b3ac",
+      "author": "buinhutminh1999",
+      "date": "2025-11-05T11:28:17+07:00",
+      "message": "updat phân bổ chi phí tự động tính"
+    },
+    {
+      "hash": "18762c3",
+      "author": "buinhutminh1999",
+      "date": "2025-11-04T14:16:21+07:00",
+      "message": "update tài sản bỏ card view"
+    },
+    {
+      "hash": "27530ff",
+      "author": "buinhutminh1999",
+      "date": "2025-11-03T15:40:06+07:00",
+      "message": "update cho chọn nhiều tài sản"
+    },
+    {
+      "hash": "072a223",
+      "author": "buinhutminh1999",
+      "date": "2025-11-01T09:28:49+07:00",
+      "message": "update trang phân bổ chi phí"
+    },
+    {
+      "hash": "3b0e6af",
+      "author": "buinhutminh1999",
+      "date": "2025-10-31T16:07:17+07:00",
+      "message": "update trang báo cáo phân bổ chi phí và chấm công theo công ty"
+    },
+    {
+      "hash": "b1b9009",
+      "author": "buinhutminh1999",
+      "date": "2025-10-28T16:44:43+07:00",
+      "message": "update trang báo cáo phân bổ chi phí"
+    },
+    {
+      "hash": "34460bd",
+      "author": "buinhutminh1999",
+      "date": "2025-10-25T09:24:40+07:00",
+      "message": "feat: Chuyển dự án sang Vite, dọn dẹp dependencies"
+    },
+    {
+      "hash": "a2af3c0",
+      "author": "buinhutminh1999",
+      "date": "2025-10-23T15:31:30+07:00",
+      "message": "feat: Chuyển dự án sang Vite, dọn dẹp dependencies"
+    },
+    {
+      "hash": "a5bacbb",
+      "author": "buinhutminh1999",
+      "date": "2025-10-22T16:53:05+07:00",
+      "message": "update phát hành văn bản"
+    },
+    {
+      "hash": "c7f1b82",
+      "author": "buinhutminh1999",
+      "date": "2025-10-22T16:20:18+07:00",
+      "message": "update phát hành văn bản"
+    },
+    {
+      "hash": "79bb3ec",
+      "author": "buinhutminh1999",
+      "date": "2025-10-22T16:13:26+07:00",
+      "message": "update phát hành văn bản"
+    },
+    {
+      "hash": "0078020",
+      "author": "buinhutminh1999",
+      "date": "2025-10-21T14:25:54+07:00",
+      "message": "update dialog chi tiết công trình"
+    },
+    {
+      "hash": "27082ac",
+      "author": "buinhutminh1999",
+      "date": "2025-10-20T15:17:47+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "6c60a30",
+      "author": "buinhutminh1999",
+      "date": "2025-10-17T15:11:44+07:00",
+      "message": "update báo cáo năm nhận biết dữ liệu thêm thủ công từ quý, chỉnh sửa event có thể thay đổi kiểu chữ"
+    },
+    {
+      "hash": "b1a11db",
+      "author": "buinhutminh1999",
+      "date": "2025-10-16T15:22:32+07:00",
+      "message": "update trang danh sách tài sản"
+    },
+    {
+      "hash": "caa3323",
+      "author": "buinhutminh1999",
+      "date": "2025-10-16T14:54:27+07:00",
+      "message": "update chỉnh sửa tài sản"
+    },
+    {
+      "hash": "4474b0a",
+      "author": "buinhutminh1999",
+      "date": "2025-10-16T14:41:58+07:00",
+      "message": "reponsive danh sách tài sản"
+    },
+    {
+      "hash": "dfdd24b",
+      "author": "buinhutminh1999",
+      "date": "2025-10-16T14:00:09+07:00",
+      "message": "feat: Add Vercel Speed Insights"
+    },
+    {
+      "hash": "eda476d",
+      "author": "buinhutminh1999",
+      "date": "2025-10-16T10:37:52+07:00",
+      "message": "Update build script to disable source maps"
+    },
+    {
+      "hash": "224e769",
+      "author": "buinhutminh1999",
+      "date": "2025-10-16T10:24:10+07:00",
+      "message": "npm run build"
+    },
+    {
+      "hash": "24fb83e",
+      "author": "buinhutminh1999",
+      "date": "2025-10-15T16:25:05+07:00",
+      "message": "update vercel setting"
+    },
+    {
+      "hash": "341c9f0",
+      "author": "buinhutminh1999",
+      "date": "2025-10-14T16:14:24+07:00",
+      "message": "update báo cáo doanh thu quý ẩn cột, bảng cân đối cập nhật cuối kỳ vật tư, thành phẩm, khi quyết toán chi tiết công trình thì nó tự tính toán -VT -NC quý sau khi nhập cptt"
+    },
+    {
+      "hash": "05cb62e",
+      "author": "buinhutminh1999",
+      "date": "2025-10-13T09:49:00+07:00",
+      "message": "update công nợ phải thu cho nhập sửa"
+    },
+    {
+      "hash": "9a1292a",
+      "author": "buinhutminh1999",
+      "date": "2025-10-11T00:54:29+07:00",
+      "message": "update trang chi phi theo quy"
+    },
+    {
+      "hash": "fc8240b",
+      "author": "buinhutminh1999",
+      "date": "2025-10-09T17:22:45+07:00",
+      "message": "update chi phi theo quý lấy cột used"
+    },
+    {
+      "hash": "9c8445d",
+      "author": "buinhutminh1999",
+      "date": "2025-10-09T11:11:28+07:00",
+      "message": "update thời gian sử dụng trong giờ hành chính"
+    },
+    {
+      "hash": "27c1dfa",
+      "author": "buinhutminh1999",
+      "date": "2025-10-09T01:57:45+07:00",
+      "message": "update báo cáo lợi nhuận theo năm chữa cháy mặt trận"
+    },
+    {
+      "hash": "9e52882",
+      "author": "buinhutminh1999",
+      "date": "2025-10-08T16:11:12+07:00",
+      "message": "update lấy công trình hàng i.3 thi công từ quater"
+    },
+    {
+      "hash": "43ec500",
+      "author": "buinhutminh1999",
+      "date": "2025-10-08T14:35:24+07:00",
+      "message": "update cột chủ đầu tư báo cáo năm"
+    },
+    {
+      "hash": "591db64",
+      "author": "buinhutminh1999",
+      "date": "2025-10-08T14:29:25+07:00",
+      "message": "update nút hủy quyết toán, cđt cập nhật công thức"
+    },
+    {
+      "hash": "8ddbcdb",
+      "author": "buinhutminh1999",
+      "date": "2025-10-08T09:23:35+07:00",
+      "message": "update realtime báo cáo lợi nhuận quý"
+    },
+    {
+      "hash": "6185bba",
+      "author": "buinhutminh1999",
+      "date": "2025-10-08T02:11:04+07:00",
+      "message": "update realtime báo cáo lợi nhuận quý"
+    },
+    {
+      "hash": "b43898c",
+      "author": "buinhutminh1999",
+      "date": "2025-10-07T22:31:19+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "0ae5660",
+      "author": "buinhutminh1999",
+      "date": "2025-10-06T15:40:53+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "96df12a",
+      "author": "buinhutminh1999",
+      "date": "2025-10-06T15:20:35+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "53b1661",
+      "author": "buinhutminh1999",
+      "date": "2025-10-06T15:00:56+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "a53ddaa",
+      "author": "buinhutminh1999",
+      "date": "2025-10-06T10:13:43+07:00",
+      "message": "update ẩn hiện cột chi tiết báo cáo năm"
+    },
+    {
+      "hash": "35e165e",
+      "author": "buinhutminh1999",
+      "date": "2025-10-06T10:05:44+07:00",
+      "message": "fix lỗi lưu quyết toán bị lỗi"
+    },
+    {
+      "hash": "c2d460f",
+      "author": "buinhutminh1999",
+      "date": "2025-10-04T07:52:11+07:00",
+      "message": "update code công trình quyết toán, khoản mục không cho sửa"
+    },
+    {
+      "hash": "7e2b4c4",
+      "author": "buinhutminh1999",
+      "date": "2025-10-03T16:10:59+07:00",
+      "message": "update kế hoạch thêm chi tiết, kéo cột công trình, ẩn hiện cột báo cáo lợi nhuận năm"
+    },
+    {
+      "hash": "55022c3",
+      "author": "buinhutminh1999",
+      "date": "2025-10-02T11:15:21+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "742c240",
+      "author": "buinhutminh1999",
+      "date": "2025-10-02T10:58:43+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "30f7f85",
+      "author": "buinhutminh1999",
+      "date": "2025-10-02T10:41:57+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "d67f35a",
+      "author": "buinhutminh1999",
+      "date": "2025-10-02T10:35:06+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "c1b02e0",
+      "author": "buinhutminh1999",
+      "date": "2025-10-02T10:11:22+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "62ebf5f",
+      "author": "buinhutminh1999",
+      "date": "2025-10-02T08:58:52+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "ff6a324",
+      "author": "buinhutminh1999",
+      "date": "2025-10-01T15:13:27+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "9b1879f",
+      "author": "buinhutminh1999",
+      "date": "2025-09-30T04:30:42+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "fcb04cc",
+      "author": "buinhutminh1999",
+      "date": "2025-09-30T03:53:36+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "f76df28",
+      "author": "buinhutminh1999",
+      "date": "2025-09-30T03:32:00+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "f7c8edc",
+      "author": "buinhutminh1999",
+      "date": "2025-09-30T03:28:44+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "56f64f5",
+      "author": "buinhutminh1999",
+      "date": "2025-09-30T02:12:46+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "bdfbef4",
+      "author": "buinhutminh1999",
+      "date": "2025-09-30T00:51:38+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "b128055",
+      "author": "buinhutminh1999",
+      "date": "2025-09-29T18:04:09+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "fb98609",
+      "author": "buinhutminh1999",
+      "date": "2025-09-29T17:24:14+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "7e0ee0c",
+      "author": "buinhutminh1999",
+      "date": "2025-09-29T11:39:57+07:00",
+      "message": "update giám sát máy tính"
+    },
+    {
+      "hash": "31db4ef",
+      "author": "buinhutminh1999",
+      "date": "2025-09-29T10:26:14+07:00",
+      "message": "update đường dẫn chấm công bị lỗi"
+    },
+    {
+      "hash": "94daf07",
+      "author": "buinhutminh1999",
+      "date": "2025-09-29T09:20:35+07:00",
+      "message": "update đường dẫn chấm công bị lỗi"
+    },
+    {
+      "hash": "14013cb",
+      "author": "buinhutminh1999",
+      "date": "2025-09-29T08:05:50+07:00",
+      "message": "update giam sat may"
+    },
+    {
+      "hash": "ffd7506",
+      "author": "buinhutminh1999",
+      "date": "2025-09-27T12:48:40+07:00",
+      "message": "update giam sat may"
+    },
+    {
+      "hash": "04b3571",
+      "author": "buinhutminh1999",
+      "date": "2025-09-27T11:16:37+07:00",
+      "message": "update quản lý máy"
+    },
+    {
+      "hash": "0076552",
+      "author": "buinhutminh1999",
+      "date": "2025-09-27T05:24:06+07:00",
+      "message": "update thời gian sử dụng máy"
+    },
+    {
+      "hash": "0b995f0",
+      "author": "buinhutminh1999",
+      "date": "2025-09-26T17:00:10+07:00",
+      "message": "chuyển chấm công"
+    },
+    {
+      "hash": "55adfcf",
+      "author": "buinhutminh1999",
+      "date": "2025-09-25T16:36:48+07:00",
+      "message": "update tài khoản"
+    },
+    {
+      "hash": "6d8daa6",
+      "author": "buinhutminh1999",
+      "date": "2025-09-25T10:36:56+07:00",
+      "message": "update tài khoản"
+    },
+    {
+      "hash": "826e8ed",
+      "author": "buinhutminh1999",
+      "date": "2025-09-24T11:16:44+07:00",
+      "message": "update tạo tài khoản"
+    },
+    {
+      "hash": "83dccc0",
+      "author": "buinhutminh1999",
+      "date": "2025-09-23T15:45:32+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "871ef61",
+      "author": "buinhutminh1999",
+      "date": "2025-09-23T08:53:45+07:00",
+      "message": "update công thức lợi nhuận ròng = ln sau giam tru quý 2 + vuot q2"
+    },
+    {
+      "hash": "b3f4e8a",
+      "author": "buinhutminh1999",
+      "date": "2025-09-22T17:38:45+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "d7e71b6",
+      "author": "buinhutminh1999",
+      "date": "2025-09-22T17:00:16+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "5a16d8c",
+      "author": "buinhutminh1999",
+      "date": "2025-09-22T16:59:42+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "54c24c8",
+      "author": "buinhutminh1999",
+      "date": "2025-09-19T17:14:18+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "5c4aea5",
+      "author": "buinhutminh1999",
+      "date": "2025-09-16T21:00:51+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "dee5813",
+      "author": "buinhutminh1999",
+      "date": "2025-09-16T19:43:01+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "34d8b98",
+      "author": "buinhutminh1999",
+      "date": "2025-09-15T17:19:03+07:00",
+      "message": "sửa lỗi báo cáo tổng quát lấy cuối kỳ thi công cho đúng, fix lỗi lưu đầu kỳ"
+    },
+    {
+      "hash": "98e9c07",
+      "author": "buinhutminh1999",
+      "date": "2025-09-15T14:14:34+07:00",
+      "message": "update fix lỗi -NC lấy nợ cuối kỳ"
+    },
+    {
+      "hash": "6b240c1",
+      "author": "buinhutminh1999",
+      "date": "2025-09-15T13:46:56+07:00",
+      "message": "update lỗi sum cột cuối kỳ có"
+    },
+    {
+      "hash": "6a2c682",
+      "author": "buinhutminh1999",
+      "date": "2025-09-15T11:20:27+07:00",
+      "message": "update lỗi sum cuối kỳ nợ"
+    },
+    {
+      "hash": "fb167e2",
+      "author": "buinhutminh1999",
+      "date": "2025-09-15T10:50:59+07:00",
+      "message": "update công thức cuối kỳ nợ có báo cáo công nợ phải trả, bảng cân đối kế toán cuối kỳ chuyển qua đầu kỳ, báo cáo tổng quát cuối kỳ chuyển qua đầu kỳ"
+    },
+    {
+      "hash": "6e1c198",
+      "author": "buinhutminh1999",
+      "date": "2025-09-13T10:31:10+07:00",
+      "message": "update hàng kè cột doanh thu không tự động tính"
+    },
+    {
+      "hash": "48d5aae",
+      "author": "buinhutminh1999",
+      "date": "2025-09-09T17:20:57+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "15201e9",
+      "author": "buinhutminh1999",
+      "date": "2025-09-08T16:16:42+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "253e2bd",
+      "author": "buinhutminh1999",
+      "date": "2025-09-08T08:07:39+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "c25db83",
+      "author": "buinhutminh1999",
+      "date": "2025-09-06T19:38:50+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "fde0546",
+      "author": "buinhutminh1999",
+      "date": "2025-09-06T15:55:40+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "dc27179",
+      "author": "buinhutminh1999",
+      "date": "2025-09-06T11:21:28+07:00",
+      "message": "update tài sản"
+    },
+    {
+      "hash": "10bca5c",
+      "author": "buinhutminh1999",
+      "date": "2025-09-04T16:07:30+07:00",
+      "message": "update ui ux chi tiết công trình"
+    },
+    {
+      "hash": "c152817",
+      "author": "buinhutminh1999",
+      "date": "2025-09-03T16:22:29+07:00",
+      "message": "sửa lỗi chi phí theo quý có thể sửa điều chỉnh sử dụng, lưu quý hiện tại quý sau không ảnh hưởng"
+    },
+    {
+      "hash": "7b4a42d",
+      "author": "buinhutminh1999",
+      "date": "2025-09-03T15:23:17+07:00",
+      "message": "update cột vượt quý"
+    },
+    {
+      "hash": "28ca724",
+      "author": "buinhutminh1999",
+      "date": "2025-09-03T11:16:41+07:00",
+      "message": "update công thức cp sau quyết toán"
+    },
+    {
+      "hash": "80c3dbe",
+      "author": "buinhutminh1999",
+      "date": "2025-09-03T09:49:52+07:00",
+      "message": "update công thức cp sau quyết toán, cho xem công thức báo cáo lợi nhuận quý"
+    },
+    {
+      "hash": "00372bf",
+      "author": "buinhutminh1999",
+      "date": "2025-08-30T09:10:22+07:00",
+      "message": "update sự kiện"
+    },
+    {
+      "hash": "2108ddb",
+      "author": "buinhutminh1999",
+      "date": "2025-08-29T17:05:11+07:00",
+      "message": "update lỗi tính tổng công nợ phải trả"
+    },
+    {
+      "hash": "b4854fe",
+      "author": "buinhutminh1999",
+      "date": "2025-08-29T15:53:19+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "cdba12e",
+      "author": "buinhutminh1999",
+      "date": "2025-08-29T15:09:44+07:00",
+      "message": "ưpdate slide"
+    },
+    {
+      "hash": "8b930b8",
+      "author": "buinhutminh1999",
+      "date": "2025-08-29T14:56:08+07:00",
+      "message": "update fix lỗi chi phí theo quý, update event"
+    },
+    {
+      "hash": "24e2b8c",
+      "author": "buinhutminh1999",
+      "date": "2025-08-28T16:58:15+07:00",
+      "message": "update báo cáo quý, năm"
+    },
+    {
+      "hash": "7544647",
+      "author": "buinhutminh1999",
+      "date": "2025-08-28T10:05:51+07:00",
+      "message": "update trình chiếu, sửa lỗi nhập không được"
+    },
+    {
+      "hash": "bbb60a9",
+      "author": "buinhutminh1999",
+      "date": "2025-08-28T09:53:26+07:00",
+      "message": "update trình chiếu"
+    },
+    {
+      "hash": "ec77b1c",
+      "author": "buinhutminh1999",
+      "date": "2025-08-27T16:22:49+07:00",
+      "message": "update trang báo cáo sử dụng vốn không lấy dữ liệu cuối kỳ"
+    },
+    {
+      "hash": "3974017",
+      "author": "buinhutminh1999",
+      "date": "2025-08-27T15:45:48+07:00",
+      "message": "update chi tiết công trình xuất excel, chi phí theo quý lưu ko bị nhảy type = 0, update trang báo cáo ln năm"
+    },
+    {
+      "hash": "63100d4",
+      "author": "buinhutminh1999",
+      "date": "2025-08-27T13:46:18+07:00",
+      "message": "cap nhat bao cao doanh thu quy, bao cao su dung von"
+    },
+    {
+      "hash": "b3cfe3a",
+      "author": "buinhutminh1999",
+      "date": "2025-08-26T16:10:19+07:00",
+      "message": "update báo cáo quý sửa công thức, update sửa trang sử dụng vốn"
+    },
+    {
+      "hash": "986bbb7",
+      "author": "buinhutminh1999",
+      "date": "2025-08-23T18:25:46+07:00",
+      "message": "update bảng cân đối kế toán lấy dữ liệu từ theo báo cáo phải trả và cập nhật logic nhập dữ liệu đầu kỳ quý 1 năm 2025"
+    },
+    {
+      "hash": "0a26425",
+      "author": "buinhutminh1999",
+      "date": "2025-08-23T14:54:51+07:00",
+      "message": "update cách lấy dữ liệu bảng cân đối kế toán, bảng công nợ phải thu"
+    },
+    {
+      "hash": "7804c54",
+      "author": "buinhutminh1999",
+      "date": "2025-08-23T11:04:06+07:00",
+      "message": "ưpdate bảng cân đối kế toán một số tự động tính"
+    },
+    {
+      "hash": "130ce7f",
+      "author": "buinhutminh1999",
+      "date": "2025-08-23T09:21:37+07:00",
+      "message": "update lưu bị lỗi bảng cân bằng kế toán"
+    },
+    {
+      "hash": "ba02f80",
+      "author": "buinhutminh1999",
+      "date": "2025-08-23T08:42:09+07:00",
+      "message": "update thêm hàng II.4. Phải thu Sao Việt - SX, cuối kỳ qua đầu kỳ quý sau trang bảng cân đối kế toán"
+    },
+    {
+      "hash": "825beb2",
+      "author": "buinhutminh1999",
+      "date": "2025-08-22T16:52:08+07:00",
+      "message": "update tổng quát 2, tô màu nền table head báo cáo lợi nhuận quý, chỉnh sửa báo cáo nợ phải thu cho hợp lý các hàng tổng"
+    },
+    {
+      "hash": "fb76c79",
+      "author": "buinhutminh1999",
+      "date": "2025-08-22T13:54:07+07:00",
+      "message": "update lỗi hiệu ứng nền trắng ko thấy, sửa lỗi lưu không được ở báo cáo tổng quát"
+    },
+    {
+      "hash": "4848f05",
+      "author": "buinhutminh1999",
+      "date": "2025-08-22T11:00:30+07:00",
+      "message": "update tài sản có = 1 + 2 + 4 + 5 trang báo cáo tổng quát, update cấu trúc nợ phải thu"
+    },
+    {
+      "hash": "b9e0b97",
+      "author": "buinhutminh1999",
+      "date": "2025-08-21T17:26:33+07:00",
+      "message": "update ngân hàng đã vay lấy cột cuối kỳ bảng cân bẳng kế toán hàng Lợi nhuận TM (phải thu, phải trả đến thời điềm này) lấy hàng Phải thu khác - Nợ phải trả khác, công nợ phải thu cho copy từ excel"
+    },
+    {
+      "hash": "a73ad05",
+      "author": "buinhutminh1999",
+      "date": "2025-08-21T16:10:18+07:00",
+      "message": "update tạo thêm trang nợ phải thu"
+    },
+    {
+      "hash": "600e524",
+      "author": "buinhutminh1999",
+      "date": "2025-08-21T11:12:06+07:00",
+      "message": "update 142 bảng báo cáo nợ có"
+    },
+    {
+      "hash": "caba3b8",
+      "author": "buinhutminh1999",
+      "date": "2025-08-20T17:17:11+07:00",
+      "message": "báo cáo tổng quát thêm hàng nợ phải trả khác"
+    },
+    {
+      "hash": "3609a0a",
+      "author": "buinhutminh1999",
+      "date": "2025-08-20T16:57:30+07:00",
+      "message": "update cột cuối kỳ chuyển qua đầu kỳ quý sau trang báo cáo tổng quát"
+    },
+    {
+      "hash": "b78ee14",
+      "author": "buinhutminh1999",
+      "date": "2025-08-20T15:45:00+07:00",
+      "message": "update báo cáo tổng quát cho chọn tài khoản báo cáo tổng quát 1"
+    },
+    {
+      "hash": "b68028d",
+      "author": "buinhutminh1999",
+      "date": "2025-08-20T13:45:04+07:00",
+      "message": "cập nhật cột nợ phải trả đầu kỳ nhà máy = nợ phải trả ck + nợ phải trả ck nhà máy"
+    },
+    {
+      "hash": "1d4706a",
+      "author": "buinhutminh1999",
+      "date": "2025-08-20T11:31:19+07:00",
+      "message": "update công thức nợ phải trả ck và cp vượt quý nhà máy trang chi tiết công trình"
+    },
+    {
+      "hash": "e182c50",
+      "author": "buinhutminh1999",
+      "date": "2025-08-20T10:55:39+07:00",
+      "message": "update báo cáo sử dụng vốn sum đúng 2 cột kế hoạch, số tiền thực sd"
+    },
+    {
+      "hash": "73c8ec6",
+      "author": "buinhutminh1999",
+      "date": "2025-08-19T17:03:52+07:00",
+      "message": "update code sử dụng vốn cho sum tài khoản con"
+    },
+    {
+      "hash": "7cd5a97",
+      "author": "buinhutminh1999",
+      "date": "2025-08-19T16:33:14+07:00",
+      "message": "update code sử dụng vốn cho chọn nhiều tài khoản và xóa tài khoản, số âm luôn hiện cột Số tiền thực SD, hiện công thức cột chi tiết công trình"
+    },
+    {
+      "hash": "e9b0f06",
+      "author": "buinhutminh1999",
+      "date": "2025-08-19T15:09:02+07:00",
+      "message": "update code sử dụng vốn cho chọn nhiều tài khoản và xóa tài khoản"
+    },
+    {
+      "hash": "4290c99",
+      "author": "buinhutminh1999",
+      "date": "2025-08-19T14:37:27+07:00",
+      "message": "update code sử dụng vốn cho chọn nhiều tài khoản"
+    },
+    {
+      "hash": "acdbf2e",
+      "author": "buinhutminh1999",
+      "date": "2025-08-19T08:38:04+07:00",
+      "message": "update bảng báo cáo nợ có 112 sum tài khoản con"
+    },
+    {
+      "hash": "65c243b",
+      "author": "buinhutminh1999",
+      "date": "2025-08-18T17:10:26+07:00",
+      "message": "update bảng báo cáo nợ có xử lý lỗi mã tài khoản 421"
+    },
+    {
+      "hash": "a23d96e",
+      "author": "buinhutminh1999",
+      "date": "2025-08-18T16:32:11+07:00",
+      "message": "update bảng sử dụng vốn không sử dụng mẫu, sửa lỗi bảng cân đối kế toán, sửa mã 4111,41112"
+    },
+    {
+      "hash": "d5c2d5b",
+      "author": "buinhutminh1999",
+      "date": "2025-08-18T16:05:08+07:00",
+      "message": "cho sửa mã tài khoản cha trang hệ thống tài khoản"
+    },
+    {
+      "hash": "ab492da",
+      "author": "buinhutminh1999",
+      "date": "2025-08-18T15:26:15+07:00",
+      "message": "tạo trang báo cáo sử dụng vốn"
+    },
+    {
+      "hash": "25f821b",
+      "author": "buinhutminh1999",
+      "date": "2025-08-18T14:46:52+07:00",
+      "message": "update cho sửa hệ thống tài khoản, cho nhập sửa bảng cân đối kế toán, lấy dữ liệu báo cáo nợ có chi tiết linh động hơn"
+    },
+    {
+      "hash": "f7ffb9d",
+      "author": "buinhutminh1999",
+      "date": "2025-08-15T16:57:20+07:00",
+      "message": "update trang bảng cân bằng kế toán"
+    },
+    {
+      "hash": "a4b52ba",
+      "author": "buinhutminh1999",
+      "date": "2025-08-15T14:35:19+07:00",
+      "message": "update trang hệ thống tài khoản"
+    },
+    {
+      "hash": "aac7056",
+      "author": "buinhutminh1999",
+      "date": "2025-08-15T09:47:52+07:00",
+      "message": "fix lỗi lưu bị lỗi chi tiết công trình, update lại công thức PS nợ + thêm Nợ phải trả cuối kỳ Nhà máy"
+    },
+    {
+      "hash": "7cc0262",
+      "author": "buinhutminh1999",
+      "date": "2025-08-14T14:35:51+07:00",
+      "message": "update báo cáo nợ có, sdđk"
+    },
+    {
+      "hash": "2644795",
+      "author": "buinhutminh1999",
+      "date": "2025-08-13T09:11:30+07:00",
+      "message": "ưpdate lại cách tính cột chi phí vuot quy bao cao quy, cp vuot luy ke bao cao năm"
+    },
+    {
+      "hash": "8195176",
+      "author": "buinhutminh1999",
+      "date": "2025-08-12T11:07:10+07:00",
+      "message": "update chi tiet cong trinh bi nhay cot vt nc"
+    },
+    {
+      "hash": "9024c1c",
+      "author": "buinhutminh1999",
+      "date": "2025-08-12T10:57:02+07:00",
+      "message": "update chi tiet cong trinh bi nhay cot vt nc"
+    },
+    {
+      "hash": "8c88d1a",
+      "author": "buinhutminh1999",
+      "date": "2025-08-12T10:48:14+07:00",
+      "message": "update chi tiet cong trinh bi nhay cot vt nc"
+    },
+    {
+      "hash": "dd0d609",
+      "author": "buinhutminh1999",
+      "date": "2025-08-12T10:45:52+07:00",
+      "message": "update chi tiet cong trinh bi nhay cot vt nc"
+    },
+    {
+      "hash": "e3beec4",
+      "author": "buinhutminh1999",
+      "date": "2025-08-12T10:37:27+07:00",
+      "message": "update chi tiet cong trinh bi nhay cot vt nc"
+    },
+    {
+      "hash": "cc30481",
+      "author": "buinhutminh1999",
+      "date": "2025-08-08T16:19:17+07:00",
+      "message": "update khi chuyển quý thì từ quý sau không thay đổi giá trị đã nhập ở quý 2 là cptt và doanh thu"
+    },
+    {
+      "hash": "a34f162",
+      "author": "buinhutminh1999",
+      "date": "2025-08-08T15:49:43+07:00",
+      "message": "update phân bổ chi phí xóa lương sale và công thức thưởng ..."
+    },
+    {
+      "hash": "9cfe1e1",
+      "author": "buinhutminh1999",
+      "date": "2025-08-08T15:26:43+07:00",
+      "message": "update cột nợ phải tra cuối kỳ nhà máy"
+    },
+    {
+      "hash": "80d04a3",
+      "author": "buinhutminh1999",
+      "date": "2025-08-08T15:00:03+07:00",
+      "message": "update công thức nợ phải trả cuối kỳ cho nhà máy"
+    },
+    {
+      "hash": "0e4e6b5",
+      "author": "buinhutminh1999",
+      "date": "2025-08-08T10:51:14+07:00",
+      "message": "update công thức cột thang du thieu luy ke, vuot quy hien tai, reset doanh thu trang chi tiết công trình"
+    },
+    {
+      "hash": "48ba6b5",
+      "author": "buinhutminh1999",
+      "date": "2025-08-07T10:37:59+07:00",
+      "message": "update lam tron theo quy"
+    },
+    {
+      "hash": "3aefa7d",
+      "author": "buinhutminh1999",
+      "date": "2025-08-06T10:46:07+07:00",
+      "message": "update chi phi theo quy lam tron, them côt cp tru vao chuyen tiep"
+    },
+    {
+      "hash": "baa3f8c",
+      "author": "buinhutminh1999",
+      "date": "2025-08-05T13:47:03+07:00",
+      "message": "update côt chi phi neu doanh thu quy và tong doanh thu == 0 thi cột chi phí đã chi bằng 0 trong 2 báo cáo quý năm"
+    },
+    {
+      "hash": "c442983",
+      "author": "buinhutminh1999",
+      "date": "2025-08-05T04:07:36+07:00",
+      "message": "update nha may phan bo - cp tt"
+    },
+    {
+      "hash": "0f41eab",
+      "author": "buinhutminh1999",
+      "date": "2025-08-04T17:21:04+07:00",
+      "message": "update code lay du lieu bao cao quy va nam luu va lay theo type"
+    },
+    {
+      "hash": "fa3a0c6",
+      "author": "buinhutminh1999",
+      "date": "2025-08-02T10:22:19+07:00",
+      "message": "update trang bao cao nam lay chi phi da chi theo dieu kien"
+    },
+    {
+      "hash": "7bbcd19",
+      "author": "buinhutminh1999",
+      "date": "2025-08-02T09:59:04+07:00",
+      "message": "update trang bao cao nam update dung san xuat"
+    },
+    {
+      "hash": "4cb6c2a",
+      "author": "buinhutminh1999",
+      "date": "2025-08-02T09:49:53+07:00",
+      "message": "update trang bao cao nam lấy dung theo loai thi cong, kh-dt"
+    },
+    {
+      "hash": "76aacbe",
+      "author": "buinhutminh1999",
+      "date": "2025-08-01T13:31:04+07:00",
+      "message": "update cot ps giam, ps no trang cong no"
+    },
+    {
+      "hash": "e32cc1e",
+      "author": "buinhutminh1999",
+      "date": "2025-08-01T10:55:29+07:00",
+      "message": "update loi loc chi phi theo quy"
+    },
+    {
+      "hash": "9398e73",
+      "author": "buinhutminh1999",
+      "date": "2025-08-01T09:46:54+07:00",
+      "message": "update cột ps giam, ps no"
+    },
+    {
+      "hash": "38d53c7",
+      "author": "buinhutminh1999",
+      "date": "2025-07-31T17:03:50+07:00",
+      "message": "update cột ps giam, ps no, cp sau quyet toan"
+    },
+    {
+      "hash": "abea3d9",
+      "author": "buinhutminh1999",
+      "date": "2025-07-31T16:30:07+07:00",
+      "message": "update cột cp sau quyết toán, update lay cot cp sau quyet toat neu nhu tong doanh thu = 0 ben chi tiet cong trinh"
+    },
+    {
+      "hash": "50b0fe1",
+      "author": "buinhutminh1999",
+      "date": "2025-07-31T14:14:56+07:00",
+      "message": "trong drawer chi tiet danh sach giao dich chi tiet doi 2 cot ps no thanh giam va nguoc lai"
+    },
+    {
+      "hash": "e734426",
+      "author": "buinhutminh1999",
+      "date": "2025-07-31T13:50:11+07:00",
+      "message": "sap xep theo loai trang cong no phai tra, chi tiet cong trinh realtime cot phan bo"
+    },
+    {
+      "hash": "e3507eb",
+      "author": "buinhutminh1999",
+      "date": "2025-07-30T17:00:23+07:00",
+      "message": "update cot no cuoi ky neu doanh thu = o thi = no phai tra dk - cptt"
+    },
+    {
+      "hash": "4721d1a",
+      "author": "buinhutminh",
+      "date": "2025-07-29T17:12:55+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "40992c2",
+      "author": "buinhutminh1999",
+      "date": "2025-07-24T15:25:41+07:00",
+      "message": "update bảng chi tieu thuc te bao cao nam"
+    },
+    {
+      "hash": "4ce4d21",
+      "author": "buinhutminh1999",
+      "date": "2025-07-23T16:34:47+07:00",
+      "message": "update %LN theo KH lay tu cột estimatedProfitMargin project"
+    },
+    {
+      "hash": "cb5d491",
+      "author": "buinhutminh1999",
+      "date": "2025-07-14T17:05:33+07:00",
+      "message": "update khong cho phan bo vao chi tiet công trinh"
+    },
+    {
+      "hash": "77abace",
+      "author": "buinhutminh1999",
+      "date": "2025-07-14T14:36:45+07:00",
+      "message": "update bao cao loi nhuan quy, chỉnh lại % LN theo KH, LN/ trên giá vốn XD + NM hiển thi -, them hang loi nhuan rong"
+    },
+    {
+      "hash": "846195f",
+      "author": "buinhutminh1999",
+      "date": "2025-07-12T11:16:01+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "a3037f1",
+      "author": "buinhutminh1999",
+      "date": "2025-07-10T14:42:39+07:00",
+      "message": "update trang báo cáo lợi nhuan quy chinh sua hang xi nghiep ii hang loi nhuan, va tao them bang %LN gia von"
+    },
+    {
+      "hash": "54efed7",
+      "author": "buinhutminh1999",
+      "date": "2025-07-10T13:29:53+07:00",
+      "message": "update phân bo nha may lay tu phan bo chi phi, sua loi bao cao doanh thu quy doanh thu - chi phi, luong sale lay tu chi phi thuong"
+    },
+    {
+      "hash": "1446fef",
+      "author": "buinhutminh1999",
+      "date": "2025-07-09T16:28:02+07:00",
+      "message": "update công thuc tinh toan nha may trang chi tiêt"
+    },
+    {
+      "hash": "16d90f8",
+      "author": "buinhutminh1999",
+      "date": "2025-07-09T12:46:08+07:00",
+      "message": "update lai cach tinh toan thang du thieu"
+    },
+    {
+      "hash": "97be769",
+      "author": "buinhutminh1999",
+      "date": "2025-07-09T09:15:21+07:00",
+      "message": "update trang bao cao loi nhuan quy load theo project neu thay doi loai"
+    },
+    {
+      "hash": "0f3d6dc",
+      "author": "buinhutminh1999",
+      "date": "2025-07-06T17:59:10+07:00",
+      "message": "update table chi tiết công trình cho dễ kiểm tra"
+    },
+    {
+      "hash": "1514dda",
+      "author": "buinhutminh1999",
+      "date": "2025-07-06T16:14:18+07:00",
+      "message": "update trang loi nhuan quy load chi tiet cong trinh theo san xuat, sua loi không nhap cac nhom cột con sản xuất"
+    },
+    {
+      "hash": "e8871ee",
+      "author": "buinhutminh1999",
+      "date": "2025-07-06T11:42:26+07:00",
+      "message": "sap xep khoan muc theo type update cho tung trang"
+    },
+    {
+      "hash": "81156a5",
+      "author": "buinhutminh1999",
+      "date": "2025-07-04T17:19:01+07:00",
+      "message": "ưpdate lay danh sach chi tiêt cong trinh khi co su thay doi bao cao doanh thu theo quy, update bao cao nam ..."
+    },
+    {
+      "hash": "8e56745",
+      "author": "buinhutminh1999",
+      "date": "2025-07-04T15:37:04+07:00",
+      "message": "update lay du lieu chi tiet hang đau tu o project"
+    },
+    {
+      "hash": "f4894f6",
+      "author": "buinhutminh1999",
+      "date": "2025-07-03T18:29:10+07:00",
+      "message": "update trang bao cao loi nhuan quy sua toan bo code, update hang tong"
+    },
+    {
+      "hash": "e12c070",
+      "author": "buinhutminh1999",
+      "date": "2025-07-03T17:17:50+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "209722e",
+      "author": "buinhutminh1999",
+      "date": "2025-07-03T16:14:20+07:00",
+      "message": "update xnxd2 trong bao cao loi nhuan"
+    },
+    {
+      "hash": "77926aa",
+      "author": "buinhutminh1999",
+      "date": "2025-07-03T15:10:40+07:00",
+      "message": "update doanh thu du kien nha may theo tung quy"
+    },
+    {
+      "hash": "268355c",
+      "author": "buinhutminh1999",
+      "date": "2025-07-03T10:13:56+07:00",
+      "message": "update trang ke hoach co the đong bo khoan muc và tu dong sua theo nhom dua tren C. Chi phi khac"
+    },
+    {
+      "hash": "bc463dc",
+      "author": "buinhutminh1999",
+      "date": "2025-07-02T16:31:20+07:00",
+      "message": "update ke hoach thi cong tu đong cap nhat so tien theo khoan muc"
+    },
+    {
+      "hash": "03fe216",
+      "author": "buinhutminh1999",
+      "date": "2025-07-02T14:06:06+07:00",
+      "message": "sua code cap nhat vi tri bao cáo doanh thu theo quy"
+    },
+    {
+      "hash": "0def2e1",
+      "author": "buinhutminh1999",
+      "date": "2025-06-25T17:15:59+07:00",
+      "message": "update cho sua no phai tra ck -VT -NC"
+    },
+    {
+      "hash": "23aa462",
+      "author": "buinhutminh1999",
+      "date": "2025-06-25T13:51:18+07:00",
+      "message": "ưpdate folder cau truc du an"
+    },
+    {
+      "hash": "c490284",
+      "author": "buinhutminh1999",
+      "date": "2025-06-24T18:51:33+07:00",
+      "message": "update phân bổ điều chỉnh phần % sử dụng dư đem qua quý sau"
+    },
+    {
+      "hash": "145a9af",
+      "author": "buinhutminh1999",
+      "date": "2025-06-24T17:06:25+07:00",
+      "message": "ưpdate"
+    },
+    {
+      "hash": "d9f96be",
+      "author": "buinhutminh1999",
+      "date": "2025-06-24T10:15:27+07:00",
+      "message": "update mo cho nhap cột doanh thu, update giao dien trang chi tiet cong trinh"
+    },
+    {
+      "hash": "9a53893",
+      "author": "buinhutminh1999",
+      "date": "2025-06-24T09:03:28+07:00",
+      "message": "update phân bo theo lich"
+    },
+    {
+      "hash": "5faa265",
+      "author": "buinhutminh1999",
+      "date": "2025-06-23T17:07:22+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "624a2f0",
+      "author": "buinhutminh1999",
+      "date": "2025-06-23T11:14:41+07:00",
+      "message": "update ke hoach chi tiet và phat sinh, bao cao quy bi trung"
+    },
+    {
+      "hash": "be307af",
+      "author": "buinhutminh1999",
+      "date": "2025-06-23T08:04:27+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "a1bc14d",
+      "author": "buinhutminh1999",
+      "date": "2025-06-21T11:16:17+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "aa743ae",
+      "author": "buinhutminh1999",
+      "date": "2025-06-21T03:40:08+07:00",
+      "message": "update giao dien"
+    },
+    {
+      "hash": "ff6c0c0",
+      "author": "buinhutminh1999",
+      "date": "2025-06-20T17:04:17+07:00",
+      "message": "update công ke hoach va chi tiet phat sinh"
+    },
+    {
+      "hash": "57e9de5",
+      "author": "buinhutminh1999",
+      "date": "2025-06-20T09:55:20+07:00",
+      "message": "update công thức ldx"
+    },
+    {
+      "hash": "bba5261",
+      "author": "buinhutminh1999",
+      "date": "2025-06-20T09:05:21+07:00",
+      "message": "update công thức ldx"
+    },
+    {
+      "hash": "9d110ee",
+      "author": "buinhutminh1999",
+      "date": "2025-06-20T08:37:49+07:00",
+      "message": "update trang ke hoach, chi tiet load theo khoan muc"
+    },
+    {
+      "hash": "e1d2e26",
+      "author": "buinhutminh1999",
+      "date": "2025-06-19T16:46:08+07:00",
+      "message": "update phân bo chi phi theo luong"
+    },
+    {
+      "hash": "d8c8191",
+      "author": "buinhutminh1999",
+      "date": "2025-06-18T18:35:46+07:00",
+      "message": "update trang phân bổ chi phí lỗi save không lưu dồn type"
+    },
+    {
+      "hash": "50f2640",
+      "author": "buinhutminh1999",
+      "date": "2025-06-18T15:27:29+07:00",
+      "message": "update phân bổ theo quý theo loại khoản mục theo công trình ver 3"
+    },
+    {
+      "hash": "0bfa8ed",
+      "author": "buinhutminh1999",
+      "date": "2025-06-18T08:48:23+07:00",
+      "message": "update dieu chinh su dung theo % ver 2"
+    },
+    {
+      "hash": "ba35567",
+      "author": "buinhutminh1999",
+      "date": "2025-06-17T06:44:54+07:00",
+      "message": "update báo cáo lợi nhuận theo năm ver 1"
+    },
+    {
+      "hash": "9472eb9",
+      "author": "buinhutminh1999",
+      "date": "2025-06-13T10:19:27+07:00",
+      "message": "update phân bổ theo quý theo loại khoản mục theo công trình"
+    },
+    {
+      "hash": "c9fde8b",
+      "author": "buinhutminh1999",
+      "date": "2025-06-11T19:15:54+07:00",
+      "message": "update ... chờ khai báo trang phân bổ chi phí"
+    },
+    {
+      "hash": "ad842be",
+      "author": "buinhutminh1999",
+      "date": "2025-06-10T21:14:12+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "8b113c5",
+      "author": "buinhutminh1999",
+      "date": "2025-06-10T05:56:54+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "93a7e48",
+      "author": "buinhutminh1999",
+      "date": "2025-06-09T19:50:22+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "c4976bf",
+      "author": "buinhutminh1999",
+      "date": "2025-06-09T18:31:25+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "4b768f6",
+      "author": "buinhutminh1999",
+      "date": "2025-06-09T08:39:15+07:00",
+      "message": "update giao diện mới"
+    },
+    {
+      "hash": "00f6dbd",
+      "author": "buinhutminh1999",
+      "date": "2025-06-07T19:40:09+07:00",
+      "message": "update giao diện hiện đại"
+    },
+    {
+      "hash": "629f07e",
+      "author": "buinhutminh1999",
+      "date": "2025-06-07T16:42:05+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "01ea1ad",
+      "author": "buinhutminh1999",
+      "date": "2025-06-07T13:55:40+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "a50c7a2",
+      "author": "buinhutminh1999",
+      "date": "2025-06-06T15:03:13+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "105a75e",
+      "author": "buinhutminh1999",
+      "date": "2025-06-06T14:31:35+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "40f075c",
+      "author": "buinhutminh1999",
+      "date": "2025-06-06T08:47:48+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "5676f4f",
+      "author": "buinhutminh1999",
+      "date": "2025-06-05T10:58:33+07:00",
+      "message": "update cột tổng chi phí theo quý"
+    },
+    {
+      "hash": "42a4994",
+      "author": "buinhutminh1999",
+      "date": "2025-06-04T20:55:42+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "74f32a2",
+      "author": "buinhutminh1999",
+      "date": "2025-06-04T17:01:46+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "15d0e91",
+      "author": "buinhutminh1999",
+      "date": "2025-06-04T15:27:08+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "d06949c",
+      "author": "buinhutminh1999",
+      "date": "2025-06-04T14:57:17+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "70e49dc",
+      "author": "buinhutminh1999",
+      "date": "2025-06-04T11:29:02+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "8571312",
+      "author": "buinhutminh1999",
+      "date": "2025-06-03T22:59:19+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "90137e2",
+      "author": "buinhutminh1999",
+      "date": "2025-06-03T19:15:31+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "a06a191",
+      "author": "buinhutminh1999",
+      "date": "2025-06-03T15:33:29+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "70f2f84",
+      "author": "buinhutminh1999",
+      "date": "2025-05-30T08:15:48+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "9862bad",
+      "author": "buinhutminh1999",
+      "date": "2025-05-29T15:58:50+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "eebd3ff",
+      "author": "buinhutminh1999",
+      "date": "2025-05-29T14:34:07+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "75673aa",
+      "author": "buinhutminh1999",
+      "date": "2025-05-29T10:42:10+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "659d228",
+      "author": "buinhutminh1999",
+      "date": "2025-05-29T03:13:08+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "9a18b49",
+      "author": "buinhutminh1999",
+      "date": "2025-05-28T19:41:04+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "c470e8b",
+      "author": "buinhutminh1999",
+      "date": "2025-05-28T18:01:07+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "f04d856",
+      "author": "buinhutminh1999",
+      "date": "2025-05-28T09:16:41+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "a9fa7ec",
+      "author": "buinhutminh1999",
+      "date": "2025-05-27T19:01:01+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "a2ea5e7",
+      "author": "buinhutminh1999",
+      "date": "2025-05-27T18:04:04+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "2d84289",
+      "author": "buinhutminh1999",
+      "date": "2025-05-24T19:44:33+07:00",
+      "message": "update"
+    },
+    {
+      "hash": "f410875",
+      "author": "buinhutminh1999",
+      "date": "2025-05-23T19:47:34+07:00",
+      "message": "update tạo tài khoản, trang cá nhân"
+    },
+    {
+      "hash": "03ad76b",
+      "author": "buinhutminh1999",
+      "date": "2025-05-23T18:54:31+07:00",
+      "message": "update chi tiết upload file excel thay thế dữ liệu nào ko có ver 2"
+    },
+    {
+      "hash": "3c1b74d",
+      "author": "buinhutminh1999",
+      "date": "2025-05-22T15:07:43+07:00",
+      "message": "update chi tiết upload file excel thay thế dữ liệu nào ko có"
+    },
+    {
+      "hash": "6d91d58",
+      "author": "buinhutminh1999",
+      "date": "2025-05-22T11:13:18+07:00",
+      "message": "update hoàn thành trang phân bổ chi phí theo quý ver 8 logo loading xác thực người dùng"
+    },
+    {
+      "hash": "9f5a2a6",
+      "author": "buinhutminh1999",
+      "date": "2025-05-22T10:49:29+07:00",
+      "message": "update hoàn thành trang phân bổ chi phí theo quý ver 8  và lưu chuyển tiếp quý theo chi tiết công trình"
+    },
+    {
+      "hash": "f4bf983",
+      "author": "buinhutminh1999",
+      "date": "2025-05-21T18:35:10+07:00",
+      "message": "update hoàn thành trang phân bổ chi phí theo quý ver 7 và lưu chuyển tiếp quý theo chi tiết công trình"
+    },
+    {
+      "hash": "009675c",
+      "author": "buinhutminh1999",
+      "date": "2025-05-21T16:23:55+07:00",
+      "message": "update hoàn thành trang phân bổ chi phí theo quý ver 6"
+    },
+    {
+      "hash": "510b190",
+      "author": "buinhutminh1999",
+      "date": "2025-05-20T13:05:53+07:00",
+      "message": "update hoàn thành trang phân bổ chi phí theo quý ver 5"
+    },
+    {
+      "hash": "ea9b9b5",
+      "author": "buinhutminh1999",
+      "date": "2025-05-20T13:01:58+07:00",
+      "message": "update hoàn thành trang phân bổ chi phí theo quý ver 4"
+    },
+    {
+      "hash": "1a3b024",
+      "author": "buinhutminh1999",
+      "date": "2025-05-19T18:03:10+07:00",
+      "message": "update hoàn thành trang phân bổ chi phí theo quý ver 3"
+    },
+    {
+      "hash": "5185f8e",
+      "author": "buinhutminh1999",
+      "date": "2025-05-19T14:05:26+07:00",
+      "message": "update"
+    }
+  ]
+}

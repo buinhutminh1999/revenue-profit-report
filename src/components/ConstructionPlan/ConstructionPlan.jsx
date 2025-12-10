@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useDebounce } from "../../hooks/useDebounce";
 import {
     collection,
     onSnapshot,
@@ -60,6 +61,8 @@ import {
 } from "@mui/icons-material";
 import { DataGrid, GridPagination } from "@mui/x-data-grid";
 import { motion, useSpring, useTransform } from "framer-motion";
+import { useProjects } from "../../hooks/useProjects";
+import { useFinalizedQuarters } from "../../hooks/useFinalizedQuarters";
 import AllocationTimelineModal, {
     getCurrentYear,
 } from "./AllocationTimelineModal";
@@ -79,14 +82,9 @@ const formatNumber = (val) =>
         : val;
 const getCurrentQuarter = () => `Q${Math.floor(new Date().getMonth() / 3) + 1}`;
 
-function useDebounce(value, delay) {
-    const [debouncedValue, setDebouncedValue] = useState(value);
-    useEffect(() => {
-        const handler = setTimeout(() => setDebouncedValue(value), delay);
-        return () => clearTimeout(handler);
-    }, [value, delay]);
-    return debouncedValue;
-}
+const isProjectCurrentlyAllocated = (project) => {
+    return project?.allocationPeriods && Object.keys(project.allocationPeriods).length > 0;
+};
 
 function AnimatedCounter({ value, isCurrency = false }) {
     const spring = useSpring(Number(value) || 0, {
@@ -328,23 +326,26 @@ export default function ConstructionPlan() {
     const location = useLocation();
     const theme = useTheme();
     const hasLoadedRef = useRef(false); // Để tránh reload khi mount lần đầu
-    const [projects, setProjects] = useState([]);
+    // --- REFACTORED TO USE HOOKS ---
+    const { projects: rawProjects, isLoading: isProjectsLoading } = useProjects();
+    const { finalizedInfo, isLoading: isFinalizedLoading } = useFinalizedQuarters(rawProjects);
+
+    // --- LOCAL STATE ---
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
-    const debouncedSearchTerm = useDebounce(searchTerm, 300);
-    const [openAddDrawer, setOpenAddDrawer] = useState(false);
-    const [openEditDrawer, setOpenEditDrawer] = useState(false);
-    const [projectToEdit, setProjectToEdit] = useState(null);
-    const [isTimelineModalOpen, setTimelineModalOpen] = useState(false);
-    const [projectForTimeline, setProjectForTimeline] = useState(null);
-    const [projectToDelete, setProjectToDelete] = useState(null);
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const [paginationModel, setPaginationModel] = useState({
         pageSize: 10,
         page: 0,
     });
+    const [openAddDrawer, setOpenAddDrawer] = useState(false);
+    const [openEditDrawer, setOpenEditDrawer] = useState(false);
+    const [projectToEdit, setProjectToEdit] = useState(null);
+    const [projectToDelete, setProjectToDelete] = useState(null);
+    const [projectForTimeline, setProjectForTimeline] = useState(null);
+    const [isTimelineModalOpen, setTimelineModalOpen] = useState(false);
 
-    // ✅ Đã loại bỏ quartersCache - không còn cần thiết
-
+    // State cho việc tạo mới dự án
     const [newProject, setNewProject] = useState({
         name: "",
         totalAmount: "",
@@ -352,127 +353,19 @@ export default function ConstructionPlan() {
         allocationPeriods: {},
     });
 
-    const isProjectCurrentlyAllocated = (project) => {
-        const periods = project.allocationPeriods || {};
-        const currentKey = `${getCurrentYear()}-${getCurrentQuarter()}`;
-        return (
-            periods[currentKey] !== undefined && periods[currentKey] !== null
-        );
-    };
-
-    const [finalizedInfo, setFinalizedInfo] = useState({});
-
-    // ✅ TỐI ƯU: Không gọi getDocs trong listener để tránh nhiều reads
-    // Thay vào đó, lấy revenueHSKH từ project document (nếu đã được lưu)
-    // hoặc để 0 và sẽ tính sau khi cần
+    // Combine loading states
+    const isLoadingData = isProjectsLoading || isFinalizedLoading;
+    // Sync local loading state if needed, or just use derived state
     useEffect(() => {
-        setIsLoading(true);
-        const projectsCollection = collection(db, "projects");
-        const q = query(projectsCollection, firestoreOrderBy("name", "asc"));
-        const unsub = onSnapshot(
-            q,
-            async (projectsSnapshot) => {
-                try {
-                    const projectsData = projectsSnapshot.docs.map((d) => ({
-                        ...d.data(),
-                        id: d.id,
-                        revenueHSKH: d.data().revenueHSKH || 0,
-                    }));
-                    setProjects(projectsData);
-                } catch (error) {
-                    console.error("Lỗi khi lấy dữ liệu:", error);
-                    toast.error("Không thể tải được dữ liệu công trình.");
-                } finally {
-                    setIsLoading(false);
-                }
-            },
-            (error) => {
-                console.error("Lỗi:", error);
-                setIsLoading(false);
-                toast.error("Không thể tải dữ liệu công trình.");
-            }
-        );
-        return () => unsub();
-    }, []);
+        setIsLoading(isLoadingData);
+    }, [isLoadingData]);
 
-    // Helper function để reload dữ liệu quyết toán cho một project
-    const reloadProjectFinalizedData = useCallback(async (project) => {
-        // ... (giữ nguyên logic reloadProjectFinalizedData nếu cần, nhưng cập nhật state finalizedInfo)
-        // Tuy nhiên, logic này hiện tại đang return object, ta sẽ sửa lại sau nếu cần dùng
-        // Hiện tại loadFinalizedQuarters sẽ đảm nhiệm việc này cho toàn bộ list
-    }, []);
-
-    // Load finalized quarters khi projects thay đổi
-    useEffect(() => {
-        if (projects.length === 0) return;
-
-        const loadFinalizedQuarters = async () => {
-            const newFinalizedInfo = {};
-
-            await Promise.all(
-                projects.map(async (project) => {
-                    try {
-                        const yearsRef = collection(db, "projects", project.id, "years");
-                        const yearsSnapshot = await getDocs(yearsRef);
-
-                        const finalizedQuarters = [];
-
-                        for (const yearDoc of yearsSnapshot.docs) {
-                            const year = yearDoc.id;
-                            const quartersRef = collection(
-                                db,
-                                "projects",
-                                project.id,
-                                "years",
-                                year,
-                                "quarters"
-                            );
-                            const quartersSnapshot = await getDocs(quartersRef);
-
-                            for (const quarterDoc of quartersSnapshot.docs) {
-                                const quarter = quarterDoc.id;
-                                const quarterData = quarterDoc.data();
-
-                                let isFinalized = false;
-                                if (quarterData.isFinalized === true || quarterData.isFinalized === "true") {
-                                    isFinalized = true;
-                                } else {
-                                    const items = Array.isArray(quarterData.items) ? quarterData.items : [];
-                                    if (items.length > 0) {
-                                        isFinalized = items.some(item =>
-                                            item && (item.isFinalized === true || item.isFinalized === "true")
-                                        );
-                                    }
-                                }
-
-                                if (isFinalized) {
-                                    finalizedQuarters.push({ quarter, year });
-                                }
-                            }
-                        }
-
-                        if (finalizedQuarters.length > 0) {
-                            finalizedQuarters.sort((a, b) => {
-                                if (a.year !== b.year) return Number(b.year) - Number(a.year);
-                                const qOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
-                                return qOrder[b.quarter] - qOrder[a.quarter];
-                            });
-                            newFinalizedInfo[project.id] = {
-                                finalizedQuarters,
-                                latestFinalized: finalizedQuarters[0]
-                            };
-                        }
-                    } catch (error) {
-                        console.error(`❌ Lỗi khi load quarters cho project ${project.id}:`, error);
-                    }
-                })
-            );
-
-            setFinalizedInfo(newFinalizedInfo);
-        };
-
-        loadFinalizedQuarters();
-    }, [projects]); // Chạy lại khi danh sách projects thay đổi (từ onSnapshot)
+    const projects = useMemo(() => {
+        return rawProjects.map((d) => ({
+            ...d,
+            revenueHSKH: d.revenueHSKH || 0,
+        }));
+    }, [rawProjects]);
 
     // Merge projects với finalizedInfo
     const mergedProjects = useMemo(() => {

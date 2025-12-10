@@ -1,453 +1,34 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
     Box, Paper, Typography, Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Chip, useTheme, alpha, Stack, FormControl, InputLabel, Select, MenuItem, Button, Dialog, DialogTitle,
     DialogContent, DialogActions, TextField, Grid, InputAdornment, Snackbar, Alert, CircularProgress,
-    Card, CardContent, IconButton, Tooltip, Backdrop, Avatar, AvatarGroup, Menu, Checkbox, ListItemText, TablePagination, InputBase, TableSortLabel
+    Card, CardContent, IconButton, Tooltip, Backdrop, TablePagination, TableSortLabel
 } from '@mui/material';
-import { Description, Receipt, FilterList, Assessment, Add, ContentPaste, Search, Refresh, Save, Delete, CloudUpload } from '@mui/icons-material';
+import { Description, Receipt, FilterList, Assessment, Add, ContentPaste, Search, Refresh, Delete, CloudUpload } from '@mui/icons-material';
+
+// Services and hooks
 import { InternalTaxService } from '../../services/internalTaxService';
+import { useInternalTaxReport } from '../../hooks/useInternalTaxReport';
+
+// Shared components
 import VATReportTab from './VATReportTab';
-function CustomTabPanel(props) {
-    const { children, value, index, ...other } = props;
+import CustomTabPanel from '../../components/common/CustomTabPanel';
+import ColumnFilterMenu from '../../components/common/ColumnFilterMenu';
+import { InvoiceRow, PurchaseInvoiceRow } from '../../components/finance/InvoiceRows';
+import InvoiceTableSkeleton from '../../components/finance/InvoiceTableSkeleton';
+import EmptyState from '../../components/common/EmptyState';
 
-    return (
-        <div
-            role="tabpanel"
-            hidden={value !== index}
-            id={`simple-tabpanel-${index}`}
-            aria-labelledby={`simple-tab-${index}`}
-            {...other}
-        >
-            <Box sx={{ p: 3 }}>
-                {children}
-            </Box>
-        </div>
-    );
-}
+// Shared utilities
+import { parseCurrency, formatCurrency, formatPercentage, parseDate } from '../../utils/currencyHelpers';
+// CustomTabPanel imported from shared components
 
 
 
 
 
-const parseCurrency = (str) => {
-    if (!str) return 0;
-    if (typeof str === 'number') return str;
-    let cleanStr = str.trim();
-    let isNegative = false;
-    if (cleanStr.startsWith('(') && cleanStr.endsWith(')')) {
-        isNegative = true;
-        cleanStr = cleanStr.slice(1, -1);
-    } else if (cleanStr.startsWith('-')) {
-        isNegative = true;
-        cleanStr = cleanStr.slice(1);
-    }
-    let result = 0;
-    if ((cleanStr.match(/,/g) || []).length > 1) {
-        result = parseFloat(cleanStr.replace(/,/g, ''));
-    } else {
-        result = parseFloat(cleanStr.replace(/\./g, '').replace(/,/g, '.'));
-    }
-    if (isNaN(result)) return 0;
-    return isNegative ? -result : result;
-};
-
-const formatCurrency = (num) => {
-    if (isNaN(num)) return "0";
-    return new Intl.NumberFormat('vi-VN').format(Math.round(num));
-};
-
-const formatPercentage = (num) => {
-    if (isNaN(num)) return "0%";
-    return new Intl.NumberFormat('vi-VN', { style: 'percent', maximumFractionDigits: 2 }).format(num);
-};
-
-const InvoiceRow = React.memo(({ row, index, actualIndex, isSelected, handleMouseDown, handleMouseEnter, handleUpdateCell, handleSaveCell, theme, handleDragStart, handleDragOver, handleDrop, dragIndex }) => {
-    return (
-        <TableRow
-            onMouseDown={(event) => handleMouseDown(event, row.id)}
-            onMouseEnter={() => handleMouseEnter(row.id)}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, dragIndex)}
-            selected={isSelected}
-            sx={{
-                '&:last-child td, &:last-child th': { border: 0 },
-                '&:hover': { bgcolor: '#f1f5f9' },
-                cursor: 'pointer',
-                bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.1) : 'inherit',
-                transition: 'background-color 0.2s'
-            }}
-        >
-            <TableCell
-                align="center"
-                draggable
-                onDragStart={(e) => handleDragStart(e, dragIndex)}
-                sx={{ cursor: 'grab', '&:active': { cursor: 'grabbing' } }}
-            >
-                {actualIndex}
-            </TableCell>
-            <TableCell>
-                <InputBase
-                    value={row.sellerName}
-                    onChange={(e) => handleUpdateCell(row.id, 'sellerName', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'sellerName', e.target.value)}
-                    fullWidth
-                    multiline
-                    sx={{
-                        fontSize: '0.875rem',
-                        p: 0.5,
-                        borderRadius: 1,
-                        transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                />
-            </TableCell>
-            <TableCell align="center" sx={{ fontWeight: 600 }}>
-                <InputBase
-                    value={row.invoiceNumber}
-                    onChange={(e) => handleUpdateCell(row.id, 'invoiceNumber', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'invoiceNumber', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem', textAlign: 'center', fontWeight: 600,
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                    inputProps={{ style: { textAlign: 'center' } }}
-                />
-            </TableCell>
-            <TableCell align="center" sx={{ color: 'text.secondary' }}>
-                <InputBase
-                    value={row.date}
-                    onChange={(e) => handleUpdateCell(row.id, 'date', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'date', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem', textAlign: 'center', color: 'text.secondary',
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                    inputProps={{ style: { textAlign: 'center' } }}
-                />
-            </TableCell>
-            <TableCell>
-                <InputBase
-                    value={row.buyerName}
-                    onChange={(e) => handleUpdateCell(row.id, 'buyerName', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'buyerName', e.target.value)}
-                    fullWidth
-                    multiline
-                    sx={{
-                        fontSize: '0.875rem',
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                />
-            </TableCell>
-            <TableCell align="center">
-                <InputBase
-                    value={row.buyerTaxCode}
-                    onChange={(e) => handleUpdateCell(row.id, 'buyerTaxCode', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'buyerTaxCode', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem', textAlign: 'center',
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                    inputProps={{ style: { textAlign: 'center' } }}
-                />
-            </TableCell>
-            <TableCell align="right" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
-                <InputBase
-                    value={row.totalNoTax}
-                    onChange={(e) => handleUpdateCell(row.id, 'totalNoTax', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'totalNoTax', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem', textAlign: 'right', fontWeight: 600, color: theme.palette.primary.main,
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                    inputProps={{ style: { textAlign: 'right' } }}
-                />
-            </TableCell>
-            <TableCell align="right">
-                <InputBase
-                    value={row.taxAmount}
-                    onChange={(e) => handleUpdateCell(row.id, 'taxAmount', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'taxAmount', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem', textAlign: 'right',
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                    inputProps={{ style: { textAlign: 'right' } }}
-                />
-            </TableCell>
-            <TableCell>
-                <InputBase
-                    value={row.note || ""}
-                    onChange={(e) => handleUpdateCell(row.id, 'note', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'note', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem',
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                />
-            </TableCell>
-            <TableCell>
-                <InputBase
-                    value={row.costType || ""}
-                    onChange={(e) => handleUpdateCell(row.id, 'costType', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'costType', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem',
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                />
-            </TableCell>
-        </TableRow>
-    );
-}, (prevProps, nextProps) => {
-    return (
-        prevProps.row === nextProps.row &&
-        prevProps.isSelected === nextProps.isSelected &&
-        prevProps.index === nextProps.index &&
-        prevProps.actualIndex === nextProps.actualIndex
-    );
-});
-
-const PurchaseInvoiceRow = React.memo(({ row, index, isSelected, handleMouseDown, handleMouseEnter, handleUpdatePurchaseCell, handleSavePurchaseCell, theme, handleDragStart, handleDragOver, handleDrop }) => {
-    const valueNoTax = parseCurrency(row.valueNoTax);
-    const tax = parseCurrency(row.tax);
-    const rate = valueNoTax !== 0 ? tax / valueNoTax : 0;
-
-    return (
-        <TableRow
-            onMouseDown={(event) => handleMouseDown(event, row.id)}
-            onMouseEnter={() => handleMouseEnter(row.id)}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, index)}
-            selected={isSelected}
-            sx={{
-                '&:last-child td, &:last-child th': { border: 0 },
-                '&:hover': { bgcolor: '#f1f5f9' },
-                cursor: 'pointer',
-                bgcolor: isSelected ? alpha(theme.palette.secondary.main, 0.1) : 'inherit'
-            }}
-        >
-            <TableCell
-                align="center"
-                draggable
-                onDragStart={(e) => handleDragStart(e, index)}
-                sx={{ cursor: 'grab', '&:active': { cursor: 'grabbing' } }}
-            >
-                {index + 1}
-            </TableCell>
-            <TableCell>
-                <InputBase
-                    value={row.buyer || ""}
-                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'buyer', e.target.value)}
-                    onBlur={(e) => handleSavePurchaseCell(row.id, 'buyer', e.target.value)}
-                    fullWidth
-                    multiline
-                    sx={{
-                        fontSize: '0.875rem', p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                />
-            </TableCell>
-            <TableCell align="center" sx={{ fontWeight: 600 }}>
-                <InputBase
-                    value={row.invoiceNo || ""}
-                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'invoiceNo', e.target.value)}
-                    onBlur={(e) => handleSavePurchaseCell(row.id, 'invoiceNo', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem', textAlign: 'center', fontWeight: 600,
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                    inputProps={{ style: { textAlign: 'center' } }}
-                />
-            </TableCell>
-            <TableCell align="center">
-                <InputBase
-                    value={row.date || ""}
-                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'date', e.target.value)}
-                    onBlur={(e) => handleSavePurchaseCell(row.id, 'date', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem', textAlign: 'center',
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                    inputProps={{ style: { textAlign: 'center' } }}
-                />
-            </TableCell>
-            <TableCell>
-                <InputBase
-                    value={row.seller || ""}
-                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'seller', e.target.value)}
-                    onBlur={(e) => handleSavePurchaseCell(row.id, 'seller', e.target.value)}
-                    fullWidth
-                    multiline
-                    sx={{
-                        fontSize: '0.875rem', p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                />
-            </TableCell>
-            <TableCell align="center">
-                <InputBase
-                    value={row.sellerTax || ""}
-                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'sellerTax', e.target.value)}
-                    onBlur={(e) => handleSavePurchaseCell(row.id, 'sellerTax', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem', textAlign: 'center',
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                    inputProps={{ style: { textAlign: 'center' } }}
-                />
-            </TableCell>
-            <TableCell align="right">
-                <InputBase
-                    value={row.valueNoTax || "0"}
-                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'valueNoTax', e.target.value)}
-                    onBlur={(e) => handleSavePurchaseCell(row.id, 'valueNoTax', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem', textAlign: 'right',
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                    inputProps={{ style: { textAlign: 'right' } }}
-                />
-            </TableCell>
-            <TableCell align="right">
-                <InputBase
-                    value={row.tax || "0"}
-                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'tax', e.target.value)}
-                    onBlur={(e) => handleSavePurchaseCell(row.id, 'tax', e.target.value)}
-                    fullWidth
-                    sx={{
-                        fontSize: '0.875rem', textAlign: 'right',
-                        p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                    inputProps={{ style: { textAlign: 'right' } }}
-                />
-            </TableCell>
-            <TableCell align="center">{formatPercentage(rate)}</TableCell>
-            <TableCell>
-                <InputBase
-                    value={row.costType || ""}
-                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'costType', e.target.value)}
-                    onBlur={(e) => handleSavePurchaseCell(row.id, 'costType', e.target.value)}
-                    fullWidth
-                    multiline
-                    sx={{
-                        fontSize: '0.875rem', p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                />
-            </TableCell>
-            <TableCell>
-                <InputBase
-                    value={row.project || ""}
-                    onChange={(e) => handleUpdatePurchaseCell(row.id, 'project', e.target.value)}
-                    onBlur={(e) => handleSavePurchaseCell(row.id, 'project', e.target.value)}
-                    fullWidth
-                    multiline
-                    sx={{
-                        fontSize: '0.875rem', p: 0.5, borderRadius: 1, transition: 'all 0.2s',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                        '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
-                    }}
-                />
-            </TableCell>
-        </TableRow>
-    );
-}, (prevProps, nextProps) => {
-    return (
-        prevProps.row === nextProps.row &&
-        prevProps.isSelected === nextProps.isSelected &&
-        prevProps.index === nextProps.index
-    );
-});
-
-const ColumnFilterMenu = ({ anchorEl, open, onClose, options, selectedValues, onChange, onClear }) => {
-    const [searchTerm, setSearchTerm] = useState("");
-
-    const filteredOptions = useMemo(() => {
-        if (!searchTerm) return options;
-        const lowerTerm = searchTerm.toLowerCase();
-        return options.filter(opt => String(opt).toLowerCase().includes(lowerTerm));
-    }, [options, searchTerm]);
-
-    return (
-        <Menu
-            anchorEl={anchorEl}
-            open={open}
-            onClose={onClose}
-            TransitionProps={{ onExited: () => setSearchTerm("") }}
-        >
-            <Box sx={{ p: 2, minWidth: 250 }}>
-                <TextField
-                    size="small"
-                    fullWidth
-                    placeholder="Tìm kiếm..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    sx={{ mb: 1 }}
-                    autoFocus
-                />
-                <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-                    {filteredOptions.map((val) => (
-                        <MenuItem key={val} dense onClick={() => {
-                            const newFilters = selectedValues.includes(val)
-                                ? selectedValues.filter(item => item !== val)
-                                : [...selectedValues, val];
-                            onChange(newFilters);
-                        }}>
-                            <Checkbox checked={selectedValues.includes(val)} size="small" />
-                            <ListItemText primary={val} />
-                        </MenuItem>
-                    ))}
-                </Box>
-                <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button size="small" onClick={onClear}>Xóa lọc</Button>
-                </Box>
-            </Box>
-        </Menu>
-    );
-};
-
+// InvoiceRow, PurchaseInvoiceRow imported from components/finance/InvoiceRows.jsx
+// ColumnFilterMenu imported from components/common/ColumnFilterMenu.jsx
 
 
 export default function InternalTaxReport() {
@@ -455,12 +36,26 @@ export default function InternalTaxReport() {
     const [value, setValue] = useState(0);
     const [month, setMonth] = useState(10);
     const [year, setYear] = useState(2025);
-    const [localGeneralInvoices, setLocalGeneralInvoices] = useState([]);
-    const [localPurchaseInvoices, setLocalPurchaseInvoices] = useState([]);
-    const [loading, setLoading] = useState(false);
+
+    // Use the new hook
+    const {
+        generalInvoices: localGeneralInvoices,
+        purchaseInvoices: localPurchaseInvoices,
+        isLoading: loading,
+        addGeneralInvoice,
+        updateGeneralInvoice,
+        deleteGeneralInvoice,
+        addPurchaseInvoice,
+        updatePurchaseInvoice,
+        deletePurchaseInvoice,
+        deleteMultipleGeneral,
+        deleteMultiplePurchase
+    } = useInternalTaxReport(month, year);
+
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [selectedIds, setSelectedIds] = useState([]);
     const [isDragging, setIsDragging] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false); // Fix: Add local processing state
     const [dragStartId, setDragStartId] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [openAddDialog, setOpenAddDialog] = useState(false);
@@ -483,10 +78,12 @@ export default function InternalTaxReport() {
     const [activeFilterColumn, setActiveFilterColumn] = useState(null);
     const [activeFilterGroup, setActiveFilterGroup] = useState(0); // 0: General, 1, 3, 4: Purchase Groups
 
-    // Pagination States
+    // Pagination States - Separate for each group
     const [pageGeneral, setPageGeneral] = useState(0);
     const [rowsPerPageGeneral, setRowsPerPageGeneral] = useState(25);
-    const [pagePurchase, setPagePurchase] = useState(0);
+    const [pageGroup1, setPageGroup1] = useState(0);
+    const [pageGroup3, setPageGroup3] = useState(0);
+    const [pageGroup4, setPageGroup4] = useState(0);
     const [rowsPerPagePurchase, setRowsPerPagePurchase] = useState(25);
 
     // Debounced Search
@@ -505,10 +102,12 @@ export default function InternalTaxReport() {
         setPageGeneral(0);
     };
 
-    const handleChangePagePurchase = (event, newPage) => setPagePurchase(newPage);
     const handleChangeRowsPerPagePurchase = (event) => {
-        setRowsPerPagePurchase(parseInt(event.target.value, 10));
-        setPagePurchase(0);
+        const newRowsPerPage = parseInt(event.target.value, 10);
+        setRowsPerPagePurchase(newRowsPerPage);
+        setPageGroup1(0);
+        setPageGroup3(0);
+        setPageGroup4(0);
     };
 
     const handleColumnFilterOpen = (event, columnId, groupId = 0) => {
@@ -568,21 +167,7 @@ export default function InternalTaxReport() {
     const handleCloseSnackbar = () => setSnackbar({ ...snackbar, open: false });
     const showSnackbar = (message, severity = 'success') => setSnackbar({ open: true, message, severity });
 
-    useEffect(() => {
-        setLoading(true);
-        const unsubscribeGeneral = InternalTaxService.subscribeToGeneralInvoices(month, year, (data) => {
-            setLocalGeneralInvoices(data);
-            setLoading(false);
-        });
-        const unsubscribePurchase = InternalTaxService.subscribeToPurchaseInvoices(month, year, (data) => {
-            setLocalPurchaseInvoices(data);
-            setLoading(false);
-        });
-        return () => {
-            unsubscribeGeneral();
-            unsubscribePurchase();
-        };
-    }, [month, year]);
+    // Removed manual subscriptions as they are handled by useInternalTaxReport
 
     const parseDate = (dateStr) => {
         if (!dateStr) return null;
@@ -831,9 +416,10 @@ export default function InternalTaxReport() {
                 showSnackbar(`Số hóa đơn ${newInvoice.invoiceNumber} đã tồn tại!`, "error");
                 return;
             }
-            setLoading(true);
+            setIsProcessing(true);
             const newItem = { stt: localGeneralInvoices.length + 1, ...newInvoice };
-            await InternalTaxService.addGeneralInvoice(newItem);
+
+            await addGeneralInvoice(newItem);
             handleCloseAddDialog();
             showSnackbar("Thêm hóa đơn thành công");
             setNewInvoice({
@@ -846,7 +432,7 @@ export default function InternalTaxReport() {
             console.error("Error adding invoice", error);
             showSnackbar("Lỗi khi thêm hóa đơn", "error");
         } finally {
-            setLoading(false);
+            setIsProcessing(false);
         }
     };
 
@@ -863,7 +449,7 @@ export default function InternalTaxReport() {
 
     const handleAddPurchaseInvoice = async () => {
         try {
-            setLoading(true);
+            setIsProcessing(true);
             const targetGroup = parseInt(newPurchaseInvoice.group);
             const targetList = targetGroup === 3 ? group3Data : (targetGroup === 4 ? group4Data : group1Data);
             const maxStt = targetList.reduce((max, item) => Math.max(max, item.stt || 0), 0);
@@ -876,7 +462,7 @@ export default function InternalTaxReport() {
                 group: targetGroup
             };
 
-            await InternalTaxService.addPurchaseInvoice(newItem);
+            await addPurchaseInvoice(newItem);
             handleCloseAddPurchaseDialog();
             showSnackbar("Thêm hóa đơn mua vào thành công");
             setNewPurchaseInvoice({
@@ -887,7 +473,7 @@ export default function InternalTaxReport() {
             console.error("Error adding purchase invoice", error);
             showSnackbar("Lỗi khi thêm hóa đơn", "error");
         } finally {
-            setLoading(false);
+            setIsProcessing(false);
         }
     };
 
@@ -903,7 +489,7 @@ export default function InternalTaxReport() {
             if (!text) return;
 
             try {
-                setLoading(true);
+                setIsProcessing(true);
                 const rows = text.split(/\r\n|\n|\r/).filter(row => row.trim() !== "");
 
                 if (value === 0) {
@@ -1147,7 +733,7 @@ export default function InternalTaxReport() {
                 console.error("Failed to parse/save clipboard data: ", err);
                 showSnackbar("Lỗi khi dán dữ liệu", "error");
             } finally {
-                setLoading(false);
+                setIsProcessing(false);
             }
         };
         window.addEventListener('paste', handlePaste);
@@ -1234,16 +820,16 @@ export default function InternalTaxReport() {
                 if (selectedIds.length > 0) {
                     if (window.confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} dòng đã chọn?`)) {
                         try {
-                            setLoading(true);
-                            if (value === 0) await InternalTaxService.deleteGeneralInvoicesBatch(selectedIds);
-                            else if (value === 1) await InternalTaxService.deletePurchaseInvoicesBatch(selectedIds);
+                            setIsProcessing(true);
+                            if (value === 0) await deleteMultipleGeneral(selectedIds);
+                            else if (value === 1) await deleteMultiplePurchase(selectedIds);
                             setSelectedIds([]);
                             showSnackbar("Đã xóa thành công");
                         } catch (error) {
                             console.error("Delete failed", error);
                             showSnackbar("Lỗi khi xóa", "error");
                         } finally {
-                            setLoading(false);
+                            setIsProcessing(false);
                         }
                     }
                 }
@@ -1264,7 +850,7 @@ export default function InternalTaxReport() {
 
     const handleSaveCell = React.useCallback(async (id, field, value) => {
         try {
-            await InternalTaxService.updateGeneralInvoice(id, { [field]: value });
+            await updateGeneralInvoice(id, { [field]: value });
         } catch (error) {
             console.error("Update failed", error);
             showSnackbar("Lỗi khi cập nhật", "error");
@@ -1282,7 +868,7 @@ export default function InternalTaxReport() {
 
     const handleSavePurchaseCell = React.useCallback(async (id, field, value) => {
         try {
-            await InternalTaxService.updatePurchaseInvoice(id, { [field]: value });
+            await updatePurchaseInvoice(id, { [field]: value });
         } catch (error) {
             console.error("Update failed", error);
             showSnackbar("Lỗi khi cập nhật", "error");
@@ -1292,14 +878,14 @@ export default function InternalTaxReport() {
     const handleDeleteAllGeneral = async () => {
         if (window.confirm(`Bạn có chắc chắn muốn xóa TẤT CẢ hóa đơn bán ra tháng ${month}/${year}? Hành động này không thể hoàn tác!`)) {
             try {
-                setLoading(true);
+                setIsProcessing(true);
                 await InternalTaxService.deleteGeneralInvoicesByMonth(month, year);
                 showSnackbar("Đã xóa tất cả hóa đơn bán ra trong tháng");
             } catch (error) {
                 console.error("Delete all general failed", error);
                 showSnackbar("Lỗi khi xóa dữ liệu", "error");
             } finally {
-                setLoading(false);
+                setIsProcessing(false);
             }
         }
     };
@@ -1307,14 +893,14 @@ export default function InternalTaxReport() {
     const handleDeleteAllPurchase = async () => {
         if (window.confirm(`Bạn có chắc chắn muốn xóa TẤT CẢ hóa đơn mua vào tháng ${month}/${year}? Hành động này không thể hoàn tác!`)) {
             try {
-                setLoading(true);
+                setIsProcessing(true);
                 await InternalTaxService.deletePurchaseInvoicesByMonth(month, year);
                 showSnackbar("Đã xóa tất cả hóa đơn mua vào trong tháng");
             } catch (error) {
                 console.error("Delete all purchase failed", error);
                 showSnackbar("Lỗi khi xóa dữ liệu", "error");
             } finally {
-                setLoading(false);
+                setIsProcessing(false);
             }
         }
     };
@@ -1399,207 +985,209 @@ export default function InternalTaxReport() {
         }
     };
 
-    const renderPurchaseTable = (data, totals, groupName, groupId) => (
-        <Box
-            onClick={() => setActivePurchaseGroup(groupId)}
-            sx={{
-                border: activePurchaseGroup === groupId ? 2 : 1,
-                borderColor: activePurchaseGroup === groupId ? 'primary.main' : 'divider',
-                borderRadius: 1,
-                p: 1,
-                mb: 3,
-                position: 'relative',
-                bgcolor: activePurchaseGroup === groupId ? alpha(theme.palette.primary.main, 0.02) : 'transparent'
-            }}
-        >
-            {activePurchaseGroup === groupId && (
-                <Chip label="Đang chọn để dán dữ liệu" color="primary" size="small" sx={{ position: 'absolute', top: -12, right: 10, bgcolor: 'white' }} />
-            )}
-            <TableContainer sx={{ maxHeight: 600 }}>
-                <Table stickyHeader sx={{ minWidth: 1200 }} aria-label={`purchase invoices table group ${groupId}`}>
-                    <TableHead>
-                        <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10, top: 0, borderBottom: '1px solid #e2e8f0' } }}>
-                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
-                                <TableSortLabel
-                                    active={sortConfigPurchase.key === 'stt'}
-                                    direction={sortConfigPurchase.key === 'stt' ? sortConfigPurchase.direction : 'asc'}
-                                    onClick={() => handleRequestSortPurchase('stt')}
-                                >
-                                    STT
-                                </TableSortLabel>
-                            </TableCell>
-                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+    const PurchaseTable = React.useMemo(() => {
+        return React.memo(({ data, totals, groupName, groupId, isActive }) => (
+            <Box
+                onClick={() => setActivePurchaseGroup(groupId)}
+                sx={{
+                    border: isActive ? 2 : 1,
+                    borderColor: isActive ? 'primary.main' : 'divider',
+                    borderRadius: 1,
+                    p: 1,
+                    mb: 3,
+                    position: 'relative',
+                    bgcolor: isActive ? alpha(theme.palette.primary.main, 0.02) : 'transparent'
+                }}
+            >
+                {isActive && (
+                    <Chip label="Đang chọn để dán dữ liệu" color="primary" size="small" sx={{ position: 'absolute', top: -12, right: 10, bgcolor: 'white' }} />
+                )}
+                <TableContainer sx={{ maxHeight: 600 }}>
+                    <Table stickyHeader sx={{ minWidth: 1200 }} aria-label={`purchase invoices table group ${groupId}`}>
+                        <TableHead>
+                            <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10, top: 0, borderBottom: '1px solid #e2e8f0' } }}>
+                                <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
                                     <TableSortLabel
-                                        active={sortConfigPurchase.key === 'buyer'}
-                                        direction={sortConfigPurchase.key === 'buyer' ? sortConfigPurchase.direction : 'asc'}
-                                        onClick={() => handleRequestSortPurchase('buyer')}
+                                        active={sortConfigPurchase.key === 'stt'}
+                                        direction={sortConfigPurchase.key === 'stt' ? sortConfigPurchase.direction : 'asc'}
+                                        onClick={() => handleRequestSortPurchase('stt')}
                                     >
-                                        Tên Công ty mua
+                                        STT
                                     </TableSortLabel>
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_buyer`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_buyer`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
-                            </TableCell>
-                            <TableCell colSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>Hóa đơn, chứng từ, biên lai nộp thuế</TableCell>
-                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                </TableCell>
+                                <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                        <TableSortLabel
+                                            active={sortConfigPurchase.key === 'buyer'}
+                                            direction={sortConfigPurchase.key === 'buyer' ? sortConfigPurchase.direction : 'asc'}
+                                            onClick={() => handleRequestSortPurchase('buyer')}
+                                        >
+                                            Tên Công ty mua
+                                        </TableSortLabel>
+                                        <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_buyer`, groupId)}>
+                                            <FilterList fontSize="small" color={columnFilters[`${groupId}_buyer`] ? "primary" : "action"} />
+                                        </IconButton>
+                                    </Box>
+                                </TableCell>
+                                <TableCell colSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>Hóa đơn, chứng từ, biên lai nộp thuế</TableCell>
+                                <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                        <TableSortLabel
+                                            active={sortConfigPurchase.key === 'seller'}
+                                            direction={sortConfigPurchase.key === 'seller' ? sortConfigPurchase.direction : 'asc'}
+                                            onClick={() => handleRequestSortPurchase('seller')}
+                                        >
+                                            Tên người bán
+                                        </TableSortLabel>
+                                        <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_seller`, groupId)}>
+                                            <FilterList fontSize="small" color={columnFilters[`${groupId}_seller`] ? "primary" : "action"} />
+                                        </IconButton>
+                                    </Box>
+                                </TableCell>
+                                <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                        <TableSortLabel
+                                            active={sortConfigPurchase.key === 'sellerTax'}
+                                            direction={sortConfigPurchase.key === 'sellerTax' ? sortConfigPurchase.direction : 'asc'}
+                                            onClick={() => handleRequestSortPurchase('sellerTax')}
+                                        >
+                                            Mã số thuế người bán
+                                        </TableSortLabel>
+                                        <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_sellerTax`, groupId)}>
+                                            <FilterList fontSize="small" color={columnFilters[`${groupId}_sellerTax`] ? "primary" : "action"} />
+                                        </IconButton>
+                                    </Box>
+                                </TableCell>
+                                <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
                                     <TableSortLabel
-                                        active={sortConfigPurchase.key === 'seller'}
-                                        direction={sortConfigPurchase.key === 'seller' ? sortConfigPurchase.direction : 'asc'}
-                                        onClick={() => handleRequestSortPurchase('seller')}
+                                        active={sortConfigPurchase.key === 'valueNoTax'}
+                                        direction={sortConfigPurchase.key === 'valueNoTax' ? sortConfigPurchase.direction : 'asc'}
+                                        onClick={() => handleRequestSortPurchase('valueNoTax')}
                                     >
-                                        Tên người bán
+                                        Giá trị HHDV mua vào chưa có thuế
                                     </TableSortLabel>
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_seller`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_seller`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
-                            </TableCell>
-                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                </TableCell>
+                                <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
                                     <TableSortLabel
-                                        active={sortConfigPurchase.key === 'sellerTax'}
-                                        direction={sortConfigPurchase.key === 'sellerTax' ? sortConfigPurchase.direction : 'asc'}
-                                        onClick={() => handleRequestSortPurchase('sellerTax')}
+                                        active={sortConfigPurchase.key === 'tax'}
+                                        direction={sortConfigPurchase.key === 'tax' ? sortConfigPurchase.direction : 'asc'}
+                                        onClick={() => handleRequestSortPurchase('tax')}
                                     >
-                                        Mã số thuế người bán
+                                        Thuế GTGT đủ điều kiện khấu trừ thuế
                                     </TableSortLabel>
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_sellerTax`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_sellerTax`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
-                            </TableCell>
-                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
-                                <TableSortLabel
-                                    active={sortConfigPurchase.key === 'valueNoTax'}
-                                    direction={sortConfigPurchase.key === 'valueNoTax' ? sortConfigPurchase.direction : 'asc'}
-                                    onClick={() => handleRequestSortPurchase('valueNoTax')}
-                                >
-                                    Giá trị HHDV mua vào chưa có thuế
-                                </TableSortLabel>
-                            </TableCell>
-                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
-                                <TableSortLabel
-                                    active={sortConfigPurchase.key === 'tax'}
-                                    direction={sortConfigPurchase.key === 'tax' ? sortConfigPurchase.direction : 'asc'}
-                                    onClick={() => handleRequestSortPurchase('tax')}
-                                >
-                                    Thuế GTGT đủ điều kiện khấu trừ thuế
-                                </TableSortLabel>
-                            </TableCell>
-                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                                    <TableSortLabel
-                                        active={sortConfigPurchase.key === 'rate'}
-                                        direction={sortConfigPurchase.key === 'rate' ? sortConfigPurchase.direction : 'asc'}
-                                        onClick={() => handleRequestSortPurchase('rate')}
-                                    >
-                                        Thuế suất
-                                    </TableSortLabel>
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_rate`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_rate`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
-                            </TableCell>
-                            <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                                    <TableSortLabel
-                                        active={sortConfigPurchase.key === 'costType'}
-                                        direction={sortConfigPurchase.key === 'costType' ? sortConfigPurchase.direction : 'asc'}
-                                        onClick={() => handleRequestSortPurchase('costType')}
-                                    >
-                                        Loại chi phí
-                                    </TableSortLabel>
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_costType`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_costType`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
-                            </TableCell>
-                            <TableCell rowSpan={2} align="center">
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                                    <TableSortLabel
-                                        active={sortConfigPurchase.key === 'project'}
-                                        direction={sortConfigPurchase.key === 'project' ? sortConfigPurchase.direction : 'asc'}
-                                        onClick={() => handleRequestSortPurchase('project')}
-                                    >
-                                        Tên người mua
-                                    </TableSortLabel>
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_project`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_project`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
-                            </TableCell>
-                        </TableRow>
-                        <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10, top: 50, borderBottom: '1px solid #e2e8f0' } }}>
-                            <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                                    <TableSortLabel
-                                        active={sortConfigPurchase.key === 'invoiceNo'}
-                                        direction={sortConfigPurchase.key === 'invoiceNo' ? sortConfigPurchase.direction : 'asc'}
-                                        onClick={() => handleRequestSortPurchase('invoiceNo')}
-                                    >
-                                        Số hóa đơn
-                                    </TableSortLabel>
-                                    <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_invoiceNo`, groupId)}>
-                                        <FilterList fontSize="small" color={columnFilters[`${groupId}_invoiceNo`] ? "primary" : "action"} />
-                                    </IconButton>
-                                </Box>
-                            </TableCell>
-                            <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
-                                <TableSortLabel
-                                    active={sortConfigPurchase.key === 'date'}
-                                    direction={sortConfigPurchase.key === 'date' ? sortConfigPurchase.direction : 'asc'}
-                                    onClick={() => handleRequestSortPurchase('date')}
-                                >
-                                    Ngày, tháng, năm lập hóa đơn
-                                </TableSortLabel>
-                            </TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {data.length > 0 ? (
-                            data.map((row, index) => {
-                                const isSelected = selectedIds.indexOf(row.id) !== -1;
-
-                                return (
-                                    <PurchaseInvoiceRow
-                                        key={row.id || index}
-                                        row={row}
-                                        index={index}
-                                        isSelected={isSelected}
-                                        handleMouseDown={handleMouseDown}
-                                        handleMouseEnter={handleMouseEnter}
-                                        handleUpdatePurchaseCell={handleUpdatePurchaseCell}
-                                        handleSavePurchaseCell={handleSavePurchaseCell}
-                                        theme={theme}
-                                        handleDragStart={handleDragStart}
-                                        handleDragOver={handleDragOver}
-                                        handleDrop={handleRowDrop}
-                                    />
-                                );
-                            })
-                        ) : (
-                            <TableRow>
-                                <TableCell colSpan={10} align="center" sx={{ py: 3, color: 'text.secondary' }}>
-                                    Không có dữ liệu
+                                </TableCell>
+                                <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                        <TableSortLabel
+                                            active={sortConfigPurchase.key === 'rate'}
+                                            direction={sortConfigPurchase.key === 'rate' ? sortConfigPurchase.direction : 'asc'}
+                                            onClick={() => handleRequestSortPurchase('rate')}
+                                        >
+                                            Thuế suất
+                                        </TableSortLabel>
+                                        <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_rate`, groupId)}>
+                                            <FilterList fontSize="small" color={columnFilters[`${groupId}_rate`] ? "primary" : "action"} />
+                                        </IconButton>
+                                    </Box>
+                                </TableCell>
+                                <TableCell rowSpan={2} align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                        <TableSortLabel
+                                            active={sortConfigPurchase.key === 'costType'}
+                                            direction={sortConfigPurchase.key === 'costType' ? sortConfigPurchase.direction : 'asc'}
+                                            onClick={() => handleRequestSortPurchase('costType')}
+                                        >
+                                            Loại chi phí
+                                        </TableSortLabel>
+                                        <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_costType`, groupId)}>
+                                            <FilterList fontSize="small" color={columnFilters[`${groupId}_costType`] ? "primary" : "action"} />
+                                        </IconButton>
+                                    </Box>
+                                </TableCell>
+                                <TableCell rowSpan={2} align="center">
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                        <TableSortLabel
+                                            active={sortConfigPurchase.key === 'project'}
+                                            direction={sortConfigPurchase.key === 'project' ? sortConfigPurchase.direction : 'asc'}
+                                            onClick={() => handleRequestSortPurchase('project')}
+                                        >
+                                            Tên người mua
+                                        </TableSortLabel>
+                                        <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_project`, groupId)}>
+                                            <FilterList fontSize="small" color={columnFilters[`${groupId}_project`] ? "primary" : "action"} />
+                                        </IconButton>
+                                    </Box>
                                 </TableCell>
                             </TableRow>
-                        )}
-                        {data.length > 0 && (
-                            <TableRow sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1) }}>
-                                <TableCell colSpan={6} align="right" sx={{ fontWeight: 700 }}>{groupName}:</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(totals.valueNoTax)}</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(totals.tax)}</TableCell>
-                                <TableCell colSpan={2}></TableCell>
+                            <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10, top: 50, borderBottom: '1px solid #e2e8f0' } }}>
+                                <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                        <TableSortLabel
+                                            active={sortConfigPurchase.key === 'invoiceNo'}
+                                            direction={sortConfigPurchase.key === 'invoiceNo' ? sortConfigPurchase.direction : 'asc'}
+                                            onClick={() => handleRequestSortPurchase('invoiceNo')}
+                                        >
+                                            Số hóa đơn
+                                        </TableSortLabel>
+                                        <IconButton size="small" onClick={(e) => handleColumnFilterOpen(e, `${groupId}_invoiceNo`, groupId)}>
+                                            <FilterList fontSize="small" color={columnFilters[`${groupId}_invoiceNo`] ? "primary" : "action"} />
+                                        </IconButton>
+                                    </Box>
+                                </TableCell>
+                                <TableCell align="center" sx={{ borderRight: '1px solid #e2e8f0' }}>
+                                    <TableSortLabel
+                                        active={sortConfigPurchase.key === 'date'}
+                                        direction={sortConfigPurchase.key === 'date' ? sortConfigPurchase.direction : 'asc'}
+                                        onClick={() => handleRequestSortPurchase('date')}
+                                    >
+                                        Ngày, tháng, năm lập hóa đơn
+                                    </TableSortLabel>
+                                </TableCell>
                             </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        </Box>
-    );
+                        </TableHead>
+                        <TableBody>
+                            {data.length > 0 ? (
+                                data.map((row, index) => {
+                                    const isSelected = selectedIds.indexOf(row.id) !== -1;
+
+                                    return (
+                                        <PurchaseInvoiceRow
+                                            key={row.id || index}
+                                            row={row}
+                                            index={index}
+                                            isSelected={isSelected}
+                                            handleMouseDown={handleMouseDown}
+                                            handleMouseEnter={handleMouseEnter}
+                                            handleUpdatePurchaseCell={handleUpdatePurchaseCell}
+                                            handleSavePurchaseCell={handleSavePurchaseCell}
+                                            theme={theme}
+                                            handleDragStart={handleDragStart}
+                                            handleDragOver={handleDragOver}
+                                            handleDrop={handleRowDrop}
+                                        />
+                                    );
+                                })
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={10} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                                        Không có dữ liệu
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            {data.length > 0 && (
+                                <TableRow sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1) }}>
+                                    <TableCell colSpan={6} align="right" sx={{ fontWeight: 700 }}>{groupName}:</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(totals.valueNoTax)}</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(totals.tax)}</TableCell>
+                                    <TableCell colSpan={2}></TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Box>
+        ));
+    }, []);
 
     return (
         <Box sx={{ width: '100%', typography: 'body1' }}>
@@ -1648,7 +1236,7 @@ export default function InternalTaxReport() {
                                 onClick={async () => {
                                     if (window.confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} dòng đã chọn?`)) {
                                         try {
-                                            setLoading(true);
+                                            setIsProcessing(true);
                                             await InternalTaxService.deleteGeneralInvoicesBatch(selectedIds);
                                             setSelectedIds([]);
                                             showSnackbar("Đã xóa thành công");
@@ -1656,7 +1244,7 @@ export default function InternalTaxReport() {
                                             console.error("Delete failed", error);
                                             showSnackbar("Lỗi khi xóa", "error");
                                         } finally {
-                                            setLoading(false);
+                                            setIsProcessing(false);
                                         }
                                     }
                                 }}
@@ -1670,7 +1258,7 @@ export default function InternalTaxReport() {
                     </Box>
 
                     <Grid container spacing={2} sx={{ mb: 3 }}>
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                             <Card sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), border: 1, borderColor: alpha(theme.palette.primary.main, 0.2) }} elevation={0}>
                                 <CardContent sx={{ py: 2 }}>
                                     <Typography variant="subtitle2" color="text.secondary">Tổng doanh thu chưa thuế</Typography>
@@ -1680,7 +1268,7 @@ export default function InternalTaxReport() {
                                 </CardContent>
                             </Card>
                         </Grid>
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                             <Card sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), border: 1, borderColor: alpha(theme.palette.primary.main, 0.2) }} elevation={0}>
                                 <CardContent sx={{ py: 2 }}>
                                     <Typography variant="subtitle2" color="text.secondary">Tổng tiền thuế</Typography>
@@ -1690,7 +1278,7 @@ export default function InternalTaxReport() {
                                 </CardContent>
                             </Card>
                         </Grid>
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                             <Card sx={{ bgcolor: alpha(theme.palette.success.main, 0.1), border: 1, borderColor: alpha(theme.palette.success.main, 0.2) }} elevation={0}>
                                 <CardContent sx={{ py: 2 }}>
                                     <Typography variant="subtitle2" color="text.secondary">Tổng cộng thanh toán</Typography>
@@ -1896,7 +1484,7 @@ export default function InternalTaxReport() {
                                 onClick={async () => {
                                     if (window.confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} dòng đã chọn?`)) {
                                         try {
-                                            setLoading(true);
+                                            setIsProcessing(true);
                                             await InternalTaxService.deletePurchaseInvoicesBatch(selectedIds);
                                             setSelectedIds([]);
                                             showSnackbar("Đã xóa thành công");
@@ -1904,7 +1492,7 @@ export default function InternalTaxReport() {
                                             console.error("Delete failed", error);
                                             showSnackbar("Lỗi khi xóa", "error");
                                         } finally {
-                                            setLoading(false);
+                                            setIsProcessing(false);
                                         }
                                     }
                                 }}
@@ -1918,7 +1506,7 @@ export default function InternalTaxReport() {
                     </Box>
 
                     <Grid container spacing={2} sx={{ mb: 3 }}>
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                             <Card sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1), border: 1, borderColor: alpha(theme.palette.secondary.main, 0.2) }} elevation={0}>
                                 <CardContent sx={{ py: 2 }}>
                                     <Typography variant="subtitle2" color="text.secondary">Tổng giá trị mua vào</Typography>
@@ -1928,7 +1516,7 @@ export default function InternalTaxReport() {
                                 </CardContent>
                             </Card>
                         </Grid>
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                             <Card sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1), border: 1, borderColor: alpha(theme.palette.secondary.main, 0.2) }} elevation={0}>
                                 <CardContent sx={{ py: 2 }}>
                                     <Typography variant="subtitle2" color="text.secondary">Tổng tiền thuế</Typography>
@@ -1938,7 +1526,7 @@ export default function InternalTaxReport() {
                                 </CardContent>
                             </Card>
                         </Grid>
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                             <Card sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1), border: 1, borderColor: alpha(theme.palette.warning.main, 0.2) }} elevation={0}>
                                 <CardContent sx={{ py: 2 }}>
                                     <Typography variant="subtitle2" color="text.secondary">Tổng cộng</Typography>
@@ -1950,21 +1538,76 @@ export default function InternalTaxReport() {
                         </Grid>
                     </Grid>
 
-                    {renderPurchaseTable(filteredGroup1, totalsGroup1, "Tổng nhóm 1", 1)}
+                    <PurchaseTable
+                        data={filteredGroup1.slice(pageGroup1 * rowsPerPagePurchase, (pageGroup1 + 1) * rowsPerPagePurchase)}
+                        totals={totalsGroup1}
+                        groupName="Tổng nhóm 1"
+                        groupId={1}
+                        isActive={activePurchaseGroup === 1}
+                    />
+                    <TablePagination
+                        component="div"
+                        count={filteredGroup1.length}
+                        page={pageGroup1}
+                        onPageChange={(e, newPage) => setPageGroup1(newPage)}
+                        rowsPerPage={rowsPerPagePurchase}
+                        onRowsPerPageChange={handleChangeRowsPerPagePurchase}
+                        rowsPerPageOptions={[25, 50, 100]}
+                        labelRowsPerPage="Số dòng:"
+                        labelDisplayedRows={({ from, to, count }) => `${from}-${to} / ${count}`}
+                    />
 
                     <Typography variant="h6" sx={{ mt: 4, mb: 2, fontWeight: 700, color: '#1e293b' }}>
                         3. Hàng hóa, dịch vụ dùng cho dự án đầu tư đủ điều kiện được khấu trừ thuế (*):
                     </Typography>
-                    {renderPurchaseTable(filteredGroup3, totalsGroup3, "Tổng nhóm 3", 3)}
+                    <PurchaseTable
+                        data={filteredGroup3.slice(pageGroup3 * rowsPerPagePurchase, (pageGroup3 + 1) * rowsPerPagePurchase)}
+                        totals={totalsGroup3}
+                        groupName="Tổng nhóm 3"
+                        groupId={3}
+                        isActive={activePurchaseGroup === 3}
+                    />
+                    {filteredGroup3.length > rowsPerPagePurchase && (
+                        <TablePagination
+                            component="div"
+                            count={filteredGroup3.length}
+                            page={pageGroup3}
+                            onPageChange={(e, newPage) => setPageGroup3(newPage)}
+                            rowsPerPage={rowsPerPagePurchase}
+                            onRowsPerPageChange={handleChangeRowsPerPagePurchase}
+                            rowsPerPageOptions={[25, 50]}
+                            labelRowsPerPage="Số dòng:"
+                            labelDisplayedRows={({ from, to, count }) => `${from}-${to} / ${count}`}
+                        />
+                    )}
 
                     <Typography variant="h6" sx={{ mt: 4, mb: 2, fontWeight: 700, color: '#1e293b' }}>
                         4. Hàng hóa, dịch vụ không đủ điều kiện được khấu trừ:
                     </Typography>
-                    {renderPurchaseTable(filteredGroup4, totalsGroup4, "Tổng nhóm 4", 4)}
+                    <PurchaseTable
+                        data={filteredGroup4.slice(pageGroup4 * rowsPerPagePurchase, (pageGroup4 + 1) * rowsPerPagePurchase)}
+                        totals={totalsGroup4}
+                        groupName="Tổng nhóm 4"
+                        groupId={4}
+                        isActive={activePurchaseGroup === 4}
+                    />
+                    {filteredGroup4.length > rowsPerPagePurchase && (
+                        <TablePagination
+                            component="div"
+                            count={filteredGroup4.length}
+                            page={pageGroup4}
+                            onPageChange={(e, newPage) => setPageGroup4(newPage)}
+                            rowsPerPage={rowsPerPagePurchase}
+                            onRowsPerPageChange={handleChangeRowsPerPagePurchase}
+                            rowsPerPageOptions={[25, 50]}
+                            labelRowsPerPage="Số dòng:"
+                            labelDisplayedRows={({ from, to, count }) => `${from}-${to} / ${count}`}
+                        />
+                    )}
                 </CustomTabPanel>
 
                 <CustomTabPanel value={value} index={2}>
-                    <VATReportTab />
+                    <VATReportTab generalInvoices={filteredGeneralInvoices} purchaseInvoices={localPurchaseInvoices} month={month} year={year} />
                 </CustomTabPanel>
             </Paper>
 
@@ -1972,61 +1615,61 @@ export default function InternalTaxReport() {
                 <DialogTitle>Thêm Hóa Đơn Mới</DialogTitle>
                 <DialogContent>
                     <Grid container spacing={2} sx={{ mt: 1 }}>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Ký hiệu mẫu số" name="formSymbol" value={newInvoice.formSymbol} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Ký hiệu hóa đơn" name="invoiceSymbol" value={newInvoice.invoiceSymbol} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Số hóa đơn" name="invoiceNumber" value={newInvoice.invoiceNumber} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField label="Ngày lập (DD/MM/YYYY)" name="date" value={newInvoice.date} onChange={handleInputChange} fullWidth size="small" placeholder="DD/MM/YYYY" />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField label="MST người bán" name="sellerTaxCode" value={newInvoice.sellerTaxCode} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid size={{ xs: 12 }}>
                             <TextField label="Tên người bán" name="sellerName" value={newInvoice.sellerName} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField label="MST người mua" name="buyerTaxCode" value={newInvoice.buyerTaxCode} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField label="Tên người mua" name="buyerName" value={newInvoice.buyerName} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid size={{ xs: 12 }}>
                             <TextField label="Địa chỉ người mua" name="buyerAddress" value={newInvoice.buyerAddress} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Tổng tiền chưa thuế" name="totalNoTax" value={newInvoice.totalNoTax} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Tổng tiền thuế" name="taxAmount" value={newInvoice.taxAmount} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Tổng tiền thanh toán" name="totalPayment" value={newInvoice.totalPayment} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Tổng tiền chiết khấu" name="tradeDiscount" value={newInvoice.tradeDiscount} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Đơn vị tiền tệ" name="currency" value={newInvoice.currency} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Tỷ giá" name="exchangeRate" value={newInvoice.exchangeRate} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField label="Trạng thái" name="status" value={newInvoice.status} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField label="Kết quả kiểm tra" name="checkResult" value={newInvoice.checkResult} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField label="Ghi chú" name="note" value={newInvoice.note} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField label="Loại chi phí" name="costType" value={newInvoice.costType} onChange={handleInputChange} fullWidth size="small" />
                         </Grid>
                     </Grid>
@@ -2041,7 +1684,7 @@ export default function InternalTaxReport() {
                 <DialogTitle>Thêm Hóa Đơn Mua Vào</DialogTitle>
                 <DialogContent>
                     <Grid container spacing={2} sx={{ mt: 1 }}>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <FormControl fullWidth size="small">
                                 <InputLabel>Nhóm</InputLabel>
                                 <Select
@@ -2056,40 +1699,40 @@ export default function InternalTaxReport() {
                                 </Select>
                             </FormControl>
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Số hóa đơn" name="invoiceNo" value={newPurchaseInvoice.invoiceNo} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Ngày lập" name="date" value={newPurchaseInvoice.date} onChange={handlePurchaseInputChange} fullWidth size="small" placeholder="DD/MM/YYYY" />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField label="Tên người bán" name="seller" value={newPurchaseInvoice.seller} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
                             <TextField label="MST người bán" name="sellerTax" value={newPurchaseInvoice.sellerTax} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Giá trị chưa thuế" name="valueNoTax" value={newPurchaseInvoice.valueNoTax} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Thuế GTGT" name="tax" value={newPurchaseInvoice.tax} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Tổng cộng" name="total" value={newPurchaseInvoice.total} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Thuế suất" name="rate" value={newPurchaseInvoice.rate} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Loại chi phí" name="costType" value={newPurchaseInvoice.costType} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Công trình" name="project" value={newPurchaseInvoice.project} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="Tên người mua" name="buyer" value={newPurchaseInvoice.buyer} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <TextField label="NK" name="nk" value={newPurchaseInvoice.nk} onChange={handlePurchaseInputChange} fullWidth size="small" />
                         </Grid>
                     </Grid>
@@ -2116,7 +1759,7 @@ export default function InternalTaxReport() {
                 </Alert>
             </Snackbar>
 
-            <Backdrop sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }} open={loading}>
+            <Backdrop sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }} open={loading || isProcessing}>
                 <CircularProgress color="inherit" />
             </Backdrop>
         </Box>

@@ -1,36 +1,50 @@
 import { useState, useEffect } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import { db } from "../services/firebase-config";
 
 /**
- * Hook lấy danh sách projects, cho phép lọc theo trường `type`
- *
- * @param {string} filteredType - Giá trị `type` muốn lọc ("Nhà máy", "Công trình", ...). Để trống => không lọc.
- * @returns {Array} Mảng các project { id, ...data }
+ * Hook to get real-time projects list
+ * 
+ * @param {string} filterType - Optional project type filter
+ * @returns {Object} { projects, isLoading, error }
  */
-export function useProjects(filteredType = "") {
+export function useProjects(filterType = "") {
   const [projects, setProjects] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Tham chiếu tới collection projects
+    setIsLoading(true);
     const colRef = collection(db, "projects");
 
-    // Nếu có giá trị filteredType, thêm điều kiện where
-    const q = filteredType
-      ? query(colRef, where("type", "==", filteredType))
-      : colRef;
+    let q = query(colRef, orderBy("name", "asc"));
 
-    // Lắng nghe realtime snapshot
-    const unsub = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setProjects(list);
-    });
+    if (filterType) {
+      q = query(colRef, where("type", "==", filterType), orderBy("name", "asc"));
+    }
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          // Ensure revenueHSKH defaults to 0 if missing
+          revenueHSKH: doc.data().revenueHSKH || 0,
+        }));
+        setProjects(list);
+        setIsLoading(false);
+        setError(null);
+      },
+      (err) => {
+        console.error("Error fetching projects:", err);
+        setError(err);
+        setIsLoading(false);
+      }
+    );
 
     return () => unsub();
-  }, [filteredType]);
+  }, [filterType]);
 
-  return projects;
+  return { projects, isLoading, error };
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
   Box,
   Typography,
@@ -25,24 +26,22 @@ import FolderIcon from '@mui/icons-material/Folder';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingIcon from '@mui/icons-material/Pending';
 import SearchIcon from '@mui/icons-material/Search';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase-config';
 import { useForm, useWatch } from "react-hook-form";
+import { useProjects } from '../../hooks/useProjects';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { projectSearchSchema } from "../../schemas/searchSchema";
 
 const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
 
 export default function ProjectsList() {
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { projects, isLoading: loading } = useProjects();
 
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedProj, setSelectedProj] = useState(null);
   const [selQuarter, setSelQuarter] = useState(quarters[0]);
   const [selYear, setSelYear] = useState(new Date().getFullYear());
-
-
 
   const { register, control } = useForm({
     resolver: zodResolver(projectSearchSchema),
@@ -53,24 +52,6 @@ export default function ProjectsList() {
   });
 
   const { searchText, filterStatus } = useWatch({ control });
-
-  // const [searchText, setSearchText] = useState(''); // REMOVED
-  // const [filterStatus, setFilterStatus] = useState('all'); // REMOVED
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const snap = await getDocs(collection(db, 'projects'));
-        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setProjects(list);
-      } catch (err) {
-        console.error('Lỗi khi tải danh sách công trình:', err);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
 
   const onToggleClick = (event, proj) => {
     event.preventDefault();
@@ -91,19 +72,15 @@ export default function ProjectsList() {
     const ref = doc(db, 'projects', selectedProj.id);
     const newStatus = !selectedProj.isClosed;
 
-    await updateDoc(ref, {
-      isClosed: newStatus,
-      closedFrom: newStatus ? closedFrom : null,
-    });
-
-    setProjects(ps =>
-      ps.map(p =>
-        p.id === selectedProj.id
-          ? { ...p, isClosed: newStatus, closedFrom: newStatus ? closedFrom : null }
-          : p
-      )
-    );
-
+    try {
+      await updateDoc(ref, {
+        isClosed: newStatus,
+        closedFrom: newStatus ? closedFrom : null,
+      });
+      // No need to manually update state, hook will catch it
+    } catch (error) {
+      console.error("Error updating project status:", error);
+    }
     handleClosePopover();
   };
 
@@ -177,58 +154,64 @@ export default function ProjectsList() {
           size="medium"
         />
       ) : (
-        <Paper>
-          <List>
-            {filteredProjects.map(p => (
-              <ListItemButton
-                key={p.id}
-                component={Link}
-                to={`/projects/${p.id}`}
-                sx={{
-                  textDecoration: p.isClosed ? 'line-through' : 'none',
-                  opacity: p.isClosed ? 0.5 : 1,
-                  borderBottom: '1px solid #eee',
-                }}
-              >
-                <ListItemIcon>
-                  {p.isClosed ? (
-                    <CheckCircleIcon color="error" />
-                  ) : (
-                    <PendingIcon color="success" />
-                  )}
-                </ListItemIcon>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Paper>
+            <List>
+              {filteredProjects.map(p => (
+                <ListItemButton
+                  key={p.id}
+                  component={Link}
+                  to={`/projects/${p.id}`}
+                  sx={{
+                    textDecoration: p.isClosed ? 'line-through' : 'none',
+                    opacity: p.isClosed ? 0.5 : 1,
+                    borderBottom: '1px solid #eee',
+                  }}
+                >
+                  <ListItemIcon>
+                    {p.isClosed ? (
+                      <CheckCircleIcon color="error" />
+                    ) : (
+                      <PendingIcon color="success" />
+                    )}
+                  </ListItemIcon>
 
-                <ListItemText
-                  primary={p.name}
-                  secondary={
-                    <>
-                      {p.overallRevenue != null
-                        ? p.overallRevenue.toLocaleString() + ' VND'
-                        : '—'}
-                      <Typography
-                        component="span"
-                        variant="caption"
-                        color={p.isClosed ? 'error.main' : 'success.main'}
-                        display="block"
-                        fontWeight={500}
-                      >
-                        {p.isClosed
-                          ? `Đã đóng từ: ${p.closedFrom?.replace('_', ' ') ?? ''}`
-                          : 'Đang hoạt động'}
-                      </Typography>
-                    </>
-                  }
-                />
+                  <ListItemText
+                    primary={p.name}
+                    secondary={
+                      <>
+                        {p.overallRevenue != null
+                          ? p.overallRevenue.toLocaleString() + ' VND'
+                          : '—'}
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          color={p.isClosed ? 'error.main' : 'success.main'}
+                          display="block"
+                          fontWeight={500}
+                        >
+                          {p.isClosed
+                            ? `Đã đóng từ: ${p.closedFrom?.replace('_', ' ') ?? ''}`
+                            : 'Đang hoạt động'}
+                        </Typography>
+                      </>
+                    }
+                  />
 
-                <Switch
-                  edge="end"
-                  checked={!!p.isClosed}
-                  onClick={e => onToggleClick(e, p)}
-                />
-              </ListItemButton>
-            ))}
-          </List>
-        </Paper>
+                  <Switch
+                    edge="end"
+                    checked={!!p.isClosed}
+                    onClick={e => onToggleClick(e, p)}
+                  />
+                </ListItemButton>
+              ))}
+            </List>
+          </Paper>
+        </motion.div>
       )}
 
       {/* Popover chọn quý/năm */}

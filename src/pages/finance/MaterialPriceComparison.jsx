@@ -20,11 +20,11 @@ import toast from 'react-hot-toast';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { vi } from 'date-fns/locale';
-import { useAuth } from '../../contexts/AuthContext';
 import { EmptyState, ErrorState, SkeletonDataGrid } from '../../components/common';
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createPriceTableSchema } from "../../schemas/reportingSchemas";
+import { useMaterialPriceTables } from "../../hooks/useMaterialPriceTables";
 
 // --- Key Whitelist cho chức năng Tạo bảng ---
 const CREATE_PATH_KEY = 'material-price-comparison/create';
@@ -121,42 +121,19 @@ const CountdownTimer = ({ deadline }) => {
 // --- Component Chính (Trang Danh Sách) ---
 const MaterialPriceComparison = () => {
 
-    // SỬA: Lấy accessRules từ AuthContext
-    const { user: currentUser, loading: authLoading, accessRules } = useAuth();
-
-    // TRONG MaterialPriceComparison.jsx (Logic kiểm tra Whitelist TẠO BẢNG)
-
-    const canCreate = useMemo(() => {
-        if (!currentUser || !accessRules) return false;
-
-        const whitelistedEmails = accessRules[CREATE_PATH_KEY] || [];
-
-        // Admin có thể tạo mọi thứ (quyền ưu tiên cao nhất)
-        if (currentUser.role === 'admin') return true;
-        console.log('currentUser.role', currentUser.role)
-        // Kiểm tra email người dùng hiện tại có trong danh sách được phép tạo không
-        return whitelistedEmails.includes(currentUser.email);
-    }, [currentUser, accessRules]);
-    // ==========================================
-
-
-    // Console log vẫn giữ lại để debug đăng nhập
-    useEffect(() => {
-        if (currentUser) {
-            console.log("DEBUG: Current User EXIST. UID:", currentUser.uid);
-            console.log("DEBUG: User Email:", currentUser.email);
-            console.log("DEBUG: Can Create Table (Whitelist Check):", canCreate); // Log trạng thái quyền mới
-        } else {
-            console.warn("DEBUG: User chưa đăng nhập hoặc currentUser là null. CẦN ĐĂNG NHẬP.");
-        }
-    }, [currentUser, canCreate]);
+    // Use Custom Hook
+    const {
+        tables,
+        loading,
+        error,
+        canCreate,
+        createTable,
+        deleteTable,
+        authLoading,
+        currentUser
+    } = useMaterialPriceTables();
 
     const isAdmin = currentUser?.role === 'admin';
-
-    const [tables, setTables] = useState([]);
-
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const navigate = useNavigate();
 
     // --- State cho Dialog tạo mới ---
@@ -165,165 +142,18 @@ const MaterialPriceComparison = () => {
 
     const { register, handleSubmit, reset, formState: { errors } } = useForm({
         resolver: zodResolver(createPriceTableSchema),
-        defaultValues: {
-            projectName: '',
-            durationDays: 7
-        }
+        defaultValues: { projectName: '', durationDays: 7 }
     });
-
-    // const [newProjectName, setNewProjectName] = useState(''); // REMOVED
-    // const [newDurationDays, setNewDurationDays] = useState(7); // REMOVED
 
     // --- State cho việc Xóa ---
     const [isDeleting, setIsDeleting] = useState(false);
     const [openDeleteConfirm, setOpenDeleteConfirm] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState({ id: null, name: '' });
 
-
     // --- State cho Lọc và Tìm kiếm ---
     const [searchQuery, setSearchQuery] = useState('');
     const [filterDate, setFilterDate] = useState(null);
     const [filterStatus, setFilterStatus] = useState('');
-    // =================================================
-
-
-    // --- Cột cho bảng danh sách (Giữ nguyên) ---
-    const columns = [
-        {
-            field: 'projectName',
-            headerName: 'TÊN CÔNG TRÌNH',
-            flex: 4,
-            minWidth: 350,
-            renderCell: (params) => (
-                <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-                    <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, color: 'text.primary', }}
-                    >
-                        {params.value}
-                    </Typography>
-                </Box>
-            )
-        },
-        {
-            field: 'reportQuarter',
-            headerName: 'QUÝ / NĂM',
-            flex: 1,
-            minWidth: 100,
-            align: 'center',
-            headerAlign: 'center',
-            renderCell: (params) => (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                    <Typography variant="body2">
-                        {params.value}
-                    </Typography>
-                </Box>
-            )
-        },
-        {
-            field: 'deadline',
-            headerName: 'THỜI GIAN CÒN LẠI',
-            flex: 2,
-            minWidth: 200,
-            align: 'center',
-            headerAlign: 'center',
-            renderCell: (params) => {
-                const createdAt = params.row.createdAt;
-                const durationDays = params.row.durationDays;
-
-                if (!createdAt || durationDays == null) {
-                    return <Chip label="Chưa đặt hạn" size="small" variant="outlined" />;
-                }
-
-                const startDate = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
-                const deadlineDate = addDays(startDate, durationDays);
-
-                return <CountdownTimer deadline={deadlineDate} />;
-            }
-        },
-        {
-            field: 'actions',
-            headerName: 'HÀNH ĐỘNG',
-            sortable: false,
-            filterable: false,
-            disableColumnMenu: true,
-            width: 150,
-            align: 'center',
-            headerAlign: 'center',
-            renderCell: (params) => {
-
-                return (
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 0.5 }}>
-
-                        {/* 1. NÚT CHỈNH SỬA (Luôn hiển thị) */}
-                        <Tooltip title="Chỉnh sửa nội dung">
-                            <IconButton
-                                color="info"
-                                size="small"
-                                onClick={(e) => { e.stopPropagation(); handleViewDetails(params.row.id); }}
-                                disabled={isDeleting}
-                            >
-                                <Edit sx={{ fontSize: 18 }} />
-                            </IconButton>
-                        </Tooltip>
-
-                        {/* 2. NÚT XÓA (Chỉ Admin) */}
-                        <Tooltip title={isAdmin ? "Xóa bảng (Quyền Admin)" : "Bạn không có quyền xóa"}>
-                            <IconButton
-                                color="error"
-                                size="small"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeleteTarget({ id: params.row.id, name: params.row.projectName });
-                                    setOpenDeleteConfirm(true);
-                                }}
-                                disabled={isDeleting || !isAdmin} // Chỉ cho phép xóa khi là Admin
-                            >
-                                <Trash2 sx={{ fontSize: 18 }} />
-                            </IconButton>
-                        </Tooltip>
-                    </Box>
-                );
-            }
-        },
-    ];
-
-    const fetchTables = () => {
-        setLoading(true);
-        const tablesColRef = collection(db, 'priceComparisonTables');
-        const q = query(tablesColRef, orderBy('createdAt', 'desc'));
-
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const data = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                approvalStatus: 'APPROVED'
-            }));
-
-            setTables(data);
-            setLoading(false);
-            setError(null);
-
-        }, (err) => {
-            console.error("Lỗi Realtime khi tải danh sách bảng:", err);
-            setError(err.message);
-            setLoading(false);
-            toast.error(`Lỗi tải dữ liệu Realtime: ${err.message}`);
-        });
-        return unsubscribe;
-    };
-
-    useEffect(() => {
-        if (!authLoading) {
-            const unsubscribe = fetchTables();
-            return () => {
-                if (unsubscribe) {
-                    unsubscribe();
-                }
-            };
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [authLoading]);
 
     // --- Logic Lọc (Giữ nguyên) ---
     const filteredTables = useMemo(() => {
@@ -360,14 +190,13 @@ const MaterialPriceComparison = () => {
         navigate(`/material-price-comparison/${tableId}`);
     };
 
-    // --- Dialog Tạo Mới (Thêm kiểm tra canCreate) ---
-    // --- Dialog Tạo Mới (Thêm kiểm tra canCreate) ---
+    // --- Dialog Tạo Mới ---
     const handleAddNew = () => {
-        if (!canCreate) { // Kiểm tra quyền trước khi mở
+        if (!canCreate) {
             toast.error('Bạn không có quyền tạo bảng so sánh giá.');
             return;
         }
-        reset(); // Reset form values
+        reset();
         setOpenCreateDialog(true);
     };
 
@@ -376,69 +205,32 @@ const MaterialPriceComparison = () => {
         setOpenCreateDialog(false);
     };
 
-    // === HÀM XÁC NHẬN XÓA (Giữ nguyên) ===
+    // === HÀM XÁC NHẬN XÓA ===
     const handleConfirmDelete = async () => {
         setOpenDeleteConfirm(false);
         const { id: tableId, name: projectName } = deleteTarget;
-
         if (!tableId) return;
 
         setIsDeleting(true);
-        const loadingToast = toast.loading(`Đang xóa bảng của "${projectName}" và tất cả vật tư...`);
+        const loadingToast = toast.loading(`Đang xóa bảng của "${projectName}"...`);
 
-        try {
-            const tableDocRef = doc(db, 'priceComparisonTables', tableId);
-            await deleteSubCollection(db, tableDocRef, 'items');
-            await deleteDoc(tableDocRef);
-            toast.success(`Đã xóa thành công bảng của "${projectName}"`, { id: loadingToast });
-        } catch (err) {
-            console.error("Lỗi khi xóa bảng và vật tư:", err);
-            toast.error(`Lỗi khi xóa: ${err.message}`, { id: loadingToast });
-        } finally {
-            setIsDeleting(false);
-            setDeleteTarget({ id: null, name: '' });
-        }
+        const success = await deleteTable(tableId, projectName);
+
+        toast.dismiss(loadingToast);
+        setIsDeleting(false);
+        setDeleteTarget({ id: null, name: '' });
     };
-    // ==================================================
 
-
-    // === HÀM TẠO BẢNG (Thêm kiểm tra canCreate) ===
+    // === HÀM TẠO BẢNG ===
     const handleConfirmCreateTable = async (data) => {
-        if (!canCreate) {
-            toast.error("Bạn không có quyền tạo bảng so sánh giá.");
-            return;
-        }
-
         setIsCreating(true);
-        try {
-            const tablesColRef = collection(db, 'priceComparisonTables');
-            const newDocRef = await addDoc(tablesColRef, {
-                projectName: data.projectName,
-                durationDays: Number(data.durationDays),
-                createdAt: serverTimestamp(),
-                createdBy: {
-                    uid: currentUser.uid,
-                    displayName: currentUser.displayName,
-                },
-                reportQuarter: `Quý ${Math.floor(new Date().getMonth() / 3) + 1} / ${new Date().getFullYear()}`,
-                approvalStatus: 'DRAFT', // New tables start as DRAFT
-                sentAt: null, // Not sent yet
-                approvedBy: null,
-                approvedAt: null
-            });
+        const newId = await createTable(data);
+        setIsCreating(false);
 
-            toast.success('Tạo bảng so sánh giá thành công!');
+        if (newId) {
             setOpenCreateDialog(false);
-            reset(); // Reset form
-
-            // Chuyển hướng đến trang chi tiết của bảng vừa tạo
-            navigate(`/material-price-comparison/${newDocRef.id}`);
-
-        } catch (err) {
-            console.error("Lỗi khi tạo bảng:", err);
-            toast.error('Có lỗi xảy ra khi tạo bảng.');
-        } finally {
-            setIsCreating(false);
+            reset();
+            navigate(`/material-price-comparison/${newId}`);
         }
     };
 

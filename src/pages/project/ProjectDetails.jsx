@@ -9,10 +9,7 @@ import {
 } from "@mui/material";
 import {
     doc,
-    getDoc,
     setDoc,
-    collection,
-    onSnapshot,
 } from "firebase/firestore";
 import { db } from "../../../services/firebase-config";
 import { parseNumber } from "../../../utils/numberUtils";
@@ -25,6 +22,8 @@ import ActionBar from "../../../components/project/ActionBar";
 import ColumnSelector from "../../../components/ui/ColumnSelector";
 import CostTable from "../../../components/project/CostTable";
 import SummaryPanel from "../../../components/ui/SummaryPanel";
+import { useActualCosts } from "../../../hooks/useActualCosts";
+import { motion } from "framer-motion";
 
 // ---------- Default Data ----------
 export const defaultRow = {
@@ -222,19 +221,34 @@ const validateData = (rows) => rows.every(validateRow);
 export default function ProjectDetails() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const [costItems, setCostItems] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [search, setSearch] = useState("");
+    // Local UI State
     const [year, setYear] = useState(String(new Date().getFullYear()));
     const [quarter, setQuarter] = useState("Q1");
+    const [search, setSearch] = useState("");
     const [snackOpen, setSnackOpen] = useState(false);
     const [error, setError] = useState(null);
-    // editingCell sử dụng { id, colKey } để theo dõi dòng đang chỉnh sửa
     const [editingCell, setEditingCell] = useState({ id: null, colKey: null });
-    const [overallRevenue, setOverallRevenue] = useState("");
     const [overallRevenueEditing, setOverallRevenueEditing] = useState(false);
-    const [projectTotalAmount, setProjectTotalAmount] = useState("");
-    const [categories, setCategories] = useState([]);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const setLoading = setIsProcessing;
+
+    // Hook Data
+    const {
+        costItems,
+        setCostItems,
+        loading,
+        error: hookError,
+        projectData,
+        projectTotalAmount,
+        overallRevenue,
+        setOverallRevenue,
+        categories,
+        saveItems
+    } = useActualCosts(id, year, quarter);
+
+    useEffect(() => {
+        if (hookError) setError(hookError);
+    }, [hookError]);
 
     const columnsAll = useMemo(
         () => [
@@ -266,12 +280,7 @@ export default function ProjectDetails() {
             columnsAll.reduce((acc, col) => ({ ...acc, [col.key]: true }), {})
     );
 
-    useEffect(() => {
-        const unsub = onSnapshot(collection(db, "categories"), (snap) => {
-            setCategories(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        });
-        return () => unsub();
-    }, []);
+
 
     useEffect(() => {
         localStorage.setItem(
@@ -320,80 +329,7 @@ export default function ProjectDetails() {
         [sumKeys]
     );
 
-    // Load dữ liệu từ Firestore
-    useEffect(() => {
-        const loadSavedData = async () => {
-            setLoading(true);
-            try {
-                const docRef = doc(
-                    db,
-                    "projects",
-                    id,
-                    "years",
-                    year,
-                    "quarters",
-                    quarter
-                );
-                const docSnap = await getDoc(docRef);
 
-                // parse overallRevenue về number, default 0
-                const rev = docSnap.exists()
-                    ? parseNumber(docSnap.data().overallRevenue ?? 0)
-                    : 0;
-                setOverallRevenue(rev);
-
-                const items = (
-                    docSnap.exists() ? docSnap.data().items || [] : []
-                ).map((item) => {
-                    const newItem = { ...item };
-                    newItem.id = newItem.id || generateUniqueId();
-                    newItem.project = (newItem.project || "")
-                        .trim()
-                        .toUpperCase();
-                    newItem.description = (newItem.description || "").trim();
-                    calcAllFields(newItem, {
-                        overallRevenue: rev,
-                        projectTotalAmount,
-                    });
-                    return newItem;
-                });
-                setCostItems(items);
-            } catch (err) {
-                setError("Lỗi tải dữ liệu: " + err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-        loadSavedData();
-    }, [id, year, quarter, projectTotalAmount]);
-
-    // Load dữ liệu dự án (ví dụ: tổng doanh thu dự kiến)
-    useEffect(() => {
-        const loadProjectData = async () => {
-            try {
-                const projectDocRef = doc(db, "projects", id);
-                const projectDocSnap = await getDoc(projectDocRef);
-                if (projectDocSnap.exists()) {
-                    const data = projectDocSnap.data();
-                    setProjectTotalAmount(data.totalAmount || "0");
-                }
-            } catch (err) {
-                setError("Lỗi tải dữ liệu project: " + err.message);
-            }
-        };
-        loadProjectData();
-    }, [id]);
-
-    // Cập nhật lại các dòng khi overallRevenue hoặc projectTotalAmount thay đổi
-    useEffect(() => {
-        setCostItems((prev) =>
-            prev.map((row) => {
-                const newRow = { ...row };
-                calcAllFields(newRow, { overallRevenue, projectTotalAmount });
-                return newRow;
-            })
-        );
-    }, [overallRevenue, projectTotalAmount]);
 
     // Cập nhật trường dựa trên id (không sử dụng index)
     const handleChangeField = useCallback(
@@ -401,8 +337,6 @@ export default function ProjectDetails() {
             setCostItems((prev) =>
                 prev.map((row) => {
                     if (row.id === id) {
-                        // Sửa chỗ này:
-                        // Nếu là số thì vẫn parseNumber, riêng noPhaiTraCK ép về chuỗi
                         let newVal;
                         if (field === "project" || field === "description") {
                             newVal = val;
@@ -416,6 +350,7 @@ export default function ProjectDetails() {
                             isUserEditingNoPhaiTraCK: field === "noPhaiTraCK",
                             overallRevenue,
                             projectTotalAmount,
+                            projectType: projectData?.type,
                         });
                         return newRow;
                     }
@@ -423,7 +358,7 @@ export default function ProjectDetails() {
                 })
             );
         },
-        [overallRevenue, projectTotalAmount]
+        [overallRevenue, projectTotalAmount, projectData]
     );
 
     const handleRemoveRow = useCallback(
@@ -436,22 +371,9 @@ export default function ProjectDetails() {
             setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
             return;
         }
-        setLoading(true);
-        try {
-            await setDoc(
-                doc(db, "projects", id, "years", year, "quarters", quarter),
-                {
-                    items: costItems,
-                    // ensure it's a number before saving
-                    overallRevenue: Number(overallRevenue),
-                    updated_at: new Date().toISOString(),
-                }
-            );
+        const success = await saveItems(costItems, overallRevenue);
+        if (success) {
             setSnackOpen(true);
-        } catch (err) {
-            setError("Lỗi lưu dữ liệu: " + err.message);
-        } finally {
-            setLoading(false);
         }
     };
     const handleSaveNextQuarter = async () => {
@@ -600,7 +522,13 @@ export default function ProjectDetails() {
                 sx={{ mb: 2 }}
             />
 
-            <Box x={{ width: "100%", overflowX: "auto" }}>
+            <Box
+                component={motion.div}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
+                sx={{ width: "100%", overflowX: "auto" }}
+            >
                 <Filters
                     search={search}
                     onSearchChange={(e) => setSearch(e.target.value)}

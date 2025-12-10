@@ -91,6 +91,12 @@ export const formatNumber = (v) => {
     : v;
 };
 
+export const formatCurrency = (value) => {
+  if (value === 0 || value === "0") return "0";
+  if (!value && value !== 0) return "";
+  return new Intl.NumberFormat("vi-VN").format(value);
+};
+
 export function normalize(str = "") {
   return str
     .toLowerCase()

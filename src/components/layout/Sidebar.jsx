@@ -139,48 +139,9 @@ const navigationConfig = [
     },
 ];
 // --- ✅ BƯỚC 1: TẠO CUSTOM HOOK ĐỂ LẤY VÀ KIỂM TRA QUYỀN ---
-function useNavigationPermissions() {
-    const { user } = useAuth();
-    const [permissionRules, setPermissionRules] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+// --- REPLACED WITH HOOK ---
+import { useAccessControl } from "../../hooks/useAccessControl";
 
-    useEffect(() => {
-        if (!user) {
-            setIsLoading(true);
-            return;
-        }
-        if (user.role === 'admin') {
-            setPermissionRules('admin');
-            setIsLoading(false);
-            return;
-        }
-        const fetchRules = async () => {
-            try {
-                const docRef = doc(db, 'configuration', 'accessControl');
-                const docSnap = await getDoc(docRef);
-                setPermissionRules(docSnap.exists() ? docSnap.data() : {});
-            } catch (error) {
-                console.error("Lỗi khi tải quyền truy cập:", error);
-                setPermissionRules({});
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchRules();
-    }, [user]);
-
-    const checkPermission = useCallback((path) => {
-        if (isLoading || !permissionRules || !user) return false;
-        if (permissionRules === 'admin') return true;
-        if (!path || path === "/") return true; // Luôn hiển thị Dashboard
-
-        const pathKey = path.startsWith('/') ? path.substring(1) : path;
-        const allowedEmails = permissionRules[pathKey] || [];
-        return allowedEmails.includes(user.email);
-    }, [permissionRules, user, isLoading]);
-
-    return { checkPermission, isLoading };
-}
 
 // ----- Nav Item -----
 function SidebarNavItem({ item, isOpen, persistKey }) {
@@ -311,7 +272,7 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
     const { user } = useAuth();
     const persistKey = "sidebar-submenu";
 
-    const { checkPermission, isLoading } = useNavigationPermissions();
+    const { checkPermission, isLoading } = useAccessControl();
 
     const filteredConfig = useMemo(() => {
         if (isLoading) return [];

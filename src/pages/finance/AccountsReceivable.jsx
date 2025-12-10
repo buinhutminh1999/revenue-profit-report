@@ -14,10 +14,9 @@ import {
 } from "@mui/icons-material";
 import { NumericFormat } from "react-number-format";
 import { db } from "../../services/firebase-config";
-import {
-    collection, onSnapshot, query, addDoc, deleteDoc, writeBatch, where, getDocs, doc, setDoc, updateDoc
-} from "firebase/firestore";
+
 import { toNum } from "../../utils/numberUtils";
+import { useAccountsReceivable } from "../../hooks/useAccountsReceivable";
 import { EmptyState, SkeletonTable } from "../../components/common";
 
 // =================================================================
@@ -261,8 +260,18 @@ export default function AccountsReceivable() {
     const quarterOptions = [{ value: 1, label: "Quý 1" }, { value: 2, label: "Quý 2" }, { value: 3, label: "Quý 3" }, { value: 4, label: "Quý 4" }];
     const [selectedYear, setSelectedYear] = useState(currentYear);
     const [selectedQuarter, setSelectedQuarter] = useState(Math.ceil((new Date().getMonth() + 1) / 3));
-    const [rows, setRows] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const {
+        rows,
+        prevQuarterRows,
+        isLoading,
+        addRow,
+        deleteRow,
+        updateRow,
+        deleteGroup,
+        importRows,
+        copyFromPrevQuarter
+    } = useAccountsReceivable(selectedYear, selectedQuarter);
+
     const tableContainerRef = useRef(null);
     const [editingCell, setEditingCell] = useState(null);
 
@@ -272,58 +281,11 @@ export default function AccountsReceivable() {
     const [itemToDelete, setItemToDelete] = useState(null);
     const [groupToDelete, setGroupToDelete] = useState(null);
     const [pasteContext, setPasteContext] = useState(null);
-    const [prevQuarterRows, setPrevQuarterRows] = useState([]);
     const [displayRows, setDisplayRows] = useState([]);
 
-    useEffect(() => {
-        setIsLoading(true);
-        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
-        const q = query(collection(db, collectionPath));
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetchedRows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setRows(fetchedRows);
-            setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching rows:", error);
-            toast.error("Lỗi khi tải dữ liệu.");
-            setIsLoading(false);
-        });
-
-        let prevYear = selectedYear;
-        let prevQuarter = selectedQuarter - 1;
-        if (prevQuarter === 0) {
-            prevQuarter = 4;
-            prevYear -= 1;
-        }
-        const prevCollectionPath = `accountsReceivable/${prevYear}/quarters/Q${prevQuarter}/rows`;
-        const prevQ = query(collection(db, prevCollectionPath));
-
-        const unsubscribePrev = onSnapshot(prevQ, (snapshot) => {
-            const fetchedPrevRows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setPrevQuarterRows(fetchedPrevRows);
-        });
-
-        return () => {
-            unsubscribe();
-            unsubscribePrev();
-        };
-    }, [selectedYear, selectedQuarter]);
-
     const handleAddRow = async (categoryId) => {
-        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
         try {
-            const newRow = {
-                category: categoryId,
-                project: '',
-                openingDebit: 0,
-                openingCredit: 0,
-                debitIncrease: 0,
-                creditDecrease: 0,
-                closingDebit: 0,
-                closingCredit: 0
-            };
-            await addDoc(collection(db, collectionPath), newRow);
+            await addRow(categoryId);
             toast.success("Đã thêm dòng mới");
         } catch (error) {
             console.error("Error adding row:", error);
@@ -339,8 +301,7 @@ export default function AccountsReceivable() {
     const confirmDelete = async () => {
         if (itemToDelete) {
             setDeleteDialogOpen(false);
-            const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
-            const promise = deleteDoc(doc(db, collectionPath, itemToDelete));
+            const promise = deleteRow(itemToDelete);
             toast.promise(promise, { loading: 'Đang xóa...', success: 'Đã xóa thành công!', error: 'Lỗi khi xóa.' });
             setItemToDelete(null);
         }
@@ -354,7 +315,6 @@ export default function AccountsReceivable() {
     const confirmDeleteGroup = async () => {
         if (!groupToDelete) return;
         setDeleteGroupDialogOpen(false);
-        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
 
         // Find all rows belonging to this category
         const rowsToDelete = rows.filter(r => r.category === groupToDelete);
@@ -364,13 +324,7 @@ export default function AccountsReceivable() {
             return;
         }
 
-        const batch = writeBatch(db);
-        rowsToDelete.forEach(row => {
-            const docRef = doc(db, collectionPath, row.id);
-            batch.delete(docRef);
-        });
-
-        const promise = batch.commit();
+        const promise = deleteGroup(rowsToDelete);
         toast.promise(promise, {
             loading: `Đang xóa ${rowsToDelete.length} dòng...`,
             success: `Đã xóa thành công ${rowsToDelete.length} dòng!`,
@@ -381,10 +335,7 @@ export default function AccountsReceivable() {
 
     const handleUpdateCell = async (rowId, field, newValue) => {
         setEditingCell(null);
-        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
-        const docRef = doc(db, collectionPath, rowId);
-
-        const promise = updateDoc(docRef, { [field]: newValue });
+        const promise = updateRow(rowId, field, newValue);
 
         toast.promise(promise, {
             loading: 'Đang cập nhật...',
@@ -413,9 +364,7 @@ export default function AccountsReceivable() {
 
         const promise = new Promise(async (resolve, reject) => {
             try {
-                const batch = writeBatch(db);
-                let updatedCount = 0;
-                let addedCount = 0;
+
 
                 // 1. Map parsed text to objects based on columns
                 const tempObjects = parsedRows.map(rowData => {
@@ -460,73 +409,9 @@ export default function AccountsReceivable() {
                     }
                 });
 
-                // 3. Process to DB
-                for (const rowObj of uniqueRowsToProcess) {
-                    const projectVal = rowObj.project;
+                // 3. Process to DB using hook
+                const { addedCount, updatedCount } = await importRows(uniqueRowsToProcess);
 
-                    // Find existing row in DB
-                    const existingRow = projectVal
-                        ? rows.find(r => r.category === category && (r.project || '').trim().toLowerCase() === (projectVal || '').trim().toLowerCase())
-                        : null;
-
-                    if (existingRow) {
-                        // DUPLICATE FOUND IN DB - UPDATE
-                        const updateData = {};
-                        const prevRow = getPrevData(projectVal);
-
-                        // Enforce Opening Balance Rule from Prev Quarter
-                        if (prevRow) {
-                            updateData.openingDebit = toNum(prevRow.closingDebit);
-                            updateData.openingCredit = toNum(prevRow.closingCredit);
-                        } else if (rowObj.openingDebit !== undefined) {
-                            // If no prev row, use pasted/aggregated opening balance if present
-                            // (Or should we enforce 0? Old logic enforced 0 if `!prevRow`. Let's stick to safe defaults)
-                            // Old logic: "else { updateData.openingDebit = 0... }"
-                            // But maybe user pasted opening balance? 
-                            // The Request doesn't say "Fix opening balance logic", but "Accumulate paste".
-                            // Staying consistent with old logic: Enforce strict opening balance control.
-                            updateData.openingDebit = 0;
-                            updateData.openingCredit = 0;
-                        }
-
-                        // Update other fields from aggregated paste
-                        Object.keys(rowObj).forEach(field => {
-                            if (field !== 'openingDebit' && field !== 'openingCredit' && field !== 'project') {
-                                updateData[field] = rowObj[field];
-                            }
-                        });
-
-
-                        const docRef = doc(db, collectionPath, existingRow.id);
-                        batch.update(docRef, updateData);
-                        updatedCount++;
-                    } else {
-                        // NEW ROW
-                        const newRowData = { category: category };
-                        // Default all columns
-                        tableColumns.forEach(col => newRowData[col.field] = col.type === 'number' ? 0 : '');
-
-                        // Override with pasted data
-                        Object.keys(rowObj).forEach(field => {
-                            newRowData[field] = rowObj[field];
-                        });
-
-                        // Attempt to link with prev quarter if project name matches
-                        if (projectVal) {
-                            const prevRow = getPrevData(projectVal);
-                            if (prevRow) {
-                                newRowData.openingDebit = toNum(prevRow.closingDebit);
-                                newRowData.openingCredit = toNum(prevRow.closingCredit);
-                            }
-                        }
-
-                        const newDocRef = doc(collection(db, collectionPath));
-                        batch.set(newDocRef, newRowData);
-                        addedCount++;
-                    }
-                }
-
-                await batch.commit();
                 let messages = [];
                 if (addedCount > 0) messages.push(`Đã thêm ${addedCount} dòng mới.`);
                 if (updatedCount > 0) messages.push(`Đã cập nhật ${updatedCount} dòng.`);
@@ -556,53 +441,10 @@ export default function AccountsReceivable() {
         );
         if (!confirm) return;
 
-        const collectionPath = `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`;
-        const batch = writeBatch(db);
-        let addedCount = 0;
-        let updatedCount = 0;
-
         try {
-            // 1. Iterate through Prev Quarter Rows to Add or Update
-            prevQuarterRows.forEach(prevRow => {
-                const existingRow = rows.find(curr =>
-                    curr.category === prevRow.category &&
-                    (curr.project || '').trim().toLowerCase() === (prevRow.project || '').trim().toLowerCase()
-                );
-
-                if (existingRow) {
-                    // Update existing row's opening balance
-                    const docRef = doc(db, collectionPath, existingRow.id);
-                    const newOpeningDebit = toNum(prevRow.closingDebit);
-                    const newOpeningCredit = toNum(prevRow.closingCredit);
-
-                    // Only update if different to save writes
-                    if (toNum(existingRow.openingDebit) !== newOpeningDebit || toNum(existingRow.openingCredit) !== newOpeningCredit) {
-                        batch.update(docRef, {
-                            openingDebit: newOpeningDebit,
-                            openingCredit: newOpeningCredit
-                        });
-                        updatedCount++;
-                    }
-                } else {
-                    // Add new row
-                    const newDocRef = doc(collection(db, collectionPath));
-                    const newRowData = {
-                        category: prevRow.category,
-                        project: prevRow.project,
-                        openingDebit: toNum(prevRow.closingDebit),
-                        openingCredit: toNum(prevRow.closingCredit),
-                        debitIncrease: 0,
-                        creditDecrease: 0,
-                        closingDebit: 0,
-                        closingCredit: 0
-                    };
-                    batch.set(newDocRef, newRowData);
-                    addedCount++;
-                }
-            });
+            const { addedCount, updatedCount } = await copyFromPrevQuarter();
 
             if (addedCount > 0 || updatedCount > 0) {
-                await batch.commit();
                 toast.success(`Hoàn tất: Thêm ${addedCount} dòng, Cập nhật ${updatedCount} dòng.`);
             } else {
                 toast.success("Dữ liệu đã đồng bộ, không có thay đổi nào.", { icon: '✅' });

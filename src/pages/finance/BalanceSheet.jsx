@@ -30,6 +30,8 @@ import PasteDataDialog from '../../components/ui/PasteDataDialog';
 import { ErrorState } from '../../components/common';
 import { motion, AnimatePresence } from 'framer-motion';
 import { styled } from '@mui/material/styles';
+import { useConstructionPayables } from '../../hooks/useConstructionPayables';
+import { toNum } from '../../utils/numberUtils';
 
 // Khởi tạo Firestore và các hằng số
 const db = getFirestore();
@@ -754,6 +756,7 @@ const BalanceSheet = () => {
 
     const { data: accounts, isLoading: isAccountsLoading, isError: isAccountsError, error: accountsError } = useAccountsStructure();
     const { data: balances, isLoading: isBalancesLoading, isError: isBalancesError, error: balancesError } = useAccountBalances(selectedYear, selectedQuarter);
+    const { payablesData, projects, isLoading: isPayablesLoading } = useConstructionPayables(selectedYear, selectedQuarter);
 
     const [expanded, setExpanded] = useState([]);
     const [isPasteDialogOpen, setIsPasteDialogOpen] = useState(false);
@@ -767,20 +770,14 @@ const BalanceSheet = () => {
 
     // Dán và thay thế toàn bộ hook useEffect này trong file BalanceSheet.js
 
+
     // Logic đồng bộ hóa dữ liệu từ các nguồn khác
     useEffect(() => {
         const syncExternalData = async () => {
-            if (!accounts || !balances || isBalancesLoading) return;
+            if (!accounts || !balances || isBalancesLoading || isPayablesLoading) return;
 
             // Skip sync for Q1 2025 to allow manual editing
             // if (selectedYear === 2025 && selectedQuarter === 1) return;
-
-            const toNumber = (value) => {
-                if (typeof value === 'number') return value;
-                if (typeof value !== 'string' || !value) return 0;
-                const cleanedValue = value.trim().replace(/\./g, '').replace(/,/g, '');
-                return isNaN(parseFloat(cleanedValue)) ? 0 : parseFloat(cleanedValue);
-            };
 
             const updates = [];
             const batch = writeBatch(db);
@@ -833,14 +830,12 @@ const BalanceSheet = () => {
             };
 
             try {
-                // --- Phần 1: Đồng bộ từ Báo cáo Công nợ ---
-                // Skip for Q1 2025 to allow manual editing
+                // --- Phần 1: Đồng bộ từ Báo cáo Công nợ (Giữ nguyên logic cũ) ---
                 if (!(selectedYear === 2025 && selectedQuarter === 1)) {
                     // Lấy toàn bộ rows của AccountsReceivable cho quý này để tính tổng
                     const arRowsQuery = query(collection(db, `accountsReceivable/${selectedYear}/quarters/Q${selectedQuarter}/rows`));
                     const arRowsSnapshot = await getDocs(arRowsQuery);
 
-                    // Khởi tạo object chứa tổng hợp theo category
                     const aggregations = {};
 
                     arRowsSnapshot.forEach(doc => {
@@ -851,44 +846,24 @@ const BalanceSheet = () => {
                         if (!aggregations[cat]) {
                             aggregations[cat] = { closingDebit: 0, closingCredit: 0 };
                         }
-                        aggregations[cat].closingDebit += toNumber(data.closingDebit || 0);
-                        aggregations[cat].closingCredit += toNumber(data.closingCredit || 0);
+                        aggregations[cat].closingDebit += toNum(data.closingDebit || 0);
+                        aggregations[cat].closingCredit += toNum(data.closingCredit || 0);
                     });
 
-                    // Helper để lấy số liệu an toàn
                     const getAgg = (cat) => aggregations[cat] || { closingDebit: 0, closingCredit: 0 };
 
-                    // 131 - Khách hàng SX ứng trước (Category: kh_sx_ut) - Lấy cột Trả Trước CK (Credit)
                     addUpdateToBatch('131', 'cuoiKyCo', getAgg('kh_sx_ut').closingCredit);
-
-                    // 132 - Phải thu KH-ĐT (Category: kh_dt) - Lấy cột Phải Thu CK (Debit)
                     addUpdateToBatch('132', 'cuoiKyNo', getAgg('kh_dt').closingDebit);
-
-                    // 133 - Phải thu KH-SX (Category: pt_kh_sx) - Lấy cột Phải Thu CK (Debit)
                     addUpdateToBatch('133', 'cuoiKyNo', getAgg('pt_kh_sx').closingDebit);
-
-                    // 134 - Phải thu nội bộ (Category: pt_nb_xn_sx)
                     addUpdateToBatch('134', 'cuoiKyNo', getAgg('pt_nb_xn_sx').closingDebit);
-
-                    // 135 - Phải thu chủ đầu tư XD (Category: pt_cdt_xd)
                     addUpdateToBatch('135', 'cuoiKyNo', getAgg('pt_cdt_xd').closingDebit);
-
-                    // 139 - Tiền ứng trước CĐT - XD (Category: pt_cdt_xd) - Lấy cột Trả Trước CK (Credit)
                     addUpdateToBatch('139', 'cuoiKyCo', getAgg('pt_cdt_xd').closingCredit);
-
-                    // 140 - Nợ phải thu dở dang (Category: pt_dd_ct)
                     addUpdateToBatch('140', 'cuoiKyNo', getAgg('pt_dd_ct').closingDebit);
-
-                    // 142 - Nợ phải thu Sao Việt (Category: pt_sv_sx)
                     addUpdateToBatch('142', 'cuoiKyNo', getAgg('pt_sv_sx').closingDebit);
                 }
 
-                // --- Phần 2: Đồng bộ từ công trình ---
-                // Skip for Q1 2025 to allow manual editing
-                if (!(selectedYear === 2025 && selectedQuarter === 1)) {
-                    const projectsQuery = query(collection(db, 'projects'));
-                    const projectsSnapshot = await getDocs(projectsQuery);
-
+                // --- Phần 2: Đồng bộ từ công trình (Sử dụng payablesData từ Hook) ---
+                if (!(selectedYear === 2025 && selectedQuarter === 1) && payablesData && projects) {
                     let totalFor338 = 0;
                     let totalFor332 = 0;
                     let totalFor333 = 0;
@@ -896,47 +871,41 @@ const BalanceSheet = () => {
                     let totalFor33101 = 0;
                     let totalFor33102 = 0;
 
-                    if (!projectsSnapshot.empty) {
-                        const allProjectsData = projectsSnapshot.docs.map(p => ({ id: p.id, ...p.data() }));
-                        const quarterDocPromises = allProjectsData.map(p => getDoc(doc(db, `projects/${p.id}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`)));
-                        const quarterDocSnapshots = await Promise.all(quarterDocPromises);
+                    // Map projects type for fast lookup
+                    const projectTypeMap = projects.reduce((acc, p) => {
+                        acc[p.id] = p.type;
+                        return acc;
+                    }, {});
 
-                        quarterDocSnapshots.forEach((quarterDocSnap, index) => {
-                            if (quarterDocSnap.exists()) {
-                                const projectInfo = allProjectsData[index];
-                                const items = quarterDocSnap.data().items || [];
-                                const grandTotalRevenue = items.reduce((sum, item) => sum + toNumber(item.revenue || 0), 0);
+                    payablesData.forEach(item => {
+                        const projectType = projectTypeMap[item.projectId];
+                        const quarterlyOverallRevenue = toNum(item.quarterlyOverallRevenue || 0);
 
-                                items.forEach(item => {
-                                    // Logic cũ cho 338, 332, 333, 339
-                                    const psNo = grandTotalRevenue > 0 ? toNumber(item.noPhaiTraCK) : 0;
-                                    const psGiam = grandTotalRevenue === 0 ? toNumber(item.directCost) : toNumber(item.debt);
-                                    const dauKyNo = toNumber(item.debt);
-                                    const dauKyCo = toNumber(item.openingCredit);
-                                    const cuoiKyNo = Math.max(dauKyNo + psNo - psGiam - dauKyCo, 0);
-                                    const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
-                                    const result = cuoiKyNo - cuoiKyCo;
+                        const psNo = quarterlyOverallRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
+                        const psGiam = quarterlyOverallRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
+                        const dauKyNo = toNum(item.debt);
+                        const dauKyCo = toNum(item.openingCredit);
+                        const cuoiKyNo = Math.max(dauKyNo + psNo - psGiam - dauKyCo, 0);
+                        const cuoiKyCo = Math.max(dauKyCo + psGiam - dauKyNo - psNo, 0);
+                        const result = cuoiKyNo - cuoiKyCo;
 
-                                    if (item.description === "Chi phí dự phòng rủi ro") totalFor338 += result;
-                                    if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-VT')) totalFor332 += result;
-                                    if (projectInfo.type !== 'Nhà máy' && item.project?.includes('-NC')) totalFor333 += result;
-                                    if (item.description === "Chi phí NC + VT để bảo hành công trình") totalFor339 += result;
+                        if (item.description === "Chi phí dự phòng rủi ro") totalFor338 += result;
+                        if (projectType !== 'Nhà máy' && (item.project || '').includes('-VT')) totalFor332 += result;
+                        if (projectType !== 'Nhà máy' && (item.project || '').includes('-NC')) totalFor333 += result;
+                        if (item.description === "Chi phí NC + VT để bảo hành công trình") totalFor339 += result;
 
-                                    // Logic mới cho 33101, 33102
-                                    if (projectInfo.type === 'Nhà máy') {
-                                        if (item.project?.includes('-VT') && item.description === "+ NỢ VẬT TƯ") {
-                                            const val = toNumber(item.noPhaiTraCK) + toNumber(item.noPhaiTraCKNM);
-                                            totalFor33101 += val;
-                                        }
-                                        if (item.project?.includes('-VT') && item.description === "+ NỢ NHÂN CÔNG") {
-                                            const val = toNumber(item.noPhaiTraCK) + toNumber(item.noPhaiTraCKNM);
-                                            totalFor33102 += val;
-                                        }
-                                    }
-                                });
+                        // Logic mới cho 33101, 33102
+                        if (projectType === 'Nhà máy') {
+                            if ((item.project || '').includes('-VT') && item.description === "+ NỢ VẬT TƯ") {
+                                const val = toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM);
+                                totalFor33101 += val;
                             }
-                        });
-                    }
+                            if ((item.project || '').includes('-VT') && item.description === "+ NỢ NHÂN CÔNG") {
+                                const val = toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM);
+                                totalFor33102 += val;
+                            }
+                        }
+                    });
 
                     addUpdateToBatch('338', 'cuoiKyCo', totalFor338);
                     addUpdateToBatch('332', 'cuoiKyCo', totalFor332);
@@ -944,24 +913,17 @@ const BalanceSheet = () => {
                     addUpdateToBatch('339', 'cuoiKyCo', totalFor339);
                     addUpdateToBatch('33101', 'cuoiKyCo', totalFor33101);
                     addUpdateToBatch('33102', 'cuoiKyCo', totalFor33102);
-                }
 
-                // --- Phần 3 & 4: Đồng bộ TK 152, 155 ---
-                // Skip for Q1 2025 to allow manual editing
-                if (!(selectedYear === 2025 && selectedQuarter === 1)) {
+                    // --- Phần 3 & 4: Đồng bộ TK 152, 155 (Từ Factory Project trong payablesData) ---
                     const factoryProjectId = 'HKZyMDRhyXJzJiOauzVe';
-                    const materialDocRef = doc(db, `projects/${factoryProjectId}/years/${selectedYear}/quarters`, `Q${selectedQuarter}`);
-                    const materialDocSnap = await getDoc(materialDocRef);
+                    const factoryItems = payablesData.filter(item => item.projectId === factoryProjectId);
 
-                    if (materialDocSnap.exists()) {
-                        const data = materialDocSnap.data();
-                        if (data.items && Array.isArray(data.items)) {
-                            const materialItem = data.items.find(item => item.description === "+ NGUYÊN VẬT LIỆU");
-                            if (materialItem) addUpdateToBatch('152', 'cuoiKyNo', toNumber(materialItem.tonKhoUngKH));
+                    if (factoryItems.length > 0) {
+                        const materialItem = factoryItems.find(item => item.description === "+ NGUYÊN VẬT LIỆU");
+                        if (materialItem) addUpdateToBatch('152', 'cuoiKyNo', toNum(materialItem.tonKhoUngKH));
 
-                            const thanhPhamItem = data.items.find(item => item.description === "+ THÀNH PHẨM");
-                            if (thanhPhamItem) addUpdateToBatch('155', 'cuoiKyNo', toNumber(thanhPhamItem.tonKhoUngKH));
-                        }
+                        const thanhPhamItem = factoryItems.find(item => item.description === "+ THÀNH PHẨM");
+                        if (thanhPhamItem) addUpdateToBatch('155', 'cuoiKyNo', toNum(thanhPhamItem.tonKhoUngKH));
                     }
                 }
 
@@ -976,7 +938,7 @@ const BalanceSheet = () => {
             }
         };
         syncExternalData();
-    }, [selectedYear, selectedQuarter, accounts, balances, isBalancesLoading]);
+    }, [selectedYear, selectedQuarter, accounts, balances, isBalancesLoading, payablesData, projects, isPayablesLoading]);
 
     const handleShowDetails = useCallback(async (accountId) => {
         // Chỉ chạy cho các tài khoản được hỗ trợ xem chi tiết

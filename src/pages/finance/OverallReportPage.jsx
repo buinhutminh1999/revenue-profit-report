@@ -2048,4 +2048,3 @@ const OverallReportPage = () => (
 );
 
 export default OverallReportPage;
-

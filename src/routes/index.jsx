@@ -70,6 +70,9 @@ const MaterialPriceComparisonDetail = lazy(() => import('../pages/finance/Materi
 // THÊM DÒNG MỚI NÀY (CHO TRANG DANH SÁCH):
 const MaterialPriceComparison = lazy(() => import('../pages/finance/MaterialPriceComparison'));
 const InternalTaxReport = lazy(() => import('../pages/finance/InternalTaxReport'));
+const HistoryPage = lazy(() => import('../pages/about/HistoryPage'));
+const HelpPage = lazy(() => import('../pages/support/HelpPage'));
+const AttendanceDashboard = lazy(() => import('../pages/attendance/AttendanceDashboard'));
 
 // --- LAZY-LOAD CÁC TRANG CỦA MODULE GIÁM SÁT THIẾT BỊ ---
 const DeviceMonitoringDashboard = lazy(() => import('../pages/monitoring/DeviceMonitoringDashboard'));
@@ -139,6 +142,13 @@ function AppRoutes() {
                         <Route path="profit-change" element={<RequireEmailAccess pathKey="profit-change">{lazyLoad(ProfitChange)}</RequireEmailAccess>} />
                         <Route path="asset-transfer" element={<RequireEmailAccess pathKey="asset-transfer">{lazyLoad(AssetTransferPage)}</RequireEmailAccess>} />
                         <Route path="device-monitoring" element={<RequireEmailAccess pathKey="device-monitoring">{lazyLoad(DeviceMonitoringDashboard)}</RequireEmailAccess>} />
+                        <Route path="history" element={lazyLoad(HistoryPage)} />
+                        <Route path="help" element={lazyLoad(HelpPage)} />
+                        {/* === ROUTE TRANG CHI TIẾT (TRỎ VÀO FILE VỪA ĐỔI TÊN) === */}
+                        <Route path="attendance">
+                            <Route index element={<RequireEmailAccess pathKey="attendance">{lazyLoad(AttendanceDashboard)}</RequireEmailAccess>} />
+                            <Route path="*" element={<RequireEmailAccess pathKey="attendance">{lazyLoad(AttendanceDashboard)}</RequireEmailAccess>} />
+                        </Route>
                         {/* === ROUTE TRANG DANH SÁCH (TRỎ VÀO FILE MỚI) === */}
                         <Route
                             path="material-price-comparison"

@@ -62,6 +62,8 @@ import {
     Calculate as CalculateIcon,
     FactCheck as FactCheckIcon,
 } from "@mui/icons-material";
+import { motion } from "framer-motion";
+import { usePlanningItems } from "../../hooks/usePlanningItems";
 import AdjustmentModal from "./AdjustmentModal";
 
 const StatCard = ({ icon, title, value, color = "primary" }) => {
@@ -423,11 +425,18 @@ const syncPlanningItems = async (projectId, projectType) => {
 // --- COMPONENT CHÍNH ---
 export default function PlanningTab({ projectId }) {
     // --- STATE MANAGEMENT ---
-    const [planningItems, setPlanningItems] = useState([]);
-    const [projectData, setProjectData] = useState(null); // <== THÊM DÒNG NÀY
+    // --- REFACTORED TO USE HOOK ---
+    const {
+        planningItems,
+        projectData,
+        contractValue,
+        isLoading: loading
+    } = usePlanningItems(projectId);
 
-    const [loading, setLoading] = useState(true);
-    const [contractValue, setContractValue] = useState(0);
+    // const [planningItems, setPlanningItems] = useState([]); // Removed
+    // const [projectData, setProjectData] = useState(null); // Removed
+    // const [loading, setLoading] = useState(true); // Removed
+    // const [contractValue, setContractValue] = useState(0); // Removed
     const [adjustmentsData, setAdjustmentsData] = useState({});
     const [loadingAdjustments, setLoadingAdjustments] = useState(new Set());
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -596,7 +605,7 @@ export default function PlanningTab({ projectId }) {
         (itemId) => {
             const newExpanded = new Set(expandedRows);
             const isCurrentlyExpanded = newExpanded.has(itemId);
-            
+
             if (isCurrentlyExpanded) {
                 // Đóng: Xóa khỏi expanded và hủy listener nếu có
                 newExpanded.delete(itemId);
@@ -608,7 +617,7 @@ export default function PlanningTab({ projectId }) {
             } else {
                 // Mở: Thêm vào expanded và tạo listener nếu chưa có
                 newExpanded.add(itemId);
-                
+
                 // Chỉ tạo listener nếu chưa có
                 if (!adjustmentUnsubscribes.current.has(itemId)) {
                     const adjQuery = query(
@@ -627,7 +636,7 @@ export default function PlanningTab({ projectId }) {
                     adjustmentUnsubscribes.current.set(itemId, unsubscribeAdjustments);
                 }
             }
-            
+
             setExpandedRows(newExpanded);
         },
         [expandedRows, projectId]
@@ -1208,7 +1217,7 @@ export default function PlanningTab({ projectId }) {
             // Hủy các listener cũ trước khi tạo mới để tránh memory leak
             adjustmentUnsubscribes.current.forEach((unsub) => unsub());
             adjustmentUnsubscribes.current.clear();
-            
+
             // Không tạo listeners ở đây nữa - sẽ tạo khi handleToggleRow được gọi
         }, (error) => {
             console.error("Snapshot error for planning items:", error);
@@ -1471,6 +1480,10 @@ export default function PlanningTab({ projectId }) {
                         </Button>
                     </Stack>
                     <Paper
+                        component={motion.div}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.4 }}
                         sx={{
                             height: "70vh",
                             minHeight: 500,
