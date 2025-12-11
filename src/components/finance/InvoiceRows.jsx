@@ -14,6 +14,7 @@ export const InvoiceRow = React.memo(({
     handleMouseEnter,
     handleUpdateCell,
     handleSaveCell,
+    onDeleteEmptyRow,
     theme,
     handleDragStart,
     handleDragOver,
@@ -29,8 +30,25 @@ export const InvoiceRow = React.memo(({
         '&.Mui-focused': { bgcolor: 'white', boxShadow: `0 0 0 2px ${theme.palette.primary.main}` }
     };
 
+    // Check if row is empty and auto-delete
+    const handleBlurWithAutoDelete = (field, value) => {
+        handleSaveCell(row.id, field, value);
+
+        // Create temp row with new value to check emptiness
+        const tempRow = { ...row, [field]: value };
+        const isEmpty = !tempRow.invoiceNumber && !tempRow.sellerName && !tempRow.buyerName &&
+            !tempRow.totalNoTax && !tempRow.taxAmount && !tempRow.totalPayment && !tempRow.costType;
+
+        if (isEmpty && onDeleteEmptyRow) {
+            setTimeout(() => {
+                onDeleteEmptyRow(row.id);
+            }, 500);
+        }
+    };
+
     return (
         <TableRow
+            data-row-id={row.id}
             onMouseDown={(event) => handleMouseDown(event, row.id)}
             onMouseEnter={() => handleMouseEnter(row.id)}
             onDragOver={handleDragOver}
@@ -41,7 +59,7 @@ export const InvoiceRow = React.memo(({
                 '&:hover': { bgcolor: '#f1f5f9' },
                 cursor: 'pointer',
                 bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.1) : 'inherit',
-                transition: 'background-color 0.2s'
+                transition: 'background-color 0.3s ease'
             }}
         >
             <TableCell
@@ -56,7 +74,7 @@ export const InvoiceRow = React.memo(({
                 <InputBase
                     value={row.sellerName}
                     onChange={(e) => handleUpdateCell(row.id, 'sellerName', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'sellerName', e.target.value)}
+                    onBlur={(e) => handleBlurWithAutoDelete('sellerName', e.target.value)}
                     fullWidth
                     multiline
                     sx={cellInputStyle}
@@ -66,7 +84,7 @@ export const InvoiceRow = React.memo(({
                 <InputBase
                     value={row.invoiceNumber}
                     onChange={(e) => handleUpdateCell(row.id, 'invoiceNumber', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'invoiceNumber', e.target.value)}
+                    onBlur={(e) => handleBlurWithAutoDelete('invoiceNumber', e.target.value)}
                     fullWidth
                     sx={{ ...cellInputStyle, textAlign: 'center', fontWeight: 600 }}
                     inputProps={{ style: { textAlign: 'center' } }}
@@ -86,7 +104,7 @@ export const InvoiceRow = React.memo(({
                 <InputBase
                     value={row.buyerName}
                     onChange={(e) => handleUpdateCell(row.id, 'buyerName', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'buyerName', e.target.value)}
+                    onBlur={(e) => handleBlurWithAutoDelete('buyerName', e.target.value)}
                     fullWidth
                     multiline
                     sx={cellInputStyle}
@@ -106,7 +124,7 @@ export const InvoiceRow = React.memo(({
                 <InputBase
                     value={row.totalNoTax}
                     onChange={(e) => handleUpdateCell(row.id, 'totalNoTax', e.target.value)}
-                    onBlur={(e) => handleSaveCell(row.id, 'totalNoTax', e.target.value)}
+                    onBlur={(e) => handleBlurWithAutoDelete('totalNoTax', e.target.value)}
                     fullWidth
                     sx={{ ...cellInputStyle, textAlign: 'right', fontWeight: 600, color: theme.palette.primary.main }}
                     inputProps={{ style: { textAlign: 'right' } }}
@@ -163,6 +181,7 @@ export const PurchaseInvoiceRow = React.memo(({
     handleMouseEnter,
     handleUpdatePurchaseCell,
     handleSavePurchaseCell,
+    onDeleteEmptyRow,
     theme,
     handleDragStart,
     handleDragOver,
@@ -170,29 +189,61 @@ export const PurchaseInvoiceRow = React.memo(({
 }) => {
     const [editingField, setEditingField] = React.useState(null);
     const [editValue, setEditValue] = React.useState('');
+    const isEditingRef = React.useRef(false);
 
     const valueNoTax = parseCurrency(row.valueNoTax);
     const tax = parseCurrency(row.tax);
     const rate = valueNoTax !== 0 ? tax / valueNoTax : 0;
 
+    // Check if row is completely empty (no important data)
+    const isRowEmpty = () => {
+        return !row.invoiceNo && !row.seller && !row.sellerTax &&
+            !row.valueNoTax && !row.tax && !row.buyer && !row.costType && !row.project;
+    };
+
     const handleStartEdit = (field, currentValue) => {
+        isEditingRef.current = true;
         setEditingField(field);
         setEditValue(currentValue || '');
     };
 
-    const handleFinishEdit = (field) => {
-        if (editValue !== (row[field] || '')) {
-            handleUpdatePurchaseCell(row.id, field, editValue);
-            handleSavePurchaseCell(row.id, field, editValue);
-        }
+    const handleFinishEdit = async (field) => {
+        if (!isEditingRef.current) return;
+        isEditingRef.current = false;
+
+        const newValue = editValue;
+        const oldValue = row[field] || '';
+
+        // Reset edit state first
         setEditingField(null);
         setEditValue('');
+
+        // Only save if value changed
+        if (newValue !== oldValue) {
+            // Save to server - Firebase subscription will auto-update local data
+            await handleSavePurchaseCell(row.id, field, newValue);
+        }
+
+        // Check if row is empty after edit - if so, delete it
+        // Create a temporary row object with the new value to check
+        const tempRow = { ...row, [field]: newValue };
+        const isEmpty = !tempRow.invoiceNo && !tempRow.seller && !tempRow.sellerTax &&
+            !tempRow.valueNoTax && !tempRow.tax && !tempRow.buyer && !tempRow.costType && !tempRow.project;
+
+        if (isEmpty && onDeleteEmptyRow) {
+            // Delay slightly to avoid UI flicker
+            setTimeout(() => {
+                onDeleteEmptyRow(row.id);
+            }, 500);
+        }
     };
 
     const handleKeyDown = (e, field) => {
         if (e.key === 'Enter') {
+            e.preventDefault();
             handleFinishEdit(field);
         } else if (e.key === 'Escape') {
+            isEditingRef.current = false;
             setEditingField(null);
             setEditValue('');
         }
@@ -241,6 +292,7 @@ export const PurchaseInvoiceRow = React.memo(({
 
     return (
         <TableRow
+            data-row-id={row.id}
             onMouseDown={(event) => handleMouseDown(event, row.id)}
             onMouseEnter={() => handleMouseEnter(row.id)}
             onDragOver={handleDragOver}
@@ -250,7 +302,8 @@ export const PurchaseInvoiceRow = React.memo(({
                 '&:last-child td, &:last-child th': { border: 0 },
                 '&:hover': { bgcolor: '#f1f5f9' },
                 cursor: 'pointer',
-                bgcolor: isSelected ? alpha(theme.palette.secondary.main, 0.1) : 'inherit'
+                bgcolor: isSelected ? alpha(theme.palette.secondary.main, 0.1) : 'inherit',
+                transition: 'background-color 0.3s ease'
             }}
         >
             <TableCell
@@ -268,15 +321,11 @@ export const PurchaseInvoiceRow = React.memo(({
             <EditableCell field="sellerTax" value={row.sellerTax} align="center" />
             <EditableCell field="valueNoTax" value={row.valueNoTax} align="right" />
             <EditableCell field="tax" value={row.tax} align="right" />
-            <TableCell align="center">{formatPercentage(rate)}</TableCell>
+            <TableCell align="center">
+                {row.group === 4 ? 'Không kê khai thuế' : formatPercentage(rate)}
+            </TableCell>
             <EditableCell field="costType" value={row.costType} />
             <EditableCell field="project" value={row.project} />
         </TableRow>
-    );
-}, (prevProps, nextProps) => {
-    return (
-        prevProps.row === nextProps.row &&
-        prevProps.isSelected === nextProps.isSelected &&
-        prevProps.index === nextProps.index
     );
 });

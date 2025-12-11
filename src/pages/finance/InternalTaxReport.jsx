@@ -1,11 +1,12 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, forwardRef } from 'react';
 import {
     Box, Paper, Typography, Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Chip, useTheme, alpha, Stack, FormControl, InputLabel, Select, MenuItem, Button, Dialog, DialogTitle,
     DialogContent, DialogActions, TextField, Grid, InputAdornment, Snackbar, Alert, CircularProgress,
-    Card, CardContent, IconButton, Tooltip, Backdrop, TablePagination, TableSortLabel
+    Card, CardContent, IconButton, Tooltip, Backdrop, TablePagination, TableSortLabel,
+    AppBar, Toolbar, Slide
 } from '@mui/material';
-import { Description, Receipt, FilterList, Assessment, Add, ContentPaste, Search, Refresh, Delete, CloudUpload } from '@mui/icons-material';
+import { Description, Receipt, FilterList, Assessment, Add, ContentPaste, Search, Refresh, Delete, CloudUpload, Fullscreen, FullscreenExit, Close } from '@mui/icons-material';
 
 // Services and hooks
 import { InternalTaxService } from '../../services/internalTaxService';
@@ -18,15 +19,16 @@ import ColumnFilterMenu from '../../components/common/ColumnFilterMenu';
 import { InvoiceRow, PurchaseInvoiceRow } from '../../components/finance/InvoiceRows';
 import InvoiceTableSkeleton from '../../components/finance/InvoiceTableSkeleton';
 import EmptyState from '../../components/common/EmptyState';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 // Shared utilities
 import { parseCurrency, formatCurrency, formatPercentage, parseDate } from '../../utils/currencyHelpers';
 // CustomTabPanel imported from shared components
 
-
-
-
-
+// Transition component for full-screen dialog - defined outside to prevent recreation on every render
+const FullscreenTransition = forwardRef(function FullscreenTransition(props, ref) {
+    return <Slide direction="up" ref={ref} {...props} />;
+});
 // InvoiceRow, PurchaseInvoiceRow imported from components/finance/InvoiceRows.jsx
 // ColumnFilterMenu imported from components/common/ColumnFilterMenu.jsx
 
@@ -57,6 +59,142 @@ export default function InternalTaxReport() {
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false); // Fix: Add local processing state
     const [dragStartId, setDragStartId] = useState(null);
+    const [newlyAddedRowId, setNewlyAddedRowId] = useState(null); // Track newly added row for auto-scroll/focus
+
+    // Fullscreen table state: null | 'general' | 'purchase'
+    const [fullscreenTable, setFullscreenTable] = useState(null);
+    const [fullscreenFilterInput, setFullscreenFilterInput] = useState(''); // Input value (immediate)
+    const [fullscreenFilter, setFullscreenFilter] = useState(''); // Debounced value for filtering
+    const fullscreenFilterTimeout = useRef(null);
+
+    // Debounce handler for fullscreen filter
+    const handleFullscreenFilterChange = (value) => {
+        setFullscreenFilterInput(value);
+        if (fullscreenFilterTimeout.current) {
+            clearTimeout(fullscreenFilterTimeout.current);
+        }
+        fullscreenFilterTimeout.current = setTimeout(() => {
+            setFullscreenFilter(value);
+        }, 300);
+    };
+
+    // Clear fullscreen filter when closing
+    const closeFullscreenDialog = () => {
+        setFullscreenTable(null);
+        setFullscreenFilterInput('');
+        setFullscreenFilter('');
+        setFullscreenColumnFilters({});
+        if (fullscreenFilterTimeout.current) {
+            clearTimeout(fullscreenFilterTimeout.current);
+        }
+    };
+
+    // Fullscreen column filters state
+    const [fullscreenColumnFilters, setFullscreenColumnFilters] = useState({}); // { column: [selectedValues] }
+    const [fsFilterAnchor, setFsFilterAnchor] = useState(null);
+    const [fsActiveColumn, setFsActiveColumn] = useState(null);
+
+    // Get unique values for fullscreen column filter
+    const getFullscreenUniqueValues = (data, columnId) => {
+        if (!data || !columnId) return [];
+        let values = data.map(item => item[columnId]).filter(val => val !== undefined && val !== null && val !== "");
+        return Array.from(new Set(values)).sort();
+    };
+
+    // Apply fullscreen column filters
+    const applyFullscreenColumnFilters = (data, filters, searchTerm) => {
+        if (!data) return [];
+        let result = data;
+
+        // Apply search term
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            result = result.filter(inv => {
+                if (fullscreenTable === 'general') {
+                    return (inv.sellerName?.toLowerCase().includes(term) ||
+                        inv.buyerName?.toLowerCase().includes(term) ||
+                        inv.invoiceNumber?.toLowerCase().includes(term) ||
+                        inv.buyerTaxCode?.toLowerCase().includes(term) ||
+                        inv.costType?.toLowerCase().includes(term) ||
+                        inv.note?.toLowerCase().includes(term));
+                } else {
+                    return (inv.seller?.toLowerCase().includes(term) ||
+                        inv.buyer?.toLowerCase().includes(term) ||
+                        inv.invoiceNo?.toLowerCase().includes(term) ||
+                        inv.sellerTax?.toLowerCase().includes(term) ||
+                        inv.costType?.toLowerCase().includes(term));
+                }
+            });
+        }
+
+        // Apply column filters
+        Object.entries(filters).forEach(([column, selectedValues]) => {
+            if (selectedValues && selectedValues.length > 0) {
+                result = result.filter(item => selectedValues.includes(item[column]));
+            }
+        });
+
+        return result;
+    };
+
+    // Fullscreen filter handlers
+    const handleFsFilterOpen = (e, column) => {
+        e.stopPropagation();
+        setFsFilterAnchor(e.currentTarget);
+        setFsActiveColumn(column);
+    };
+
+    const handleFsFilterClose = () => {
+        setFsFilterAnchor(null);
+        setFsActiveColumn(null);
+    };
+
+    const handleFsFilterChange = (column, values) => {
+        setFullscreenColumnFilters(prev => ({
+            ...prev,
+            [column]: values
+        }));
+    };
+
+    const handleFsFilterClear = (column) => {
+        setFullscreenColumnFilters(prev => {
+            const newFilters = { ...prev };
+            delete newFilters[column];
+            return newFilters;
+        });
+        handleFsFilterClose();
+    };
+
+    const clearAllFsFilters = () => {
+        setFullscreenColumnFilters({});
+        setFullscreenFilterInput('');
+        setFullscreenFilter('');
+    };
+
+    // Confirm Dialog State
+    const [confirmDialog, setConfirmDialog] = useState({
+        open: false,
+        title: '',
+        content: '',
+        confirmText: 'Xác nhận',
+        confirmColor: 'error',
+        onConfirm: () => { }
+    });
+
+    const openConfirmDialog = (options) => {
+        setConfirmDialog({
+            open: true,
+            title: options.title || 'Xác nhận',
+            content: options.content || '',
+            confirmText: options.confirmText || 'Xác nhận',
+            confirmColor: options.confirmColor || 'error',
+            onConfirm: options.onConfirm || (() => { })
+        });
+    };
+
+    const closeConfirmDialog = () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+    };
     const [searchTerm, setSearchTerm] = useState("");
     const [openAddDialog, setOpenAddDialog] = useState(false);
     const [newInvoice, setNewInvoice] = useState({
@@ -144,15 +282,120 @@ export default function InternalTaxReport() {
     const getUniqueValues = (columnId) => {
         if (!columnId) return [];
         const dataKey = columnId.includes('_') ? columnId.split('_')[1] : columnId;
+
+        // Create a copy of columnFilters excluding the current column's filter
+        // This way, we get unique values from data filtered by OTHER columns
+        const filtersWithoutCurrentColumn = { ...columnFilters };
+        delete filtersWithoutCurrentColumn[columnId];
+
         let data = [];
         if (activeFilterGroup === 0) {
-            data = localGeneralInvoices;
-        } else if (activeFilterGroup === 1) {
-            data = group1Data;
-        } else if (activeFilterGroup === 3) {
-            data = group3Data;
-        } else if (activeFilterGroup === 4) {
-            data = group4Data;
+            // Apply all filters EXCEPT the current column's filter
+            let filteredData = [...localGeneralInvoices];
+
+            // Apply search term
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                const cleanTerm = term.replace(/[^0-9]/g, '');
+                filteredData = filteredData.filter(item => {
+                    const itemTotalNoTax = item.totalNoTax ? item.totalNoTax.toString().replace(/[^0-9]/g, '') : '';
+                    const itemTaxAmount = item.taxAmount ? item.taxAmount.toString().replace(/[^0-9]/g, '') : '';
+                    const itemTotalPayment = item.totalPayment ? item.totalPayment.toString().replace(/[^0-9]/g, '') : '';
+                    return (
+                        (item.invoiceNumber && item.invoiceNumber.toLowerCase().includes(term)) ||
+                        (item.sellerName && item.sellerName.toLowerCase().includes(term)) ||
+                        (item.sellerTaxCode && item.sellerTaxCode.toLowerCase().includes(term)) ||
+                        (item.buyerName && item.buyerName.toLowerCase().includes(term)) ||
+                        (item.buyerTaxCode && item.buyerTaxCode.toLowerCase().includes(term)) ||
+                        (item.note && item.note.toLowerCase().includes(term)) ||
+                        (item.costType && item.costType.toLowerCase().includes(term)) ||
+                        (cleanTerm && (
+                            itemTotalNoTax.includes(cleanTerm) ||
+                            itemTaxAmount.includes(cleanTerm) ||
+                            itemTotalPayment.includes(cleanTerm)
+                        ))
+                    );
+                });
+            }
+
+            // Apply other column filters (not the current one)
+            Object.keys(filtersWithoutCurrentColumn).forEach(colId => {
+                if (colId.includes('_')) return;
+                const selectedValues = filtersWithoutCurrentColumn[colId];
+                if (selectedValues && selectedValues.length > 0) {
+                    filteredData = filteredData.filter(item => selectedValues.includes(item[colId]));
+                }
+            });
+
+            data = filteredData;
+        } else {
+            // For purchase invoices (groups 1, 3, 4)
+            // Filter from localPurchaseInvoices by group
+            let sourceData = [];
+            if (activeFilterGroup === 1) {
+                sourceData = localPurchaseInvoices.filter(i => !i.group || i.group === 1);
+            } else if (activeFilterGroup === 3) {
+                sourceData = localPurchaseInvoices.filter(i => i.group === 3);
+            } else if (activeFilterGroup === 4) {
+                sourceData = localPurchaseInvoices.filter(i => i.group === 4);
+            }
+
+            // Apply search term
+            let filteredData = [...sourceData];
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                const cleanTerm = term.replace(/[^0-9]/g, '');
+                filteredData = filteredData.filter(item => {
+                    const itemValueNoTax = item.valueNoTax ? item.valueNoTax.toString().replace(/[^0-9]/g, '') : '';
+                    const itemTax = item.tax ? item.tax.toString().replace(/[^0-9]/g, '') : '';
+                    const itemTotal = item.total ? item.total.toString().replace(/[^0-9]/g, '') : '';
+                    return (
+                        (item.invoiceNo && item.invoiceNo.toLowerCase().includes(term)) ||
+                        (item.seller && item.seller.toLowerCase().includes(term)) ||
+                        (item.sellerTax && item.sellerTax.toLowerCase().includes(term)) ||
+                        (item.project && item.project.toLowerCase().includes(term)) ||
+                        (item.costType && item.costType.toLowerCase().includes(term)) ||
+                        (cleanTerm && (
+                            itemValueNoTax.includes(cleanTerm) ||
+                            itemTax.includes(cleanTerm) ||
+                            itemTotal.includes(cleanTerm)
+                        ))
+                    );
+                });
+            }
+
+            // Apply other column filters (not the current one)
+            Object.keys(filtersWithoutCurrentColumn).forEach(colId => {
+                const selectedValues = filtersWithoutCurrentColumn[colId];
+                if (selectedValues && selectedValues.length > 0) {
+                    if (colId.startsWith(`${activeFilterGroup}_`)) {
+                        const filterDataKey = colId.split('_')[1];
+                        filteredData = filteredData.filter(item => selectedValues.includes(item[filterDataKey]));
+                    }
+                }
+            });
+
+            data = filteredData;
+        }
+
+        // Special handling for rate column - calculate from tax/valueNoTax
+        if (dataKey === 'rate') {
+            // For Group 4, rate is always "Không kê khai thuế"
+            if (activeFilterGroup === 4) {
+                return ['Không kê khai thuế'];
+            }
+
+            // For other groups, calculate rate from tax and valueNoTax
+            const computedRates = data.map(item => {
+                const valueNoTax = parseCurrency(item.valueNoTax);
+                const tax = parseCurrency(item.tax);
+                if (valueNoTax === 0) return '0%';
+                const rate = tax / valueNoTax;
+                return formatPercentage(rate);
+            }).filter(val => val !== undefined && val !== null && val !== "");
+
+            let unique = Array.from(new Set(computedRates));
+            return unique.sort();
         }
 
         let unique = Array.from(new Set(data.map(item => item[dataKey]).filter(val => val !== undefined && val !== null && val !== "")));
@@ -476,6 +719,222 @@ export default function InternalTaxReport() {
             setIsProcessing(false);
         }
     };
+
+    // Add empty row with Ctrl+D when a group is selected
+    const addEmptyPurchaseRow = async () => {
+        if (activePurchaseGroup === null) {
+            showSnackbar("Vui lòng chọn một bảng trước khi thêm hàng mới", "warning");
+            return;
+        }
+
+        try {
+            setIsProcessing(true);
+            const targetGroup = activePurchaseGroup;
+            const targetList = targetGroup === 3 ? group3Data : (targetGroup === 4 ? group4Data : group1Data);
+            const maxStt = targetList.reduce((max, item) => Math.max(max, item.stt || 0), 0);
+
+            const emptyInvoice = {
+                invoiceNo: "",
+                date: "",
+                seller: "",
+                sellerTax: "",
+                valueNoTax: "",
+                tax: "",
+                total: "",
+                rate: "",
+                project: "",
+                buyer: "",
+                nk: "",
+                group: targetGroup,
+                costType: "",
+                stt: maxStt + 1,
+                month,
+                year
+            };
+
+            await addPurchaseInvoice(emptyInvoice);
+            showSnackbar("Đã thêm hàng mới", "success");
+        } catch (error) {
+            console.error("Error adding empty row", error);
+            showSnackbar("Lỗi khi thêm hàng mới", "error");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    // Keyboard shortcut: Ctrl+D to add empty row
+    useEffect(() => {
+        const handleKeyDown = async (e) => {
+            // Ctrl+D to add empty row
+            if (e.ctrlKey && e.key === 'd') {
+                const activeTag = document.activeElement.tagName.toLowerCase();
+                if (activeTag === 'input' || activeTag === 'textarea') return;
+
+                e.preventDefault();
+                console.log('Ctrl+D pressed, value:', value, 'activePurchaseGroup:', activePurchaseGroup);
+                if (value === 1 && activePurchaseGroup !== null) {
+                    // Inline addEmptyPurchaseRow logic to avoid stale closure
+                    try {
+                        setIsProcessing(true);
+                        const targetGroup = activePurchaseGroup;
+                        console.log('Adding empty row to group:', targetGroup);
+                        const targetList = targetGroup === 3 ? group3Data : (targetGroup === 4 ? group4Data : group1Data);
+                        const maxStt = targetList.reduce((max, item) => Math.max(max, item.stt || 0), 0);
+
+                        const emptyInvoice = {
+                            invoiceNo: "",
+                            date: "",
+                            seller: "",
+                            sellerTax: "",
+                            valueNoTax: "",
+                            tax: "",
+                            total: "",
+                            rate: "",
+                            project: "",
+                            buyer: "",
+                            nk: "",
+                            group: targetGroup,
+                            costType: "",
+                            stt: maxStt + 1,
+                            month,
+                            year
+                        };
+                        console.log('Empty invoice to add:', emptyInvoice);
+
+                        const newDoc = await addPurchaseInvoice(emptyInvoice);
+                        console.log('addPurchaseInvoice result:', newDoc);
+                        if (newDoc && newDoc.id) {
+                            console.log('Setting newlyAddedRowId to:', newDoc.id);
+                            setNewlyAddedRowId(newDoc.id);
+                        }
+                        showSnackbar("Đã thêm hàng mới - đang cuộn đến hàng mới", "success");
+                    } catch (error) {
+                        console.error("Error adding empty row", error);
+                        showSnackbar("Lỗi khi thêm hàng mới", "error");
+                    } finally {
+                        setIsProcessing(false);
+                    }
+                } else if (value === 0) {
+                    // Handle General Invoices tab (Bảng Kê Bán Ra)
+                    try {
+                        setIsProcessing(true);
+                        const maxStt = localGeneralInvoices.reduce((max, item) => Math.max(max, item.stt || 0), 0);
+
+                        const emptyInvoice = {
+                            formSymbol: "",
+                            invoiceSymbol: "",
+                            invoiceNumber: "",
+                            date: "",
+                            sellerTaxCode: "",
+                            sellerName: "",
+                            buyerTaxCode: "",
+                            buyerName: "",
+                            buyerAddress: "",
+                            totalNoTax: "",
+                            taxAmount: "",
+                            tradeDiscount: "",
+                            totalPayment: "",
+                            currency: "VND",
+                            exchangeRate: "1.0",
+                            status: "Hóa đơn mới",
+                            checkResult: "Đã cấp mã hóa đơn",
+                            note: "",
+                            costType: "",
+                            stt: maxStt + 1,
+                            month,
+                            year
+                        };
+
+                        const newDoc = await addGeneralInvoice(emptyInvoice);
+                        if (newDoc && newDoc.id) {
+                            setNewlyAddedRowId(newDoc.id);
+                        }
+                        // Jump to last page
+                        const lastPage = Math.max(0, Math.ceil((localGeneralInvoices.length + 1) / rowsPerPageGeneral) - 1);
+                        setPageGeneral(lastPage);
+
+                        showSnackbar("Đã thêm hàng mới - đang cuộn đến hàng mới", "success");
+                    } catch (error) {
+                        console.error("Error adding empty general row", error);
+                        showSnackbar("Lỗi khi thêm hàng mới", "error");
+                    } finally {
+                        setIsProcessing(false);
+                    }
+                }
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [value, activePurchaseGroup, group1Data, group3Data, group4Data, localGeneralInvoices, month, year, addPurchaseInvoice, addGeneralInvoice, rowsPerPageGeneral]);
+
+    // Auto-scroll and focus on newly added row
+    useEffect(() => {
+        if (!newlyAddedRowId) return;
+
+        // Check in Purchase invoices first
+        let newRow = localPurchaseInvoices.find(inv => inv.id === newlyAddedRowId);
+        let isGeneralInvoice = false;
+
+        // Check in General invoices if not found in Purchase
+        if (!newRow) {
+            newRow = localGeneralInvoices.find(inv => inv.id === newlyAddedRowId);
+            isGeneralInvoice = true;
+        }
+
+        if (!newRow) return; // Row not yet in data, wait for next update
+
+        // Save ID before clearing state
+        const rowId = newlyAddedRowId;
+        const rowGroup = newRow.group || 1;
+
+        // Row found! Clear the tracking state
+        setNewlyAddedRowId(null);
+
+        if (!isGeneralInvoice) {
+            // Jump to last page of pagination for the relevant purchase group
+            const targetList = rowGroup === 3 ? group3Data : (rowGroup === 4 ? group4Data : group1Data);
+            const lastPage = Math.max(0, Math.ceil(targetList.length / rowsPerPagePurchase) - 1);
+
+            if (rowGroup === 1) {
+                setPageGroup1(lastPage);
+            } else if (rowGroup === 3) {
+                setPageGroup3(lastPage);
+            } else if (rowGroup === 4) {
+                setPageGroup4(lastPage);
+            }
+        }
+
+        // Delay to ensure DOM is rendered after pagination change
+        setTimeout(() => {
+            // Find the row element in DOM using saved ID
+            const rowElement = document.querySelector(`tr[data-row-id="${rowId}"]`);
+            if (rowElement) {
+                // Scroll to the row
+                rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // Highlight the row briefly
+                rowElement.style.backgroundColor = '#e3f2fd';
+                setTimeout(() => {
+                    rowElement.style.backgroundColor = '';
+                }, 2000);
+
+                // Click on the first editable cell to trigger edit mode
+                const firstEditableCell = rowElement.querySelector('td:nth-child(2) div');
+                if (firstEditableCell) {
+                    firstEditableCell.click();
+                }
+            } else {
+                console.log('Row element not found, scrolling to table end');
+                // Fallback: scroll to table container
+                const tableLabel = isGeneralInvoice ? "general invoices table" : `purchase invoices table group ${rowGroup}`;
+                const tableContainer = document.querySelector(`[aria-label="${tableLabel}"]`);
+                if (tableContainer) {
+                    tableContainer.parentElement.scrollTop = tableContainer.parentElement.scrollHeight;
+                }
+            }
+        }, 300);
+    }, [newlyAddedRowId, localPurchaseInvoices, localGeneralInvoices, group1Data, group3Data, group4Data, rowsPerPagePurchase]);
 
     useEffect(() => {
         const handlePaste = async (e) => {
@@ -873,36 +1332,112 @@ export default function InternalTaxReport() {
             console.error("Update failed", error);
             showSnackbar("Lỗi khi cập nhật", "error");
         }
-    }, []);
+    }, [updatePurchaseInvoice]);
 
-    const handleDeleteAllGeneral = async () => {
-        if (window.confirm(`Bạn có chắc chắn muốn xóa TẤT CẢ hóa đơn bán ra tháng ${month}/${year}? Hành động này không thể hoàn tác!`)) {
-            try {
-                setIsProcessing(true);
-                await InternalTaxService.deleteGeneralInvoicesByMonth(month, year);
-                showSnackbar("Đã xóa tất cả hóa đơn bán ra trong tháng");
-            } catch (error) {
-                console.error("Delete all general failed", error);
-                showSnackbar("Lỗi khi xóa dữ liệu", "error");
-            } finally {
-                setIsProcessing(false);
-            }
+    const handleDeleteAllGeneral = () => {
+        // Check if filters are active
+        const hasFilters = Object.keys(columnFilters).some(colId => !colId.includes('_') && columnFilters[colId]?.length > 0);
+        const hasSearch = searchTerm.trim() !== '';
+        const isFiltered = hasFilters || hasSearch;
+
+        // Determine what to delete
+        const itemsToDelete = isFiltered ? filteredGeneralInvoices : localGeneralInvoices;
+        const count = itemsToDelete.length;
+
+        if (count === 0) {
+            showSnackbar("Không có dữ liệu để xóa", "warning");
+            return;
         }
+
+        const title = isFiltered ? "Xóa hóa đơn đang hiển thị" : "Xóa tất cả hóa đơn";
+        const content = isFiltered
+            ? `Bạn có chắc chắn muốn xóa ${count} hóa đơn bán ra đang hiển thị? Hành động này không thể hoàn tác!`
+            : `Bạn có chắc chắn muốn xóa TẤT CẢ ${count} hóa đơn bán ra tháng ${month}/${year}? Hành động này không thể hoàn tác!`;
+
+        openConfirmDialog({
+            title,
+            content,
+            confirmText: `Xóa ${count} hóa đơn`,
+            confirmColor: 'error',
+            onConfirm: async () => {
+                try {
+                    setIsProcessing(true);
+                    if (isFiltered) {
+                        const ids = itemsToDelete.map(item => item.id);
+                        await InternalTaxService.deleteGeneralInvoicesBatch(ids);
+                        showSnackbar(`Đã xóa ${count} hóa đơn bán ra`);
+                    } else {
+                        await InternalTaxService.deleteGeneralInvoicesByMonth(month, year);
+                        showSnackbar("Đã xóa tất cả hóa đơn bán ra trong tháng");
+                    }
+                } catch (error) {
+                    console.error("Delete all general failed", error);
+                    showSnackbar("Lỗi khi xóa dữ liệu", "error");
+                } finally {
+                    setIsProcessing(false);
+                }
+            }
+        });
     };
 
-    const handleDeleteAllPurchase = async () => {
-        if (window.confirm(`Bạn có chắc chắn muốn xóa TẤT CẢ hóa đơn mua vào tháng ${month}/${year}? Hành động này không thể hoàn tác!`)) {
-            try {
-                setIsProcessing(true);
-                await InternalTaxService.deletePurchaseInvoicesByMonth(month, year);
-                showSnackbar("Đã xóa tất cả hóa đơn mua vào trong tháng");
-            } catch (error) {
-                console.error("Delete all purchase failed", error);
-                showSnackbar("Lỗi khi xóa dữ liệu", "error");
-            } finally {
-                setIsProcessing(false);
-            }
+    const handleDeleteAllPurchase = () => {
+        // Check if filters are active for the current purchase group
+        const hasFilters = Object.keys(columnFilters).some(colId =>
+            colId.startsWith(`${activePurchaseGroup}_`) && columnFilters[colId]?.length > 0
+        );
+        const hasSearch = searchTerm.trim() !== '';
+        const isFiltered = hasFilters || hasSearch;
+
+        // Determine what to delete based on active group
+        let itemsToDelete;
+        let groupName;
+        if (activePurchaseGroup === 3) {
+            itemsToDelete = isFiltered ? filteredGroup3 : group3Data;
+            groupName = "Nhóm 3";
+        } else if (activePurchaseGroup === 4) {
+            itemsToDelete = isFiltered ? filteredGroup4 : group4Data;
+            groupName = "Nhóm 4";
+        } else {
+            itemsToDelete = isFiltered ? filteredGroup1 : group1Data;
+            groupName = "Nhóm 1";
         }
+
+        const count = itemsToDelete.length;
+
+        if (count === 0) {
+            showSnackbar("Không có dữ liệu để xóa", "warning");
+            return;
+        }
+
+        const title = isFiltered ? `Xóa hóa đơn ${groupName} đang hiển thị` : "Xóa tất cả hóa đơn";
+        const content = isFiltered
+            ? `Bạn có chắc chắn muốn xóa ${count} hóa đơn mua vào (${groupName}) đang hiển thị? Hành động này không thể hoàn tác!`
+            : `Bạn có chắc chắn muốn xóa TẤT CẢ ${count} hóa đơn mua vào tháng ${month}/${year}? Hành động này không thể hoàn tác!`;
+
+        openConfirmDialog({
+            title,
+            content,
+            confirmText: `Xóa ${count} hóa đơn`,
+            confirmColor: 'error',
+            onConfirm: async () => {
+                try {
+                    setIsProcessing(true);
+                    if (isFiltered) {
+                        const ids = itemsToDelete.map(item => item.id);
+                        await InternalTaxService.deletePurchaseInvoicesBatch(ids);
+                        showSnackbar(`Đã xóa ${count} hóa đơn mua vào`);
+                    } else {
+                        await InternalTaxService.deletePurchaseInvoicesByMonth(month, year);
+                        showSnackbar("Đã xóa tất cả hóa đơn mua vào trong tháng");
+                    }
+                } catch (error) {
+                    console.error("Delete all purchase failed", error);
+                    showSnackbar("Lỗi khi xóa dữ liệu", "error");
+                } finally {
+                    setIsProcessing(false);
+                }
+            }
+        });
     };
 
     const handleDragStart = (e, index) => {
@@ -1000,9 +1535,20 @@ export default function InternalTaxReport() {
                 }}
             >
                 {isActive && (
-                    <Chip label="Đang chọn để dán dữ liệu" color="primary" size="small" sx={{ position: 'absolute', top: -12, right: 10, bgcolor: 'white' }} />
+                    <Chip
+                        label="Đang chọn | Ctrl+D: Thêm hàng | Ctrl+V: Dán dữ liệu"
+                        color="primary"
+                        size="small"
+                        sx={{
+                            position: 'absolute',
+                            top: -12,
+                            right: 10,
+                            fontWeight: 600,
+                            boxShadow: 1
+                        }}
+                    />
                 )}
-                <TableContainer sx={{ maxHeight: 600 }}>
+                <TableContainer sx={{ maxHeight: 'calc(100vh - 350px)', minHeight: 400 }}>
                     <Table stickyHeader sx={{ minWidth: 1200 }} aria-label={`purchase invoices table group ${groupId}`}>
                         <TableHead>
                             <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10, top: 0, borderBottom: '1px solid #e2e8f0' } }}>
@@ -1160,6 +1706,7 @@ export default function InternalTaxReport() {
                                             handleMouseEnter={handleMouseEnter}
                                             handleUpdatePurchaseCell={handleUpdatePurchaseCell}
                                             handleSavePurchaseCell={handleSavePurchaseCell}
+                                            onDeleteEmptyRow={deletePurchaseInvoice}
                                             theme={theme}
                                             handleDragStart={handleDragStart}
                                             handleDragOver={handleDragOver}
@@ -1191,35 +1738,135 @@ export default function InternalTaxReport() {
 
     return (
         <Box sx={{ width: '100%', typography: 'body1' }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="h5" component="h1" fontWeight="bold" color="primary">
-                    Báo Cáo Thuế Nội Bộ
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                    <FormControl size="small" sx={{ minWidth: 100 }}>
-                        <InputLabel>Tháng</InputLabel>
-                        <Select value={month} label="Tháng" onChange={(e) => setMonth(e.target.value)}>
-                            {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                                <MenuItem key={m} value={m}>Tháng {m}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                    <FormControl size="small" sx={{ minWidth: 100 }}>
-                        <InputLabel>Năm</InputLabel>
-                        <Select value={year} label="Năm" onChange={(e) => setYear(e.target.value)}>
-                            <MenuItem value={2023}>2023</MenuItem>
-                            <MenuItem value={2024}>2024</MenuItem>
-                            <MenuItem value={2025}>2025</MenuItem>
-                        </Select>
-                    </FormControl>
-                </Box>
-            </Stack>
+            {/* Modern Gradient Header */}
+            <Box
+                sx={{
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 50%, ${alpha(theme.palette.secondary.main, 0.8)} 100%)`,
+                    borderRadius: 3,
+                    p: 3,
+                    mb: 3,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.25)}`,
+                    '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%)',
+                        pointerEvents: 'none',
+                    }
+                }}
+            >
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Box>
+                        <Typography
+                            variant="h4"
+                            component="h1"
+                            fontWeight={800}
+                            sx={{
+                                color: 'white',
+                                textShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                letterSpacing: '-0.5px'
+                            }}
+                        >
+                            📊 Báo Cáo Thuế Nội Bộ
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: alpha('#fff', 0.8), mt: 0.5 }}>
+                            Quản lý hóa đơn và tờ khai thuế GTGT
+                        </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        <FormControl
+                            size="small"
+                            sx={{
+                                minWidth: 120,
+                                '& .MuiOutlinedInput-root': {
+                                    bgcolor: alpha('#fff', 0.15),
+                                    backdropFilter: 'blur(10px)',
+                                    '& fieldset': { borderColor: alpha('#fff', 0.3) },
+                                    '&:hover fieldset': { borderColor: alpha('#fff', 0.5) },
+                                    '&.Mui-focused fieldset': { borderColor: '#fff' },
+                                },
+                                '& .MuiInputLabel-root': { color: alpha('#fff', 0.8) },
+                                '& .MuiSelect-select': { color: '#fff' },
+                                '& .MuiSelect-icon': { color: '#fff' },
+                            }}
+                        >
+                            <InputLabel>Tháng</InputLabel>
+                            <Select value={month} label="Tháng" onChange={(e) => setMonth(e.target.value)}>
+                                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                                    <MenuItem key={m} value={m}>Tháng {m}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <FormControl
+                            size="small"
+                            sx={{
+                                minWidth: 100,
+                                '& .MuiOutlinedInput-root': {
+                                    bgcolor: alpha('#fff', 0.15),
+                                    backdropFilter: 'blur(10px)',
+                                    '& fieldset': { borderColor: alpha('#fff', 0.3) },
+                                    '&:hover fieldset': { borderColor: alpha('#fff', 0.5) },
+                                    '&.Mui-focused fieldset': { borderColor: '#fff' },
+                                },
+                                '& .MuiInputLabel-root': { color: alpha('#fff', 0.8) },
+                                '& .MuiSelect-select': { color: '#fff' },
+                                '& .MuiSelect-icon': { color: '#fff' },
+                            }}
+                        >
+                            <InputLabel>Năm</InputLabel>
+                            <Select value={year} label="Năm" onChange={(e) => setYear(e.target.value)}>
+                                <MenuItem value={2023}>2023</MenuItem>
+                                <MenuItem value={2024}>2024</MenuItem>
+                                <MenuItem value={2025}>2025</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Stack>
+                </Stack>
+            </Box>
 
-            <Paper sx={{ width: '100%', mb: 2 }}>
-                <Tabs value={value} onChange={handleChange} centered variant="fullWidth">
-                    <Tab label="Bảng Kê Bán Ra" />
-                    <Tab label="Bảng Kê Mua Vào" />
-                    <Tab label="Tờ Khai Thuế GTGT" />
+            {/* Modern Tabs with Icons */}
+            <Paper
+                sx={{
+                    width: '100%',
+                    mb: 2,
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    boxShadow: `0 4px 20px ${alpha(theme.palette.grey[500], 0.15)}`,
+                }}
+            >
+                <Tabs
+                    value={value}
+                    onChange={handleChange}
+                    variant="fullWidth"
+                    sx={{
+                        bgcolor: alpha(theme.palette.primary.main, 0.03),
+                        '& .MuiTabs-indicator': {
+                            height: 3,
+                            borderRadius: '3px 3px 0 0',
+                            background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                        },
+                        '& .MuiTab-root': {
+                            fontWeight: 600,
+                            fontSize: '0.9rem',
+                            py: 2,
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                                bgcolor: alpha(theme.palette.primary.main, 0.08),
+                            },
+                            '&.Mui-selected': {
+                                color: theme.palette.primary.main,
+                            },
+                        },
+                    }}
+                >
+                    <Tab icon={<Description sx={{ fontSize: 20 }} />} iconPosition="start" label="Bảng Kê Bán Ra" />
+                    <Tab icon={<Receipt sx={{ fontSize: 20 }} />} iconPosition="start" label="Bảng Kê Mua Vào" />
+                    <Tab icon={<Assessment sx={{ fontSize: 20 }} />} iconPosition="start" label="Tờ Khai Thuế GTGT" />
                 </Tabs>
 
                 <CustomTabPanel value={value} index={0}>
@@ -1257,40 +1904,147 @@ export default function InternalTaxReport() {
                         </Button>
                     </Box>
 
-                    <Grid container spacing={2} sx={{ mb: 3 }}>
+                    {/* Glass Stats Cards */}
+                    <Grid container spacing={3} sx={{ mb: 3 }}>
                         <Grid size={{ xs: 12, md: 4 }}>
-                            <Card sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), border: 1, borderColor: alpha(theme.palette.primary.main, 0.2) }} elevation={0}>
-                                <CardContent sx={{ py: 2 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Tổng doanh thu chưa thuế</Typography>
-                                    <Typography variant="h5" color="primary.main" fontWeight={700}>
-                                        {formatCurrency(generalTotals.totalNoTax)}
-                                    </Typography>
+                            <Card
+                                sx={{
+                                    background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.primary.light, 0.05)} 100%)`,
+                                    backdropFilter: 'blur(10px)',
+                                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                                    borderRadius: 3,
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': {
+                                        transform: 'translateY(-4px)',
+                                        boxShadow: `0 12px 40px ${alpha(theme.palette.primary.main, 0.2)}`,
+                                        borderColor: theme.palette.primary.main,
+                                    }
+                                }}
+                                elevation={0}
+                            >
+                                <CardContent sx={{ py: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <Box sx={{
+                                        width: 48,
+                                        height: 48,
+                                        borderRadius: 2,
+                                        background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: `0 4px 14px ${alpha(theme.palette.primary.main, 0.4)}`,
+                                    }}>
+                                        <Description sx={{ color: 'white', fontSize: 24 }} />
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                                            Tổng doanh thu chưa thuế
+                                        </Typography>
+                                        <Typography variant="h5" color="primary.main" fontWeight={700} sx={{ letterSpacing: '-0.5px' }}>
+                                            {formatCurrency(generalTotals.totalNoTax)}
+                                        </Typography>
+                                    </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
                         <Grid size={{ xs: 12, md: 4 }}>
-                            <Card sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), border: 1, borderColor: alpha(theme.palette.primary.main, 0.2) }} elevation={0}>
-                                <CardContent sx={{ py: 2 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Tổng tiền thuế</Typography>
-                                    <Typography variant="h5" color="primary.main" fontWeight={700}>
-                                        {formatCurrency(generalTotals.taxAmount)}
-                                    </Typography>
+                            <Card
+                                sx={{
+                                    background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
+                                    backdropFilter: 'blur(10px)',
+                                    border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+                                    borderRadius: 3,
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': {
+                                        transform: 'translateY(-4px)',
+                                        boxShadow: `0 12px 40px ${alpha(theme.palette.secondary.main, 0.2)}`,
+                                        borderColor: theme.palette.secondary.main,
+                                    }
+                                }}
+                                elevation={0}
+                            >
+                                <CardContent sx={{ py: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <Box sx={{
+                                        width: 48,
+                                        height: 48,
+                                        borderRadius: 2,
+                                        background: `linear-gradient(135deg, ${theme.palette.secondary.main}, ${theme.palette.secondary.dark})`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: `0 4px 14px ${alpha(theme.palette.secondary.main, 0.4)}`,
+                                    }}>
+                                        <Receipt sx={{ color: 'white', fontSize: 24 }} />
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                                            Tổng tiền thuế
+                                        </Typography>
+                                        <Typography variant="h5" color="secondary.main" fontWeight={700} sx={{ letterSpacing: '-0.5px' }}>
+                                            {formatCurrency(generalTotals.taxAmount)}
+                                        </Typography>
+                                    </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
                         <Grid size={{ xs: 12, md: 4 }}>
-                            <Card sx={{ bgcolor: alpha(theme.palette.success.main, 0.1), border: 1, borderColor: alpha(theme.palette.success.main, 0.2) }} elevation={0}>
-                                <CardContent sx={{ py: 2 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Tổng cộng thanh toán</Typography>
-                                    <Typography variant="h5" color="success.main" fontWeight={700}>
-                                        {formatCurrency(generalTotals.totalPayment)}
-                                    </Typography>
+                            <Card
+                                sx={{
+                                    background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.1)} 0%, ${alpha(theme.palette.success.light, 0.05)} 100%)`,
+                                    backdropFilter: 'blur(10px)',
+                                    border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`,
+                                    borderRadius: 3,
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': {
+                                        transform: 'translateY(-4px)',
+                                        boxShadow: `0 12px 40px ${alpha(theme.palette.success.main, 0.2)}`,
+                                        borderColor: theme.palette.success.main,
+                                    }
+                                }}
+                                elevation={0}
+                            >
+                                <CardContent sx={{ py: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <Box sx={{
+                                        width: 48,
+                                        height: 48,
+                                        borderRadius: 2,
+                                        background: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: `0 4px 14px ${alpha(theme.palette.success.main, 0.4)}`,
+                                    }}>
+                                        <Assessment sx={{ color: 'white', fontSize: 24 }} />
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                                            Tổng cộng thanh toán
+                                        </Typography>
+                                        <Typography variant="h5" color="success.main" fontWeight={700} sx={{ letterSpacing: '-0.5px' }}>
+                                            {formatCurrency(generalTotals.totalPayment)}
+                                        </Typography>
+                                    </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
                     </Grid>
 
-                    <TableContainer sx={{ maxHeight: 600 }}>
+                    {/* Fullscreen Button for General Invoices Table */}
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                        <Tooltip title="Xem toàn màn hình">
+                            <IconButton
+                                color="primary"
+                                onClick={() => setFullscreenTable('general')}
+                                sx={{
+                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+                                }}
+                            >
+                                <Fullscreen />
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
+
+                    <TableContainer sx={{ maxHeight: 'calc(100vh - 350px)', minHeight: 400 }}>
                         <Table stickyHeader sx={{ minWidth: 1200 }} aria-label="general invoices table">
                             <TableHead>
                                 <TableRow sx={{ height: 50, '& th': { bgcolor: '#f8fafc', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 20, top: 0, textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' } }}>
@@ -1433,6 +2187,7 @@ export default function InternalTaxReport() {
                                                     handleMouseEnter={handleMouseEnter}
                                                     handleUpdateCell={handleUpdateCell}
                                                     handleSaveCell={handleSaveCell}
+                                                    onDeleteEmptyRow={deleteGeneralInvoice}
                                                     theme={theme}
                                                     handleDragStart={handleDragStart}
                                                     handleDragOver={handleDragOver}
@@ -1505,38 +2260,118 @@ export default function InternalTaxReport() {
                         </Button>
                     </Box>
 
-                    <Grid container spacing={2} sx={{ mb: 3 }}>
+                    {/* Glass Stats Cards - Purchase */}
+                    <Grid container spacing={3} sx={{ mb: 3 }}>
                         <Grid size={{ xs: 12, md: 4 }}>
-                            <Card sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1), border: 1, borderColor: alpha(theme.palette.secondary.main, 0.2) }} elevation={0}>
-                                <CardContent sx={{ py: 2 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Tổng giá trị mua vào</Typography>
-                                    <Typography variant="h5" color="secondary.main" fontWeight={700}>
-                                        {formatCurrency(purchaseTotals.valueNoTax)}
-                                    </Typography>
+                            <Card
+                                sx={{
+                                    background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
+                                    backdropFilter: 'blur(10px)',
+                                    border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+                                    borderRadius: 3,
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': {
+                                        transform: 'translateY(-4px)',
+                                        boxShadow: `0 12px 40px ${alpha(theme.palette.secondary.main, 0.2)}`,
+                                    }
+                                }}
+                                elevation={0}
+                            >
+                                <CardContent sx={{ py: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <Box sx={{
+                                        width: 48, height: 48, borderRadius: 2,
+                                        background: `linear-gradient(135deg, ${theme.palette.secondary.main}, ${theme.palette.secondary.dark})`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        boxShadow: `0 4px 14px ${alpha(theme.palette.secondary.main, 0.4)}`,
+                                    }}>
+                                        <Receipt sx={{ color: 'white', fontSize: 24 }} />
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary" fontWeight={500}>Tổng giá trị mua vào</Typography>
+                                        <Typography variant="h5" color="secondary.main" fontWeight={700}>{formatCurrency(purchaseTotals.valueNoTax)}</Typography>
+                                    </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
                         <Grid size={{ xs: 12, md: 4 }}>
-                            <Card sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1), border: 1, borderColor: alpha(theme.palette.secondary.main, 0.2) }} elevation={0}>
-                                <CardContent sx={{ py: 2 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Tổng tiền thuế</Typography>
-                                    <Typography variant="h5" color="secondary.main" fontWeight={700}>
-                                        {formatCurrency(purchaseTotals.tax)}
-                                    </Typography>
+                            <Card
+                                sx={{
+                                    background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.1)} 0%, ${alpha(theme.palette.info.light, 0.05)} 100%)`,
+                                    backdropFilter: 'blur(10px)',
+                                    border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+                                    borderRadius: 3,
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': {
+                                        transform: 'translateY(-4px)',
+                                        boxShadow: `0 12px 40px ${alpha(theme.palette.info.main, 0.2)}`,
+                                    }
+                                }}
+                                elevation={0}
+                            >
+                                <CardContent sx={{ py: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <Box sx={{
+                                        width: 48, height: 48, borderRadius: 2,
+                                        background: `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.info.dark})`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        boxShadow: `0 4px 14px ${alpha(theme.palette.info.main, 0.4)}`,
+                                    }}>
+                                        <Assessment sx={{ color: 'white', fontSize: 24 }} />
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary" fontWeight={500}>Tổng tiền thuế</Typography>
+                                        <Typography variant="h5" color="info.main" fontWeight={700}>{formatCurrency(purchaseTotals.tax)}</Typography>
+                                    </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
                         <Grid size={{ xs: 12, md: 4 }}>
-                            <Card sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1), border: 1, borderColor: alpha(theme.palette.warning.main, 0.2) }} elevation={0}>
-                                <CardContent sx={{ py: 2 }}>
-                                    <Typography variant="subtitle2" color="text.secondary">Tổng cộng</Typography>
-                                    <Typography variant="h5" color="warning.main" fontWeight={700}>
-                                        {formatCurrency(purchaseTotals.total)}
-                                    </Typography>
+                            <Card
+                                sx={{
+                                    background: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.1)} 0%, ${alpha(theme.palette.warning.light, 0.05)} 100%)`,
+                                    backdropFilter: 'blur(10px)',
+                                    border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
+                                    borderRadius: 3,
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': {
+                                        transform: 'translateY(-4px)',
+                                        boxShadow: `0 12px 40px ${alpha(theme.palette.warning.main, 0.2)}`,
+                                    }
+                                }}
+                                elevation={0}
+                            >
+                                <CardContent sx={{ py: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <Box sx={{
+                                        width: 48, height: 48, borderRadius: 2,
+                                        background: `linear-gradient(135deg, ${theme.palette.warning.main}, ${theme.palette.warning.dark})`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        boxShadow: `0 4px 14px ${alpha(theme.palette.warning.main, 0.4)}`,
+                                    }}>
+                                        <Description sx={{ color: 'white', fontSize: 24 }} />
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary" fontWeight={500}>Tổng cộng</Typography>
+                                        <Typography variant="h5" color="warning.main" fontWeight={700}>{formatCurrency(purchaseTotals.total)}</Typography>
+                                    </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
                     </Grid>
+
+                    {/* Fullscreen Button for Purchase Invoices */}
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                        <Tooltip title="Xem toàn màn hình">
+                            <IconButton
+                                color="primary"
+                                onClick={() => setFullscreenTable('purchase')}
+                                sx={{
+                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+                                }}
+                            >
+                                <Fullscreen />
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
 
                     <PurchaseTable
                         data={filteredGroup1.slice(pageGroup1 * rowsPerPagePurchase, (pageGroup1 + 1) * rowsPerPagePurchase)}
@@ -1607,7 +2442,7 @@ export default function InternalTaxReport() {
                 </CustomTabPanel>
 
                 <CustomTabPanel value={value} index={2}>
-                    <VATReportTab generalInvoices={filteredGeneralInvoices} purchaseInvoices={localPurchaseInvoices} month={month} year={year} />
+                    <VATReportTab generalInvoices={localGeneralInvoices} purchaseInvoices={localPurchaseInvoices} month={month} year={year} />
                 </CustomTabPanel>
             </Paper>
 
@@ -1747,7 +2582,7 @@ export default function InternalTaxReport() {
                 anchorEl={filterMenuAnchor}
                 open={Boolean(filterMenuAnchor)}
                 onClose={handleColumnFilterClose}
-                options={useMemo(() => getUniqueValues(activeFilterColumn), [activeFilterColumn, activeFilterGroup, localGeneralInvoices, group1Data, group3Data, group4Data])}
+                options={useMemo(() => getUniqueValues(activeFilterColumn), [activeFilterColumn, activeFilterGroup, localGeneralInvoices, localPurchaseInvoices, group1Data, group3Data, group4Data, searchTerm, columnFilters])}
                 selectedValues={columnFilters[activeFilterColumn] || []}
                 onChange={(newFilters) => handleColumnFilterChange(activeFilterColumn, newFilters)}
                 onClear={handleClearColumnFilter}
@@ -1762,6 +2597,277 @@ export default function InternalTaxReport() {
             <Backdrop sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }} open={loading || isProcessing}>
                 <CircularProgress color="inherit" />
             </Backdrop>
+
+            {/* Modern Confirm Dialog */}
+            <ConfirmDialog
+                open={confirmDialog.open}
+                title={confirmDialog.title}
+                content={confirmDialog.content}
+                confirmText={confirmDialog.confirmText}
+                confirmColor={confirmDialog.confirmColor}
+                onClose={closeConfirmDialog}
+                onConfirm={confirmDialog.onConfirm}
+            />
+
+            {/* Fullscreen Table Dialog */}
+            <Dialog
+                fullScreen
+                open={fullscreenTable !== null}
+                onClose={closeFullscreenDialog}
+                TransitionComponent={FullscreenTransition}
+            >
+                <AppBar sx={{ position: 'relative', bgcolor: fullscreenTable === 'general' ? theme.palette.primary.main : theme.palette.secondary.main }}>
+                    <Toolbar>
+                        <IconButton
+                            edge="start"
+                            color="inherit"
+                            onClick={closeFullscreenDialog}
+                            aria-label="close"
+                        >
+                            <Close />
+                        </IconButton>
+                        <Typography sx={{ ml: 2, flex: 1 }} variant="h6" component="div">
+                            {fullscreenTable === 'general' ? 'BẢNG KÊ BÁN RA - Xem đầy đủ' : 'BẢNG KÊ MUA VÀO - Xem đầy đủ'}
+                        </Typography>
+
+                        {/* Search Field - Debounced */}
+                        <TextField
+                            size="small"
+                            placeholder="Tìm kiếm..."
+                            value={fullscreenFilterInput}
+                            onChange={(e) => handleFullscreenFilterChange(e.target.value)}
+                            sx={{
+                                mr: 2,
+                                bgcolor: 'white',
+                                borderRadius: 1,
+                                width: 300,
+                                '& .MuiOutlinedInput-root': {
+                                    '& fieldset': { border: 'none' }
+                                }
+                            }}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Search />
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+
+                        <Typography variant="body2" sx={{ mr: 2 }}>
+                            {fullscreenTable === 'general'
+                                ? `${filteredGeneralInvoices.filter(inv => {
+                                    if (!fullscreenFilter) return true;
+                                    const term = fullscreenFilter.toLowerCase();
+                                    return (inv.sellerName?.toLowerCase().includes(term) ||
+                                        inv.buyerName?.toLowerCase().includes(term) ||
+                                        inv.invoiceNumber?.toLowerCase().includes(term) ||
+                                        inv.buyerTaxCode?.toLowerCase().includes(term) ||
+                                        inv.costType?.toLowerCase().includes(term) ||
+                                        inv.note?.toLowerCase().includes(term));
+                                }).length} hóa đơn`
+                                : `${localPurchaseInvoices.filter(inv => {
+                                    if (!fullscreenFilter) return true;
+                                    const term = fullscreenFilter.toLowerCase();
+                                    return (inv.seller?.toLowerCase().includes(term) ||
+                                        inv.buyer?.toLowerCase().includes(term) ||
+                                        inv.invoiceNo?.toLowerCase().includes(term) ||
+                                        inv.sellerTax?.toLowerCase().includes(term) ||
+                                        inv.costType?.toLowerCase().includes(term));
+                                }).length} hóa đơn`}
+                        </Typography>
+                        <Tooltip title="Đóng (ESC)">
+                            <IconButton color="inherit" onClick={closeFullscreenDialog}>
+                                <FullscreenExit />
+                            </IconButton>
+                        </Tooltip>
+                    </Toolbar>
+                </AppBar>
+                <Box sx={{ p: 2, overflow: 'auto', height: '100%', bgcolor: '#f8fafc' }}>
+                    {/* Clear Filters Button */}
+                    {Object.keys(fullscreenColumnFilters).length > 0 && (
+                        <Box sx={{ mb: 2 }}>
+                            <Button
+                                variant="outlined"
+                                color="secondary"
+                                size="small"
+                                onClick={clearAllFsFilters}
+                                startIcon={<FilterList />}
+                            >
+                                Xóa tất cả bộ lọc ({Object.keys(fullscreenColumnFilters).length})
+                            </Button>
+                        </Box>
+                    )}
+
+                    {fullscreenTable === 'general' && (
+                        <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                            <Table sx={{ minWidth: 1200 }} size="small" stickyHeader>
+                                <TableHead>
+                                    <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.1) } }}>
+                                        <TableCell>STT</TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                Tên người bán
+                                                <IconButton size="small" onClick={(e) => handleFsFilterOpen(e, 'sellerName')}>
+                                                    <FilterList fontSize="small" color={fullscreenColumnFilters['sellerName']?.length ? "primary" : "action"} />
+                                                </IconButton>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell>Số HĐ</TableCell>
+                                        <TableCell>Ngày</TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                Tên người mua
+                                                <IconButton size="small" onClick={(e) => handleFsFilterOpen(e, 'buyerName')}>
+                                                    <FilterList fontSize="small" color={fullscreenColumnFilters['buyerName']?.length ? "primary" : "action"} />
+                                                </IconButton>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                MST người mua
+                                                <IconButton size="small" onClick={(e) => handleFsFilterOpen(e, 'buyerTaxCode')}>
+                                                    <FilterList fontSize="small" color={fullscreenColumnFilters['buyerTaxCode']?.length ? "primary" : "action"} />
+                                                </IconButton>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell align="right">Doanh thu chưa thuế</TableCell>
+                                        <TableCell align="right">Thuế GTGT</TableCell>
+                                        <TableCell>Ghi chú</TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                Loại chi phí
+                                                <IconButton size="small" onClick={(e) => handleFsFilterOpen(e, 'costType')}>
+                                                    <FilterList fontSize="small" color={fullscreenColumnFilters['costType']?.length ? "primary" : "action"} />
+                                                </IconButton>
+                                            </Box>
+                                        </TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {applyFullscreenColumnFilters(filteredGeneralInvoices, fullscreenColumnFilters, fullscreenFilter)
+                                        .map((inv, idx) => (
+                                            <TableRow key={inv.id} hover>
+                                                <TableCell>{idx + 1}</TableCell>
+                                                <TableCell sx={{ maxWidth: 200, wordBreak: 'break-word' }}>{inv.sellerName}</TableCell>
+                                                <TableCell>{inv.invoiceNumber}</TableCell>
+                                                <TableCell>{inv.date}</TableCell>
+                                                <TableCell sx={{ maxWidth: 200, wordBreak: 'break-word' }}>{inv.buyerName}</TableCell>
+                                                <TableCell>{inv.buyerTaxCode}</TableCell>
+                                                <TableCell align="right">{formatCurrency(parseCurrency(inv.totalNoTax))}</TableCell>
+                                                <TableCell align="right">{formatCurrency(parseCurrency(inv.taxAmount))}</TableCell>
+                                                <TableCell>{inv.note}</TableCell>
+                                                <TableCell>{inv.costType}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    {/* Totals Row */}
+                                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), '& td': { fontWeight: 700 } }}>
+                                        <TableCell colSpan={6}>TỔNG CỘNG</TableCell>
+                                        <TableCell align="right">{formatCurrency(generalTotals.totalNoTax)}</TableCell>
+                                        <TableCell align="right">{formatCurrency(generalTotals.taxAmount)}</TableCell>
+                                        <TableCell colSpan={2}></TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    )}
+                    {fullscreenTable === 'purchase' && (
+                        <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                            <Table sx={{ minWidth: 1400 }} size="small" stickyHeader>
+                                <TableHead>
+                                    <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: alpha(theme.palette.secondary.main, 0.1) } }}>
+                                        <TableCell>STT</TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                Tên người mua
+                                                <IconButton size="small" onClick={(e) => handleFsFilterOpen(e, 'buyer')}>
+                                                    <FilterList fontSize="small" color={fullscreenColumnFilters['buyer']?.length ? "primary" : "action"} />
+                                                </IconButton>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell>Số HĐ</TableCell>
+                                        <TableCell>Ngày</TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                Tên người bán
+                                                <IconButton size="small" onClick={(e) => handleFsFilterOpen(e, 'seller')}>
+                                                    <FilterList fontSize="small" color={fullscreenColumnFilters['seller']?.length ? "primary" : "action"} />
+                                                </IconButton>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                MST người bán
+                                                <IconButton size="small" onClick={(e) => handleFsFilterOpen(e, 'sellerTax')}>
+                                                    <FilterList fontSize="small" color={fullscreenColumnFilters['sellerTax']?.length ? "primary" : "action"} />
+                                                </IconButton>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell align="right">Giá trị chưa thuế</TableCell>
+                                        <TableCell align="right">Thuế GTGT</TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                Thuế suất
+                                                <IconButton size="small" onClick={(e) => handleFsFilterOpen(e, 'rate')}>
+                                                    <FilterList fontSize="small" color={fullscreenColumnFilters['rate']?.length ? "primary" : "action"} />
+                                                </IconButton>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                Loại chi phí
+                                                <IconButton size="small" onClick={(e) => handleFsFilterOpen(e, 'costType')}>
+                                                    <FilterList fontSize="small" color={fullscreenColumnFilters['costType']?.length ? "primary" : "action"} />
+                                                </IconButton>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell>Công trình</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {applyFullscreenColumnFilters(localPurchaseInvoices, fullscreenColumnFilters, fullscreenFilter)
+                                        .map((inv, idx) => (
+                                            <TableRow key={inv.id} hover>
+                                                <TableCell>{idx + 1}</TableCell>
+                                                <TableCell sx={{ maxWidth: 200, wordBreak: 'break-word' }}>{inv.buyer}</TableCell>
+                                                <TableCell>{inv.invoiceNo}</TableCell>
+                                                <TableCell>{inv.date}</TableCell>
+                                                <TableCell sx={{ maxWidth: 200, wordBreak: 'break-word' }}>{inv.seller}</TableCell>
+                                                <TableCell>{inv.sellerTax}</TableCell>
+                                                <TableCell align="right">{formatCurrency(parseCurrency(inv.valueNoTax))}</TableCell>
+                                                <TableCell align="right">{formatCurrency(parseCurrency(inv.tax))}</TableCell>
+                                                <TableCell>{inv.rate}</TableCell>
+                                                <TableCell>{inv.costType}</TableCell>
+                                                <TableCell>{inv.project}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    {/* Totals Row */}
+                                    <TableRow sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1), '& td': { fontWeight: 700 } }}>
+                                        <TableCell colSpan={6}>TỔNG CỘNG</TableCell>
+                                        <TableCell align="right">{formatCurrency(purchaseTotals.valueNoTax)}</TableCell>
+                                        <TableCell align="right">{formatCurrency(purchaseTotals.tax)}</TableCell>
+                                        <TableCell colSpan={3}></TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    )}
+                </Box>
+
+                {/* Fullscreen Column Filter Menu */}
+                <ColumnFilterMenu
+                    anchorEl={fsFilterAnchor}
+                    open={Boolean(fsFilterAnchor)}
+                    onClose={handleFsFilterClose}
+                    options={getFullscreenUniqueValues(
+                        fullscreenTable === 'general' ? filteredGeneralInvoices : localPurchaseInvoices,
+                        fsActiveColumn
+                    )}
+                    selectedValues={fullscreenColumnFilters[fsActiveColumn] || []}
+                    onChange={(values) => handleFsFilterChange(fsActiveColumn, values)}
+                    onClear={() => handleFsFilterClear(fsActiveColumn)}
+                />
+            </Dialog>
         </Box>
     );
 };

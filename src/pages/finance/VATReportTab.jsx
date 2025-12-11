@@ -11,11 +11,22 @@ import {
     Typography,
     useTheme,
     alpha,
-    TextField
+    TextField,
+    Dialog,
+    AppBar,
+    Toolbar,
+    IconButton,
+    Tooltip,
+    Slide
 } from '@mui/material';
-import { DragHandle } from '@mui/icons-material';
+import { DragHandle, Close, Fullscreen, FullscreenExit } from '@mui/icons-material';
 import { parseCurrency, formatCurrencyOrDash } from '../../utils/currencyHelpers';
 import { InternalTaxService } from '../../services/internalTaxService';
+
+// Transition component for full-screen dialog - defined outside to prevent recreation on every render
+const Transition = React.forwardRef(function Transition(props, ref) {
+    return <Slide direction="up" ref={ref} {...props} />;
+});
 
 const vatReportData = {
     previousPeriodTax: {
@@ -56,6 +67,9 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
     const [saveStatus, setSaveStatus] = React.useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
     const [lastSaved, setLastSaved] = React.useState(null); // Timestamp
 
+    // Full-screen dialog state: null | 'output' | 'input'
+    const [expandedSection, setExpandedSection] = React.useState(null);
+
     // Load previous period tax from Firebase (Real-time subscription)
     React.useEffect(() => {
         const unsubscribe = InternalTaxService.subscribeToPreviousPeriodTax(month, year, (data) => {
@@ -66,15 +80,25 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
         return () => unsubscribe();
     }, [month, year]);
 
-    // Custom order for content items (costType)
+    // Custom order for content items (costType) - Output section
     const [customOrder, setCustomOrder] = React.useState(() => {
         const saved = localStorage.getItem(`vat-content-order-${month}-${year}`);
         return saved ? JSON.parse(saved) : [];
     });
 
-    // Drag state
+    // Custom order for Input section
+    const [customOrderInput, setCustomOrderInput] = React.useState(() => {
+        const saved = localStorage.getItem(`vat-input-order-${month}-${year}`);
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    // Drag state for Output section
     const dragItem = React.useRef(null);
     const dragOverItem = React.useRef(null);
+
+    // Drag state for Input section
+    const dragItemInput = React.useRef(null);
+    const dragOverItemInput = React.useRef(null);
 
     // Use formatCurrencyOrDash from shared helpers (returns "-" for zero values)
     const formatCurrency = formatCurrencyOrDash;
@@ -275,9 +299,18 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
     const processInputData = React.useMemo(() => {
         const groups = {};
 
-        // Group by costType (Loại chi phí)
-        purchaseInvoices.forEach(inv => {
-            const type = inv.costType || "KHÁC";
+        // Filter out Group 4 invoices (không kê khai thuế - không đủ điều kiện được khấu trừ)
+        const eligibleInvoices = purchaseInvoices.filter(inv => inv.group !== 4);
+
+        // Group by costType (Loại chi phí) - merge CPQL and CPBH into one group
+        eligibleInvoices.forEach(inv => {
+            let type = inv.costType || "KHÁC";
+
+            // Special case: merge CPQL and CPBH into one combined group named "CPQL"
+            if (type === "CPQL" || type === "CPBH") {
+                type = "CPQL";
+            }
+
             if (!groups[type]) {
                 groups[type] = {
                     name: type,
@@ -287,9 +320,17 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
             groups[type].items.push(inv);
         });
 
-        const allKeys = Object.keys(groups).sort();
+        // Sort by custom order if available, otherwise alphabetically
+        const allKeys = Object.keys(groups);
 
-        const resultItems = allKeys.map(costType => {
+        // Filter customOrderInput to only include keys that exist in current data
+        const validCustomOrder = customOrderInput.filter(key => allKeys.includes(key));
+
+        // Add any new keys that aren't in customOrderInput yet
+        const newKeys = allKeys.filter(key => !validCustomOrder.includes(key)).sort();
+        const orderedKeys = [...validCustomOrder, ...newKeys];
+
+        const resultItems = orderedKeys.map(costType => {
             const invoices = groups[costType].items;
 
             // Initialize rows structure
@@ -347,9 +388,9 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
             };
         });
 
-        // Calculate Total Input Tax
+        // Calculate Total Input Tax (excluding Group 4)
         const totalTax = { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
-        purchaseInvoices.forEach(inv => {
+        eligibleInvoices.forEach(inv => {
             const colKey = getColumnKey(inv.buyer);
             totalTax[colKey] += parseCurrency(inv.tax);
         });
@@ -373,7 +414,7 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
             }
         };
 
-    }, [purchaseInvoices]);
+    }, [purchaseInvoices, customOrderInput]);
 
     // Merge dynamic output with static input/prev
     // Update customOrder when items change
@@ -394,7 +435,7 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
         }
     }, [processOutputData, month, year, customOrder]);
 
-    // Drag handlers
+    // Drag handlers for Output section
     const handleDragStart = (index) => {
         dragItem.current = index;
     };
@@ -424,13 +465,66 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
         dragOverItem.current = null;
     };
 
+    // Drag handlers for Input section
+    const handleDragStartInput = (index) => {
+        dragItemInput.current = index;
+    };
+
+    const handleDragEnterInput = (index) => {
+        dragOverItemInput.current = index;
+    };
+
+    const handleDragEndInput = () => {
+        if (dragItemInput.current === null || dragOverItemInput.current === null) return;
+        if (dragItemInput.current === dragOverItemInput.current) {
+            dragItemInput.current = null;
+            dragOverItemInput.current = null;
+            return;
+        }
+
+        // Reorder the input items
+        const newOrder = [...customOrderInput];
+        const draggedItem = newOrder[dragItemInput.current];
+        newOrder.splice(dragItemInput.current, 1);
+        newOrder.splice(dragOverItemInput.current, 0, draggedItem);
+
+        setCustomOrderInput(newOrder);
+        localStorage.setItem(`vat-input-order-${month}-${year}`, JSON.stringify(newOrder));
+
+        dragItemInput.current = null;
+        dragOverItemInput.current = null;
+    };
+
+    // Update customOrderInput when items change
+    React.useEffect(() => {
+        const currentKeys = Object.keys(processInputData.items.reduce((acc, item) => {
+            acc[item.name] = true;
+            return acc;
+        }, {}));
+
+        // Only update if we have new keys
+        const hasNewKeys = currentKeys.some(key => !customOrderInput.includes(key));
+        if (hasNewKeys) {
+            const validOrder = customOrderInput.filter(key => currentKeys.includes(key));
+            const newKeys = currentKeys.filter(key => !validOrder.includes(key)).sort();
+            const updatedOrder = [...validOrder, ...newKeys];
+            setCustomOrderInput(updatedOrder);
+            localStorage.setItem(`vat-input-order-${month}-${year}`, JSON.stringify(updatedOrder));
+        }
+    }, [processInputData, month, year, customOrderInput]);
+
     const displayData = {
         ...vatReportData,
         output: processOutputData,
         input: processInputData
     };
 
-    const renderSection = (sectionData, enableDrag = false) => {
+    const renderSection = (sectionData, enableDrag = false, isInputSection = false) => {
+        // Choose appropriate drag handlers based on section
+        const onDragStart = isInputSection ? handleDragStartInput : handleDragStart;
+        const onDragEnter = isInputSection ? handleDragEnterInput : handleDragEnter;
+        const onDragEnd = isInputSection ? handleDragEndInput : handleDragEnd;
+        const currentDragItem = isInputSection ? dragItemInput : dragItem;
         return (
             <>
                 {sectionData.items.map((item, index) => (
@@ -441,15 +535,15 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
                                 <TableRow
                                     key={`${index}-${rowIndex}`}
                                     draggable={enableDrag && rowIndex === 0}
-                                    onDragStart={() => enableDrag && rowIndex === 0 && handleDragStart(index)}
-                                    onDragEnter={() => enableDrag && rowIndex === 0 && handleDragEnter(index)}
-                                    onDragEnd={handleDragEnd}
+                                    onDragStart={() => enableDrag && rowIndex === 0 && onDragStart(index)}
+                                    onDragEnter={() => enableDrag && rowIndex === 0 && onDragEnter(index)}
+                                    onDragEnd={onDragEnd}
                                     onDragOver={(e) => e.preventDefault()}
                                     sx={{
                                         '&:hover': { bgcolor: '#f1f5f9' },
                                         '& .MuiTableCell-root': { fontWeight: row.type === 'SAU THUẾ' ? 700 : 'inherit' },
                                         cursor: enableDrag && rowIndex === 0 ? 'move' : 'default',
-                                        opacity: dragItem.current === index ? 0.5 : 1
+                                        opacity: currentDragItem.current === index ? 0.5 : 1
                                     }}
                                 >
                                     {rowIndex === 0 && (
@@ -472,7 +566,13 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
                                             )}
                                             <TableCell
                                                 rowSpan={item.rows.length}
-                                                sx={{ fontWeight: 600, verticalAlign: 'middle' }}
+                                                sx={{
+                                                    fontWeight: 600,
+                                                    verticalAlign: 'middle',
+                                                    maxWidth: 250,
+                                                    wordBreak: 'break-word',
+                                                    whiteSpace: 'normal'
+                                                }}
                                             >
                                                 {enableDrag && (
                                                     <DragHandle sx={{
@@ -636,13 +736,90 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
                         </TableRow>
 
                         {/* Output Section */}
+                        <TableRow
+                            sx={{ cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.03) } }}
+                            onClick={() => setExpandedSection('output')}
+                        >
+                            <TableCell colSpan={10} sx={{ p: 0.5, textAlign: 'center' }}>
+                                <Tooltip title="Nhấn để xem toàn bộ bảng ĐẦU RA">
+                                    <IconButton size="small" color="primary">
+                                        <Fullscreen fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                            </TableCell>
+                        </TableRow>
                         {renderSection(displayData.output, true)}
 
                         {/* Input Section */}
-                        {renderSection(displayData.input)}
+                        <TableRow
+                            sx={{ cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.03) } }}
+                            onClick={() => setExpandedSection('input')}
+                        >
+                            <TableCell colSpan={10} sx={{ p: 0.5, textAlign: 'center' }}>
+                                <Tooltip title="Nhấn để xem toàn bộ bảng ĐẦU VÀO">
+                                    <IconButton size="small" color="primary">
+                                        <Fullscreen fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                            </TableCell>
+                        </TableRow>
+                        {renderSection(displayData.input, true, true)}
                     </TableBody>
                 </Table>
             </TableContainer>
+
+            {/* Full-screen Dialog for expanded view */}
+            <Dialog
+                fullScreen
+                open={expandedSection !== null}
+                onClose={() => setExpandedSection(null)}
+                TransitionComponent={Transition}
+            >
+                <AppBar sx={{ position: 'relative', bgcolor: theme.palette.primary.main }}>
+                    <Toolbar>
+                        <IconButton
+                            edge="start"
+                            color="inherit"
+                            onClick={() => setExpandedSection(null)}
+                            aria-label="close"
+                        >
+                            <Close />
+                        </IconButton>
+                        <Typography sx={{ ml: 2, flex: 1 }} variant="h6" component="div">
+                            {expandedSection === 'output' ? 'BẢNG KÊ ĐẦU RA - Chi tiết' : 'BẢNG KÊ ĐẦU VÀO - Chi tiết'}
+                        </Typography>
+                        <Tooltip title="Đóng (ESC)">
+                            <IconButton color="inherit" onClick={() => setExpandedSection(null)}>
+                                <FullscreenExit />
+                            </IconButton>
+                        </Tooltip>
+                    </Toolbar>
+                </AppBar>
+                <Box sx={{ p: 3, overflow: 'auto', height: '100%', bgcolor: '#f8fafc' }}>
+                    <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                        <Table sx={{ minWidth: 1200 }} size="small">
+                            <TableHead>
+                                <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
+                                    <TableCell sx={{ fontWeight: 700 }}>STT</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>HÓA ĐƠN</TableCell>
+                                    <TableCell sx={{ fontWeight: 700, maxWidth: 250 }}>NỘI DUNG</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>CHI TIẾT</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 700 }}>BÁCH KHOA</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 700 }}>BÁCH KHOA<br />CHÂU THÀNH</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 700 }}>BÁCH KHOA<br />LONG XUYÊN</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 700 }}>KIẾN TẠO</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 700 }}>AN VƯƠNG</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 700 }}>TỔNG CỘNG</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {expandedSection === 'output' && renderSection(displayData.output, true)}
+                                {expandedSection === 'input' && renderSection(displayData.input, true, true)}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </Box>
+            </Dialog>
         </Box>
     );
 }

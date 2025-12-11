@@ -40,7 +40,7 @@ export const InternalTaxService = {
         });
     },
 
-    addGeneralInvoice: async (invoice) => {
+    addGeneralInvoice: async (month, year, invoice) => {
         try {
             const docRef = await addDoc(collection(db, GENERAL_COLLECTION), {
                 ...invoice,
@@ -96,6 +96,30 @@ export const InternalTaxService = {
         }
     },
 
+    deleteGeneralInvoice: async (month, year, id) => {
+        try {
+            const docRef = doc(db, GENERAL_COLLECTION, id);
+            await deleteDoc(docRef);
+        } catch (error) {
+            console.error("Error deleting general invoice:", error);
+            throw error;
+        }
+    },
+
+    deleteMultipleGeneralInvoices: async (month, year, ids) => {
+        try {
+            const batch = writeBatch(db);
+            ids.forEach(id => {
+                const docRef = doc(db, GENERAL_COLLECTION, id);
+                batch.delete(docRef);
+            });
+            await batch.commit();
+        } catch (error) {
+            console.error("Error batch deleting general invoices:", error);
+            throw error;
+        }
+    },
+
     deleteGeneralInvoicesBatch: async (ids) => {
         try {
             const batch = writeBatch(db);
@@ -144,7 +168,7 @@ export const InternalTaxService = {
         });
     },
 
-    addPurchaseInvoice: async (invoice) => {
+    addPurchaseInvoice: async (month, year, invoice) => {
         try {
             const docRef = await addDoc(collection(db, PURCHASE_COLLECTION), {
                 ...invoice,
@@ -157,7 +181,7 @@ export const InternalTaxService = {
         }
     },
 
-    updatePurchaseInvoice: async (id, data) => {
+    updatePurchaseInvoice: async (month, year, id, data) => {
         try {
             const docRef = doc(db, PURCHASE_COLLECTION, id);
             await updateDoc(docRef, data);
@@ -199,6 +223,30 @@ export const InternalTaxService = {
             await batch.commit();
         } catch (error) {
             console.error("Error batch adding purchase invoices:", error);
+            throw error;
+        }
+    },
+
+    deletePurchaseInvoice: async (month, year, id) => {
+        try {
+            const docRef = doc(db, PURCHASE_COLLECTION, id);
+            await deleteDoc(docRef);
+        } catch (error) {
+            console.error("Error deleting purchase invoice:", error);
+            throw error;
+        }
+    },
+
+    deleteMultiplePurchaseInvoices: async (month, year, ids) => {
+        try {
+            const batch = writeBatch(db);
+            ids.forEach(id => {
+                const docRef = doc(db, PURCHASE_COLLECTION, id);
+                batch.delete(docRef);
+            });
+            await batch.commit();
+        } catch (error) {
+            console.error("Error batch deleting purchase invoices:", error);
             throw error;
         }
     },
