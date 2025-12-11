@@ -19,8 +19,11 @@ export const convertExcelDateToJSDate = (excelDate) => {
 
   // Nếu là chuỗi (STRING): ĐÂY LÀ ĐẦU VÀO MONG MUỐN SAU KHI SỬA useFileUpload
   if (typeof excelDate === 'string') {
-    // Nếu đã đúng format DD/MM/YYYY hoặc D/M/YYYY thì return
-    const ddmmyyyyMatch = excelDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    // Trim and clean the string
+    const cleanDate = excelDate.trim();
+
+    // Nếu đúng format DD/MM/YYYY hoặc D/M/YYYY thì parse thủ công
+    const ddmmyyyyMatch = cleanDate.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
     if (ddmmyyyyMatch) {
       const day = ddmmyyyyMatch[1].padStart(2, '0');
       const month = ddmmyyyyMatch[2].padStart(2, '0');
@@ -28,15 +31,25 @@ export const convertExcelDateToJSDate = (excelDate) => {
       return `${day}/${month}/${year}`;
     }
 
-    // Thử parse các format khác
+    // Nếu format YYYY-MM-DD (ISO)
+    const isoMatch = cleanDate.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (isoMatch) {
+      const year = isoMatch[1];
+      const month = isoMatch[2].padStart(2, '0');
+      const day = isoMatch[3].padStart(2, '0');
+      return `${day}/${month}/${year}`;
+    }
+
+    // Thử parse các format khác (cẩn thận với MM/DD/YYYY mặc định của JS)
     try {
-      // Cố gắng parse chuỗi ngày tháng ở đây sẽ sử dụng múi giờ địa phương
-      const parsedDate = new Date(excelDate);
+      const parsedDate = new Date(cleanDate);
       if (!isNaN(parsedDate.getTime())) {
+        // Cảnh báo: có thể bị parse sai nếu input là ambiguous
+        console.warn('Fallback date parsing used for:', cleanDate);
         return format(parsedDate, 'dd/MM/yyyy');
       }
     } catch (error) {
-      console.error('Lỗi parse date:', excelDate, error);
+      console.error('Lỗi parse date:', cleanDate, error);
     }
   }
 

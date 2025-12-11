@@ -1,11 +1,14 @@
 /* global __app_id */
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 
 // --- Thư viện bên thứ ba ---
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { ChromePicker } from 'react-color';
+
+// --- Lazy load ChromePicker for bundle optimization (~40KB) ---
+const ChromePicker = React.lazy(() => import('react-color').then(m => ({ default: m.ChromePicker })));
+
 import { useForm, useWatch, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { eventSchema } from "../../schemas/eventSchema";
@@ -254,7 +257,9 @@ export default function EventEditor() {
                       }}
                     />
                     <Popover open={Boolean(pickerAnchorEl)} anchorEl={pickerAnchorEl} onClose={handlePickerClose}>
-                      <ChromePicker color={content.backgroundColor} onChangeComplete={handleColorChange} />
+                      <Suspense fallback={<Box sx={{ p: 2 }}><CircularProgress size={24} /></Box>}>
+                        <ChromePicker color={content.backgroundColor} onChangeComplete={handleColorChange} />
+                      </Suspense>
                     </Popover>
                   </Grid>
                 )}
@@ -275,7 +280,9 @@ export default function EventEditor() {
                     }}
                   />
                   <Popover open={Boolean(companyColorPickerAnchorEl)} anchorEl={companyColorPickerAnchorEl} onClose={handleCompanyColorPickerClose}>
-                    <ChromePicker color={content.companyNameColor} onChangeComplete={handleCompanyColorChange} />
+                    <Suspense fallback={<Box sx={{ p: 2 }}><CircularProgress size={24} /></Box>}>
+                      <ChromePicker color={content.companyNameColor} onChangeComplete={handleCompanyColorChange} />
+                    </Suspense>
                   </Popover>
                 </Grid>
                 <Grid size={{ xs: 12 }}><hr style={{ border: 'none', borderTop: '1px solid #e0e0e0' }} /></Grid>

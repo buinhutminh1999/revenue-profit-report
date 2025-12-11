@@ -229,28 +229,37 @@ export default function AttendanceDashboard() {
         setIsUploading(true);
         try {
             const errors = [];
-            const formattedData = rawRows.map((r, index) => {
-                const stt = r.STT; // Lấy giá trị từ cột STT
+            const formattedData = rawRows
+                .filter((r) => r["Tên nhân viên"] && r["Ngày"]) // Skip rows without required fields
+                .map((r, index) => {
+                    const stt = r.STT || index; // Fallback to index if STT is missing
 
-                const excelRow = `dòng ${index + 2}`;
-                const employeeName = r["Tên nhân viên"] || `Không có tên`;
-                const dateStr = convertExcelDateToJSDate(r["Ngày"]);
-                const dateObj = parseDMY(dateStr);
-                const s1 = r.S1 ? convertExcelTimeToTimeString(r.S1) : "";
-                const s2 = r.S2 ? convertExcelTimeToTimeString(r.S2) : "";
-                const c1 = r.C1 ? convertExcelTimeToTimeString(r.C1) : "";
-                const c2 = r.C2 ? convertExcelTimeToTimeString(r.C2) : "";
-                if (s1 && !isValidTimeString(s1)) { errors.push(`- Nhân viên "${employeeName}" (${excelRow}): Giờ S1 "${s1}" không hợp lệ.`); }
-                if (s2 && !isValidTimeString(s2)) { errors.push(`- Nhân viên "${employeeName}" (${excelRow}): Giờ S2 "${s2}" không hợp lệ.`); }
-                if (c1 && !isValidTimeString(c1)) { errors.push(`- Nhân viên "${employeeName}" (${excelRow}): Giờ C1 "${c1}" không hợp lệ.`); }
-                if (c2 && !isValidTimeString(c2)) { errors.push(`- Nhân viên "${employeeName}" (${excelRow}): Giờ C2 "${c2}" không hợp lệ.`); }
-                return {
-                    id: `${r["Tên nhân viên"]}_${dateStr.replace(/\//g, "-")}_${stt}`,
-                    "Tên nhân viên": r["Tên nhân viên"], "Tên bộ phận": r["Tên bộ phận"],
-                    "Ngày": dateObj, S1: s1, S2: s2, C1: c1, C2: c2,
-                    morning: "", afternoon: "",
-                };
-            });
+                    const excelRow = `dòng ${index + 2}`;
+                    const employeeName = r["Tên nhân viên"];
+
+                    // Debug log for date value
+                    if (index === 0) {
+                        console.log("DEBUG: Raw date value type:", typeof r["Ngày"], "value:", r["Ngày"]);
+                    }
+
+                    const dateStr = convertExcelDateToJSDate(r["Ngày"]);
+                    const dateObj = parseDMY(dateStr);
+                    const s1 = r.S1 ? convertExcelTimeToTimeString(r.S1) : "";
+                    const s2 = r.S2 ? convertExcelTimeToTimeString(r.S2) : "";
+                    const c1 = r.C1 ? convertExcelTimeToTimeString(r.C1) : "";
+                    const c2 = r.C2 ? convertExcelTimeToTimeString(r.C2) : "";
+                    if (s1 && !isValidTimeString(s1)) { errors.push(`- Nhân viên "${employeeName}" (${excelRow}): Giờ S1 "${s1}" không hợp lệ.`); }
+                    if (s2 && !isValidTimeString(s2)) { errors.push(`- Nhân viên "${employeeName}" (${excelRow}): Giờ S2 "${s2}" không hợp lệ.`); }
+                    if (c1 && !isValidTimeString(c1)) { errors.push(`- Nhân viên "${employeeName}" (${excelRow}): Giờ C1 "${c1}" không hợp lệ.`); }
+                    if (c2 && !isValidTimeString(c2)) { errors.push(`- Nhân viên "${employeeName}" (${excelRow}): Giờ C2 "${c2}" không hợp lệ.`); }
+                    return {
+                        id: `${employeeName}_${dateStr.replace(/\//g, "-")}_${stt}`,
+                        "Tên nhân viên": employeeName,
+                        "Tên bộ phận": r["Tên bộ phận"] || "",
+                        "Ngày": dateObj, S1: s1, S2: s2, C1: c1, C2: c2,
+                        morning: "", afternoon: "",
+                    };
+                });
 
             // --- THÊM LOG ĐỂ KIỂM TRA DỮ LIỆU ĐÃ FORMAT ---
             console.log("2. Dữ liệu đã format (formattedData):", formattedData);
@@ -266,7 +275,16 @@ export default function AttendanceDashboard() {
                 formattedData.map((row) => setDoc(doc(db, "attendance", row.id), row, { merge: true }))
             );
 
-            toast.success("Tải & lưu dữ liệu chấm công thành công!");
+            // Auto-set date filter to show uploaded data
+            const dates = formattedData.map(row => row["Ngày"]).filter(d => d instanceof Date && !isNaN(d));
+            if (dates.length > 0) {
+                const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+                const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+                setFromDate(minDate);
+                setToDate(maxDate);
+            }
+
+            toast.success(`Tải & lưu ${formattedData.length} dòng chấm công thành công!`);
             await loadAttendanceData();
         } catch (err) {
             console.error("Lỗi hệ thống khi xử lý file:", err);
@@ -366,7 +384,7 @@ export default function AttendanceDashboard() {
 
             {/* 2. Action Deck (Upload & Settings) */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={8}>
+                <Grid size={{ xs: 12, md: 8 }}>
                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: "1px solid #e0e0e0", display: 'flex', alignItems: 'center', gap: 2, height: '100%' }}>
                         <Box sx={{ p: 1.5, borderRadius: "50%", backgroundColor: "#e3f2fd", color: "#1976d2" }}>
                             <CloudUpload />
@@ -380,7 +398,7 @@ export default function AttendanceDashboard() {
                         </Box>
                     </Paper>
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: "1px solid #e0e0e0", height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                         <FormControlLabel
                             control={<Checkbox checked={includeSaturday} onChange={(e) => setIncludeSaturday(e.target.checked)} />}
@@ -396,7 +414,7 @@ export default function AttendanceDashboard() {
             {/* 3. Filter Bar (Sticky-like) */}
             <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 2, border: "1px solid #e0e0e0", backgroundColor: "#fff" }}>
                 <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} md={3}>
+                    <Grid size={{ xs: 12, md: 3 }}>
                         <TextField
                             fullWidth
                             size="small"
@@ -409,10 +427,10 @@ export default function AttendanceDashboard() {
                             sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
                         />
                     </Grid>
-                    <Grid item xs={12} md={3}>
+                    <Grid size={{ xs: 12, md: 3 }}>
                         <DepartmentFilter depts={depts} value={dept} onChange={setDept} labels={{ all: "Tất cả bộ phận" }} />
                     </Grid>
-                    <Grid item xs={12} md={2}>
+                    <Grid size={{ xs: 12, md: 2 }}>
                         <TextField
                             select
                             fullWidth
@@ -428,7 +446,7 @@ export default function AttendanceDashboard() {
                             ))}
                         </TextField>
                     </Grid>
-                    <Grid item xs={6} md={2}>
+                    <Grid size={{ xs: 6, md: 2 }}>
                         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
                             <Picker
                                 value={fromDate}
@@ -439,13 +457,13 @@ export default function AttendanceDashboard() {
                                         size: 'small',
                                         fullWidth: true,
                                         placeholder: "Từ ngày",
-                                        helperText: null // Disable helper text to prevent layout shift
+                                        helperText: null
                                     }
                                 }}
                             />
                         </LocalizationProvider>
                     </Grid>
-                    <Grid item xs={6} md={2}>
+                    <Grid size={{ xs: 6, md: 2 }}>
                         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
                             <Picker
                                 value={toDate}
@@ -456,7 +474,7 @@ export default function AttendanceDashboard() {
                                         size: 'small',
                                         fullWidth: true,
                                         placeholder: "Đến ngày",
-                                        helperText: null // Disable helper text to prevent layout shift
+                                        helperText: null
                                     }
                                 }}
                             />

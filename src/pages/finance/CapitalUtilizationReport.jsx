@@ -30,7 +30,7 @@ import {
     FilterList as FilterListIcon,
 } from "@mui/icons-material";
 import toast from "react-hot-toast";
-import { debounce } from "lodash";
+import debounce from "lodash/debounce";
 
 // Shared Components & Hooks
 import { ErrorState, SkeletonTable, EditableCell, MultiAccountSelect } from "../../components/common";

@@ -22,7 +22,7 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 
-import logo from "../../assets/logo.png";
+import logo from "../../assets/logo.webp";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema } from "../../schemas/authSchema";

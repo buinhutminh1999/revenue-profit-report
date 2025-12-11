@@ -28,7 +28,11 @@ import {
     ChevronRight,
     QrCode,
     ArrowForward as ArrowRight,
-    CalendarToday as Calendar
+    CalendarToday as Calendar,
+    Inventory2,
+    LocalOffer as TagIcon,
+    Business,
+    Add,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import { getAuth } from "firebase/auth";
@@ -61,6 +65,10 @@ import WorkflowCard from "../../components/cards/WorkflowCard";
 import RequestCardSkeleton from "../../components/cards/RequestCardSkeleton";
 import AssetCardMobile from "../../components/assets/AssetCardMobile";
 import AssetTableRow from "../../components/assets/AssetTableRow";
+import TransferTableRowMobile from "../../components/assets/TransferTableRowMobile";
+import RequestTableRowMobile from "../../components/assets/RequestTableRowMobile";
+import ReportTableRowMobile from "../../components/assets/ReportTableRowMobile";
+import { StatCardSkeleton, TransferSkeleton, AssetCardSkeleton } from "../../components/assets/AssetSkeletons";
 
 
 // src/pages/AssetTransferPage.jsx (đặt ở đầu file)
@@ -675,10 +683,10 @@ export default function AssetTransferPage() {
         return list;
     }, [assetsWithDept, assetSearch, filterDeptsForAsset]);
 
-    // ✅ THÊM useMemo MỚI NÀY
+    // ✅ FIX: Apply pagination using visibleAssetCount to limit rendered assets
     const paginatedAssets = useMemo(() => {
-        return filteredAssets;
-    }, [filteredAssets]);
+        return filteredAssets.slice(0, visibleAssetCount);
+    }, [filteredAssets, visibleAssetCount]);
     // Nhóm theo phòng ban để render header mỗi nhóm
     const groupedAssets = useMemo(() => {
         const map = new Map();
@@ -1953,190 +1961,11 @@ export default function AssetTransferPage() {
             </Stack>
         </Card>
     );
-    // ✅ THAY THẾ HÀM NÀY (cho Tab 1)
+    // ✅ TransferTableRowMobile imported from components/assets/TransferTableRowMobile.jsx
 
-    const TransferTableRowMobile = ({ transfer }) => (
-        <Card variant="outlined" sx={{ mb: 1.5, borderRadius: 3 }} onClick={() => handleOpenDetailView(transfer)}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                {/* Header: Mã phiếu và Trạng thái */}
-                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
-                    <Chip
-                        size="small"
-                        variant="outlined"
-                        label={transfer.maPhieuHienThi || `#${shortId(transfer.id)}`}
-                        sx={{ fontWeight: 600, bgcolor: 'grey.100' }}
-                    />
-                    <Chip
-                        size="small"
-                        label={statusConfig[transfer.status]?.label}
-                        color={statusConfig[transfer.status]?.color}
-                        icon={statusConfig[transfer.status]?.icon}
-                        variant="outlined" // Thêm variant để đồng bộ
-                    />
-                </Stack>
-                <Divider sx={{ mb: 1.5 }} />
+    // ✅ RequestTableRowMobile imported from components/assets/RequestTableRowMobile.jsx
+    // ✅ ReportTableRowMobile imported from components/assets/ReportTableRowMobile.jsx
 
-                {/* Body: Lộ trình (LÀM NỔI BẬT) */}
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                    <Avatar sx={{ bgcolor: 'primary.lighter', color: 'primary.main', borderRadius: '8px' }}>
-                        <ArrowRightLeft size={20} />
-                    </Avatar>
-                    <Box>
-                        <Stack>
-                            <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Box component="span" sx={{ color: 'text.secondary', minWidth: '30px' }}>Từ:</Box>
-                                <Box component="span" sx={{ fontWeight: 600 }}>{transfer.from}</Box>
-                            </Typography>
-                            <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Box component="span" sx={{ color: 'text.secondary', minWidth: '30px' }}>Đến:</Box>
-                                <Box component="span" sx={{ fontWeight: 700, color: 'primary.main' }}>{transfer.to}</Box>
-                            </Typography>
-                        </Stack>
-                    </Box>
-                </Stack>
-
-                {/* Footer: Người tạo & Ngày tạo */}
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1.5, textAlign: 'right' }}>
-                    Tạo bởi {transfer.createdBy?.name} • {fullTime(transfer.date)}
-                </Typography>
-            </CardContent>
-
-            {/* Actions (Nút bấm) */}
-            {isMyTurn(transfer) && (
-                <>
-                    <Divider />
-                    <CardActions sx={{ bgcolor: 'grey.50' }}>
-                        <TransferActionButtons transfer={transfer} />
-                        <Box sx={{ flexGrow: 1 }} />
-                        <Button size="small" endIcon={<ChevronRight />}>Chi tiết</Button>
-                    </CardActions>
-                </>
-            )}
-        </Card>
-    );
-
-    // ✅ THAY THẾ HÀM NÀY (cho Tab 3)
-
-    const RequestTableRowMobile = ({ request }) => (
-        <Card variant="outlined" sx={{ mb: 1.5, borderRadius: 3 }} onClick={() => handleOpenRequestDetail(request)}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                {/* Header: Mã phiếu và Trạng thái */}
-                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
-                    <Chip
-                        size="small"
-                        variant="outlined"
-                        label={request.maPhieuHienThi || `#${shortId(request.id)}`}
-                        sx={{ fontWeight: 600, bgcolor: 'grey.100' }}
-                    />
-                    <Chip
-                        size="small"
-                        label={requestStatusConfig[request.status]?.label}
-                        color={requestStatusConfig[request.status]?.color}
-                        icon={requestStatusConfig[request.status]?.icon}
-                        variant="outlined"
-                    />
-                </Stack>
-                <Divider sx={{ mb: 1.5 }} />
-
-                {/* Body: Tên tài sản (NỔI BẬT) */}
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                    <Avatar sx={{
-                        bgcolor: request.type === 'ADD' ? 'success.lighter' : (request.type === 'DELETE' ? 'error.lighter' : 'warning.lighter'),
-                        color: request.type === 'ADD' ? 'success.dark' : (request.type === 'DELETE' ? 'error.dark' : 'warning.dark'),
-                        borderRadius: '8px'
-                    }}>
-                        {request.type === 'ADD' ? <FilePlus size={20} /> : (request.type === 'DELETE' ? <FileX size={20} /> : <FilePen size={20} />)}
-                    </Avatar>
-                    <Box>
-                        <Typography variant="h6" fontWeight={600}>{request.assetData?.name}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Phòng: <b>{request.departmentName}</b>
-                        </Typography>
-                    </Box>
-                </Stack>
-
-                {/* Footer: Người tạo & Ngày tạo */}
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1.5, textAlign: 'right' }}>
-                    Y/c bởi {request.requester?.name} • {fullTime(request.createdAt)}
-                </Typography>
-            </CardContent>
-
-            {/* Actions (Nút bấm) */}
-            {canProcessRequest(request) && (
-                <>
-                    <Divider />
-                    <CardActions sx={{ bgcolor: 'grey.50' }}>
-                        <Button size="small" color="error" onClick={(e) => { e.stopPropagation(); setRejectConfirm(request); }}>Từ chối</Button>
-                        <Button size="small" variant="contained" onClick={(e) => { e.stopPropagation(); handleProcessRequest(request, 'approve'); }} startIcon={<Check size={16} />}>
-                            {getApprovalActionLabel(request)}
-                        </Button>
-                        <Box sx={{ flexGrow: 1 }} />
-                        <Button size="small" endIcon={<ChevronRight />}>Chi tiết</Button>
-                    </CardActions>
-                </>
-            )}
-        </Card>
-    );
-    // ✅ THAY THẾ HÀM NÀY (cho Tab 4)
-
-    const ReportTableRowMobile = ({ report }) => (
-        <Card variant="outlined" sx={{ mb: 1.5, borderRadius: 3 }} onClick={() => handleOpenReportDetail(report)}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                {/* Header: Mã phiếu và Trạng thái */}
-                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
-                    <Chip
-                        size="small"
-                        variant="outlined"
-                        label={report.maPhieuHienThi || `#${shortId(report.id)}`}
-                        sx={{ fontWeight: 600, bgcolor: 'grey.100' }}
-                    />
-                    <Chip
-                        size="small"
-                        label={reportStatusConfig[report.status]?.label}
-                        color={reportStatusConfig[report.status]?.color}
-                        icon={reportStatusConfig[report.status]?.icon}
-                        variant="outlined"
-                    />
-                </Stack>
-                <Divider sx={{ mb: 1.5 }} />
-
-                {/* Body: Tiêu đề Báo cáo (NỔI BẬT) */}
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                    <Avatar sx={{ bgcolor: 'info.lighter', color: 'info.dark', borderRadius: '8px' }}>
-                        <Sheet size={20} />
-                    </Avatar>
-                    <Box>
-                        <Typography variant="h6" fontWeight={600}>{report.title}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            Phạm vi: <b>{report.departmentName}</b>
-                        </Typography>
-                    </Box>
-                </Stack>
-
-                {/* Footer: Người tạo & Ngày tạo */}
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1.5, textAlign: 'right' }}>
-                    Y/c bởi {report.requester?.name} • {fullTime(report.createdAt)}
-                </Typography>
-            </CardContent>
-
-            {/* Actions (Nút bấm) */}
-            {canProcessReport(report) && (
-                <>
-                    <Divider />
-                    <CardActions sx={{ bgcolor: 'grey.50' }}>
-                        <Button size="small" color="error" onClick={(e) => { e.stopPropagation(); setRejectReportConfirm(report); }}>Từ chối</Button>
-                        <Button size="small" variant="contained" onClick={(e) => { e.stopPropagation(); handleSignReport(report); }} startIcon={<Check size={16} />}>
-                            Duyệt
-                        </Button>
-                        <Box sx={{ flexGrow: 1 }} />
-                        <Button size="small" endIcon={<ChevronRight />}>Chi tiết</Button>
-                    </CardActions>
-                </>
-            )}
-        </Card>
-    );
-
-    // src/pages/AssetTransferPage.jsx (Chèn component mới này vào)
     const DashboardTableRowMobile = ({ item, type, onDetailClick }) => {
         let typeLabel, statusLabel, statusColor, typeIcon, displayStatus;
         let mainTitle, subText, maPhieu;
@@ -2594,7 +2423,13 @@ export default function AssetTransferPage() {
                                 // Giao diện cho mobile: Danh sách các Card
                                 <Box mt={2.5}>
                                     {filteredTransfers.map((t) => (
-                                        <TransferTableRowMobile key={t.id} transfer={t} />
+                                        <TransferTableRowMobile
+                                            key={t.id}
+                                            transfer={t}
+                                            onDetailClick={handleOpenDetailView}
+                                            isMyTurn={isMyTurn(t)}
+                                            actionButtons={<TransferActionButtons transfer={t} />}
+                                        />
                                     ))}
                                 </Box>
                             ) : (
@@ -3299,27 +3134,64 @@ export default function AssetTransferPage() {
                     />
                 </div>
 
-                {/* REJECT CONFIRM DIALOG (NEW) */}
-                <Dialog open={!!rejectConfirm} onClose={() => setRejectConfirm(null)}>
-                    <DialogTitle>Xác nhận Từ chối Yêu cầu</DialogTitle>
+                {/* REJECT CONFIRM DIALOG - Improved UI */}
+                <Dialog
+                    open={!!rejectConfirm}
+                    onClose={() => setRejectConfirm(null)}
+                    PaperProps={{ sx: { borderRadius: 3, maxWidth: 420 } }}
+                >
+                    <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1 }}>
+                        <Avatar sx={{ bgcolor: 'error.lighter', color: 'error.main' }}>
+                            <X />
+                        </Avatar>
+                        <Box>
+                            <Typography variant="h6" fontWeight={700}>Từ chối Yêu cầu</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                Hành động không thể hoàn tác
+                            </Typography>
+                        </Box>
+                    </DialogTitle>
                     <DialogContent>
-                        <DialogContentText>
-                            Bạn có chắc muốn <b>từ chối</b> yêu cầu thay đổi tài sản "<b>{rejectConfirm?.assetData?.name}</b>" (loại {rejectConfirm?.type === 'ADD' ? 'Thêm' : 'Xóa'}) không?
-                            Hành động này không thể hoàn tác.
-                        </DialogContentText>
+                        <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+                            Bạn có chắc muốn <strong>từ chối</strong> yêu cầu này?
+                        </Alert>
+                        <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'grey.50' }}>
+                            <Stack spacing={1}>
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="body2" color="text.secondary">Tài sản:</Typography>
+                                    <Typography variant="body2" fontWeight={600}>{rejectConfirm?.assetData?.name}</Typography>
+                                </Stack>
+                                <Stack direction="row" justifyContent="space-between">
+                                    <Typography variant="body2" color="text.secondary">Loại yêu cầu:</Typography>
+                                    <Chip
+                                        size="small"
+                                        label={rejectConfirm?.type === 'ADD' ? 'Thêm mới' : 'Xóa/Giảm'}
+                                        color={rejectConfirm?.type === 'ADD' ? 'success' : 'error'}
+                                        variant="outlined"
+                                    />
+                                </Stack>
+                            </Stack>
+                        </Paper>
                     </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setRejectConfirm(null)}>Hủy</Button>
+                    <DialogActions sx={{ p: 2.5, pt: 1, gap: 1 }}>
+                        <Button
+                            onClick={() => setRejectConfirm(null)}
+                            sx={{ minWidth: 100 }}
+                        >
+                            Hủy
+                        </Button>
                         <Button
                             onClick={() => {
                                 handleProcessRequest(rejectConfirm, 'reject');
-                                setRejectConfirm(null); // Đóng dialog sau khi gửi yêu cầu
+                                setRejectConfirm(null);
                             }}
                             color="error"
                             variant="contained"
                             disabled={isProcessingRequest[rejectConfirm?.id]}
+                            startIcon={<X size={16} />}
+                            sx={{ minWidth: 140 }}
                         >
-                            {isProcessingRequest[rejectConfirm?.id] ? "Đang xử lý..." : "Xác nhận Từ chối"}
+                            {isProcessingRequest[rejectConfirm?.id] ? "Đang xử lý..." : "Từ chối"}
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -3687,74 +3559,143 @@ export default function AssetTransferPage() {
                     sx: {
                         m: { xs: 1, sm: 2 },
                         width: { xs: 'calc(100% - 16px)', sm: 'auto' },
-                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' }
+                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' },
+                        borderRadius: 3,
                     }
                 }}
             >
                 <DialogTitle sx={{
                     fontSize: { xs: '1.125rem', sm: '1.25rem' },
-                    p: { xs: 2, sm: 2.5 },
-                    pb: { xs: 1.5, sm: 2 }
+                    p: { xs: 2, sm: 3 },
+                    pb: { xs: 1, sm: 1.5 },
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
                 }}>
-                    {modalMode === "add" ? "Gửi Yêu Cầu Thêm Tài Sản" : "Chỉnh Sửa Tài Sản"}
+                    <Avatar sx={{
+                        bgcolor: modalMode === "add" ? 'success.lighter' : 'primary.lighter',
+                        color: modalMode === "add" ? 'success.main' : 'primary.main'
+                    }}>
+                        {modalMode === "add" ? <Add /> : <Edit />}
+                    </Avatar>
+                    <Box>
+                        <Typography variant="h6" fontWeight={700}>
+                            {modalMode === "add" ? "Thêm Tài Sản Mới" : "Chỉnh Sửa Tài Sản"}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            {modalMode === "add" ? "Điền thông tin để gửi yêu cầu" : "Cập nhật thông tin tài sản"}
+                        </Typography>
+                    </Box>
                 </DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{ mt: 1, minWidth: { sm: 420 } }} component="form" id="asset-form" onSubmit={handleSubmit(onSubmitAsset)}>
-                        {/* ✅ Fix: Register hidden ID field to ensure it exists in data */}
+                <DialogContent sx={{ p: { xs: 2, sm: 3 }, pt: { xs: 1, sm: 1.5 } }}>
+                    <Stack spacing={3} component="form" id="asset-form" onSubmit={handleSubmit(onSubmitAsset)}>
                         <input type="hidden" {...register("id")} />
 
-                        <TextField autoFocus label="Tên tài sản" fullWidth required
-                            error={!!errors.name} helperText={errors.name?.message}
-                            {...register("name")} />
-
-                        <TextField label="Kích thước" placeholder="VD: 80x80, 6.5cm x 1.05m..." fullWidth
-                            {...register("size")} />
-
-                        <TextField label="Mô tả" fullWidth
-                            {...register("description")} />
-
-                        <Grid container spacing={2}>
-                            <Grid size={{ xs: 6 }}>
+                        {/* Section: Thông tin cơ bản */}
+                        <Box>
+                            <Typography variant="overline" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
+                                <Inventory2 sx={{ fontSize: 16 }} /> Thông tin cơ bản
+                            </Typography>
+                            <Stack spacing={2}>
                                 <TextField
-                                    label="Số lượng"
-                                    type="number"
+                                    autoFocus
+                                    label="Tên tài sản"
                                     fullWidth
                                     required
-                                    error={!!errors.quantity} helperText={errors.quantity?.message}
-                                    {...register("quantity")}
-                                    inputProps={{ min: 1 }}
+                                    placeholder="VD: Bàn làm việc, Máy tính Dell..."
+                                    error={!!errors.name}
+                                    helperText={errors.name?.message}
+                                    {...register("name")}
                                 />
-                            </Grid>
-                            <Grid size={{ xs: 6 }}>
-                                <TextField label="Đơn vị tính" fullWidth required
-                                    error={!!errors.unit} helperText={errors.unit?.message}
-                                    {...register("unit")} />
-                            </Grid>
-                        </Grid>
+                                <TextField
+                                    label="Kích thước"
+                                    placeholder="VD: 80x80cm, 6.5cm x 1.05m..."
+                                    fullWidth
+                                    {...register("size")}
+                                />
+                            </Stack>
+                        </Box>
 
-                        <TextField label="Ghi chú" fullWidth
-                            {...register("notes")} />
+                        <Divider />
 
-                        <Controller
-                            name="departmentId"
-                            control={control}
-                            render={({ field }) => (
-                                <Autocomplete
-                                    options={departments}
-                                    getOptionLabel={(option) => option.name || ""}
-                                    value={departments.find(d => d.id === field.value) || null}
-                                    onChange={(event, newValue) => { field.onChange(newValue ? newValue.id : ""); }}
-                                    renderInput={(params) => (
-                                        <TextField {...params} label="Phòng ban" required error={!!errors.departmentId} helperText={errors.departmentId?.message} />
+                        {/* Section: Số lượng & Đơn vị */}
+                        <Box>
+                            <Typography variant="overline" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
+                                <TagIcon sx={{ fontSize: 16 }} /> Số lượng & Đơn vị
+                            </Typography>
+                            <Grid container spacing={2}>
+                                <Grid size={{ xs: 6 }}>
+                                    <TextField
+                                        label="Số lượng"
+                                        type="number"
+                                        fullWidth
+                                        required
+                                        error={!!errors.quantity}
+                                        helperText={errors.quantity?.message}
+                                        {...register("quantity")}
+                                        inputProps={{ min: 1 }}
+                                    />
+                                </Grid>
+                                <Grid size={{ xs: 6 }}>
+                                    <TextField
+                                        label="Đơn vị tính"
+                                        fullWidth
+                                        required
+                                        placeholder="VD: Cái, Bộ..."
+                                        error={!!errors.unit}
+                                        helperText={errors.unit?.message}
+                                        {...register("unit")}
+                                    />
+                                </Grid>
+                            </Grid>
+                        </Box>
+
+                        <Divider />
+
+                        {/* Section: Phòng ban & Ghi chú */}
+                        <Box>
+                            <Typography variant="overline" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
+                                <Business sx={{ fontSize: 16 }} /> Vị trí & Ghi chú
+                            </Typography>
+                            <Stack spacing={2}>
+                                <Controller
+                                    name="departmentId"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <Autocomplete
+                                            options={departments}
+                                            getOptionLabel={(option) => option.name || ""}
+                                            value={departments.find(d => d.id === field.value) || null}
+                                            onChange={(event, newValue) => { field.onChange(newValue ? newValue.id : ""); }}
+                                            renderInput={(params) => (
+                                                <TextField {...params} label="Phòng ban" required error={!!errors.departmentId} helperText={errors.departmentId?.message} />
+                                            )}
+                                        />
                                     )}
                                 />
-                            )}
-                        />
+                                <TextField
+                                    label="Ghi chú"
+                                    fullWidth
+                                    multiline
+                                    rows={2}
+                                    placeholder="Ghi chú thêm (tùy chọn)"
+                                    {...register("notes")}
+                                />
+                            </Stack>
+                        </Box>
                     </Stack>
                 </DialogContent>
-                <DialogActions sx={{ p: "0 24px 16px" }}>
-                    <Button onClick={() => setIsAssetModalOpen(false)}>Hủy</Button>
-                    <Button type="submit" form="asset-form" variant="contained">{modalMode === "add" ? "Gửi yêu cầu" : "Lưu thay đổi"}</Button>
+                <DialogActions sx={{ p: { xs: 2, sm: 3 }, pt: 0, gap: 1 }}>
+                    <Button onClick={() => setIsAssetModalOpen(false)} sx={{ minWidth: 100 }}>Hủy</Button>
+                    <Button
+                        type="submit"
+                        form="asset-form"
+                        variant="contained"
+                        startIcon={modalMode === "add" ? <Send size={16} /> : <Check size={16} />}
+                        sx={{ minWidth: 140 }}
+                    >
+                        {modalMode === "add" ? "Gửi yêu cầu" : "Lưu thay đổi"}
+                    </Button>
                 </DialogActions>
             </Dialog>
 
@@ -4307,51 +4248,122 @@ export default function AssetTransferPage() {
                     </>
                 )}
             </Dialog>
-            <Dialog open={!!deleteReportConfirm} onClose={() => setDeleteReportConfirm(null)}>
-                <DialogTitle>Xác nhận Xóa Báo cáo</DialogTitle>
+            {/* DELETE REPORT CONFIRM DIALOG - Improved UI */}
+            <Dialog
+                open={!!deleteReportConfirm}
+                onClose={() => setDeleteReportConfirm(null)}
+                PaperProps={{ sx: { borderRadius: 3, maxWidth: 420 } }}
+            >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1 }}>
+                    <Avatar sx={{ bgcolor: 'error.lighter', color: 'error.main' }}>
+                        <Trash2 />
+                    </Avatar>
+                    <Box>
+                        <Typography variant="h6" fontWeight={700}>Xóa Báo cáo</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Hành động không thể hoàn tác
+                        </Typography>
+                    </Box>
+                </DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Bạn có chắc muốn <b>xóa</b> báo cáo "
-                        <b>{deleteReportConfirm?.title}</b>" không? Hành động này không thể hoàn tác.
-                    </DialogContentText>
+                    <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                        Bạn có chắc muốn <strong>xóa vĩnh viễn</strong> báo cáo này?
+                    </Alert>
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'grey.50' }}>
+                        <Stack direction="row" alignItems="center" spacing={1.5}>
+                            <Avatar sx={{ bgcolor: 'info.lighter', width: 36, height: 36 }}>
+                                <Sheet sx={{ fontSize: 18, color: 'info.main' }} />
+                            </Avatar>
+                            <Typography variant="body2" fontWeight={600}>
+                                {deleteReportConfirm?.title}
+                            </Typography>
+                        </Stack>
+                    </Paper>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDeleteReportConfirm(null)}>Hủy</Button>
-                    <Button onClick={handleDeleteReport} color="error" variant="contained">
+                <DialogActions sx={{ p: 2.5, pt: 1, gap: 1 }}>
+                    <Button onClick={() => setDeleteReportConfirm(null)} sx={{ minWidth: 100 }}>
+                        Hủy
+                    </Button>
+                    <Button
+                        onClick={handleDeleteReport}
+                        color="error"
+                        variant="contained"
+                        startIcon={<Trash2 size={16} />}
+                        sx={{ minWidth: 120 }}
+                    >
                         Xóa
                     </Button>
                 </DialogActions>
             </Dialog>
-            {/* >>> THÊM DIALOG NÀY VÀO CUỐI FILE <<< */}
-            <Dialog open={!!rejectReportConfirm} onClose={() => setRejectReportConfirm(null)}>
-                <DialogTitle>Xác nhận Từ chối Báo cáo</DialogTitle>
+            {/* REJECT REPORT CONFIRM DIALOG - Improved UI */}
+            <Dialog
+                open={!!rejectReportConfirm}
+                onClose={() => setRejectReportConfirm(null)}
+                PaperProps={{ sx: { borderRadius: 3, maxWidth: 420 } }}
+            >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1 }}>
+                    <Avatar sx={{ bgcolor: 'warning.lighter', color: 'warning.main' }}>
+                        <X />
+                    </Avatar>
+                    <Box>
+                        <Typography variant="h6" fontWeight={700}>Từ chối Báo cáo</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Hành động không thể hoàn tác
+                        </Typography>
+                    </Box>
+                </DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Bạn có chắc muốn <b>từ chối</b> báo cáo "<b>{rejectReportConfirm?.title}</b>" không?
-                        Hành động này không thể hoàn tác.
-                    </DialogContentText>
+                    <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+                        Bạn có chắc muốn <strong>từ chối</strong> báo cáo này?
+                    </Alert>
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'grey.50' }}>
+                        <Stack direction="row" alignItems="center" spacing={1.5}>
+                            <Avatar sx={{ bgcolor: 'info.lighter', width: 36, height: 36 }}>
+                                <Sheet sx={{ fontSize: 18, color: 'info.main' }} />
+                            </Avatar>
+                            <Typography variant="body2" fontWeight={600}>
+                                {rejectReportConfirm?.title}
+                            </Typography>
+                        </Stack>
+                    </Paper>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setRejectReportConfirm(null)}>Hủy</Button>
+                <DialogActions sx={{ p: 2.5, pt: 1, gap: 1 }}>
+                    <Button onClick={() => setRejectReportConfirm(null)} sx={{ minWidth: 100 }}>
+                        Hủy
+                    </Button>
                     <Button
                         onClick={handleRejectReport}
                         color="error"
                         variant="contained"
                         disabled={processingReport[rejectReportConfirm?.id]}
+                        startIcon={<X size={16} />}
+                        sx={{ minWidth: 140 }}
                     >
-                        {processingReport[rejectReportConfirm?.id] ? "Đang xử lý..." : "Xác nhận Từ chối"}
+                        {processingReport[rejectReportConfirm?.id] ? "Đang xử lý..." : "Từ chối"}
                     </Button>
                 </DialogActions>
             </Dialog>
-            {/* ✅ BƯỚC 6: THÊM DIALOG MỚI */}
-            <Dialog open={isUpdateDateModalOpen} onClose={() => setIsUpdateDateModalOpen(false)}>
-                <DialogTitle sx={{ fontWeight: 700 }}>Cập nhật Ngày kiểm kê</DialogTitle>
+            {/* UPDATE DATE DIALOG - Improved UI */}
+            <Dialog
+                open={isUpdateDateModalOpen}
+                onClose={() => setIsUpdateDateModalOpen(false)}
+                PaperProps={{ sx: { borderRadius: 3, maxWidth: 420 } }}
+            >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1 }}>
+                    <Avatar sx={{ bgcolor: 'primary.lighter', color: 'primary.main' }}>
+                        <Calendar />
+                    </Avatar>
+                    <Box>
+                        <Typography variant="h6" fontWeight={700}>Cập nhật Ngày kiểm kê</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Cho {selectedAssetIdsForPrint.length} tài sản đã chọn
+                        </Typography>
+                    </Box>
+                </DialogTitle>
                 <DialogContent sx={{ minWidth: 350 }}>
-                    <DialogContentText sx={{ mb: 2 }}>
-                        Bạn sắp cập nhật ngày kiểm kê cho <b>{selectedAssetIdsForPrint.length}</b> tài sản đã chọn.
-                        <br />
-                        Vui lòng chọn ngày mới bên dưới.
-                    </DialogContentText>
+                    <Alert severity="info" icon={<Calendar sx={{ fontSize: 20 }} />} sx={{ mb: 2, borderRadius: 2 }}>
+                        Chọn ngày mới để đánh dấu kiểm kê
+                    </Alert>
 
                     {/* Bọc DatePicker bằng LocalizationProvider */}
                     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>

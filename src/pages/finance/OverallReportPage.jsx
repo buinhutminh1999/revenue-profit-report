@@ -63,7 +63,7 @@ import {
     setDoc,
 } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
-import { debounce } from "lodash";
+import debounce from "lodash/debounce";
 import toast from "react-hot-toast";
 
 // --- Cấu hình React Query Client ---
