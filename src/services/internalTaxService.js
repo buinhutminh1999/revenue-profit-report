@@ -426,5 +426,81 @@ export const InternalTaxService = {
             console.error("Error saving input tax total:", error);
             throw error;
         }
+    },
+
+    /**
+     * Subscribe to Tax Adjustment (Điều chỉnh tăng/giảm thuế GTGT)
+     */
+    subscribeToTaxAdjustment: (month, year, callback) => {
+        const docId = `${parseInt(year)}_${parseInt(month)}`;
+        const docRef = doc(db, 'vatReports', docId);
+
+        return onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().taxAdjustment) {
+                callback(docSnap.data().taxAdjustment);
+            } else {
+                callback({ bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 });
+            }
+        }, (error) => {
+            console.error("Error subscribing to tax adjustment:", error);
+            callback({ bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 });
+        });
+    },
+
+    /**
+     * Save Tax Adjustment (Điều chỉnh tăng/giảm thuế GTGT)
+     */
+    saveTaxAdjustment: async (month, year, data) => {
+        try {
+            const docId = `${parseInt(year)}_${parseInt(month)}`;
+            const docRef = doc(db, 'vatReports', docId);
+            await setDoc(docRef, {
+                taxAdjustment: data,
+                month: parseInt(month),
+                year: parseInt(year),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+        } catch (error) {
+            console.error("Error saving tax adjustment:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Subscribe to Summary Rows (Dynamic rows)
+     */
+    subscribeToSummaryRows: (month, year, callback) => {
+        const docId = `${parseInt(year)}_${parseInt(month)}`;
+        const docRef = doc(db, 'vatReports', docId);
+
+        return onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().summaryRows) {
+                callback(docSnap.data().summaryRows);
+            } else {
+                callback({});
+            }
+        }, (error) => {
+            console.error("Error subscribing to summary rows:", error);
+            callback({});
+        });
+    },
+
+    /**
+     * Save Summary Rows (Dynamic rows)
+     */
+    saveSummaryRows: async (month, year, data) => {
+        try {
+            const docId = `${parseInt(year)}_${parseInt(month)}`;
+            const docRef = doc(db, 'vatReports', docId);
+            await setDoc(docRef, {
+                summaryRows: data,
+                month: parseInt(month),
+                year: parseInt(year),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+        } catch (error) {
+            console.error("Error saving summary rows:", error);
+            throw error;
+        }
     }
 };

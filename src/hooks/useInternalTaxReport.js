@@ -70,6 +70,8 @@ export function useInternalTaxReport(month, year) {
     return {
         generalInvoices,
         purchaseInvoices,
+        setGeneralInvoices,
+        setPurchaseInvoices,
         isLoading,
         error,
         addGeneralInvoice,

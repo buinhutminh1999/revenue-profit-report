@@ -1,27 +1,9 @@
 import React from 'react';
-import {
-    Box,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Typography,
-    useTheme,
-    alpha,
-    TextField,
-    Dialog,
-    AppBar,
-    Toolbar,
-    IconButton,
-    Tooltip,
-    Slide
-} from '@mui/material';
-import { DragHandle, Close, Fullscreen, FullscreenExit } from '@mui/icons-material';
+import { Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, useTheme, alpha, TextField, Dialog, AppBar, Toolbar, IconButton, Tooltip, Slide } from '@mui/material';
+import { DragHandle, Close, Fullscreen, FullscreenExit, Print } from '@mui/icons-material';
 import { parseCurrency, formatCurrencyOrDash } from '../../utils/currencyHelpers';
 import { InternalTaxService } from '../../services/internalTaxService';
+import VATReportPrintView from '../../components/finance/internal-tax/VATReportPrintView';
 
 // Transition component for full-screen dialog - defined outside to prevent recreation on every render
 const Transition = React.forwardRef(function Transition(props, ref) {
@@ -57,6 +39,23 @@ const vatReportData = {
     }
 };
 
+const SUMMARY_ROWS_CONFIG = [
+    { key: 'pending_project', label: 'CÒN PHẢI XUẤT CHO CÔNG TRÌNH (LUỸ KẾ)', hideTotal: true },
+    { key: 'borrowed_blx', label: 'CÔNG TRÌNH MƯỢN BLX', hideTotal: true },
+    { key: 'pending_project_blx', label: 'CÒN PHẢI XUẤT CHO DỰ ÁN BLX (LUỸ KẾ)', hideTotal: true },
+    { key: 'adjustment_1pct', label: 'Điều chỉnh tăng/giảm thuế GTGT, Tạm nộp 1%', hideTotal: true },
+    { key: 'pending_project_branch', label: 'CÒN PHẢI XUẤT CHO CÔNG TRÌNH CHI NHÁNH (Luỹ kế)', hideTotal: true },
+    { key: 'excess_input_stock', label: 'ĐẦU VÀO DƯ CỦA CÔNG TRÌNH TRONG KHO (KHÔNG BAO GỒM CN, CPQL) (LUỸ KẾ)', hideTotal: true },
+    { key: 'excess_input_other', label: 'ĐẦU VÀO DƯ KHÁC chưa phân bổ- KHO', hideTotal: true },
+    { key: 'nmbtct_external', label: 'NMBTCT CÒN PHẢI XUẤT BÁN HÀNG BÊN NGOÀI T01', hideTotal: true },
+    { key: 'nmbtct_internal', label: 'NMBTCT CÒN PHẢI XUẤT BÁN HÀNG CÔNG TRÌNH NỘI BỘ T01 luỹ kế', hideTotal: true },
+    { key: 'payable_prev_quarter', label: 'Số phải nộp của Quý trước', hideTotal: true },
+    // "TỔNG TIỀN THUẾ ĐẦU CÒN ĐƯỢC KHẤU TRỪ" is calculated and inserted manually
+    // "TỔNG CỘNG CÁC CTY NỢ HOÁ ĐƠN" is calculated based on pending_project * rate (default 8%)
+    { key: 'total_debt_invoice', label: 'TỔNG CỘNG CÁC CTY NỢ HOÁ ĐƠN', hideTotal: true, isCalculated: true, relatedKey: 'pending_project' },
+    { key: 'tax_percentage_bear', label: 'TIỀN % THUẾ CHỊU', hideTotal: true }
+];
+
 export default function VATReportTab({ generalInvoices = [], purchaseInvoices = [], month, year }) {
     const theme = useTheme();
 
@@ -67,18 +66,49 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
     const [saveStatus, setSaveStatus] = React.useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
     const [lastSaved, setLastSaved] = React.useState(null); // Timestamp
 
+    // Summary Rows state
+    const [summaryRows, setSummaryRows] = React.useState({});
+    const [editingSummaryCell, setEditingSummaryCell] = React.useState(null); // { key: string, company: string }
+    const [editSummaryValue, setEditSummaryValue] = React.useState('');
+
+    // Tax Adjustment state (Legacy for migration/fallback)
+    const [taxAdjustment, setTaxAdjustment] = React.useState({ bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 });
+
     // Full-screen dialog state: null | 'output' | 'input'
     const [expandedSection, setExpandedSection] = React.useState(null);
 
-    // Load previous period tax from Firebase (Real-time subscription)
+    // Load previous period tax
     React.useEffect(() => {
         const unsubscribe = InternalTaxService.subscribeToPreviousPeriodTax(month, year, (data) => {
             setPreviousPeriodTax(data);
         });
-
-        // Cleanup subscription on unmount or when dependencies change
         return () => unsubscribe();
     }, [month, year]);
+
+    // Load summary rows
+    React.useEffect(() => {
+        const unsubscribe = InternalTaxService.subscribeToSummaryRows(month, year, (data) => {
+            setSummaryRows(data);
+        });
+        return () => unsubscribe();
+    }, [month, year]);
+
+    // Load tax adjustment from Firebase (ONLY for initial sync if needed, mostly deprecated by new rows)
+    // We keep subscribing to it to ensure if we need to migrate, we have it.
+    // But we will use summaryRows['adjustment_1pct'] primarily.
+    React.useEffect(() => {
+        const unsubscribe = InternalTaxService.subscribeToTaxAdjustment(month, year, (data) => {
+            setTaxAdjustment(data);
+        });
+        return () => unsubscribe();
+    }, [month, year]);
+
+    // Sync legacy taxAdjustment to summaryRows if summaryRows is empty for adjustment
+    React.useEffect(() => {
+        if (taxAdjustment && (taxAdjustment.bk !== 0 || taxAdjustment.bkct !== 0) && (!summaryRows.adjustment_1pct)) {
+            // We could auto-save migration here, but for now let's just use it conceptually or manual fix
+        }
+    }, [taxAdjustment, summaryRows]);
 
     // Custom order for content items (costType) - Output section
     const [customOrder, setCustomOrder] = React.useState(() => {
@@ -153,6 +183,103 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
     const handleCancelEdit = () => {
         setEditingCell(null);
         setEditValue('');
+    };
+
+    // Handle edit for tax adjustment row
+    const handleStartEditAdjustment = (company, currentValue) => {
+        if (editingAdjustmentCell === company) return;
+        setEditingAdjustmentCell(company);
+        setEditAdjustmentValue(currentValue === 0 ? '' : formatCurrency(currentValue));
+    };
+
+    const handleSaveAdjustmentCell = async (company) => {
+        try {
+            const numValue = parseCurrency(editAdjustmentValue);
+            if (numValue === taxAdjustment[company]) {
+                setEditingAdjustmentCell(null);
+                setEditAdjustmentValue('');
+                return;
+            }
+
+            const updated = { ...taxAdjustment, [company]: numValue };
+            setTaxAdjustment(updated);
+            setEditingAdjustmentCell(null);
+            setEditAdjustmentValue('');
+            setSaveStatus('saving');
+
+            await InternalTaxService.saveTaxAdjustment(month, year, updated);
+            setSaveStatus('saved');
+            setLastSaved(new Date());
+            setTimeout(() => setSaveStatus('idle'), 3000);
+        } catch (error) {
+            console.error("Error saving tax adjustment:", error);
+            setSaveStatus('error');
+            alert("Lỗi khi lưu dữ liệu! Vui lòng thử lại.");
+        }
+    };
+
+    // Handle edit for generic summary rows
+    const handleStartEditSummary = (key, company, currentValue) => {
+        if (editingSummaryCell?.key === key && editingSummaryCell?.company === company) return;
+        setEditingSummaryCell({ key, company });
+        setEditSummaryValue(currentValue === 0 ? '' : formatCurrency(currentValue));
+    };
+
+    const handleSaveSummaryCell = async (key, company) => {
+        try {
+            const currentRow = summaryRows[key] || { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+            const numValue = parseCurrency(editSummaryValue);
+
+            if (numValue === currentRow[company]) {
+                setEditingSummaryCell(null);
+                setEditSummaryValue('');
+                return;
+            }
+
+            const updatedRow = { ...currentRow, [company]: numValue };
+            const updatedSummaryRows = { ...summaryRows, [key]: updatedRow };
+
+            // Optimistic update
+            setSummaryRows(updatedSummaryRows);
+            setEditingSummaryCell(null);
+            setEditSummaryValue('');
+            setSaveStatus('saving');
+
+            await InternalTaxService.saveSummaryRows(month, year, updatedSummaryRows);
+
+            setSaveStatus('saved');
+            setLastSaved(new Date());
+            setTimeout(() => setSaveStatus('idle'), 3000);
+        } catch (error) {
+            console.error("Error saving summary row:", error);
+            setSaveStatus('error');
+            alert("Lỗi khi lưu dữ liệu! Vui lòng thử lại.");
+        }
+    };
+
+    const handleCancelEditSummary = () => {
+        setEditingSummaryCell(null);
+        setEditSummaryValue('');
+    };
+
+    // Handler for saving debt rate
+    const handleSaveDebtRate = async (newRate) => {
+        try {
+            const numRate = parseFloat(newRate);
+            if (isNaN(numRate)) return;
+
+            const updatedSummaryRows = {
+                ...summaryRows,
+                config_debt_rate: { value: numRate }
+            };
+
+            // Optimistic update
+            setSummaryRows(updatedSummaryRows);
+            await InternalTaxService.saveSummaryRows(month, year, updatedSummaryRows);
+        } catch (error) {
+            console.error("Error saving debt rate:", error);
+            showSnackbar("Lỗi khi lưu tỉ lệ", "error");
+        }
     };
 
     const getColumnKey = (sellerName) => {
@@ -269,9 +396,38 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
 
         // Calculate Totals
         const totalTax = { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+        // New structure for the Summary Table
+        const totalSummary = { totalRevenue: 0, totalTaxAmount: 0, totalPayment: 0 };
+
         generalInvoices.forEach(inv => {
             const colKey = getColumnKey(inv.sellerName);
-            totalTax[colKey] += parseCurrency(inv.taxAmount);
+            const tRevenue = parseCurrency(inv.totalNoTax);
+            const tTax = parseCurrency(inv.taxAmount);
+            const tPayment = parseCurrency(inv.totalPayment);
+
+            totalTax[colKey] += tTax;
+
+            totalSummary.totalRevenue += tRevenue;
+            totalSummary.totalTaxAmount += tTax;
+            totalSummary.totalPayment += tPayment;
+        });
+
+        // SPECIAL CALCULATION: Factory Output (for "Đầu ra xuất VAT" row)
+        // User request: "hàng Đầu ra xuất VAT = hàng đầu ra của nội dung là NHÀ MÁY TRƯỚC THUẾ"
+        // This references invoices in "NHÀ MÁY" group
+        const factoryOutput = { revenue: 0, tax: 0, payment: 0 };
+        generalInvoices.forEach(inv => {
+            const type = (inv.costType || "").toUpperCase();
+            // Loose match for "NHÀ MÁY" (Factory)
+            if (type.includes("NHÀ MÁY") || type.includes("NHA MAY")) {
+                const tRevenue = parseCurrency(inv.totalNoTax);
+                const tTax = parseCurrency(inv.taxAmount);
+                const tPayment = parseCurrency(inv.totalPayment);
+
+                factoryOutput.revenue += tRevenue;
+                factoryOutput.tax += tTax;
+                factoryOutput.payment += tPayment;
+            }
         });
 
         // Save total output tax to Firebase (for next month to use)
@@ -283,6 +439,7 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
             stt: 1,
             label: "ĐẦU RA",
             items: resultItems,
+            rawTotalTax: { ...totalTax, ...totalSummary, factoryOutput }, // Merge summary totals and factory output
             totalTax: {
                 label: "TỔNG TIỀN THUẾ ĐẦU RA",
                 bk: formatCurrency(totalTax.bk),
@@ -390,9 +547,38 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
 
         // Calculate Total Input Tax (excluding Group 4)
         const totalTax = { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+        const totalSummary = { totalRevenue: 0, totalTaxAmount: 0, totalPayment: 0 };
+
         eligibleInvoices.forEach(inv => {
             const colKey = getColumnKey(inv.buyer);
-            totalTax[colKey] += parseCurrency(inv.tax);
+            const tRevenue = parseCurrency(inv.valueNoTax);
+            const tTax = parseCurrency(inv.tax);
+            // Purchase invoices might not have explicit Total column sometimes, so calc it
+            const tPayment = tRevenue + tTax;
+
+            totalTax[colKey] += tTax;
+
+            totalSummary.totalRevenue += tRevenue;
+            totalSummary.totalTaxAmount += tTax;
+            totalSummary.totalPayment += tPayment;
+        });
+
+        // SPECIAL CALCULATION: Factory Input (for "ĐẦU VÀO CUNG ỨNG" row)
+        // User request: "hàng ĐẦU VÀO CUNG ỨNG = hàng đầu vào của nội dung là NHÀ MÁY TRƯỚC THUẾ"
+        // Factory invoices are typically Group 3 or have Cost Type "NHÀ MÁY"
+        const factoryInput = { revenue: 0, tax: 0, payment: 0 };
+        eligibleInvoices.forEach(inv => {
+            const type = (inv.costType || "").toUpperCase();
+            // Check for Group 3 (Factory) or Name match
+            if (inv.group === 3 || type.includes("NHÀ MÁY") || type.includes("NHA MAY")) {
+                const tRevenue = parseCurrency(inv.valueNoTax);
+                const tTax = parseCurrency(inv.tax);
+                const tPayment = tRevenue + tTax;
+
+                factoryInput.revenue += tRevenue;
+                factoryInput.tax += tTax;
+                factoryInput.payment += tPayment;
+            }
         });
 
         // Save total input tax to Firebase (for VAT calculation)
@@ -404,6 +590,7 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
             stt: 2,
             label: "ĐẦU VÀO",
             items: resultItems,
+            rawTotalTax: { ...totalTax, ...totalSummary, factoryInput },
             totalTax: {
                 label: "TỔNG TIỀN THUẾ ĐẦU VÀO",
                 bk: formatCurrency(totalTax.bk),
@@ -645,12 +832,39 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
     const monthStr = month && year ? `T${month} ${year}` : "T-- ----";
     const quarterStr = month ? `QUÝ ${Math.ceil(parseInt(month) / 3)}` : "QUÝ -";
 
+
+    const handlePrint = () => {
+        window.print();
+    };
+
     return (
         <Box>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: '#1e293b', textAlign: 'center' }}>
-                BÁO CÁO TÌNH HÌNH HÓA ĐƠN VAT {periodString}
-            </Typography>
-            <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+            <VATReportPrintView
+                month={month}
+                year={year}
+                periodString={periodString}
+                previousPeriodTax={previousPeriodTax}
+                displayData={displayData}
+                summaryRows={summaryRows}
+                summaryRowsConfig={SUMMARY_ROWS_CONFIG}
+            />
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2, position: 'relative' }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b', textAlign: 'center' }}>
+                    BÁO CÁO TÌNH HÌNH HÓA ĐƠN VAT {periodString}
+                </Typography>
+                <Button
+                    variant="outlined"
+                    startIcon={<Print />}
+                    onClick={handlePrint}
+                    sx={{ position: 'absolute', right: 0 }}
+                >
+                    In Báo Cáo
+                </Button>
+            </Box>
+
+
+
+            <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${ theme.palette.divider } ` }}>
                 <Table sx={{ minWidth: 1200 }} size="small" aria-label="vat report table">
                     <TableHead>
                         <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
@@ -742,7 +956,7 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
                         >
                             <TableCell colSpan={10} sx={{ p: 0.5, textAlign: 'center' }}>
                                 <Tooltip title="Nhấn để xem toàn bộ bảng ĐẦU RA">
-                                    <IconButton size="small" color="primary">
+                                    <IconButton size="small" color="primary" className="no-print">
                                         <Fullscreen fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
@@ -757,13 +971,233 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
                         >
                             <TableCell colSpan={10} sx={{ p: 0.5, textAlign: 'center' }}>
                                 <Tooltip title="Nhấn để xem toàn bộ bảng ĐẦU VÀO">
-                                    <IconButton size="small" color="primary">
+                                    <IconButton size="small" color="primary" className="no-print">
                                         <Fullscreen fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
                             </TableCell>
                         </TableRow>
                         {renderSection(displayData.input, true, true)}
+
+                        {/* SUMMARY ROWS from Config */}
+                        {SUMMARY_ROWS_CONFIG.map((conf, index) => {
+                            // Determine row style or special behavior
+                            // Special case: "TỔNG TIỀN THUẾ ĐẦU CÒN ĐƯỢC KHẤU TRỪ" is calculated
+                            // But wait, the list provided has "TỔNG TIỀN THUẾ ĐẦU CÒN ĐƯỢC KHẤU TRỪ" as a separate item in user request text, 
+                            // but in my config I put it as a comment to insert manually?
+                            // User sent:
+                            // ...
+                            // Số phải nộp của Quý trước
+                            // TỔNG TIỀN THUẾ ĐẦU CÒN ĐƯỢC KHẤU TRỪ
+                            // TỔNG CỘNG CÁC CTY NỢ HOÁ ĐƠN
+                            // ...
+
+                            // So I should render the calculated row right after "Số phải nộp của Quý trước".
+                            const isCalculatedTotalRow = conf.key === 'total_deductible_calculated_MANUAL'; // I didn't add this key to config actually
+
+                            // Let's handle the specific insertion point
+                            const renderCalculatedTotal = () => {
+                                const inputRaw = processInputData.rawTotalTax || { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+                                const outputRaw = processOutputData.rawTotalTax || { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+
+                                // Get adjustment from summaryRows or fallback
+                                const adjRow = summaryRows['adjustment_1pct'] || { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+                                // Migration fallback logic: if summaryRows empty for adjustment, use taxAdjustment state
+                                // Only if summaryRows.adjustment_1pct is totally undefined?
+                                // Actually, stick to summaryRows.adjustment_1pct.
+                                // If needed, we can init summaryRows with taxAdjustment? 
+                                // Let's use taxAdjustment state as fallback if summaryRows['adjustment_1pct'] is missing?
+                                // No, better to stick to one source to avoid confusion. I'll rely on summaryRows.
+
+                                const adjustment = summaryRows['adjustment_1pct'] || { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+
+                                const calcBk = previousPeriodTax.bk + inputRaw.bk + adjustment.bk - outputRaw.bk;
+                                const calcBkct = previousPeriodTax.bkct + inputRaw.bkct + adjustment.bkct - outputRaw.bkct;
+                                const calcBklx = previousPeriodTax.bklx + inputRaw.bklx + adjustment.bklx - outputRaw.bklx;
+                                const calcKt = previousPeriodTax.kt + inputRaw.kt + adjustment.kt - outputRaw.kt;
+                                const calcAv = previousPeriodTax.av + inputRaw.av + adjustment.av - outputRaw.av;
+                                const calcTotal = calcBk + calcBkct + calcBklx + calcKt + calcAv;
+
+                                return (
+                                    <TableRow sx={{ bgcolor: alpha(theme.palette.success.main, 0.1) }} key="total_deductible">
+                                        <TableCell colSpan={4} sx={{ fontWeight: 700, textAlign: 'right' }}>
+                                            TỔNG TIỀN THUẾ ĐẦU CÒN ĐƯỢC KHẤU TRỪ
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(calcBk)}</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(calcBkct)}</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(calcBklx)}</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(calcKt)}</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(calcAv)}</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 700, color: theme.palette.success.main }}></TableCell>
+                                    </TableRow>
+                                );
+                            };
+
+                            const currentRowData = summaryRows[conf.key] || { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+
+                            // Render the row
+                            // Special handling for Calculated Debt Invoice Row
+                            if (conf.isCalculated && conf.key === 'total_debt_invoice') {
+                                // Default rate is 8 if not set
+                                const rateObj = summaryRows['config_debt_rate'] || { value: 8 };
+                                const rate = rateObj.value;
+                                const pendingProjectRow = summaryRows['pending_project'] || { bk: 0, bkct: 0, bklx: 0, kt: 0, av: 0 };
+
+                                const calculateValue = (val) => {
+                                    if (!val) return 0;
+                                    // Formula: (Value / 1.08) * Rate%
+                                    // Assuming Value is Gross (108% or similar). 
+                                    // Use 1.08 constant as requested by user "(CÒN PHẢI XUẤT CHO CÔNG TRÌNH (LUỸ KẾ)/1,08%)*8%"
+                                    return (val / 1.08) * (rate / 100);
+                                };
+
+                                return (
+                                    <TableRow key={conf.key}>
+                                        <TableCell colSpan={4} sx={{ fontWeight: 600, textAlign: 'right' }}>
+                                            {conf.label}
+                                            <Box component="span" sx={{ ml: 1, display: 'inline-flex', alignItems: 'center', fontSize: '0.875rem', fontWeight: 'normal', color: 'text.secondary' }}>
+                                                (Tỉ lệ:
+                                                <input
+                                                    type="number"
+                                                    value={rate}
+                                                    onChange={(e) => handleSaveDebtRate(e.target.value)}
+                                                    style={{
+                                                        width: '40px',
+                                                        marginLeft: '4px',
+                                                        marginRight: '2px',
+                                                        textAlign: 'center',
+                                                        border: '1px solid #ddd',
+                                                        borderRadius: '4px',
+                                                        padding: '2px'
+                                                    }}
+                                                />%)
+                                            </Box>
+                                        </TableCell>
+                                        {['bk', 'bkct', 'bklx', 'kt', 'av'].map(company => (
+                                            <TableCell key={company} align="right" sx={{ bgcolor: alpha(theme.palette.warning.main, 0.05) }}>
+                                                {formatCurrency(calculateValue(pendingProjectRow[company]))}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell align="right" sx={{ fontWeight: 700 }}></TableCell>
+                                    </TableRow>
+                                );
+                            }
+
+                            const rowNode = (
+                                <TableRow key={conf.key}>
+                                    <TableCell colSpan={4} sx={{ fontWeight: 600, textAlign: 'right' }}>
+                                        {conf.label}
+                                    </TableCell>
+                                    {['bk', 'bkct', 'bklx', 'kt', 'av'].map(company => (
+                                        <TableCell key={company} align="right">
+                                            {editingSummaryCell?.key === conf.key && editingSummaryCell?.company === company ? (
+                                                <TextField
+                                                    size="small"
+                                                    autoFocus
+                                                    value={editSummaryValue}
+                                                    onChange={(e) => setEditSummaryValue(e.target.value)}
+                                                    onBlur={() => handleSaveSummaryCell(conf.key, company)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleSaveSummaryCell(conf.key, company);
+                                                        if (e.key === 'Escape') handleCancelEditSummary();
+                                                    }}
+                                                    sx={{ width: '100px', '& input': { textAlign: 'right' } }}
+                                                />
+                                            ) : (
+                                                <Box
+                                                    onClick={() => handleStartEditSummary(conf.key, company, currentRowData[company])}
+                                                    sx={{
+                                                        cursor: 'pointer',
+                                                        p: 0.5,
+                                                        minHeight: '28px',
+                                                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
+                                                        borderRadius: 1,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'flex-end'
+                                                    }}
+                                                >
+                                                    {formatCurrency(currentRowData[company])}
+                                                </Box>
+                                            )}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                                        {!conf.hideTotal && formatCurrency(currentRowData.bk + currentRowData.bkct + currentRowData.bklx + currentRowData.kt + currentRowData.av)}
+                                    </TableCell>
+                                </TableRow>
+                            );
+
+                            // If this is the row AFTER "Số phải nộp của Quý trước" (payable_prev_quarter),
+                            // we should insert the Calculated Total Row *AFTER* it? 
+                            // User list: 
+                            // ... 
+                            // Số phải nộp của Quý trước
+                            // TỔNG TIỀN THUẾ ĐẦU CÒN ĐƯỢC KHẤU TRỪ
+                            // TỔNG CỘNG CÁC CTY NỢ HOÁ ĐƠN
+                            // ...
+
+                            if (conf.key === 'payable_prev_quarter') {
+                                return [rowNode, renderCalculatedTotal()];
+                            }
+
+                            return rowNode;
+                        })}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+
+            {/* NEW: Monthly Revenue/Tax Summary Table - Moved to Bottom */}
+            <Typography variant="h6" sx={{ mt: 4, mb: 2, fontWeight: 700, color: '#1e293b', textAlign: 'center' }}>
+                BẢNG TỔNG HỢP DOANH THU - THUẾ
+            </Typography>
+            <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${ theme.palette.divider } `, mb: 4 }}>
+                <Table size="small">
+                    <TableHead>
+                        <TableRow>
+                            <TableCell sx={{ fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.1), width: '25%' }}>THÁNG {month}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.1), width: '25%' }}>Doanh thu</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.1), width: '25%' }}>Thuế</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.1), width: '25%' }}>Sau thuế</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {/* OUTPUT SECTION */}
+                        <TableRow>
+                            <TableCell sx={{ fontWeight: 700 }}>ĐẦU RA ĐÃ XUẤT</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency((processOutputData.rawTotalTax.factoryOutput?.revenue || 0))}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency((processOutputData.rawTotalTax.factoryOutput?.tax || 0))}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency((processOutputData.rawTotalTax.factoryOutput?.payment || 0))}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                            <TableCell sx={{ pl: 4 }}>Đầu ra xuất VAT</TableCell>
+                            <TableCell align="right">{formatCurrency(processOutputData.rawTotalTax.factoryOutput?.revenue || 0)}</TableCell>
+                            <TableCell align="right">{formatCurrency(processOutputData.rawTotalTax.factoryOutput?.tax || 0)}</TableCell>
+                            <TableCell align="right">{formatCurrency(processOutputData.rawTotalTax.factoryOutput?.payment || 0)}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                            <TableCell sx={{ pl: 4 }}>Đầu ra bán cho công trình nội bộ</TableCell>
+                            <TableCell align="right">-</TableCell>
+                            <TableCell align="right">-</TableCell>
+                            <TableCell align="right">-</TableCell>
+                        </TableRow>
+                        <TableRow>
+                            <TableCell colSpan={4} sx={{ height: '20px', border: 'none' }}></TableCell>
+                        </TableRow>
+
+                        {/* INPUT SECTION */}
+                        <TableRow>
+                            <TableCell sx={{ fontWeight: 700 }}>ĐẦU VÀO</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(processInputData.rawTotalTax.factoryInput?.revenue || 0)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(processInputData.rawTotalTax.factoryInput?.tax || 0)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(processInputData.rawTotalTax.factoryInput?.payment || 0)}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                            <TableCell sx={{ pl: 4 }}>ĐẦU VÀO CUNG ỨNG</TableCell>
+                            <TableCell align="right">{formatCurrency(processInputData.rawTotalTax.factoryInput?.revenue || 0)}</TableCell>
+                            <TableCell align="right">{formatCurrency(processInputData.rawTotalTax.factoryInput?.tax || 0)}</TableCell>
+                            <TableCell align="right">{formatCurrency(processInputData.rawTotalTax.factoryInput?.payment || 0)}</TableCell>
+                        </TableRow>
                     </TableBody>
                 </Table>
             </TableContainer>
@@ -796,7 +1230,7 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
                     </Toolbar>
                 </AppBar>
                 <Box sx={{ p: 3, overflow: 'auto', height: '100%', bgcolor: '#f8fafc' }}>
-                    <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                    <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${ theme.palette.divider } ` }}>
                         <Table sx={{ minWidth: 1200 }} size="small">
                             <TableHead>
                                 <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
