@@ -8,7 +8,7 @@ import {
 import toast from 'react-hot-toast';
 import {
     Description, Receipt, Assessment, Add, Delete, FilterList,
-    Fullscreen, FullscreenExit, Close, Search, TrendingUp, 
+    Fullscreen, FullscreenExit, Close, Search, TrendingUp,
     AttachMoney, ReceiptLong, CalendarMonth, Sort, Keyboard, HelpOutline
 } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
@@ -39,8 +39,8 @@ const CustomTabPanel = (props) => {
             style={{ display: isActive ? 'block' : 'none' }}
             {...other}
         >
-            <Box 
-                sx={{ 
+            <Box
+                sx={{
                     p: 3,
                     animation: isActive ? 'fadeIn 0.3s ease-in' : 'none',
                     '@keyframes fadeIn': {
@@ -256,24 +256,24 @@ export default function InternalTaxReport() {
                 toast.error("Lỗi: Không tìm thấy ID hóa đơn");
                 return;
             }
-            
+
             // Đảm bảo field là string hợp lệ
             if (!field || typeof field !== 'string') {
                 console.error("Invalid field:", field);
                 toast.error("Lỗi: Trường dữ liệu không hợp lệ");
                 return;
             }
-            
+
             const idString = String(id);
             const updateData = { [field]: value };
-            
+
             // Đảm bảo updateData là object hợp lệ
             if (typeof updateData !== 'object' || Array.isArray(updateData)) {
                 console.error("Invalid update data:", updateData);
                 toast.error("Lỗi: Dữ liệu cập nhật không hợp lệ");
                 return;
             }
-            
+
             await updateGeneralInvoice(idString, updateData);
         } catch (error) {
             console.error("Update failed", error);
@@ -293,24 +293,24 @@ export default function InternalTaxReport() {
                 toast.error("Lỗi: Không tìm thấy ID hóa đơn");
                 return;
             }
-            
+
             // Đảm bảo field là string hợp lệ
             if (!field || typeof field !== 'string') {
                 console.error("Invalid field:", field);
                 toast.error("Lỗi: Trường dữ liệu không hợp lệ");
                 return;
             }
-            
+
             const idString = String(id);
             const updateData = { [field]: value };
-            
+
             // Đảm bảo updateData là object hợp lệ
             if (typeof updateData !== 'object' || Array.isArray(updateData)) {
                 console.error("Invalid update data:", updateData);
                 toast.error("Lỗi: Dữ liệu cập nhật không hợp lệ");
                 return;
             }
-            
+
             await updatePurchaseInvoice(idString, updateData);
         } catch (error) {
             console.error("Update failed", error);
@@ -461,7 +461,7 @@ export default function InternalTaxReport() {
     const handleReorderSTTPurchase = async () => {
         const targetGroup = activePurchaseGroup;
         const targetList = targetGroup === 3 ? group3Data : (targetGroup === 4 ? group4Data : group1Data);
-        
+
         if (targetList.length === 0) {
             toast("Không có dữ liệu để sắp xếp", { icon: 'ℹ️' });
             return;
@@ -514,8 +514,8 @@ export default function InternalTaxReport() {
         });
     };
 
-    // Add Empty Row Logic (Ctrl+D)
-    const addEmptyPurchaseRow = async () => {
+    // Add Empty Row Logic (Ctrl+D) - Có thể nhận prefillData để pre-fill các trường
+    const addEmptyPurchaseRow = async (prefillData = {}) => {
         if (activePurchaseGroup === null) return;
         try {
             setActionLoading({ addRow: true });
@@ -524,8 +524,16 @@ export default function InternalTaxReport() {
             const targetList = targetGroup === 3 ? group3Data : (targetGroup === 4 ? group4Data : group1Data);
             const maxStt = targetList.reduce((max, item) => Math.max(max, item.stt || 0), 0);
             const emptyInvoice = {
-                invoiceNo: "", date: "", seller: "", sellerTax: "", valueNoTax: "", tax: "", total: "",
-                rate: "", project: "", buyer: "", nk: "", group: targetGroup, costType: "",
+                invoiceNo: "", date: "",
+                seller: prefillData.seller || "",
+                sellerTax: prefillData.sellerTax || "",
+                valueNoTax: "", tax: "", total: "",
+                rate: "",
+                project: prefillData.project || "",
+                buyer: prefillData.buyer || "",
+                nk: "",
+                group: targetGroup,
+                costType: prefillData.costType || "",
                 stt: maxStt + 1, month, year
             };
             await addPurchaseInvoice(emptyInvoice);
@@ -543,20 +551,74 @@ export default function InternalTaxReport() {
     useEffect(() => {
         const handleKeyDown = async (e) => {
             if (e.ctrlKey && e.key === 'd') {
-                const activeTag = document.activeElement.tagName.toLowerCase();
-                if (activeTag === 'input' || activeTag === 'textarea') return;
-                e.preventDefault();
+                e.preventDefault(); // Ngăn browser bookmark dialog
+
+                // Cho phép Ctrl+D hoạt động ngay cả khi đang trong input (ví dụ search box)
+                // Chỉ block nếu đang thực sự edit text trong một cell
+                const activeElement = document.activeElement;
+                const isEditingCell = activeElement &&
+                    (activeElement.tagName.toLowerCase() === 'input' || activeElement.tagName.toLowerCase() === 'textarea') &&
+                    activeElement.closest('[data-cell-editing="true"]'); // Chỉ block khi đang edit cell
+
+                if (isEditingCell) return;
+
                 if (value === 1) {
-                    addEmptyPurchaseRow();
+                    // ✅ GIỮ NGUYÊN BỘ LỌC và pre-fill hàng mới để khớp filter
+                    // Lấy filter hook của group hiện tại
+                    let activeHook;
+                    if (activePurchaseGroup === 1) activeHook = group1Filter;
+                    else if (activePurchaseGroup === 3) activeHook = group3Filter;
+                    else activeHook = group4Filter;
+
+                    // Pre-fill dựa trên column filters
+                    const prefillData = {};
+                    if (activeHook && activeHook.columnFilters) {
+                        Object.keys(activeHook.columnFilters).forEach(colId => {
+                            const values = activeHook.columnFilters[colId];
+                            if (values && values.length === 1) {
+                                // Nếu filter chỉ có 1 giá trị, pre-fill với giá trị đó
+                                const key = colId.includes('_') ? colId.split('_')[1] : colId;
+                                prefillData[key] = values[0];
+                            }
+                        });
+                    }
+                    // Pre-fill từ search term nếu có (cho seller)
+                    if (purchaseSearchTerm && purchaseSearchTerm.trim()) {
+                        prefillData.seller = prefillData.seller || purchaseSearchTerm.trim();
+                    }
+
+                    addEmptyPurchaseRow(prefillData);
                 } else if (value === 0) {
-                    // Add empty general row
+                    // ✅ GIỮ NGUYÊN BỘ LỌC và pre-fill hàng mới để khớp filter
+                    const prefillData = {};
+
+                    // Pre-fill dựa trên column filters
+                    if (generalFilter && generalFilter.columnFilters) {
+                        Object.keys(generalFilter.columnFilters).forEach(colId => {
+                            const values = generalFilter.columnFilters[colId];
+                            if (values && values.length === 1) {
+                                prefillData[colId] = values[0];
+                            }
+                        });
+                    }
+                    // Pre-fill từ search term nếu có (cho sellerName)
+                    if (generalFilter.searchTerm && generalFilter.searchTerm.trim()) {
+                        prefillData.sellerName = prefillData.sellerName || generalFilter.searchTerm.trim();
+                    }
+
+                    // Add general row với pre-fill data
                     try {
                         setIsProcessing(true);
                         const maxStt = localGeneralInvoices.reduce((max, item) => Math.max(max, item.stt || 0), 0);
                         await addGeneralInvoice({
-                            formSymbol: "", invoiceSymbol: "", invoiceNumber: "", date: "", sellerTaxCode: "", sellerName: "",
-                            buyerTaxCode: "", buyerName: "", buyerAddress: "", totalNoTax: "", taxAmount: "", tradeDiscount: "",
+                            formSymbol: "", invoiceSymbol: "", invoiceNumber: "", date: "", sellerTaxCode: "",
+                            sellerName: prefillData.sellerName || "",
+                            buyerTaxCode: prefillData.buyerTaxCode || "",
+                            buyerName: prefillData.buyerName || "",
+                            buyerAddress: "", totalNoTax: "", taxAmount: "", tradeDiscount: "",
                             totalPayment: "", currency: "VND", exchangeRate: "1.0", status: "Hóa đơn mới", checkResult: "",
+                            costType: prefillData.costType || "",
+                            note: prefillData.note || "",
                             stt: maxStt + 1, month, year
                         });
                         toast.success("Đã thêm hàng mới");
@@ -570,7 +632,7 @@ export default function InternalTaxReport() {
         };
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [value, activePurchaseGroup, group1Data, group3Data, group4Data, localGeneralInvoices, month, year]);
+    }, [value, activePurchaseGroup, group1Data, group3Data, group4Data, localGeneralInvoices, month, year, addEmptyPurchaseRow, addGeneralInvoice, generalFilter, group1Filter, group3Filter, group4Filter, purchaseSearchTerm]);
 
     // Paste Logic
     useEffect(() => {
@@ -587,7 +649,7 @@ export default function InternalTaxReport() {
             try {
                 setIsProcessing(true);
                 const rows = text.split(/\r\n|\n|\r/).filter(row => row.trim() !== "");
-                
+
                 if (value === 0) { // General Invoices (Bảng Kê Bán Ra)
                     const newItems = [];
                     const invalidDates = [];
@@ -647,9 +709,9 @@ export default function InternalTaxReport() {
                     rows.forEach((row, idx) => {
                         const cols = row.split('\t').map(c => c.trim());
                         if (cols.length < 3) return; // Minimum columns required
-                        
+
                         // Bỏ qua STT từ Excel, sẽ tự động tăng theo thứ tự
-                        
+
                         // Map trực tiếp theo thứ tự từ Excel - lấy tất cả dữ liệu như Excel, không bỏ qua cột trống
                         // [STT], SellerName, InvoiceNumber, Date, BuyerName, BuyerTaxCode, TotalNoTax, TaxAmount, Note, CostType
                         let sellerName = "";
@@ -744,7 +806,7 @@ export default function InternalTaxReport() {
                             costType = cols[colIndex];
                             colIndex++;
                         }
-                        
+
                         // Kiểm tra ngày có nằm trong tháng đã chọn không
                         if (date) {
                             const dateParts = date.split('/');
@@ -776,10 +838,10 @@ export default function InternalTaxReport() {
                             });
                             return; // Bỏ qua row này
                         }
-                        
+
                         // Tự động tăng STT theo thứ tự (bỏ qua STT từ Excel)
                         const finalStt = maxStt + idx + 1;
-                        
+
                         newItems.push({
                             stt: finalStt,
                             sellerName: sellerName,
@@ -806,10 +868,10 @@ export default function InternalTaxReport() {
                             year: parseInt(year)
                         });
                     });
-                    
+
                     // Hiển thị cảnh báo nếu có hóa đơn không hợp lệ
                     if (invalidDates.length > 0) {
-                        const invalidList = invalidDates.map(item => 
+                        const invalidList = invalidDates.map(item =>
                             `Dòng ${item.row} (HĐ: ${item.invoice}, Ngày: ${item.date})`
                         ).join('\n');
                         toast(`Đã bỏ qua ${invalidDates.length} hóa đơn không thuộc tháng ${month}/${year}:\n${invalidList}`, {
@@ -817,7 +879,7 @@ export default function InternalTaxReport() {
                             duration: 5000
                         });
                     }
-                    
+
                     if (newItems.length > 0) {
                         await InternalTaxService.addGeneralInvoicesBatch(newItems, month, year);
                         toast.success(`Đã thêm ${newItems.length} hóa đơn bán ra`);
@@ -864,9 +926,9 @@ export default function InternalTaxReport() {
                     rows.forEach((row, idx) => {
                         const cols = row.split('\t').map(c => c.trim());
                         if (cols.length < 6) return; // Minimum: STT, Buyer, Invoice, Date, Seller, SellerTax
-                        
+
                         // Bỏ qua STT từ Excel, sẽ tự động tăng theo thứ tự
-                        
+
                         // Map trực tiếp theo thứ tự từ Excel, bỏ qua cột trống
                         // [STT], Buyer, Invoice, Date, [trống], Seller, [trống], SellerTax, ValueNoTax, Tax, Rate, [trống], CostType, [trống], Project
                         let buyer = "";
@@ -970,9 +1032,9 @@ export default function InternalTaxReport() {
                                 // TUYỆT ĐỐI KHÔNG lấy percentage - kiểm tra đầu tiên
                                 if (!isPercentage(candidate)) {
                                     // Chỉ lấy nếu là text thực sự (không phải currency, tax code, date, invoice number, STT)
-                                    if (!isCurrency(candidate) && 
-                                        !isTaxCode(candidate) && 
-                                        !isDate(candidate) && 
+                                    if (!isCurrency(candidate) &&
+                                        !isTaxCode(candidate) &&
+                                        !isDate(candidate) &&
                                         !isInvoiceNumber(candidate) &&
                                         !isSTT(candidate) &&
                                         isText(candidate)) {
@@ -983,19 +1045,19 @@ export default function InternalTaxReport() {
                             // Luôn tăng colIndex để chuyển sang cột tiếp theo (Project)
                             colIndex++;
                         }
-                        
+
                         // Bỏ qua cột trống giữa CostType và Project (nếu có)
                         while (colIndex < cols.length && (!cols[colIndex] || cols[colIndex].trim() === '')) colIndex++;
-                        
+
                         // Cột 9: Project - Lấy cột tiếp theo sau CostType
                         if (colIndex < cols.length) {
                             const candidate = cols[colIndex];
                             // TUYỆT ĐỐI KHÔNG lấy percentage - kiểm tra đầu tiên
                             if (candidate && !isPercentage(candidate)) {
                                 // Chỉ lấy nếu là text thực sự (không phải currency, tax code, date, invoice number, STT)
-                                if (!isCurrency(candidate) && 
-                                    !isTaxCode(candidate) && 
-                                    !isDate(candidate) && 
+                                if (!isCurrency(candidate) &&
+                                    !isTaxCode(candidate) &&
+                                    !isDate(candidate) &&
                                     !isInvoiceNumber(candidate) &&
                                     !isSTT(candidate) &&
                                     isText(candidate)) {
@@ -1004,10 +1066,10 @@ export default function InternalTaxReport() {
                             }
                             colIndex++;
                         }
-                        
+
                         // KHÔNG CÓ FALLBACK - nếu không có dữ liệu thì để trống
                         // Đảm bảo costType và project chỉ được lấy từ đúng vị trí, không tìm từ cuối
-                        
+
                         // KIỂM TRA CUỐI CÙNG: Đảm bảo costType và project KHÔNG BAO GIỜ là percentage
                         // Nếu vô tình lấy nhầm percentage, để trống
                         if (costType && isPercentage(costType)) {
@@ -1048,10 +1110,10 @@ export default function InternalTaxReport() {
                             });
                             return; // Bỏ qua row này
                         }
-                        
+
                         // Tự động tăng STT theo thứ tự (bỏ qua STT từ Excel)
                         const finalStt = maxStt + idx + 1;
-                        
+
                         newItems.push({
                             stt: finalStt,
                             group: targetGroup,
@@ -1068,10 +1130,10 @@ export default function InternalTaxReport() {
                             month, year
                         });
                     });
-                    
+
                     // Hiển thị cảnh báo nếu có hóa đơn không hợp lệ
                     if (invalidDates.length > 0) {
-                        const invalidList = invalidDates.map(item => 
+                        const invalidList = invalidDates.map(item =>
                             `Dòng ${item.row} (HĐ: ${item.invoice}, Ngày: ${item.date})`
                         ).join('\n');
                         toast(`Đã bỏ qua ${invalidDates.length} hóa đơn không thuộc tháng ${month}/${year}:\n${invalidList}`, {
@@ -1079,7 +1141,7 @@ export default function InternalTaxReport() {
                             duration: 5000
                         });
                     }
-                    
+
                     if (newItems.length > 0) {
                         await InternalTaxService.addPurchaseInvoicesBatch(newItems, month, year);
                         toast.success(`Đã thêm ${newItems.length} hóa đơn mua vào`);
@@ -1119,7 +1181,7 @@ export default function InternalTaxReport() {
         const generalTax = generalFilter.totals?.taxAmount || 0;
         const purchaseTotal = group1Filter.totals?.totalNoTax + group3Filter.totals?.totalNoTax + group4Filter.totals?.totalNoTax || 0;
         const purchaseTax = group1Filter.totals?.taxAmount + group3Filter.totals?.taxAmount + group4Filter.totals?.taxAmount || 0;
-        
+
         return {
             generalCount: generalFilter.filteredData.length,
             purchaseCount: group1Filter.filteredData.length + group3Filter.filteredData.length + group4Filter.filteredData.length,
@@ -1133,8 +1195,8 @@ export default function InternalTaxReport() {
     return (
         <Box sx={{ width: '100%', typography: 'body1', py: 3 }}>
             {/* Header with gradient */}
-            <Box 
-                sx={{ 
+            <Box
+                sx={{
                     mb: 4,
                     background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                     borderRadius: 3,
@@ -1188,8 +1250,8 @@ export default function InternalTaxReport() {
             {/* Statistics Cards */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Card 
-                        sx={{ 
+                    <Card
+                        sx={{
                             background: `linear-gradient(135deg, ${theme.palette.primary.light} 0%, ${theme.palette.primary.main} 100%)`,
                             color: 'white',
                             borderRadius: 2,
@@ -1212,8 +1274,8 @@ export default function InternalTaxReport() {
                     </Card>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Card 
-                        sx={{ 
+                    <Card
+                        sx={{
                             background: `linear-gradient(135deg, ${theme.palette.success.light} 0%, ${theme.palette.success.main} 100%)`,
                             color: 'white',
                             borderRadius: 2,
@@ -1236,8 +1298,8 @@ export default function InternalTaxReport() {
                     </Card>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Card 
-                        sx={{ 
+                    <Card
+                        sx={{
                             background: `linear-gradient(135deg, ${theme.palette.info.light} 0%, ${theme.palette.info.main} 100%)`,
                             color: 'white',
                             borderRadius: 2,
@@ -1260,8 +1322,8 @@ export default function InternalTaxReport() {
                     </Card>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Card 
-                        sx={{ 
+                    <Card
+                        sx={{
                             background: `linear-gradient(135deg, ${theme.palette.warning.light} 0%, ${theme.palette.warning.main} 100%)`,
                             color: 'white',
                             borderRadius: 2,
@@ -1286,13 +1348,13 @@ export default function InternalTaxReport() {
             </Grid>
 
             {/* Date Filter */}
-            <Paper 
-                elevation={0} 
-                sx={{ 
-                    p: 3, 
-                    mb: 4, 
-                    borderRadius: 3, 
-                    border: '1px solid', 
+            <Paper
+                elevation={0}
+                sx={{
+                    p: 3,
+                    mb: 4,
+                    borderRadius: 3,
+                    border: '1px solid',
                     borderColor: 'divider',
                     background: alpha(theme.palette.primary.main, 0.02)
                 }}
@@ -1307,13 +1369,13 @@ export default function InternalTaxReport() {
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <FormControl fullWidth size="small">
                             <InputLabel>Tháng</InputLabel>
-                            <Select 
-                                value={month} 
-                                label="Tháng" 
+                            <Select
+                                value={month}
+                                label="Tháng"
                                 onChange={(e) => setMonth(e.target.value)}
                                 sx={{ borderRadius: 2 }}
                             >
-                                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => 
+                                {Array.from({ length: 12 }, (_, i) => i + 1).map(m =>
                                     <MenuItem key={m} value={m}>Tháng {m}</MenuItem>
                                 )}
                             </Select>
@@ -1322,9 +1384,9 @@ export default function InternalTaxReport() {
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <FormControl fullWidth size="small">
                             <InputLabel>Năm</InputLabel>
-                            <Select 
-                                value={year} 
-                                label="Năm" 
+                            <Select
+                                value={year}
+                                label="Năm"
                                 onChange={(e) => setYear(e.target.value)}
                                 sx={{ borderRadius: 2 }}
                             >
@@ -1336,20 +1398,20 @@ export default function InternalTaxReport() {
                 </Grid>
             </Paper>
 
-            <Paper 
+            <Paper
                 elevation={0}
-                sx={{ 
-                    width: '100%', 
-                    mb: 2, 
+                sx={{
+                    width: '100%',
+                    mb: 2,
                     borderRadius: 3,
                     border: '1px solid',
                     borderColor: 'divider',
                     overflow: 'hidden'
                 }}
             >
-                <Tabs 
-                    value={value} 
-                    onChange={handleChange} 
+                <Tabs
+                    value={value}
+                    onChange={handleChange}
                     variant="fullWidth"
                     sx={{
                         borderBottom: '1px solid',
@@ -1373,22 +1435,22 @@ export default function InternalTaxReport() {
                         }
                     }}
                 >
-                    <Tab 
-                        icon={<Description />} 
+                    <Tab
+                        icon={<Description />}
                         iconPosition="start"
-                        label="Bảng Kê Bán Ra" 
+                        label="Bảng Kê Bán Ra"
                         sx={{ gap: 1 }}
                     />
-                    <Tab 
-                        icon={<Receipt />} 
+                    <Tab
+                        icon={<Receipt />}
                         iconPosition="start"
-                        label="Bảng Kê Mua Vào" 
+                        label="Bảng Kê Mua Vào"
                         sx={{ gap: 1 }}
                     />
-                    <Tab 
-                        icon={<Assessment />} 
+                    <Tab
+                        icon={<Assessment />}
                         iconPosition="start"
-                        label="Tờ Khai Thuế GTGT" 
+                        label="Tờ Khai Thuế GTGT"
                         sx={{ gap: 1 }}
                     />
                 </Tabs>
@@ -1404,9 +1466,9 @@ export default function InternalTaxReport() {
 
                     {localGeneralInvoices.length > 0 && (
                         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
-                            <Button 
-                                variant="outlined" 
-                                onClick={handleReorderSTTGeneral} 
+                            <Button
+                                variant="outlined"
+                                onClick={handleReorderSTTGeneral}
                                 startIcon={<Sort />}
                                 sx={{
                                     borderRadius: 2,
@@ -1421,10 +1483,10 @@ export default function InternalTaxReport() {
                             >
                                 Sắp xếp lại STT
                             </Button>
-                            <Button 
-                                variant="outlined" 
-                                color="error" 
-                                onClick={handleDeleteAllGeneral} 
+                            <Button
+                                variant="outlined"
+                                color="error"
+                                onClick={handleDeleteAllGeneral}
                                 startIcon={<Delete />}
                                 sx={{
                                     borderRadius: 2,
@@ -1472,9 +1534,9 @@ export default function InternalTaxReport() {
 
                     <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
                         <Tooltip title="Thêm hàng trống mới (Ctrl + D)" arrow>
-                            <Button 
-                                variant="outlined" 
-                                startIcon={actionLoading.addRow ? <CircularProgress size={16} /> : <Add />} 
+                            <Button
+                                variant="outlined"
+                                startIcon={actionLoading.addRow ? <CircularProgress size={16} /> : <Add />}
                                 onClick={addEmptyPurchaseRow}
                                 disabled={actionLoading.addRow}
                                 sx={{
@@ -1492,8 +1554,8 @@ export default function InternalTaxReport() {
                             </Button>
                         </Tooltip>
                         <Tooltip title="Sắp xếp lại số thứ tự theo ngày" arrow>
-                            <Button 
-                                variant="outlined" 
+                            <Button
+                                variant="outlined"
                                 onClick={handleReorderSTTPurchase}
                                 disabled={actionLoading.reorder}
                                 startIcon={actionLoading.reorder ? <CircularProgress size={16} /> : <Sort />}
@@ -1512,9 +1574,9 @@ export default function InternalTaxReport() {
                             </Button>
                         </Tooltip>
                         <Tooltip title="Xóa tất cả hóa đơn đang hiển thị" arrow>
-                            <Button 
-                                variant="outlined" 
-                                color="error" 
+                            <Button
+                                variant="outlined"
+                                color="error"
                                 onClick={handleDeleteAllPurchase}
                                 disabled={actionLoading.deleteAll}
                                 startIcon={actionLoading.deleteAll ? <CircularProgress size={16} /> : <Delete />}
@@ -1552,7 +1614,7 @@ export default function InternalTaxReport() {
                                     cursor: isActive ? 'default' : 'pointer',
                                     transition: 'all 0.3s',
                                     bgcolor: isActive ? alpha(theme.palette.primary.main, 0.05) : 'background.paper',
-                                    '&:hover': { 
+                                    '&:hover': {
                                         borderColor: isActive ? theme.palette.primary.main : theme.palette.primary.light,
                                         bgcolor: isActive ? alpha(theme.palette.primary.main, 0.05) : alpha(theme.palette.primary.main, 0.02),
                                         transform: 'translateY(-2px)',

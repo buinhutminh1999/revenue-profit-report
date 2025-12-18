@@ -31,13 +31,24 @@ export const InvoiceRow = React.memo(({
     const [editValue, setEditValue] = React.useState('');
     const isEditingRef = React.useRef(false);
 
-    // Auto-focus first field if row is empty (newly added)
+    // Auto-focus first EMPTY field when row is newly added (even if some fields are pre-filled)
     React.useEffect(() => {
-        const isEmpty = !row.invoiceNumber && !row.sellerName && !row.buyerName &&
-            !row.totalNoTax && !row.taxAmount && !row.totalPayment && !row.costType;
-        if (isEmpty) {
-            setEditingField('sellerName');
-            isEditingRef.current = true;
+        // Danh sách các field theo thứ tự hiển thị
+        const fieldOrder = ['sellerName', 'invoiceNumber', 'date', 'buyerName', 'buyerTaxCode', 'totalNoTax', 'taxAmount', 'note', 'costType'];
+
+        // Tìm field ĐẦU TIÊN có giá trị (đã được pre-fill)
+        const hasAnyPrefilledField = fieldOrder.some(field => row[field] && row[field].toString().trim() !== '');
+
+        // Nếu là row mới (không có invoiceNumber và totalNoTax) hoặc có pre-fill
+        const isNewRow = !row.invoiceNumber && !row.totalNoTax && !row.taxAmount;
+
+        if (isNewRow || hasAnyPrefilledField) {
+            // Tìm field đầu tiên TRỐNG để focus vào
+            const firstEmptyField = fieldOrder.find(field => !row[field] || row[field].toString().trim() === '');
+            if (firstEmptyField) {
+                setEditingField(firstEmptyField);
+                isEditingRef.current = true;
+            }
         }
     }, []); // Only run on mount
 
@@ -201,18 +212,18 @@ export const InvoiceRow = React.memo(({
 
             {/* These fields are typically unique per row, so no merging default */}
             {/* Format currency values for display */}
-            <EditableCell 
-                field="totalNoTax" 
-                value={row.totalNoTax ? formatCurrency(parseCurrency(row.totalNoTax)) : ''} 
+            <EditableCell
+                field="totalNoTax"
+                value={row.totalNoTax ? formatCurrency(parseCurrency(row.totalNoTax)) : ''}
                 rawValue={row.totalNoTax}
-                align="right" 
-                sx={{ fontWeight: 600, color: theme.palette.primary.main }} 
+                align="right"
+                sx={{ fontWeight: 600, color: theme.palette.primary.main }}
             />
-            <EditableCell 
-                field="taxAmount" 
-                value={row.taxAmount ? formatCurrency(parseCurrency(row.taxAmount)) : ''} 
+            <EditableCell
+                field="taxAmount"
+                value={row.taxAmount ? formatCurrency(parseCurrency(row.taxAmount)) : ''}
                 rawValue={row.taxAmount}
-                align="right" 
+                align="right"
             />
             <EditableCell field="note" value={row.note} />
             <EditableCell field="costType" value={row.costType} />
@@ -251,13 +262,24 @@ export const PurchaseInvoiceRow = React.memo(({
     const rate = valueNoTax !== 0 ? tax / valueNoTax : 0;
     const total = valueNoTax + tax;
 
-    // Auto-focus first field if row is empty (newly added)
+    // Auto-focus first EMPTY field when row is newly added (even if some fields are pre-filled)
     React.useEffect(() => {
-        // Check if essential fields are empty
-        const isEmpty = !row.invoiceNo && !row.seller && !row.valueNoTax && !row.buyer;
-        if (isEmpty) {
-            setEditingField('buyer');
-            isEditingRef.current = true;
+        // Danh sách các field theo thứ tự hiển thị
+        const fieldOrder = ['buyer', 'invoiceNo', 'date', 'seller', 'sellerTax', 'valueNoTax', 'tax', 'costType', 'project'];
+
+        // Tìm field ĐẦU TIÊN có giá trị (đã được pre-fill)
+        const hasAnyPrefilledField = fieldOrder.some(field => row[field] && row[field].toString().trim() !== '');
+
+        // Nếu là row mới (không có invoiceNo và valueNoTax) hoặc có pre-fill
+        const isNewRow = !row.invoiceNo && !row.valueNoTax && !row.tax;
+
+        if (isNewRow || hasAnyPrefilledField) {
+            // Tìm field đầu tiên TRỐNG để focus vào
+            const firstEmptyField = fieldOrder.find(field => !row[field] || row[field].toString().trim() === '');
+            if (firstEmptyField) {
+                setEditingField(firstEmptyField);
+                isEditingRef.current = true;
+            }
         }
     }, []); // Only run on mount
 
@@ -374,17 +396,17 @@ export const PurchaseInvoiceRow = React.memo(({
             <EditableCell field="seller" value={row.seller} />
             <EditableCell field="sellerTax" value={row.sellerTax} align="center" />
             {/* Format currency values for display */}
-            <EditableCell 
-                field="valueNoTax" 
-                value={row.valueNoTax ? formatCurrency(parseCurrency(row.valueNoTax)) : ''} 
+            <EditableCell
+                field="valueNoTax"
+                value={row.valueNoTax ? formatCurrency(parseCurrency(row.valueNoTax)) : ''}
                 rawValue={row.valueNoTax}
-                align="right" 
+                align="right"
             />
-            <EditableCell 
-                field="tax" 
-                value={row.tax ? formatCurrency(parseCurrency(row.tax)) : ''} 
+            <EditableCell
+                field="tax"
+                value={row.tax ? formatCurrency(parseCurrency(row.tax)) : ''}
                 rawValue={row.tax}
-                align="right" 
+                align="right"
             />
             <TableCell align="right" sx={{ width: 130, fontWeight: 600, color: theme.palette.primary.main }}>
                 {formatCurrency(total)}

@@ -144,7 +144,6 @@ export default function ProfitReportQuarter() {
     useEffect(() => {
         // Hàm này chứa toàn bộ logic lấy và xử lý dữ liệu của bạn
         const processData = async () => {
-            console.log("Realtime update triggered! Reprocessing data...");
             setLoading(true);
 
             // ✅ BƯỚC 1: ĐIỀN LẠI LOGIC VÀO 2 HÀM NÀY
@@ -876,32 +875,27 @@ export default function ProfitReportQuarter() {
 
         // Listener 1: Lắng nghe thay đổi trên collection `projects` (thêm/xóa dự án)
         unsubscribes.push(onSnapshot(collection(db, "projects"), () => {
-            console.log("Change detected in 'projects' collection.");
             debouncedProcess();
         }));
 
         // Listener 2: Lắng nghe thay đổi trên TẤT CẢ các collection con `quarters`
         unsubscribes.push(onSnapshot(collectionGroup(db, 'quarters'), () => {
-            console.log("Change detected in a 'quarters' sub-collection.");
             debouncedProcess();
         }));
 
         // ✅ THÊM MỚI - Listener 3: Lắng nghe thay đổi của file costAllocationsQuarter
         unsubscribes.push(onSnapshot(doc(db, "costAllocationsQuarter", `${selectedYear}_${selectedQuarter}`), () => {
-            console.log("Change detected in 'costAllocationsQuarter'.");
             debouncedProcess();
         }));
 
         // ✅ THÊM MỚI - Listener 4: Lắng nghe thay đổi của file profitChanges
         unsubscribes.push(onSnapshot(doc(db, "profitChanges", `${selectedYear}_${selectedQuarter}`), () => {
-            console.log("Change detected in 'profitChanges'.");
             debouncedProcess();
         }));
 
 
         // Hàm dọn dẹp: sẽ chạy khi component unmount hoặc khi year/quarter thay đổi
         return () => {
-            console.log("Cleaning up all listeners for quarter report.");
             unsubscribes.forEach(unsub => unsub());
             clearTimeout(window.reportDebounceTimeout);
         };
@@ -919,7 +913,6 @@ export default function ProfitReportQuarter() {
             doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`),
             dataToSave
         );
-        console.log("Đã lưu báo cáo và chỉ tiêu thành công!");
     };
 
     const rowsHideRevenueCost = [

@@ -514,7 +514,7 @@ const useProfitReportData = (selectedYear) => {
             setLoading(true);
 
             const quarters = ["Q1", "Q2", "Q3", "Q4"];
-            
+
             // ✅ Tính targetQuarter một lần để dùng lại
             const now = new Date();
             const currentMonth = now.getMonth();
@@ -531,7 +531,7 @@ const useProfitReportData = (selectedYear) => {
                     targetQuarter = quarters[currentQuarterIndex - 1];
                 }
             }
-            
+
             // ✅ TỐI ƯU: Load tất cả các document cần thiết song song
             const [
                 quarterlyReports,
@@ -542,7 +542,7 @@ const useProfitReportData = (selectedYear) => {
                 sanXuatDoc
             ] = await Promise.all([
                 // Load tất cả 4 báo cáo quý song song
-                Promise.all(quarters.map(q => 
+                Promise.all(quarters.map(q =>
                     getDoc(doc(db, "profitReports", `${selectedYear}_${q}`))
                         .catch(err => {
                             console.error(`Lỗi khi đọc báo cáo quý ${q}/${selectedYear}:`, err);
@@ -572,6 +572,13 @@ const useProfitReportData = (selectedYear) => {
                     quarterlyReportsCache[quarters[index]] = docSnap.data();
                 }
             });
+            console.log("[DEBUG] quarterlyReportsCache keys:", Object.keys(quarterlyReportsCache));
+            console.log("[DEBUG] Q2 exists:", !!quarterlyReportsCache["Q2"]);
+            if (quarterlyReportsCache["Q2"]) {
+                console.log("[DEBUG] Q2 rows count:", quarterlyReportsCache["Q2"].rows?.length);
+                const xnxd2InQ2 = quarterlyReportsCache["Q2"].rows?.filter(r => r.type === "xnxd2");
+                console.log("[DEBUG] xnxd2 rows in Q2:", xnxd2InQ2);
+            }
 
             // ======================================================================
             // ✅ BƯỚC 1: TÍNH TỔNG CHỈ TIÊU
@@ -802,7 +809,7 @@ const useProfitReportData = (selectedYear) => {
 
             // ✅ TỐI ƯU: Load profitChanges song song
             const profitChangeDocs = await Promise.all(
-                quarters.map(q => 
+                quarters.map(q =>
                     getDoc(doc(db, "profitChanges", `${selectedYear}_${q}`))
                         .catch(() => ({ exists: () => false }))
                 )
@@ -962,7 +969,32 @@ const useProfitReportData = (selectedYear) => {
             quarters.forEach(quarter => {
                 const reportData = quarterlyReportsCache[quarter];
                 if (reportData && Array.isArray(reportData.rows)) {
-                    const xnxd2Rows = reportData.rows.filter((row) => row.type === "xnxd2");
+                    // LOGIC MỚI: Kết hợp cả filter theo type và vị trí để đảm bảo lấy đủ
+                    const allRows = reportData.rows;
+
+                    // 1. Lấy theo type (như cũ)
+                    let xnxd2Rows = allRows.filter((row) => row.type === "xnxd2");
+
+                    // 2. Lấy theo vị trí (để bắt được các row thêm tay bị thiếu type)
+                    const startIndex = allRows.findIndex(r => (r.name || "").trim() === "I.4. Xí nghiệp XD II");
+                    if (startIndex !== -1) {
+                        // Tìm header tiếp theo (bắt đầu bằng II. hoặc các mục lớn khác)
+                        let endIndex = allRows.findIndex((r, idx) => idx > startIndex && (r.name || "").match(/^[IVX]+\./));
+                        if (endIndex === -1) endIndex = allRows.length;
+
+                        const rowsInGroup = allRows.slice(startIndex + 1, endIndex).filter(r =>
+                            !r.name.match(/^[IVX]+\./) && // Không phải header
+                            !r.projectId // Ưu tiên lấy các row manual (project thật đã được load từ collection projects)
+                        );
+
+                        // Merge vào danh sách (tránh trùng lặp)
+                        rowsInGroup.forEach(r => {
+                            if (!xnxd2Rows.find(existing => existing.name === r.name)) {
+                                xnxd2Rows.push(r);
+                            }
+                        });
+                    }
+
                     xnxd2Rows.forEach((projectRow) => {
                         let existingProject = xiNghiepXD2Projects.find(
                             (p) => p.name === projectRow.name
@@ -983,6 +1015,8 @@ const useProfitReportData = (selectedYear) => {
                     });
                 }
             });
+
+            console.log("[DEBUG] xiNghiepXD2Projects collected:", xiNghiepXD2Projects);
 
             // Tính tổng cả năm cho từng dự án
             xiNghiepXD2Projects.forEach((project) => {
@@ -1005,6 +1039,9 @@ const useProfitReportData = (selectedYear) => {
                 (r) => r.name === "I.4. Xí nghiệp XD II"
             );
 
+            console.log("[DEBUG] xiNghiepHeaderIndex:", xiNghiepHeaderIndex);
+            console.log("[DEBUG] rowTemplate before insert (first 10):", rowTemplate.slice(0, 10).map(r => r.name));
+
             if (xiNghiepHeaderIndex !== -1) {
                 // Chèn các dự án chi tiết sau header I.4
                 let insertPosition = xiNghiepHeaderIndex + 1;
@@ -1020,6 +1057,10 @@ const useProfitReportData = (selectedYear) => {
                 xiNghiepXD2Projects.forEach((project, index) => {
                     rowTemplate.splice(insertPosition + index, 0, project);
                 });
+
+                console.log("[DEBUG] After insert - rows around I.4:", rowTemplate.slice(xiNghiepHeaderIndex, xiNghiepHeaderIndex + 7).map(r => r.name));
+            } else {
+                console.log("[DEBUG] WARNING: I.4. Xí nghiệp XD II header NOT FOUND in rowTemplate!");
             }
             // ✅ TỐI ƯU: Sử dụng cache thay vì đọc lại từ Firestore
             const nhaMayProjects = [];
@@ -1184,6 +1225,11 @@ const useProfitReportData = (selectedYear) => {
             projects.forEach((p) => {
                 const index = rowTemplate.findIndex((r) => r.name === p.name);
                 if (index > -1) {
+                    // ✅ BẢO VỆ: Không ghi đè các công trình xnxd2 (đã được load từ báo cáo quý)
+                    if (rowTemplate[index].type === "xnxd2") {
+                        console.log(`[DEBUG] Skipping overwrite for xnxd2 project: ${p.name}`);
+                        return; // Skip, giữ nguyên dữ liệu từ báo cáo quý
+                    }
                     rowTemplate[index] = { ...rowTemplate[index], ...p };
                 } else {
                     let insertIndex = -1;
@@ -1301,6 +1347,10 @@ const useProfitReportData = (selectedYear) => {
             allProjects.forEach((p) => {
                 const index = rowTemplate.findIndex((r) => r.name === p.name);
                 if (index > -1) {
+                    // ✅ BẢO VỆ: Không ghi đè các công trình xnxd2 (đã được load từ báo cáo quý)
+                    if (rowTemplate[index].type === "xnxd2") {
+                        return; // Skip, giữ nguyên dữ liệu từ báo cáo quý
+                    }
                     // Ghi đè nếu đã tồn tại (dành cho trường hợp load từ báo cáo đã lưu)
                     rowTemplate[index] = { ...rowTemplate[index], ...p };
                 } else {
@@ -1361,6 +1411,11 @@ const useProfitReportData = (selectedYear) => {
                     };
                 }
             });
+
+            // DEBUG: Check final rows for xnxd2
+            const xnxd2InFinal = finalRows.filter(r => r.type === "xnxd2");
+            console.log("[DEBUG] xnxd2 in finalRows:", xnxd2InFinal.map(r => r.name));
+            console.log("[DEBUG] finalRows count:", finalRows.length);
 
             setRows(finalRows);
             setLoading(false);
@@ -1680,7 +1735,7 @@ export default function ProfitReportYear() {
                 />
             );
         }
-        
+
         return (
             <Box
                 onClick={handleClick}
@@ -1726,9 +1781,9 @@ export default function ProfitReportYear() {
     const visibleCostCols = Object.keys(columnVisibility).filter(k => k.startsWith('costQ') && columnVisibility[k]).length;
     const visibleProfitCols = Object.keys(columnVisibility).filter(k => k.startsWith('profitQ') && columnVisibility[k]).length;
     return (
-        <Box sx={{ 
-            p: tvMode ? 4 : 3, 
-            bgcolor: tvMode ? "#f0f4f8" : "#f7faff", 
+        <Box sx={{
+            p: tvMode ? 4 : 3,
+            bgcolor: tvMode ? "#f0f4f8" : "#f7faff",
             minHeight: "100vh",
             ...(tvMode && {
                 background: "linear-gradient(135deg, #f0f4f8 0%, #e8f0f7 100%)",
@@ -1748,10 +1803,10 @@ export default function ProfitReportYear() {
                     }}
                 />
             )}
-            <Paper 
-                elevation={tvMode ? 6 : 3} 
-                sx={{ 
-                    p: tvMode ? 4 : { xs: 2, md: 3 }, 
+            <Paper
+                elevation={tvMode ? 6 : 3}
+                sx={{
+                    p: tvMode ? 4 : { xs: 2, md: 3 },
                     borderRadius: tvMode ? 4 : 3,
                     ...(tvMode && {
                         boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
@@ -1769,9 +1824,9 @@ export default function ProfitReportYear() {
                         gap: tvMode ? 3 : 2,
                     }}
                 >
-                    <Typography 
-                        variant={tvMode ? "h3" : "h5"} 
-                        fontWeight={700} 
+                    <Typography
+                        variant={tvMode ? "h3" : "h5"}
+                        fontWeight={700}
                         color="primary"
                         sx={{
                             fontSize: tvMode ? "2.5rem" : undefined,
@@ -1794,7 +1849,7 @@ export default function ProfitReportYear() {
                             onChange={(e) =>
                                 setSelectedYear(Number(e.target.value))
                             }
-                            sx={{ 
+                            sx={{
                                 minWidth: tvMode ? 140 : 100,
                                 "& .MuiInputBase-root": {
                                     fontSize: tvMode ? "1.25rem" : undefined,
@@ -1836,7 +1891,7 @@ export default function ProfitReportYear() {
                         </Button>
                         {/* ✅ NÚT TOGGLE TV MODE */}
                         <Tooltip title={tvMode ? "Chuyển sang chế độ PC/Laptop" : "Chuyển sang chế độ TV màn hình lớn"}>
-                            <Button 
+                            <Button
                                 variant={tvMode ? "contained" : "outlined"}
                                 size={tvMode ? "large" : "medium"}
                                 onClick={() => setTvMode(!tvMode)}
@@ -1861,10 +1916,10 @@ export default function ProfitReportYear() {
                         </Tooltip>
                         {/* ✅ 3. THÊM NÚT VÀ MENU TẠI ĐÂY */}
                         <Tooltip title="Ẩn/Hiện cột">
-                            <Button 
-                                variant="outlined" 
+                            <Button
+                                variant="outlined"
                                 size={tvMode ? "large" : "medium"}
-                                onClick={handleColumnMenuClick} 
+                                onClick={handleColumnMenuClick}
                                 startIcon={<ViewColumnIcon sx={{ fontSize: tvMode ? 24 : undefined }} />}
                                 sx={{
                                     fontSize: tvMode ? "1.1rem" : undefined,
@@ -1876,9 +1931,9 @@ export default function ProfitReportYear() {
                                 Các cột
                             </Button>
                         </Tooltip>
-                        <Menu 
-                            anchorEl={anchorEl} 
-                            open={open} 
+                        <Menu
+                            anchorEl={anchorEl}
+                            open={open}
                             onClose={handleColumnMenuClose}
                             PaperProps={{
                                 sx: {
@@ -1898,7 +1953,7 @@ export default function ProfitReportYear() {
                             {Object.keys(columnVisibility).map((key) => (
                                 <MenuItem key={key} onClick={() => handleToggleColumn(key)}>
                                     <Checkbox checked={columnVisibility[key]} />
-                                    <ListItemText 
+                                    <ListItemText
                                         primary={columnLabels[key] || key.toUpperCase()}
                                         primaryTypographyProps={{
                                             fontSize: tvMode ? "1.1rem" : undefined,
@@ -1926,11 +1981,11 @@ export default function ProfitReportYear() {
                         boxShadow: tvMode ? "0 4px 20px rgba(0, 0, 0, 0.1)" : "none",
                     }}
                 >
-                    <Table 
-                        stickyHeader 
-                        size={tvMode ? "medium" : "small"} 
-                        sx={{ 
-                            minWidth: tvMode ? 4200 : 3800, 
+                    <Table
+                        stickyHeader
+                        size={tvMode ? "medium" : "small"}
+                        sx={{
+                            minWidth: tvMode ? 4200 : 3800,
                             tableLayout: 'fixed',
                             "& .MuiTableCell-root": {
                                 fontSize: tvMode ? "1.1rem" : undefined,
@@ -1938,27 +1993,27 @@ export default function ProfitReportYear() {
                         }}
                     >
                         <TableHead>
-                            <TableRow sx={{ 
-                                "& th": { 
-                                    backgroundColor: tvMode ? "#0d47a1" : "#1565c0", 
-                                    color: "#fff", 
-                                    fontWeight: tvMode ? 800 : 700, 
+                            <TableRow sx={{
+                                "& th": {
+                                    backgroundColor: tvMode ? "#0d47a1" : "#1565c0",
+                                    color: "#fff",
+                                    fontWeight: tvMode ? 800 : 700,
                                     border: tvMode ? "2px solid #004c8f" : "1px solid #004c8f",
                                     fontSize: tvMode ? "1.2rem" : undefined,
                                     padding: tvMode ? "16px" : undefined,
-                                } 
+                                }
                             }}>
                                 {/* CỘT CÔNG TRÌNH (Luôn hiển thị) */}
                                 <ResizableHeader
                                     width={tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth}
                                     onResize={handleColumnResize}
-                                    style={{ 
-                                        ...cellStyle, 
-                                        width: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth, 
-                                        position: "sticky", 
-                                        left: 0, 
-                                        zIndex: 110, 
-                                        backgroundColor: tvMode ? "#0d47a1" : "#1565c0", 
+                                    style={{
+                                        ...cellStyle,
+                                        width: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth,
+                                        position: "sticky",
+                                        left: 0,
+                                        zIndex: 110,
+                                        backgroundColor: tvMode ? "#0d47a1" : "#1565c0",
                                         textAlign: 'center',
                                         fontSize: tvMode ? "1.3rem" : cellStyle.fontSize,
                                         fontWeight: tvMode ? 800 : 700,
@@ -1986,15 +2041,15 @@ export default function ProfitReportYear() {
                                 {columnVisibility.note && <TableCell rowSpan={2} align="center" sx={{ minWidth: 200 }}>GHI CHÚ</TableCell>}
                             </TableRow>
 
-                            <TableRow sx={{ 
-                                "& th": { 
-                                    backgroundColor: tvMode ? "#0d47a1" : "#1565c0", 
-                                    color: "#fff", 
-                                    fontWeight: tvMode ? 700 : 600, 
+                            <TableRow sx={{
+                                "& th": {
+                                    backgroundColor: tvMode ? "#0d47a1" : "#1565c0",
+                                    color: "#fff",
+                                    fontWeight: tvMode ? 700 : 600,
                                     border: tvMode ? "2px solid #004c8f" : "1px solid #004c8f",
                                     fontSize: tvMode ? "1.1rem" : undefined,
                                     padding: tvMode ? "14px" : undefined,
-                                } 
+                                }
                             }}>
                                 {/* TIÊU ĐỀ PHỤ (THEO QUÝ) */}
                                 {columnVisibility.revenueQ1 && <TableCell align="center" sx={{ fontSize: tvMode ? "1.1rem" : undefined }}>QUÝ 1</TableCell>}
@@ -2024,36 +2079,36 @@ export default function ProfitReportYear() {
                                     return true;
                                 }
                             }).map((r, idx) => (
-                                <TableRow key={`${r.name}-${idx}`} sx={{ 
-                                    backgroundColor: r.name === "IV. TỔNG" 
-                                        ? (tvMode ? "#c8e6c9" : "#e8f5e9") 
-                                        : r.name?.match(/^[IVX]+\./) 
-                                        ? (tvMode ? "#fff59d" : "#fff9c4") 
-                                        : isEditableRow(r.name) 
-                                        ? (tvMode ? "#e1bee7" : "#f3e5f5") 
-                                        : idx % 2 === 0 
-                                        ? "#ffffff" 
-                                        : (tvMode ? "#f5f5f5" : "#f9f9f9"), 
-                                    "&:hover": { 
+                                <TableRow key={`${r.name}-${idx}`} sx={{
+                                    backgroundColor: r.name === "IV. TỔNG"
+                                        ? (tvMode ? "#c8e6c9" : "#e8f5e9")
+                                        : r.name?.match(/^[IVX]+\./)
+                                            ? (tvMode ? "#fff59d" : "#fff9c4")
+                                            : isEditableRow(r.name)
+                                                ? (tvMode ? "#e1bee7" : "#f3e5f5")
+                                                : idx % 2 === 0
+                                                    ? "#ffffff"
+                                                    : (tvMode ? "#f5f5f5" : "#f9f9f9"),
+                                    "&:hover": {
                                         bgcolor: tvMode ? "#e3f2fd" : "#f0f4ff",
                                         ...(tvMode ? {} : { transition: "background-color 0.2s" }), // ✅ Bỏ transition trong TV mode
                                     },
                                     borderBottom: tvMode ? "2px solid #e0e0e0" : "1px solid #e0e0e0",
                                 }}>
-                                    <TableCell sx={{ 
-                                        ...cellStyle, 
-                                        fontWeight: r.name?.match(/^[IVX]+\./) || r.name?.includes("LỢI NHUẬN") 
-                                            ? (tvMode ? 800 : 700) 
-                                            : (tvMode ? 500 : 400), 
-                                        width: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth, 
-                                        minWidth: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth, 
-                                        backgroundColor: "inherit", 
-                                        position: "sticky", 
-                                        left: 0, 
-                                        zIndex: 99, 
-                                        borderRight: tvMode ? "3px solid #1565c0" : "2px solid #ccc", 
-                                        whiteSpace: 'nowrap', 
-                                        overflow: 'hidden', 
+                                    <TableCell sx={{
+                                        ...cellStyle,
+                                        fontWeight: r.name?.match(/^[IVX]+\./) || r.name?.includes("LỢI NHUẬN")
+                                            ? (tvMode ? 800 : 700)
+                                            : (tvMode ? 500 : 400),
+                                        width: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth,
+                                        minWidth: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth,
+                                        backgroundColor: "inherit",
+                                        position: "sticky",
+                                        left: 0,
+                                        zIndex: 99,
+                                        borderRight: tvMode ? "3px solid #1565c0" : "2px solid #ccc",
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
                                         textOverflow: 'ellipsis',
                                         fontSize: tvMode ? "1.15rem" : cellStyle.fontSize,
                                     }}>
@@ -2078,10 +2133,10 @@ export default function ProfitReportYear() {
                                     {columnVisibility.profitQ2 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ2)}</TableCell>}
                                     {columnVisibility.profitQ3 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ3)}</TableCell>}
                                     {columnVisibility.profitQ4 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ4)}</TableCell>}
-                                    {columnVisibility.totalProfit && <TableCell align="right" sx={{ 
-                                        ...cellStyle, 
-                                        fontWeight: tvMode ? 700 : "bold", 
-                                        backgroundColor: tvMode ? "#b39ddb" : "#d1c4e9", 
+                                    {columnVisibility.totalProfit && <TableCell align="right" sx={{
+                                        ...cellStyle,
+                                        fontWeight: tvMode ? 700 : "bold",
+                                        backgroundColor: tvMode ? "#b39ddb" : "#d1c4e9",
                                         padding: tvMode ? "12px 16px" : "4px 8px",
                                         fontSize: tvMode ? "1.2rem" : cellStyle.fontSize,
                                     }}>{isEditableRow(r.name) ? <ClickableEditCell rowName={r.name} field="profit" value={editableRows[r.name]?.profit || r.profit || 0} /> : format(r.profit)}</TableCell>}

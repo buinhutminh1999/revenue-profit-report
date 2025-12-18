@@ -40,8 +40,6 @@ export const useProfitReportYear = (selectedYear) => {
                 rows: editableData,
                 lastUpdated: new Date(),
             });
-
-            console.log("Đã lưu dữ liệu các hàng có thể chỉnh sửa");
         } catch (error) {
             console.error("Lỗi khi lưu dữ liệu:", error);
         }
@@ -621,13 +619,13 @@ export const useProfitReportYear = (selectedYear) => {
                     if (reportData && Array.isArray(reportData.rows)) {
                         const addedFromFormIds = addedFromFormProjectIdsByQuarter[quarter] || [];
                         const rows = reportData.rows;
-                        
+
                         // Tìm vị trí của header "I.4. Xí nghiệp XD II"
                         const i4HeaderIndex = rows.findIndex((r) => {
                             const nameUpper = (r.name || "").trim().toUpperCase();
                             return nameUpper === "I.4. XÍ NGHIỆP XD II" || nameUpper.includes("I.4. XÍ NGHIỆP");
                         });
-                        
+
                         if (i4HeaderIndex !== -1) {
                             // Tìm vị trí của header tiếp theo (I.5, II., III., v.v.)
                             let nextHeaderIndex = rows.findIndex((r, idx) => {
@@ -636,28 +634,28 @@ export const useProfitReportYear = (selectedYear) => {
                                 // Tìm header tiếp theo (bắt đầu bằng số La Mã)
                                 return /^[IVX]+\./.test(name) && name.toUpperCase() !== "I.4. XÍ NGHIỆP XD II";
                             });
-                            
+
                             if (nextHeaderIndex === -1) {
                                 nextHeaderIndex = rows.length;
                             }
-                            
+
                             // Lấy tất cả các rows nằm giữa I.4 header và header tiếp theo
                             const i4Rows = rows.slice(i4HeaderIndex + 1, nextHeaderIndex);
-                            
+
                             // Lọc các project (có projectId) từ các rows này
                             const xnxd2Rows = i4Rows.filter((row) => {
                                 // Chỉ lấy các row có projectId (là project, không phải row hệ thống)
                                 if (!row.projectId) return false;
-                                
+
                                 // Lấy tất cả các project trong nhóm I.4
                                 return true;
                             });
-                            
+
                             xnxd2Rows.forEach((projectRow) => {
                                 let existingProject = xiNghiepXD2Projects.find((p) => p.name === projectRow.name || p.projectId === projectRow.projectId);
                                 if (!existingProject) {
                                     existingProject = {
-                                        name: projectRow.name, 
+                                        name: projectRow.name,
                                         type: "xnxd2",
                                         projectId: projectRow.projectId,
                                         revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
@@ -674,27 +672,27 @@ export const useProfitReportYear = (selectedYear) => {
                             // Nếu không tìm thấy header bằng cách tìm vị trí, fallback về filter theo type
                             const xnxd2Rows = rows.filter((row) => {
                                 if (!row.projectId) return false;
-                                
+
                                 // Kiểm tra type (cả chữ thường và chữ hoa)
                                 const rowType = (row.type || "").toLowerCase();
                                 if (rowType === "xnxd2" || rowType === "xnii") {
                                     return true;
                                 }
-                                
+
                                 // Kiểm tra nếu được thêm từ form và thuộc nhóm I.4
                                 if (addedFromFormIds.includes(row.projectId)) {
                                     const groupUpper = (row.group || "").trim().toUpperCase();
                                     return groupUpper === "I.4. XÍ NGHIỆP XD II" || groupUpper.includes("I.4");
                                 }
-                                
+
                                 return false;
                             });
-                            
+
                             xnxd2Rows.forEach((projectRow) => {
                                 let existingProject = xiNghiepXD2Projects.find((p) => p.name === projectRow.name || p.projectId === projectRow.projectId);
                                 if (!existingProject) {
                                     existingProject = {
-                                        name: projectRow.name, 
+                                        name: projectRow.name,
                                         type: "xnxd2",
                                         projectId: projectRow.projectId,
                                         revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
@@ -710,7 +708,7 @@ export const useProfitReportYear = (selectedYear) => {
                         }
                     }
                 });
-                
+
                 // Thêm các project từ projects collection có type XNII hoặc xnxd2
                 // (không chỉ các project được thêm từ form)
                 projects.forEach((p) => {
@@ -884,9 +882,9 @@ export const useProfitReportYear = (selectedYear) => {
                             if (insertIndex > -1) {
                                 // Tìm vị trí chèn sau header I.4
                                 let insertPosition = insertIndex + 1;
-                                while (insertPosition < rowTemplate.length && 
-                                       !rowTemplate[insertPosition].name.match(/^[IVX]+\./) && 
-                                       (rowTemplate[insertPosition].type === "xnxd2" || rowTemplate[insertPosition].type === "XNII")) {
+                                while (insertPosition < rowTemplate.length &&
+                                    !rowTemplate[insertPosition].name.match(/^[IVX]+\./) &&
+                                    (rowTemplate[insertPosition].type === "xnxd2" || rowTemplate[insertPosition].type === "XNII")) {
                                     insertPosition++;
                                 }
                                 rowTemplate.splice(insertPosition, 0, { ...p, type: "xnxd2" });

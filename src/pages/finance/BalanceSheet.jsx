@@ -929,7 +929,6 @@ const BalanceSheet = () => {
 
                 if (hasUpdates) {
                     await batch.commit();
-                    console.log("Đã đồng bộ dữ liệu ngoài thành công.");
                     queryClient.invalidateQueries(['accountBalances', selectedYear, selectedQuarter]);
                 }
 

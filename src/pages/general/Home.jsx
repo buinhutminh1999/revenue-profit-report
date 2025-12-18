@@ -24,11 +24,11 @@ const StyledCard = styled(Card)(({ theme, color }) => ({
     borderRadius: 20,
     transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
     border: `1.5px solid ${alpha(theme.palette.divider, 0.1)}`,
-    background: theme.palette.mode === 'light' 
+    background: theme.palette.mode === 'light'
         ? `linear-gradient(145deg, #ffffff 0%, ${alpha('#f8fafc', 0.8)} 100%)`
         : `linear-gradient(145deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.background.paper, 0.8)} 100%)`,
     backdropFilter: 'blur(10px)',
-    boxShadow: theme.palette.mode === 'light' 
+    boxShadow: theme.palette.mode === 'light'
         ? '0 4px 20px rgba(0,0,0,0.04)'
         : '0 4px 20px rgba(0,0,0,0.2)',
     position: 'relative',
@@ -251,10 +251,10 @@ const Home = () => {
 
     if (isLoading) {
         return (
-            <Box sx={{ 
-                bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default, 
-                minHeight: '100vh', 
-                p: { xs: 2, sm: 4 } 
+            <Box sx={{
+                bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default,
+                minHeight: '100vh',
+                p: { xs: 2, sm: 4 }
             }}>
                 <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
                     <Skeleton variant="rectangular" height={280} sx={{ borderRadius: 3, mb: 4 }} />
@@ -271,7 +271,7 @@ const Home = () => {
     }
 
     return (
-        <Box sx={{ 
+        <Box sx={{
             minHeight: '100vh',
             bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default,
             pb: 4
