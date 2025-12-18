@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     collection,
     getDocs,
@@ -39,16 +39,36 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
         profitTargetDauTu: 0,
     });
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    
+    // Sử dụng ref để luôn lấy giá trị mới nhất của rows và summaryTargets
+    const rowsRef = useRef(rows);
+    const summaryTargetsRef = useRef(summaryTargets);
+    
+    useEffect(() => {
+        rowsRef.current = rows;
+    }, [rows]);
+    
+    useEffect(() => {
+        summaryTargetsRef.current = summaryTargets;
+    }, [summaryTargets]);
 
     const refreshData = () => {
         setRefreshTrigger((prev) => prev + 1);
     };
 
-    const saveReport = async () => {
+    const saveReport = useCallback(async () => {
         try {
+            // Lấy dữ liệu hiện tại để giữ lại addedFromFormProjectIds
+            const currentDoc = await getDoc(doc(db, 'profitReports', `${selectedYear}_${selectedQuarter}`));
+            const existingAddedFromForm = currentDoc.exists() 
+                ? (currentDoc.data().addedFromFormProjectIds || [])
+                : [];
+            
+            // Sử dụng ref để lấy giá trị mới nhất
             await setDoc(doc(db, 'profitReports', `${selectedYear}_${selectedQuarter}`), {
-                rows: rows,
-                summaryTargets: summaryTargets,
+                rows: rowsRef.current,
+                summaryTargets: summaryTargetsRef.current,
+                addedFromFormProjectIds: existingAddedFromForm, // Giữ lại danh sách các project được thêm từ form
                 lastUpdated: new Date(),
             });
             return true;
@@ -56,7 +76,7 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
             console.error('Error saving report:', error);
             return false;
         }
-    };
+    }, [selectedYear, selectedQuarter]);
 
     useEffect(() => {
         const processData = async () => {
@@ -104,6 +124,16 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                 }
                 return 0;
             };
+
+            // Lấy danh sách các projectId được thêm từ form trước
+            const saved = await getDoc(
+                doc(db, 'profitReports', `${selectedYear}_${selectedQuarter}`)
+            );
+            
+            // Lấy danh sách các projectId được thêm từ form
+            const addedFromFormProjectIds = saved.exists() 
+                ? (saved.data().addedFromFormProjectIds || [])
+                : [];
 
             const [
                 projectsSnapshot,
@@ -219,14 +249,12 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                         suggest: '',
                         type: data.type || '',
                         editable: true,
+                        addedFromForm: addedFromFormProjectIds.includes(d.id), // Đánh dấu nếu được thêm từ form
                     };
                 })
             );
 
             const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
-            const saved = await getDoc(
-                doc(db, 'profitReports', `${selectedYear}_${selectedQuarter}`)
-            );
 
             const defaultTargets = {
                 revenueTargetXayDung: 0,
@@ -252,9 +280,26 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                 Array.isArray(saved.data().rows) &&
                 saved.data().rows.length > 0
             ) {
+                // Lọc các rows không phải project, và giữ lại các project được thêm từ form (có trong addedFromFormProjectIds)
                 processedRows = saved
                     .data()
-                    .rows.filter((savedRow) => !savedRow.projectId);
+                    .rows.filter((savedRow) => {
+                        // Giữ lại các rows không có projectId (rows hệ thống)
+                        if (!savedRow.projectId) return true;
+                        // Giữ lại các project được thêm từ form (có trong addedFromFormProjectIds)
+                        return addedFromFormProjectIds.includes(savedRow.projectId);
+                    })
+                    .map((savedRow) => {
+                        // Đảm bảo các project được thêm từ form có flag addedFromForm: true
+                        if (savedRow.projectId && addedFromFormProjectIds.includes(savedRow.projectId)) {
+                            return {
+                                ...savedRow,
+                                addedFromForm: true,
+                            };
+                        }
+                        return savedRow;
+                    });
+                
                 const loiNhuanRongExists = processedRows.some(
                     (r) => (r.name || '').toUpperCase() === 'LỢI NHUẬN RÒNG'
                 );
@@ -270,7 +315,14 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                     });
                 }
 
-                const newProjects = projects;
+                // Lọc các project chưa có trong processedRows (tránh trùng lặp)
+                const existingProjectIds = new Set(
+                    processedRows
+                        .filter(r => r.projectId)
+                        .map(r => r.projectId)
+                );
+                
+                const newProjects = projects.filter(p => !existingProjectIds.has(p.projectId));
 
                 if (newProjects.length > 0) {
                     const keProjects = newProjects.filter((p) =>
@@ -704,6 +756,17 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                 const cost = toNum(r.cost);
                 const profit = toNum(r.profit);
                 const nameUpper = (r.name || '').trim().toUpperCase();
+                
+                // Với các project có projectId: chỉ hiển thị nếu có dữ liệu cho quý/năm hiện tại HOẶC được thêm từ form cho quý/năm này
+                if (r.projectId) {
+                    // Nếu được thêm từ form cho quý/năm này, luôn hiển thị
+                    if (r.addedFromForm === true) {
+                        return true;
+                    }
+                    // Nếu không được thêm từ form, chỉ hiển thị nếu có dữ liệu (revenue, cost, hoặc profit > 0)
+                    return rev !== 0 || cost !== 0 || profit !== 0;
+                }
+                
                 if (
                     nameUpper === 'I.1. DÂN DỤNG + GIAO THÔNG' ||
                     nameUpper === 'I.2. KÈ'

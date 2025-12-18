@@ -39,7 +39,7 @@ export function useInternalTaxReport(month, year) {
     };
 
     const updateGeneralInvoice = async (id, data) => {
-        return await InternalTaxService.updateGeneralInvoice(month, year, id, data);
+        return await InternalTaxService.updateGeneralInvoice(id, data);
     };
 
     const deleteGeneralInvoice = async (id) => {

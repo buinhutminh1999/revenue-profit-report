@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import {
   Box, Stack, Paper, Avatar, Typography, TextField, Button, Alert,
   Checkbox, FormControlLabel, Link as MUILink, CircularProgress, IconButton,
-  InputAdornment, Divider, Chip, Fade, Zoom, Tooltip, LinearProgress
+  InputAdornment, Divider, Chip, Fade, Zoom, Tooltip, LinearProgress,
+  useMediaQuery
 } from "@mui/material";
 import { styled, alpha, useTheme } from "@mui/material/styles";
 import {
@@ -119,6 +120,9 @@ const StyledButton = styled(Button)(({ theme }) => ({
 
 export default function LoginPage() {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+  
   // ====== State ======
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -375,7 +379,9 @@ export default function LoginPage() {
           position: "relative",
           zIndex: 1,
           alignItems: "center",
-          px: { xs: 2, sm: 4 }
+          justifyContent: "center",
+          px: { xs: 1.5, sm: 3, md: 4 },
+          py: { xs: 3, sm: 4 }
         }}
       >
         {/* Left brand column */}
@@ -388,7 +394,7 @@ export default function LoginPage() {
             justifyContent: "center",
             color: "white",
             textAlign: "center",
-            p: 4,
+            p: { xs: 2, md: 4 },
           }}
         >
           <motion.div
@@ -396,7 +402,7 @@ export default function LoginPage() {
             initial="hidden"
             animate="visible"
           >
-            <img
+            <motion.img
               src={logo}
               alt="Logo Công ty Bách Khoa"
               style={{
@@ -404,10 +410,10 @@ export default function LoginPage() {
                 height: 240,
                 objectFit: "contain",
                 filter: "drop-shadow(0 12px 24px rgba(0,0,0,.5))",
-                transition: "transform 0.3s ease"
               }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
-              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+              whileHover={{ scale: 1.05, rotate: 2 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
             />
           </motion.div>
           <motion.div
@@ -452,27 +458,34 @@ export default function LoginPage() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            p: { xs: 2, sm: 4 },
-            width: "100%"
+            p: { xs: 0, sm: 2, md: 4 },
+            width: "100%",
+            maxWidth: { xs: "100%", sm: 480 }
           }}
         >
           <motion.div
-            style={prefersReduced ? {} : {
+            style={prefersReduced || isMobile ? {} : {
               rotateX,
               rotateY,
               transformStyle: "preserve-3d",
               willChange: "transform"
             }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
           >
             <GlassPaper
               elevation={0}
               sx={{
-                p: { xs: 3, sm: 4.5 },
+                p: { xs: 2.5, sm: 3.5, md: 4.5 },
                 width: "100%",
-                maxWidth: 480,
-                borderRadius: 6,
+                maxWidth: { xs: "100%", sm: 480 },
+                borderRadius: { xs: 3, sm: 4, md: 6 },
                 position: "relative",
                 ...(loading && { pointerEvents: "none", opacity: 0.9 }),
+                boxShadow: theme.palette.mode === 'light'
+                  ? "0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 0 0 rgba(255,255,255,0.1)"
+                  : "0 8px 32px 0 rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255,255,255,0.1)",
               }}
             >
               {/* Loading overlay */}
@@ -522,29 +535,36 @@ export default function LoginPage() {
                         >
                           <Avatar
                             sx={{
-                              bgcolor: BRAND.primary,
+                              bgcolor: `linear-gradient(135deg, ${BRAND.primary} 0%, ${BRAND.accent} 100%)`,
+                              background: `linear-gradient(135deg, ${BRAND.primary} 0%, ${BRAND.accent} 100%)`,
                               color: "#fff",
-                              width: 64,
-                              height: 64,
+                              width: { xs: 56, sm: 64 },
+                              height: { xs: 56, sm: 64 },
                               mb: 1.5,
-                              boxShadow: `0 8px 24px ${alpha(BRAND.primary, 0.4)}`
+                              boxShadow: `0 8px 24px ${alpha(BRAND.primary, 0.4)}`,
+                              border: `2px solid ${alpha("#fff", 0.2)}`,
                             }}
                           >
-                            <LockOutlined sx={{ fontSize: 32 }} />
+                            <LockOutlined sx={{ fontSize: { xs: 28, sm: 32 } }} />
                           </Avatar>
                         </motion.div>
                         <Typography
-                          variant="h4"
+                          variant={isMobile ? "h5" : "h4"}
                           fontWeight={800}
                           color="#fff"
-                          sx={{ mb: 0.5 }}
+                          sx={{ 
+                            mb: 0.5,
+                            background: "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.9) 100%)",
+                            WebkitBackgroundClip: "text",
+                            WebkitTextFillColor: "transparent",
+                          }}
                         >
                           Đăng nhập
                         </Typography>
                         <Typography
                           variant="body2"
                           color={alpha("#fff", 0.7)}
-                          sx={{ fontSize: "0.95rem" }}
+                          sx={{ fontSize: { xs: "0.875rem", sm: "0.95rem" } }}
                         >
                           Sử dụng tài khoản công ty để tiếp tục
                         </Typography>
@@ -724,29 +744,41 @@ export default function LoginPage() {
                           type="submit"
                           variant="contained"
                           fullWidth
-                          size="large"
+                          size={isMobile ? "medium" : "large"}
                           disabled={loading || isSubmitting}
                           sx={{
-                            py: 1.75,
+                            py: { xs: 1.5, sm: 1.75 },
                             fontWeight: 700,
-                            fontSize: "1.05rem",
-                            borderRadius: 3,
+                            fontSize: { xs: "0.95rem", sm: "1.05rem" },
+                            borderRadius: { xs: 2, sm: 3 },
+                            background: `linear-gradient(135deg, ${BRAND.primary} 0%, ${alpha(BRAND.primary, 0.8)} 100%)`,
                             bgcolor: BRAND.primary,
                             color: "#fff",
                             textTransform: "none",
                             boxShadow: `0 4px 14px ${alpha(BRAND.primary, 0.4)}`,
+                            position: "relative",
+                            overflow: "hidden",
                             "&:hover": {
-                              bgcolor: alpha(BRAND.primary, 0.9),
+                              background: `linear-gradient(135deg, ${alpha(BRAND.primary, 0.95)} 0%, ${alpha(BRAND.primary, 0.85)} 100%)`,
                               boxShadow: `0 8px 24px ${alpha(BRAND.primary, 0.5)}`,
+                              transform: "translateY(-2px)",
+                            },
+                            "&:active": {
+                              transform: "translateY(0)",
                             },
                             "&:disabled": {
                               bgcolor: alpha(BRAND.primary, 0.5),
-                              color: alpha("#fff", 0.7)
-                            }
+                              color: alpha("#fff", 0.7),
+                              transform: "none",
+                            },
+                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                           }}
                         >
                           {loading ? (
-                            <CircularProgress size={24} sx={{ color: "#fff" }} />
+                            <Stack direction="row" spacing={1.5} alignItems="center">
+                              <CircularProgress size={20} sx={{ color: "#fff" }} />
+                              <Typography variant="body2">Đang đăng nhập...</Typography>
+                            </Stack>
                           ) : (
                             "Đăng nhập"
                           )}

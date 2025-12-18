@@ -362,9 +362,14 @@ export const useProfitReportYear = (selectedYear) => {
                 ]);
 
                 const quarterlyReportsCache = {};
+                const addedFromFormProjectIdsByQuarter = {};
                 quarterlyReports.forEach((docSnap, index) => {
                     if (docSnap.exists && docSnap.exists()) {
-                        quarterlyReportsCache[quarters[index]] = docSnap.data();
+                        const quarter = quarters[index];
+                        const data = docSnap.data();
+                        quarterlyReportsCache[quarter] = data;
+                        // Lưu danh sách project được thêm từ form cho mỗi quý
+                        addedFromFormProjectIdsByQuarter[quarter] = data.addedFromFormProjectIds || [];
                     }
                 });
 
@@ -614,22 +619,130 @@ export const useProfitReportYear = (selectedYear) => {
                 quarters.forEach(quarter => {
                     const reportData = quarterlyReportsCache[quarter];
                     if (reportData && Array.isArray(reportData.rows)) {
-                        const xnxd2Rows = reportData.rows.filter((row) => row.type === "xnxd2");
-                        xnxd2Rows.forEach((projectRow) => {
-                            let existingProject = xiNghiepXD2Projects.find((p) => p.name === projectRow.name);
-                            if (!existingProject) {
-                                existingProject = {
-                                    name: projectRow.name, type: "xnxd2",
-                                    revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
-                                    cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
-                                    profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
-                                };
-                                xiNghiepXD2Projects.push(existingProject);
-                            }
-                            existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
-                            existingProject[`cost${quarter}`] = toNum(projectRow.cost);
-                            existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                        const addedFromFormIds = addedFromFormProjectIdsByQuarter[quarter] || [];
+                        const rows = reportData.rows;
+                        
+                        // Tìm vị trí của header "I.4. Xí nghiệp XD II"
+                        const i4HeaderIndex = rows.findIndex((r) => {
+                            const nameUpper = (r.name || "").trim().toUpperCase();
+                            return nameUpper === "I.4. XÍ NGHIỆP XD II" || nameUpper.includes("I.4. XÍ NGHIỆP");
                         });
+                        
+                        if (i4HeaderIndex !== -1) {
+                            // Tìm vị trí của header tiếp theo (I.5, II., III., v.v.)
+                            let nextHeaderIndex = rows.findIndex((r, idx) => {
+                                if (idx <= i4HeaderIndex) return false;
+                                const name = (r.name || "").trim();
+                                // Tìm header tiếp theo (bắt đầu bằng số La Mã)
+                                return /^[IVX]+\./.test(name) && name.toUpperCase() !== "I.4. XÍ NGHIỆP XD II";
+                            });
+                            
+                            if (nextHeaderIndex === -1) {
+                                nextHeaderIndex = rows.length;
+                            }
+                            
+                            // Lấy tất cả các rows nằm giữa I.4 header và header tiếp theo
+                            const i4Rows = rows.slice(i4HeaderIndex + 1, nextHeaderIndex);
+                            
+                            // Lọc các project (có projectId) từ các rows này
+                            const xnxd2Rows = i4Rows.filter((row) => {
+                                // Chỉ lấy các row có projectId (là project, không phải row hệ thống)
+                                if (!row.projectId) return false;
+                                
+                                // Lấy tất cả các project trong nhóm I.4
+                                return true;
+                            });
+                            
+                            xnxd2Rows.forEach((projectRow) => {
+                                let existingProject = xiNghiepXD2Projects.find((p) => p.name === projectRow.name || p.projectId === projectRow.projectId);
+                                if (!existingProject) {
+                                    existingProject = {
+                                        name: projectRow.name, 
+                                        type: "xnxd2",
+                                        projectId: projectRow.projectId,
+                                        revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
+                                        cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
+                                        profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
+                                    };
+                                    xiNghiepXD2Projects.push(existingProject);
+                                }
+                                existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
+                                existingProject[`cost${quarter}`] = toNum(projectRow.cost);
+                                existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                            });
+                        } else {
+                            // Nếu không tìm thấy header bằng cách tìm vị trí, fallback về filter theo type
+                            const xnxd2Rows = rows.filter((row) => {
+                                if (!row.projectId) return false;
+                                
+                                // Kiểm tra type (cả chữ thường và chữ hoa)
+                                const rowType = (row.type || "").toLowerCase();
+                                if (rowType === "xnxd2" || rowType === "xnii") {
+                                    return true;
+                                }
+                                
+                                // Kiểm tra nếu được thêm từ form và thuộc nhóm I.4
+                                if (addedFromFormIds.includes(row.projectId)) {
+                                    const groupUpper = (row.group || "").trim().toUpperCase();
+                                    return groupUpper === "I.4. XÍ NGHIỆP XD II" || groupUpper.includes("I.4");
+                                }
+                                
+                                return false;
+                            });
+                            
+                            xnxd2Rows.forEach((projectRow) => {
+                                let existingProject = xiNghiepXD2Projects.find((p) => p.name === projectRow.name || p.projectId === projectRow.projectId);
+                                if (!existingProject) {
+                                    existingProject = {
+                                        name: projectRow.name, 
+                                        type: "xnxd2",
+                                        projectId: projectRow.projectId,
+                                        revenue: 0, revenueQ1: 0, revenueQ2: 0, revenueQ3: 0, revenueQ4: 0,
+                                        cost: 0, costQ1: 0, costQ2: 0, costQ3: 0, costQ4: 0,
+                                        profit: 0, profitQ1: 0, profitQ2: 0, profitQ3: 0, profitQ4: 0,
+                                    };
+                                    xiNghiepXD2Projects.push(existingProject);
+                                }
+                                existingProject[`revenue${quarter}`] = toNum(projectRow.revenue);
+                                existingProject[`cost${quarter}`] = toNum(projectRow.cost);
+                                existingProject[`profit${quarter}`] = toNum(projectRow.profit);
+                            });
+                        }
+                    }
+                });
+                
+                // Thêm các project từ projects collection có type XNII hoặc xnxd2
+                // (không chỉ các project được thêm từ form)
+                projects.forEach((p) => {
+                    if ((p.type === "XNII" || p.type === "xnxd2") && p.projectId) {
+                        // Kiểm tra xem project đã có trong xiNghiepXD2Projects chưa
+                        const existingProject = xiNghiepXD2Projects.find(proj => proj.projectId === p.projectId || proj.name === p.name);
+                        if (!existingProject) {
+                            // Nếu chưa có, thêm vào (từ projects collection)
+                            xiNghiepXD2Projects.push({
+                                name: p.name,
+                                type: "xnxd2",
+                                projectId: p.projectId,
+                                revenue: p.revenue || 0,
+                                revenueQ1: p.revenueQ1 || 0,
+                                revenueQ2: p.revenueQ2 || 0,
+                                revenueQ3: p.revenueQ3 || 0,
+                                revenueQ4: p.revenueQ4 || 0,
+                                cost: p.cost || 0,
+                                costQ1: p.costQ1 || 0,
+                                costQ2: p.costQ2 || 0,
+                                costQ3: p.costQ3 || 0,
+                                costQ4: p.costQ4 || 0,
+                                profit: p.profit || 0,
+                                profitQ1: p.profitQ1 || 0,
+                                profitQ2: p.profitQ2 || 0,
+                                profitQ3: p.profitQ3 || 0,
+                                profitQ4: p.profitQ4 || 0,
+                            });
+                        } else {
+                            // Nếu đã có, merge dữ liệu từ projects collection (nếu có dữ liệu mới hơn)
+                            // Giữ nguyên dữ liệu từ profitReports rows vì nó đã được cập nhật
+                        }
                     }
                 });
                 xiNghiepXD2Projects.forEach((project) => {
@@ -757,22 +870,36 @@ export const useProfitReportYear = (selectedYear) => {
                     });
                 }
 
-                // Merge projects
+                // Merge projects từ projects collection
                 projects.forEach((p) => {
                     const index = rowTemplate.findIndex((r) => r.name === p.name);
                     if (index > -1) {
                         rowTemplate[index] = { ...rowTemplate[index], ...p };
                     } else {
                         let insertIndex = -1;
-                        if (p.type === "Thi công") {
+                        // Kiểm tra nếu project được thêm từ form và thuộc nhóm I.4
+                        const isAddedFromFormI4 = Object.values(addedFromFormProjectIdsByQuarter).some(ids => ids.includes(p.projectId));
+                        if (isAddedFromFormI4 && (p.type === "XNII" || p.type === "xnxd2")) {
+                            insertIndex = rowTemplate.findIndex((r) => r.name === "I.4. Xí nghiệp XD II");
+                            if (insertIndex > -1) {
+                                // Tìm vị trí chèn sau header I.4
+                                let insertPosition = insertIndex + 1;
+                                while (insertPosition < rowTemplate.length && 
+                                       !rowTemplate[insertPosition].name.match(/^[IVX]+\./) && 
+                                       (rowTemplate[insertPosition].type === "xnxd2" || rowTemplate[insertPosition].type === "XNII")) {
+                                    insertPosition++;
+                                }
+                                rowTemplate.splice(insertPosition, 0, { ...p, type: "xnxd2" });
+                            }
+                        } else if (p.type === "Thi công") {
                             if ((p.name || "").toUpperCase().includes("KÈ")) {
                                 insertIndex = rowTemplate.findIndex((r) => r.name === `I.3. CÔNG TRÌNH CÔNG TY CĐT`);
                             } else {
                                 insertIndex = rowTemplate.findIndex((r) => r.name === `I.2. KÈ`);
                             }
-                        }
-                        if (insertIndex > -1) {
-                            rowTemplate.splice(insertIndex, 0, p);
+                            if (insertIndex > -1) {
+                                rowTemplate.splice(insertIndex, 0, p);
+                            }
                         }
                     }
                 });

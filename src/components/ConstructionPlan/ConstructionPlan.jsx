@@ -587,18 +587,22 @@ export default function ConstructionPlan() {
                 headerName: "Loại Dự Án",
                 width: 120,
                 renderCell: (params) => {
-                    const color = chipColorByType[params.value] || "default";
+                    const colorKey = chipColorByType[params.value];
+                    // Check if the color key exists in the theme, otherwise fallback safely
+                    const isColorValid = colorKey && theme.palette[colorKey];
+
                     return (
                         <Chip
                             label={params.value}
                             size="small"
                             sx={{
                                 fontWeight: 600,
-                                color: theme.palette[color].dark,
-                                backgroundColor: alpha(
-                                    theme.palette[color].main,
-                                    0.15
-                                ),
+                                color: isColorValid
+                                    ? theme.palette[colorKey].dark
+                                    : theme.palette.text.secondary,
+                                backgroundColor: isColorValid
+                                    ? alpha(theme.palette[colorKey].main, 0.15)
+                                    : alpha(theme.palette.text.primary, 0.08),
                                 borderRadius: "6px",
                             }}
                         />

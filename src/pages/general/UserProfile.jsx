@@ -9,21 +9,29 @@ import {
     Grid,
     useTheme,
     Stack,
-    Divider
+    Divider,
+    Card,
+    CardContent,
+    Chip,
+    IconButton,
+    Button,
+    alpha
 } from "@mui/material";
-import { alpha } from "@mui/material/styles";
 import { useAuth } from "../../contexts/AuthContext";
 import PersonIcon from "@mui/icons-material/Person";
 import LockIcon from "@mui/icons-material/Lock";
 import SettingsIcon from "@mui/icons-material/Settings";
-import EmailIcon from "@mui/icons-material/Email"; // Thêm icon Email
-import VerifiedUserIcon from "@mui/icons-material/VerifiedUser"; // Thêm icon Role
+import EmailIcon from "@mui/icons-material/Email";
+import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import EditIcon from "@mui/icons-material/Edit";
+import { motion } from "framer-motion";
 
 // Import các component con cho từng Tab 
 import ProfileTab from "../../components/user/ProfileTab";
 import SecurityTab from "../../components/user/SecurityTab";
 
-// Helper function cho TabPanel (Giữ nguyên)
+// Helper function cho TabPanel
 function TabPanel(props) {
     const { children, value, index, ...other } = props;
     return (
@@ -59,156 +67,224 @@ export default function UserProfile() {
     return (
         <Box
             sx={{
-                p: { xs: 1, sm: 2, md: 4 },
-                minHeight: '100%',
-                bgcolor: theme.palette.mode === 'light' ? theme.palette.grey[50] : theme.palette.grey[900]
+                minHeight: '100vh',
+                bgcolor: theme.palette.mode === 'light' ? theme.palette.grey[50] : theme.palette.grey[900],
+                pb: 4
             }}
         >
-            <Box sx={{ maxWidth: 1000, mx: "auto" }}>
-
-                {/* --- 1. HEADER (Thông tin tóm tắt) --- */}
-                <Box sx={{ mb: 4 }}>
-                    <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5, color: theme.palette.text.primary }}>
-                        Cài đặt Tài khoản
-                    </Typography>
-                    <Typography variant="body1" color="text.secondary">
-                        Quản lý thông tin cá nhân và bảo mật của bạn.
-                    </Typography>
+            {/* Header với gradient */}
+            <Box
+                sx={{
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                    color: 'white',
+                    pt: 6,
+                    pb: 4,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: -50,
+                        right: -50,
+                        width: 200,
+                        height: 200,
+                        borderRadius: '50%',
+                        background: alpha('#fff', 0.1),
+                    }
+                }}
+            >
+                <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, sm: 3, md: 4 }, position: 'relative', zIndex: 1 }}>
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        <Stack direction="row" spacing={3} alignItems="center" sx={{ mb: 3 }}>
+                            <Avatar
+                                alt={user.displayName || "User"}
+                                src={user.photoURL}
+                                sx={{
+                                    width: { xs: 80, sm: 100 },
+                                    height: { xs: 80, sm: 100 },
+                                    border: `4px solid ${alpha('#fff', 0.3)}`,
+                                    boxShadow: theme.shadows[10]
+                                }}
+                            >
+                                {user.displayName?.[0]?.toUpperCase() || 'U'}
+                            </Avatar>
+                            <Box sx={{ flex: 1 }}>
+                                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                                    <Typography variant="h4" fontWeight={800} sx={{ color: 'white' }}>
+                                        {user.displayName || "Người dùng"}
+                                    </Typography>
+                                    {user.emailVerified && (
+                                        <Chip
+                                            icon={<CheckCircleIcon />}
+                                            label="Đã xác thực"
+                                            size="small"
+                                            sx={{
+                                                bgcolor: alpha('#fff', 0.2),
+                                                color: 'white',
+                                                fontWeight: 600,
+                                                '& .MuiChip-icon': {
+                                                    color: '#4caf50'
+                                                }
+                                            }}
+                                        />
+                                    )}
+                                </Stack>
+                                <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        <EmailIcon sx={{ fontSize: 18, opacity: 0.9 }} />
+                                        <Typography variant="body2" sx={{ color: alpha('#fff', 0.9) }}>
+                                            {user.email}
+                                        </Typography>
+                                    </Stack>
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        <VerifiedUserIcon sx={{ fontSize: 18, opacity: 0.9 }} />
+                                        <Typography variant="body2" sx={{ color: alpha('#fff', 0.9) }}>
+                                            {user.role === "admin" ? "Quản trị viên" : "Nhân viên"}
+                                        </Typography>
+                                    </Stack>
+                                </Stack>
+                            </Box>
+                        </Stack>
+                    </motion.div>
                 </Box>
+            </Box>
 
-                {/* --- 2. CONTAINER CHỨC NĂNG (TABS VÀ NỘI DUNG) --- */}
-                <Grid container spacing={{ xs: 2, md: 4 }}>
-
-                    {/* Cột Trái: Thông tin tóm tắt & Thanh Điều hướng (Tabs) */}
+            {/* Main Content */}
+            <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, sm: 3, md: 4 }, mt: -3 }}>
+                <Grid container spacing={3}>
+                    {/* Sidebar với Tabs */}
                     <Grid size={{ xs: 12, md: 3 }}>
                         <Paper
-                            elevation={1}
+                            elevation={0}
                             sx={{
-                                p: 0, // Bỏ padding gốc
-                                borderRadius: 4,
-                                border: (t) => `1px solid ${t.palette.divider}`,
+                                borderRadius: 3,
+                                border: `1px solid ${theme.palette.divider}`,
                                 bgcolor: theme.palette.background.paper,
+                                overflow: 'hidden',
+                                position: 'sticky',
+                                top: 20
                             }}
                         >
-                            {/* THÔNG TIN TÓM TẮT (GỌN HƠN) */}
-                            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <Avatar
-                                    alt={user.displayName || "User"}
-                                    src={user.photoURL}
-                                    sx={{
-                                        width: 72,
-                                        height: 72,
-                                        mb: 1,
-                                        boxShadow: theme.shadows[3]
-                                    }}
-                                >
-                                    {user.displayName?.[0] || 'U'}
-                                </Avatar>
-                                <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-                                    {user.displayName || "Người dùng"}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                    {user.email}
-                                </Typography>
-                            </Box>
-
-                            <Divider sx={{ mb: 1 }} />
-
-                            {/* THANH ĐIỀU HƯỚNG (TABS) */}
-                            <Box sx={{ px: 1, pb: 1 }}>
-                                <Tabs
-                                    orientation="vertical"
-                                    variant="scrollable"
-                                    value={tabValue}
-                                    onChange={handleTabChange}
-                                    aria-label="User profile tabs"
-                                    sx={{
-                                        // Ẩn indicator khi không cần thiết
-                                        '& .MuiTabs-indicator': {
-                                            left: 0,
-                                            width: 4,
-                                            borderRadius: '0 4px 4px 0',
-                                            bgcolor: theme.palette.primary.main
-                                        },
-                                        // Đảm bảo tab không có border
-                                        '& .MuiButtonBase-root': {
-                                            minHeight: 44,
-                                            justifyContent: 'flex-start',
-                                            borderRadius: 1.5,
-                                            px: 1,
-                                            color: theme.palette.text.secondary,
-                                            transition: 'all 0.2s',
-                                        },
-                                        // Tab đang chọn
-                                        '& .Mui-selected': {
-                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                            color: theme.palette.primary.main,
-                                            fontWeight: 600,
+                            <Tabs
+                                orientation="vertical"
+                                variant="scrollable"
+                                value={tabValue}
+                                onChange={handleTabChange}
+                                aria-label="User profile tabs"
+                                sx={{
+                                    '& .MuiTabs-indicator': {
+                                        left: 0,
+                                        width: 4,
+                                        borderRadius: '0 4px 4px 0',
+                                        bgcolor: theme.palette.primary.main
+                                    },
+                                    '& .MuiButtonBase-root': {
+                                        minHeight: 56,
+                                        justifyContent: 'flex-start',
+                                        borderRadius: 2,
+                                        px: 2,
+                                        mx: 1,
+                                        my: 0.5,
+                                        color: theme.palette.text.secondary,
+                                        transition: 'all 0.2s',
+                                        '&:hover': {
+                                            bgcolor: alpha(theme.palette.primary.main, 0.08),
                                         }
-                                    }}
-                                >
-                                    <Tab
-                                        label="Thông tin chung"
-                                        icon={<PersonIcon />}
-                                        iconPosition="start"
-                                    />
-                                    <Tab
-                                        label="Bảo mật"
-                                        icon={<LockIcon />}
-                                        iconPosition="start"
-                                    />
-                                    <Tab
-                                        label="Cài đặt hệ thống"
-                                        icon={<SettingsIcon />}
-                                        iconPosition="start"
-                                        disabled
-                                    />
-                                </Tabs>
-                            </Box>
+                                    },
+                                    '& .Mui-selected': {
+                                        bgcolor: alpha(theme.palette.primary.main, 0.12),
+                                        color: theme.palette.primary.main,
+                                        fontWeight: 600,
+                                    }
+                                }}
+                            >
+                                <Tab
+                                    label="Thông tin chung"
+                                    icon={<PersonIcon />}
+                                    iconPosition="start"
+                                    sx={{ textTransform: 'none' }}
+                                />
+                                <Tab
+                                    label="Bảo mật"
+                                    icon={<LockIcon />}
+                                    iconPosition="start"
+                                    sx={{ textTransform: 'none' }}
+                                />
+                                <Tab
+                                    label="Cài đặt"
+                                    icon={<SettingsIcon />}
+                                    iconPosition="start"
+                                    disabled
+                                    sx={{ textTransform: 'none' }}
+                                />
+                            </Tabs>
                         </Paper>
                     </Grid>
 
-                    {/* Cột Phải: Nội dung Tab */}
+                    {/* Main Content Area */}
                     <Grid size={{ xs: 12, md: 9 }}>
-                        <Paper
-                            elevation={1}
-                            sx={{
-                                borderRadius: 4,
-                                minHeight: '400px',
-                                border: (t) => `1px solid ${t.palette.divider}`,
-                                bgcolor: theme.palette.background.paper,
-                            }}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.4, delay: 0.1 }}
                         >
-                            {/* Tiêu đề Nội dung */}
-                            <Box sx={{ p: 3, borderBottom: (t) => `1px solid ${t.palette.divider}` }}>
-                                <Typography variant="h5" fontWeight={700} color="text.primary">
-                                    {tabValue === 0 && "Hồ sơ của bạn"}
-                                    {tabValue === 1 && "Thiết lập bảo mật"}
-                                    {tabValue === 2 && "Cài đặt chung"}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    {tabValue === 0 && "Cập nhật tên hiển thị, hình đại diện và thông tin liên hệ."}
-                                    {tabValue === 1 && "Thay đổi mật khẩu và quản lý phiên đăng nhập."}
-                                    {tabValue === 2 && "Tùy chỉnh các thiết lập hiển thị và thông báo hệ thống."}
-                                </Typography>
-                            </Box>
+                            <Paper
+                                elevation={0}
+                                sx={{
+                                    borderRadius: 3,
+                                    minHeight: '500px',
+                                    border: `1px solid ${theme.palette.divider}`,
+                                    bgcolor: theme.palette.background.paper,
+                                    overflow: 'hidden'
+                                }}
+                            >
+                                {/* Tab Header */}
+                                <Box
+                                    sx={{
+                                        p: 3,
+                                        borderBottom: `1px solid ${theme.palette.divider}`,
+                                        bgcolor: alpha(theme.palette.primary.main, 0.02)
+                                    }}
+                                >
+                                    <Typography variant="h5" fontWeight={700} color="text.primary" gutterBottom>
+                                        {tabValue === 0 && "Hồ sơ của bạn"}
+                                        {tabValue === 1 && "Thiết lập bảo mật"}
+                                        {tabValue === 2 && "Cài đặt hệ thống"}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {tabValue === 0 && "Cập nhật thông tin cá nhân và quản lý tài khoản của bạn."}
+                                        {tabValue === 1 && "Thay đổi mật khẩu và quản lý bảo mật tài khoản."}
+                                        {tabValue === 2 && "Tùy chỉnh các thiết lập hiển thị và thông báo hệ thống."}
+                                    </Typography>
+                                </Box>
 
-                            {/* Nội dung Tabs */}
-                            <TabPanel value={tabValue} index={0}>
-                                <ProfileTab />
-                            </TabPanel>
-                            <TabPanel value={tabValue} index={1}>
-                                <SecurityTab />
-                            </TabPanel>
-                            <TabPanel value={tabValue} index={2}>
-                                <Typography color="text.disabled">Tính năng cài đặt hệ thống đang được phát triển.</Typography>
-                            </TabPanel>
-                        </Paper>
+                                {/* Tab Content */}
+                                <TabPanel value={tabValue} index={0}>
+                                    <ProfileTab />
+                                </TabPanel>
+                                <TabPanel value={tabValue} index={1}>
+                                    <SecurityTab />
+                                </TabPanel>
+                                <TabPanel value={tabValue} index={2}>
+                                    <Box sx={{ textAlign: 'center', py: 8 }}>
+                                        <SettingsIcon sx={{ fontSize: 64, color: theme.palette.text.disabled, mb: 2 }} />
+                                        <Typography variant="h6" color="text.secondary" gutterBottom>
+                                            Tính năng đang phát triển
+                                        </Typography>
+                                        <Typography variant="body2" color="text.disabled">
+                                            Các tùy chọn cài đặt hệ thống sẽ sớm có mặt.
+                                        </Typography>
+                                    </Box>
+                                </TabPanel>
+                            </Paper>
+                        </motion.div>
                     </Grid>
                 </Grid>
-
             </Box>
         </Box>
     );
 }
-

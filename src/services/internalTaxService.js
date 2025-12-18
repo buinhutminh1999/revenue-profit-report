@@ -55,7 +55,12 @@ export const InternalTaxService = {
 
     updateGeneralInvoice: async (id, data) => {
         try {
-            const docRef = doc(db, GENERAL_COLLECTION, id);
+            // Đảm bảo id là string
+            if (!id) {
+                throw new Error("Invoice ID is required");
+            }
+            const idString = String(id);
+            const docRef = doc(db, GENERAL_COLLECTION, idString);
             await updateDoc(docRef, data);
         } catch (error) {
             console.error("Error updating general invoice:", error);
@@ -183,7 +188,12 @@ export const InternalTaxService = {
 
     updatePurchaseInvoice: async (month, year, id, data) => {
         try {
-            const docRef = doc(db, PURCHASE_COLLECTION, id);
+            // Đảm bảo id là string
+            if (!id) {
+                throw new Error("Invoice ID is required");
+            }
+            const idString = String(id);
+            const docRef = doc(db, PURCHASE_COLLECTION, idString);
             await updateDoc(docRef, data);
         } catch (error) {
             console.error("Error updating purchase invoice:", error);

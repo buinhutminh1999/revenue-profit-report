@@ -7,7 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import {
     Box, Card, CardContent, Typography, Grid, Badge, CircularProgress,
     Paper, TextField, InputAdornment, Chip, Avatar, Stack, IconButton,
-    Tooltip, Skeleton, alpha, useTheme
+    Tooltip, Skeleton, alpha, useTheme, Button
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import {
@@ -15,18 +15,22 @@ import {
     AccountBalance as Landmark, Assignment as ClipboardList, ImportContacts as BookUser, PieChart, ShowChart as LineChart, TrendingUp,
     RuleFolder as FileCheck2, Assessment as FileBarChart2, SwapHoriz as ArrowRightLeft, GppBad as ShieldOff,
     HowToReg as UserCheck, Search, AssignmentTurnedIn as ClipboardCheck, Close as X, FilterList as Filter, AutoAwesome as Sparkles, Star,
-    TrendingDown, MonitorHeart as Activity, Bolt as Zap, Description
+    TrendingDown, MonitorHeart as Activity, Bolt as Zap, Description, Dashboard as DashboardIcon, AccessTime as ClockIcon
 } from '@mui/icons-material';
 
-// Enhanced Styled Card với glassmorphism
+// Enhanced Styled Card với glassmorphism và hover effects
 const StyledCard = styled(Card)(({ theme, color }) => ({
     height: '100%',
-    borderRadius: 24,
+    borderRadius: 20,
     transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-    border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-    background: `linear-gradient(145deg, #ffffff 0%, ${alpha('#f8fafc', 0.6)} 100%)`,
+    border: `1.5px solid ${alpha(theme.palette.divider, 0.1)}`,
+    background: theme.palette.mode === 'light' 
+        ? `linear-gradient(145deg, #ffffff 0%, ${alpha('#f8fafc', 0.8)} 100%)`
+        : `linear-gradient(145deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.background.paper, 0.8)} 100%)`,
     backdropFilter: 'blur(10px)',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
+    boxShadow: theme.palette.mode === 'light' 
+        ? '0 4px 20px rgba(0,0,0,0.04)'
+        : '0 4px 20px rgba(0,0,0,0.2)',
     position: 'relative',
     overflow: 'hidden',
     cursor: 'pointer',
@@ -37,55 +41,53 @@ const StyledCard = styled(Card)(({ theme, color }) => ({
         left: 0,
         right: 0,
         height: '100%',
-        background: `linear-gradient(180deg, ${alpha(color || theme.palette.primary.main, 0.05)} 0%, transparent 100%)`,
+        background: `linear-gradient(180deg, ${alpha(color || theme.palette.primary.main, 0.08)} 0%, transparent 100%)`,
         opacity: 0,
         transition: 'opacity 0.4s ease',
     },
     '&:hover': {
-        transform: 'translateY(-8px)',
-        boxShadow: `0 20px 40px ${alpha(color || theme.palette.primary.main, 0.12)}`,
-        borderColor: alpha(color || theme.palette.primary.main, 0.3),
+        transform: 'translateY(-8px) scale(1.02)',
+        boxShadow: `0 20px 40px ${alpha(color || theme.palette.primary.main, 0.15)}`,
+        borderColor: alpha(color || theme.palette.primary.main, 0.4),
         '&::before': {
             opacity: 1,
         },
         '& .icon-box': {
-            transform: 'scale(1.1) rotate(5deg)',
+            transform: 'scale(1.15) rotate(5deg)',
             background: `linear-gradient(135deg, ${color || theme.palette.primary.main} 0%, ${alpha(color || theme.palette.primary.main, 0.8)} 100%)`,
-            boxShadow: `0 8px 20px ${alpha(color || theme.palette.primary.main, 0.4)}`,
+            boxShadow: `0 8px 24px ${alpha(color || theme.palette.primary.main, 0.4)}`,
+            color: 'white',
+        },
+        '& .card-title': {
+            color: color || theme.palette.primary.main,
         }
     },
 }));
 
-// Glassmorphism Header
-const GlassHeader = styled(Paper)(({ theme }) => ({
-    background: `linear-gradient(135deg, ${alpha('#ffffff', 0.9)} 0%, ${alpha('#f8fafc', 0.95)} 100%)`,
-    backdropFilter: 'blur(20px) saturate(180%)',
-    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-    boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+// Stats Card với gradient
+const StatCard = styled(Paper)(({ theme, color }) => ({
+    padding: theme.spacing(2.5),
+    borderRadius: 16,
+    background: `linear-gradient(135deg, ${alpha(color || theme.palette.primary.main, 0.12)} 0%, ${alpha(color || theme.palette.primary.main, 0.06)} 100%)`,
+    border: `1.5px solid ${alpha(color || theme.palette.primary.main, 0.25)}`,
+    transition: 'all 0.3s ease',
     position: 'relative',
     overflow: 'hidden',
     '&::before': {
         content: '""',
         position: 'absolute',
         top: 0,
-        left: 0,
         right: 0,
-        height: '1px',
-        background: 'linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.5), transparent)',
+        width: 100,
+        height: 100,
+        borderRadius: '50%',
+        background: alpha(color || theme.palette.primary.main, 0.1),
+        transform: 'translate(30%, -30%)',
     },
-}));
-
-// Stats Card
-const StatCard = styled(Paper)(({ theme, color }) => ({
-    padding: theme.spacing(2.5),
-    borderRadius: 16,
-    background: `linear-gradient(135deg, ${alpha(color || theme.palette.primary.main, 0.1)} 0%, ${alpha(color || theme.palette.primary.main, 0.05)} 100%)`,
-    border: `1.5px solid ${alpha(color || theme.palette.primary.main, 0.2)}`,
-    transition: 'all 0.3s ease',
     '&:hover': {
         transform: 'translateY(-4px)',
-        boxShadow: `0 12px 24px ${alpha(color || theme.palette.primary.main, 0.15)}`,
+        boxShadow: `0 12px 28px ${alpha(color || theme.palette.primary.main, 0.2)}`,
+        borderColor: alpha(color || theme.palette.primary.main, 0.4),
     },
 }));
 
@@ -95,20 +97,20 @@ const containerVariants = {
     visible: {
         opacity: 1,
         transition: {
-            staggerChildren: 0.08,
+            staggerChildren: 0.06,
             delayChildren: 0.1,
         },
     },
 };
 
 const cardVariants = {
-    hidden: { opacity: 0, y: 30, scale: 0.9 },
+    hidden: { opacity: 0, y: 30, scale: 0.95 },
     visible: (i) => ({
         opacity: 1,
         y: 0,
         scale: 1,
         transition: {
-            delay: i * 0.05,
+            delay: i * 0.04,
             duration: 0.5,
             type: "spring",
             stiffness: 100,
@@ -249,13 +251,17 @@ const Home = () => {
 
     if (isLoading) {
         return (
-            <Box sx={{ bgcolor: '#f4f6f8', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>
+            <Box sx={{ 
+                bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default, 
+                minHeight: '100vh', 
+                p: { xs: 2, sm: 4 } 
+            }}>
                 <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
-                    <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 3, mb: 4 }} />
+                    <Skeleton variant="rectangular" height={280} sx={{ borderRadius: 3, mb: 4 }} />
                     <Grid container spacing={3}>
-                        {[...Array(6)].map((_, i) => (
+                        {[...Array(8)].map((_, i) => (
                             <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={i}>
-                                <Skeleton variant="rectangular" height={180} sx={{ borderRadius: 3 }} />
+                                <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 3 }} />
                             </Grid>
                         ))}
                     </Grid>
@@ -265,45 +271,82 @@ const Home = () => {
     }
 
     return (
-        <Box sx={{ bgcolor: '#f4f6f8', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>
-            <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
-                {/* Enhanced Header */}
-                <Box>
-                    <GlassHeader elevation={0} sx={{ p: { xs: 3, sm: 4, md: 5 }, mb: 5, borderRadius: 4 }}>
-                        <Stack spacing={3}>
+        <Box sx={{ 
+            minHeight: '100vh',
+            bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default,
+            pb: 4
+        }}>
+            <Box sx={{ maxWidth: 1600, mx: 'auto', px: { xs: 2, sm: 3, md: 4 } }}>
+                {/* Enhanced Header với Gradient */}
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                >
+                    <Box
+                        sx={{
+                            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                            borderRadius: 4,
+                            p: { xs: 3, sm: 4, md: 5 },
+                            mb: 4,
+                            position: 'relative',
+                            overflow: 'hidden',
+                            color: 'white',
+                            '&::before': {
+                                content: '""',
+                                position: 'absolute',
+                                top: -50,
+                                right: -50,
+                                width: 200,
+                                height: 200,
+                                borderRadius: '50%',
+                                background: alpha('#fff', 0.1),
+                            },
+                            '&::after': {
+                                content: '""',
+                                position: 'absolute',
+                                bottom: -30,
+                                left: -30,
+                                width: 150,
+                                height: 150,
+                                borderRadius: '50%',
+                                background: alpha('#fff', 0.08),
+                            }
+                        }}
+                    >
+                        <Box sx={{ position: 'relative', zIndex: 1 }}>
                             {/* Welcome Section */}
-                            <Box>
-                                <Stack direction="row" alignItems="center" spacing={2} mb={1}>
-                                    <motion.div
-                                        animate={{ rotate: [0, 10, -10, 0] }}
-                                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                                    >
-                                        <Sparkles sx={{ fontSize: 32 }} color={theme.palette.primary.main} />
-                                    </motion.div>
-                                    <Typography variant="h4" component="h1" sx={{ fontWeight: 800, color: '#1e293b' }}>
+                            <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+                                <motion.div
+                                    animate={{ rotate: [0, 10, -10, 0] }}
+                                    transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                                >
+                                    <Sparkles sx={{ fontSize: 40, color: 'white' }} />
+                                </motion.div>
+                                <Box sx={{ flex: 1 }}>
+                                    <Typography variant="h3" component="h1" sx={{ fontWeight: 800, color: 'white', mb: 0.5 }}>
                                         Trung Tâm Điều Hành ERP
                                     </Typography>
-                                </Stack>
-                                <Typography sx={{ color: '#64748b', mt: 0.5, fontSize: '1.05rem' }}>
-                                    Chào mừng, <strong>{user?.displayName || user?.email || 'bạn'}</strong>! Khởi động công việc của bạn.
-                                </Typography>
-                            </Box>
+                                    <Typography sx={{ color: alpha('#fff', 0.9), fontSize: '1.1rem' }}>
+                                        Chào mừng, <strong>{user?.displayName || user?.email || 'bạn'}</strong>! Khởi động công việc của bạn.
+                                    </Typography>
+                                </Box>
+                            </Stack>
 
                             {/* Stats Cards */}
-                            {/* Stats Cards */}
-                            <Grid container spacing={2}>
+                            <Grid container spacing={2} sx={{ mb: 3 }}>
                                 <Grid size={{ xs: 6, sm: 3 }}>
-                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                        <StatCard color={theme.palette.primary.main}>
+                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <StatCard color="#ffffff" sx={{ bgcolor: alpha('#fff', 0.15), borderColor: alpha('#fff', 0.3) }}>
                                             <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main, borderRadius: '12px' }}>
-                                                    <Activity sx={{ fontSize: 20 }} />
+                                                <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 48, height: 48 }}>
+                                                    <Activity sx={{ fontSize: 24 }} />
                                                 </Avatar>
                                                 <Box>
-                                                    <Typography variant="h5" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>
+                                                    <Typography variant="h4" sx={{ fontWeight: 800, color: 'white' }}>
                                                         {stats.total}
                                                     </Typography>
-                                                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
+                                                    <Typography variant="body2" sx={{ color: alpha('#fff', 0.9), fontWeight: 600, fontSize: '0.8rem' }}>
                                                         Tổng chức năng
                                                     </Typography>
                                                 </Box>
@@ -312,18 +355,18 @@ const Home = () => {
                                     </motion.div>
                                 </Grid>
                                 <Grid size={{ xs: 6, sm: 3 }}>
-                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                        <StatCard color="#f97316">
+                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <StatCard color="#ffffff" sx={{ bgcolor: alpha('#fff', 0.15), borderColor: alpha('#fff', 0.3) }}>
                                             <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha('#f97316', 0.1), color: '#f97316', borderRadius: '12px' }}>
-                                                    <Zap sx={{ fontSize: 20 }} />
+                                                <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 48, height: 48 }}>
+                                                    <Zap sx={{ fontSize: 24 }} />
                                                 </Avatar>
                                                 <Box>
-                                                    <Typography variant="h5" sx={{ fontWeight: 800, color: '#f97316' }}>
+                                                    <Typography variant="h4" sx={{ fontWeight: 800, color: 'white' }}>
                                                         {stats.newCount}
                                                     </Typography>
-                                                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
-                                                        Mới
+                                                    <Typography variant="body2" sx={{ color: alpha('#fff', 0.9), fontWeight: 600, fontSize: '0.8rem' }}>
+                                                        Tính năng mới
                                                     </Typography>
                                                 </Box>
                                             </Stack>
@@ -331,17 +374,17 @@ const Home = () => {
                                     </motion.div>
                                 </Grid>
                                 <Grid size={{ xs: 6, sm: 3 }}>
-                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                        <StatCard color="#10b981">
+                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <StatCard color="#ffffff" sx={{ bgcolor: alpha('#fff', 0.15), borderColor: alpha('#fff', 0.3) }}>
                                             <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha('#10b981', 0.1), color: '#10b981', borderRadius: '12px' }}>
-                                                    <TrendingUp sx={{ fontSize: 20 }} />
+                                                <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 48, height: 48 }}>
+                                                    <TrendingUp sx={{ fontSize: 24 }} />
                                                 </Avatar>
                                                 <Box>
-                                                    <Typography variant="h5" sx={{ fontWeight: 800, color: '#10b981' }}>
+                                                    <Typography variant="h4" sx={{ fontWeight: 800, color: 'white' }}>
                                                         {stats.mainFeatures}
                                                     </Typography>
-                                                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
+                                                    <Typography variant="body2" sx={{ color: alpha('#fff', 0.9), fontWeight: 600, fontSize: '0.8rem' }}>
                                                         Chức năng chính
                                                     </Typography>
                                                 </Box>
@@ -350,17 +393,17 @@ const Home = () => {
                                     </motion.div>
                                 </Grid>
                                 <Grid size={{ xs: 6, sm: 3 }}>
-                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                        <StatCard color="#6366f1">
+                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <StatCard color="#ffffff" sx={{ bgcolor: alpha('#fff', 0.15), borderColor: alpha('#fff', 0.3) }}>
                                             <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha('#6366f1', 0.1), color: '#6366f1', borderRadius: '12px' }}>
-                                                    <BarChart3 sx={{ fontSize: 20 }} />
+                                                <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 48, height: 48 }}>
+                                                    <BarChart3 sx={{ fontSize: 24 }} />
                                                 </Avatar>
                                                 <Box>
-                                                    <Typography variant="h5" sx={{ fontWeight: 800, color: '#6366f1' }}>
+                                                    <Typography variant="h4" sx={{ fontWeight: 800, color: 'white' }}>
                                                         {stats.reports}
                                                     </Typography>
-                                                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
+                                                    <Typography variant="body2" sx={{ color: alpha('#fff', 0.9), fontWeight: 600, fontSize: '0.8rem' }}>
                                                         Báo cáo
                                                     </Typography>
                                                 </Box>
@@ -381,30 +424,38 @@ const Home = () => {
                                     InputProps={{
                                         startAdornment: (
                                             <InputAdornment position="start">
-                                                <Search sx={{ fontSize: 20 }} color={theme.palette.primary.main} />
+                                                <Search sx={{ fontSize: 22, color: 'white' }} />
                                             </InputAdornment>
                                         ),
                                         endAdornment: searchQuery && (
                                             <InputAdornment position="end">
-                                                <IconButton size="small" onClick={handleClearSearch} edge="end">
+                                                <IconButton size="small" onClick={handleClearSearch} edge="end" sx={{ color: 'white' }}>
                                                     <X sx={{ fontSize: 18 }} />
                                                 </IconButton>
                                             </InputAdornment>
                                         ),
                                         sx: {
-                                            borderRadius: '14px',
-                                            bgcolor: alpha(theme.palette.primary.main, 0.05),
+                                            borderRadius: '16px',
+                                            bgcolor: alpha('#fff', 0.15),
+                                            color: 'white',
                                             '& fieldset': {
-                                                borderColor: alpha(theme.palette.primary.main, 0.2),
+                                                borderColor: alpha('#fff', 0.3),
                                                 borderWidth: 1.5,
                                             },
                                             '&:hover fieldset': {
-                                                borderColor: alpha(theme.palette.primary.main, 0.4),
+                                                borderColor: alpha('#fff', 0.5),
                                             },
                                             '&.Mui-focused fieldset': {
-                                                borderColor: theme.palette.primary.main,
+                                                borderColor: 'white',
                                                 borderWidth: 2,
                                             },
+                                            '& input': {
+                                                color: 'white',
+                                                '&::placeholder': {
+                                                    color: alpha('#fff', 0.7),
+                                                    opacity: 1,
+                                                }
+                                            }
                                         },
                                     }}
                                 />
@@ -419,23 +470,24 @@ const Home = () => {
                                             icon={cat === selectedCategory ? <Filter sx={{ fontSize: 16 }} /> : undefined}
                                             sx={{
                                                 bgcolor: cat === selectedCategory
-                                                    ? theme.palette.primary.main
-                                                    : alpha(theme.palette.primary.main, 0.1),
-                                                color: cat === selectedCategory ? '#fff' : theme.palette.primary.main,
+                                                    ? 'white'
+                                                    : alpha('#fff', 0.15),
+                                                color: cat === selectedCategory ? theme.palette.primary.main : 'white',
                                                 fontWeight: cat === selectedCategory ? 700 : 500,
+                                                border: `1.5px solid ${cat === selectedCategory ? 'transparent' : alpha('#fff', 0.3)}`,
                                                 '&:hover': {
                                                     bgcolor: cat === selectedCategory
-                                                        ? alpha(theme.palette.primary.main, 0.9)
-                                                        : alpha(theme.palette.primary.main, 0.15),
+                                                        ? alpha('#fff', 0.95)
+                                                        : alpha('#fff', 0.25),
                                                 },
                                             }}
                                         />
                                     ))}
                                 </Stack>
                             </Stack>
-                        </Stack>
-                    </GlassHeader>
-                </Box>
+                        </Box>
+                    </Box>
+                </motion.div>
 
                 {/* Modules Grid */}
                 <motion.div
@@ -453,20 +505,20 @@ const Home = () => {
                                 <Stack direction="row" alignItems="center" spacing={2} mb={3}>
                                     <Box
                                         sx={{
-                                            width: 4,
-                                            height: 32,
-                                            borderRadius: 2,
-                                            background: `linear-gradient(180deg, ${theme.palette.primary.main}, ${alpha(theme.palette.primary.main, 0.5)})`,
+                                            width: 5,
+                                            height: 36,
+                                            borderRadius: 3,
+                                            background: `linear-gradient(180deg, ${theme.palette.primary.main}, ${alpha(theme.palette.primary.main, 0.6)})`,
                                         }}
                                     />
                                     <Typography
                                         variant="h5"
                                         sx={{
                                             fontWeight: 700,
-                                            color: '#0f172a',
+                                            color: theme.palette.text.primary,
                                             display: 'flex',
                                             alignItems: 'center',
-                                            gap: 1,
+                                            gap: 1.5,
                                         }}
                                     >
                                         {category}
@@ -477,7 +529,8 @@ const Home = () => {
                                                 bgcolor: alpha(theme.palette.primary.main, 0.1),
                                                 color: theme.palette.primary.main,
                                                 fontWeight: 700,
-                                                height: 24,
+                                                height: 26,
+                                                fontSize: '0.75rem',
                                             }}
                                         />
                                     </Typography>
@@ -515,8 +568,8 @@ const Home = () => {
                                                                         fontWeight: 700,
                                                                         fontSize: '0.65rem',
                                                                         p: '0 8px',
-                                                                        height: 20,
-                                                                        borderRadius: '10px',
+                                                                        height: 22,
+                                                                        borderRadius: '11px',
                                                                         boxShadow: `0 2px 8px ${alpha('#f97316', 0.4)}`,
                                                                     },
                                                                 }}
@@ -526,15 +579,15 @@ const Home = () => {
                                                             <Box
                                                                 className="icon-box"
                                                                 sx={{
-                                                                    width: 56,
-                                                                    height: 56,
-                                                                    borderRadius: '16px',
+                                                                    width: 60,
+                                                                    height: 60,
+                                                                    borderRadius: '18px',
                                                                     display: 'flex',
                                                                     alignItems: 'center',
                                                                     justifyContent: 'center',
-                                                                    background: `linear-gradient(135deg, ${alpha(module.color, 0.1)} 0%, ${alpha(module.color, 0.2)} 100%)`,
+                                                                    background: `linear-gradient(135deg, ${alpha(module.color, 0.15)} 0%, ${alpha(module.color, 0.25)} 100%)`,
                                                                     color: module.color,
-                                                                    mb: 2,
+                                                                    mb: 2.5,
                                                                     flexShrink: 0,
                                                                     transition: 'all 0.3s ease',
                                                                 }}
@@ -543,15 +596,17 @@ const Home = () => {
                                                             </Box>
                                                             <Box sx={{ flexGrow: 1 }}>
                                                                 <Typography
+                                                                    className="card-title"
                                                                     variant="subtitle1"
                                                                     component="h3"
                                                                     sx={{
                                                                         fontWeight: 700,
-                                                                        color: '#1e293b',
-                                                                        fontSize: '1.05rem',
+                                                                        color: theme.palette.text.primary,
+                                                                        fontSize: '1.1rem',
                                                                         lineHeight: 1.3,
-                                                                        minHeight: '2.6rem',
-                                                                        mb: 0.5,
+                                                                        minHeight: '2.8rem',
+                                                                        mb: 1,
+                                                                        transition: 'color 0.3s ease',
                                                                     }}
                                                                 >
                                                                     {searchQuery ? highlightText(module.title, searchQuery) : module.title}
@@ -559,9 +614,9 @@ const Home = () => {
                                                                 <Typography
                                                                     variant="body2"
                                                                     sx={{
-                                                                        color: '#64748b',
-                                                                        fontSize: '0.85rem',
-                                                                        lineHeight: 1.5,
+                                                                        color: theme.palette.text.secondary,
+                                                                        fontSize: '0.875rem',
+                                                                        lineHeight: 1.6,
                                                                     }}
                                                                 >
                                                                     {searchQuery ? highlightText(module.desc, searchQuery) : module.desc}
@@ -590,7 +645,7 @@ const Home = () => {
                             sx={{
                                 mt: 5,
                                 p: 6,
-                                bgcolor: 'white',
+                                bgcolor: theme.palette.background.paper,
                                 borderRadius: 4,
                                 textAlign: 'center',
                                 border: `2px dashed ${alpha(theme.palette.divider, 0.5)}`,
@@ -602,21 +657,21 @@ const Home = () => {
                                 animate={{ y: [0, -10, 0] }}
                                 transition={{ duration: 2, repeat: Infinity }}
                             >
-                                <ShieldOff sx={{ fontSize: 64 }} color={theme.palette.text.secondary} />
+                                <ShieldOff sx={{ fontSize: 64, color: theme.palette.text.secondary }} />
                             </motion.div>
-                            <Typography variant="h5" sx={{ mt: 3, fontWeight: 700, color: '#334155' }}>
+                            <Typography variant="h5" sx={{ mt: 3, fontWeight: 700, color: theme.palette.text.primary }}>
                                 {allowedModules.length > 0 ? 'Không tìm thấy chức năng' : 'Truy cập bị Hạn chế'}
                             </Typography>
-                            <Typography sx={{ color: '#64748b', mt: 1.5, fontSize: '1rem' }}>
+                            <Typography sx={{ color: theme.palette.text.secondary, mt: 1.5, fontSize: '1rem' }}>
                                 {allowedModules.length > 0
                                     ? 'Không có module nào khớp với từ khóa tìm kiếm của bạn. Vui lòng thử lại với từ khóa khác.'
                                     : 'Tài khoản của bạn chưa được cấp quyền truy cập. Vui lòng liên hệ bộ phận hỗ trợ hoặc quản trị viên hệ thống.'}
                             </Typography>
                             {allowedModules.length > 0 && (
                                 <Button
-                                    variant="outlined"
+                                    variant="contained"
                                     onClick={handleClearSearch}
-                                    sx={{ mt: 3 }}
+                                    sx={{ mt: 3, borderRadius: 2, px: 4 }}
                                 >
                                     Xóa bộ lọc
                                 </Button>
@@ -630,4 +685,3 @@ const Home = () => {
 };
 
 export default Home;
-

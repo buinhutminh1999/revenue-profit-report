@@ -16,6 +16,11 @@ import {
     Stack,
     InputAdornment,
     MenuItem,
+    Card,
+    CardContent,
+    Chip,
+    alpha,
+    useTheme,
 } from "@mui/material";
 import {
     LocalizationProvider,
@@ -24,10 +29,15 @@ import {
 } from "@mui/x-date-pickers";
 
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { vi } from 'date-fns/locale'; // Import locale tiếng Việt từ date-fns
+import { vi } from 'date-fns/locale';
 
 import { startOfDay, endOfDay } from "date-fns";
-import { Print, Search, Clear, CloudUpload } from "@mui/icons-material";
+import { 
+    Print, Search, Clear, CloudUpload, 
+    AccessTime, People, TrendingUp, CalendarToday,
+    FilterList, Refresh
+} from "@mui/icons-material";
+import { motion } from "framer-motion";
 
 import FileUpload from "../../components/common/FileUpload";
 import DepartmentFilter from "../../components/common/DepartmentFilter";
@@ -42,9 +52,6 @@ import { collection, getDocs, setDoc, doc, query, orderBy } from "firebase/fires
 import { db } from "../../services/firebase-config";
 import toast from "react-hot-toast";
 import { useFileUpload } from "../../hooks/useFileUpload";
-
-// (Giữ nguyên các hàm toDateString, parseDMY, isValidTimeString, getPreviousWeek)
-// ... (Không thay đổi) ...
 
 const toDateString = (val) => {
     if (!val) return "N/A";
@@ -93,7 +100,7 @@ const isValidTimeString = (timeString) => {
 
 const getPreviousWeek = () => {
     const today = new Date();
-    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ... 6=Sat
+    const dayOfWeek = today.getDay();
     const diffToCurrentMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const currentMonday = new Date(
         today.getFullYear(),
@@ -107,14 +114,13 @@ const getPreviousWeek = () => {
     return { from: lastMonday, to: lastSaturday };
 };
 
-
-// --- THAY ĐỔI 2: Định nghĩa các lựa chọn công ty ---
 const companyOptions = [
     { value: "BKXD", label: "Công ty CPXD Bách Khoa" },
     { value: "BKCT", label: "Công ty Bách Khoa Châu Thành" },
 ];
 
 export default function AttendanceDashboard() {
+    const theme = useTheme();
     const isMobile = useMediaQuery("(max-width:600px)");
     const [rows, setRows] = useState([]);
     const [depts, setDepts] = useState([]);
@@ -124,18 +130,14 @@ export default function AttendanceDashboard() {
     const [searchTerm, setSearchTerm] = useState("");
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
     const [includeSaturday, setIncludeSaturday] = useState(false);
-
-    // --- THAY ĐỔI 3: Thêm state cho công ty được chọn ---
     const [selectedCompany, setSelectedCompany] = useState(
-        () => localStorage.getItem("defaultCompany") || "BKXD" // Lấy "defaultCompany" từ localStorage, nếu không có thì mặc định là "BKXD"
+        () => localStorage.getItem("defaultCompany") || "BKXD"
     );
     const [isLoading, setIsLoading] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
 
     const Picker = isMobile ? MobileDatePicker : DatePicker;
 
-    // (Các hàm loadAttendanceData, useEffect, useMemo, handleFileUploadData, handleReasonSave... 
-    // ... KHÔNG CÓ THAY ĐỔI)
     const loadAttendanceData = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -183,7 +185,7 @@ export default function AttendanceDashboard() {
             clearTimeout(handler);
         };
     }, [searchTerm]);
-    // (useEffect LƯU localStorage)
+
     useEffect(() => {
         localStorage.setItem("defaultCompany", selectedCompany);
     }, [selectedCompany]);
@@ -196,10 +198,7 @@ export default function AttendanceDashboard() {
         if (fromDate && toDate) {
             const start = startOfDay(fromDate);
             const end = endOfDay(toDate);
-            // --- THÊM LOG Ở ĐÂY ĐỂ XÁC NHẬN NGÀY LỌC ---
-            // console.log("4. Phạm vi lọc ngày:", toDateString(start), "đến", toDateString(end));
             tempRows = tempRows.filter((r) => r.dateObj >= start && r.dateObj <= end);
-            // console.log("5. Số lượng dòng sau khi lọc ngày:", tempRows.length);
         }
         if (debouncedSearchTerm) {
             const k = debouncedSearchTerm.trim().toLowerCase();
@@ -208,8 +207,6 @@ export default function AttendanceDashboard() {
             );
         }
 
-        // --- THÊM LOGIC SẮP XẾP ---
-        // Sắp xếp theo Ngày (tăng dần) -> Tên nhân viên (A-Z)
         tempRows.sort((a, b) => {
             const timeA = a.dateObj ? a.dateObj.getTime() : 0;
             const timeB = b.dateObj ? b.dateObj.getTime() : 0;
@@ -224,24 +221,25 @@ export default function AttendanceDashboard() {
         return tempRows;
     }, [rows, dept, fromDate, toDate, debouncedSearchTerm]);
 
+    // Stats calculation
+    const stats = useMemo(() => {
+        const totalEmployees = new Set(filtered.map(r => r["Tên nhân viên"])).size;
+        const totalRecords = filtered.length;
+        const uniqueDates = new Set(filtered.map(r => r.Ngày)).size;
+        const departments = new Set(filtered.map(r => r["Tên bộ phận"])).size;
+        return { totalEmployees, totalRecords, uniqueDates, departments };
+    }, [filtered]);
+
     const handleFileUploadData = useCallback(async (rawRows) => {
-        console.log("1. Dữ liệu thô (rawRows) từ Excel:", rawRows);
         setIsUploading(true);
         try {
             const errors = [];
             const formattedData = rawRows
-                .filter((r) => r["Tên nhân viên"] && r["Ngày"]) // Skip rows without required fields
+                .filter((r) => r["Tên nhân viên"] && r["Ngày"])
                 .map((r, index) => {
-                    const stt = r.STT || index; // Fallback to index if STT is missing
-
+                    const stt = r.STT || index;
                     const excelRow = `dòng ${index + 2}`;
                     const employeeName = r["Tên nhân viên"];
-
-                    // Debug log for date value
-                    if (index === 0) {
-                        console.log("DEBUG: Raw date value type:", typeof r["Ngày"], "value:", r["Ngày"]);
-                    }
-
                     const dateStr = convertExcelDateToJSDate(r["Ngày"]);
                     const dateObj = parseDMY(dateStr);
                     const s1 = r.S1 ? convertExcelTimeToTimeString(r.S1) : "";
@@ -261,10 +259,6 @@ export default function AttendanceDashboard() {
                     };
                 });
 
-            // --- THÊM LOG ĐỂ KIỂM TRA DỮ LIỆU ĐÃ FORMAT ---
-            console.log("2. Dữ liệu đã format (formattedData):", formattedData);
-            console.log("3. Kiểm tra các lỗi (errors):", errors);
-
             if (errors.length > 0) {
                 const errorMessage = `Phát hiện ${errors.length} lỗi trong file. Vui lòng sửa lại và thử lại:\n\n${errors.join('\n')}`;
                 toast.error(errorMessage, { duration: 15000 });
@@ -275,7 +269,6 @@ export default function AttendanceDashboard() {
                 formattedData.map((row) => setDoc(doc(db, "attendance", row.id), row, { merge: true }))
             );
 
-            // Auto-set date filter to show uploaded data
             const dates = formattedData.map(row => row["Ngày"]).filter(d => d instanceof Date && !isNaN(d));
             if (dates.length > 0) {
                 const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
@@ -309,211 +302,504 @@ export default function AttendanceDashboard() {
 
     const { handleFileUpload } = useFileUpload(handleFileUploadData);
 
-    // Bên trong src/pages/Home.js
-
     const handlePrint = () => {
         if (!fromDate || !toDate) {
             toast("Chọn đủ Từ ngày và Đến ngày để in", { icon: '⚠️' });
             return;
         }
 
-        // --- THAY ĐỔI DUY NHẤT Ở ĐÂY ---
         printStyledAttendance(
             filtered,
             dept === "all" ? "Tất cả" : dept,
             fromDate,
             toDate,
             includeSaturday,
-            selectedCompany // <-- Thêm biến này vào cuối
+            selectedCompany
         );
     };
 
-    // --- ĐẶT CÁC HÀM HANDLER TẠI ĐÂY ---
     const handleClearFilters = () => {
         setSearchTerm("");
         setDept("all");
         setFromDate(null);
         setToDate(null);
-        // setSelectedCompany("BKXD"); // Như bạn nói, có thể bỏ dòng này
     };
 
     if (isLoading) return (
-        <Box sx={{ p: 3, backgroundColor: "#f8f9fa", minHeight: "100vh" }}>
-            <Box sx={{ mb: 3 }}>
-                <Typography variant="h4" fontWeight="700" sx={{ color: "#1a237e", mb: 1 }}>QUẢN LÝ CHẤM CÔNG</Typography>
-                <Typography variant="body2" color="text.secondary">Hệ thống báo cáo & theo dõi nhân sự</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 2, mt: 8 }}>
-                <CircularProgress size={48} />
-                <Typography sx={{ color: 'text.secondary' }}>Đang tải dữ liệu chấm công...</Typography>
-            </Box>
+        <Box sx={{ 
+            minHeight: '100vh',
+            bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 3
+        }}>
+            <CircularProgress size={48} />
+            <Typography sx={{ color: 'text.secondary' }}>Đang tải dữ liệu chấm công...</Typography>
         </Box>
     );
 
     return (
-        <Box sx={{ p: isMobile ? 1 : 3, backgroundColor: "#f8f9fa", minHeight: "100vh" }}>
-            {/* 1. Header & Title */}
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-                <Box>
-                    <Typography variant={isMobile ? "h5" : "h4"} component="h1" fontWeight="800" sx={{ color: "#1a237e", letterSpacing: "-0.5px" }}>
-                        QUẢN LÝ CHẤM CÔNG
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Hệ thống báo cáo & theo dõi nhân sự
-                    </Typography>
-                </Box>
-
-                {/* Quick Actions (Top Right) */}
-                <Stack direction="row" spacing={2}>
-                    <Button
-                        variant="contained"
-                        startIcon={<Print />}
-                        onClick={handlePrint}
-                        sx={{
-                            backgroundColor: "#2e7d32",
-                            "&:hover": { backgroundColor: "#1b5e20" },
-                            textTransform: "none",
-                            fontWeight: 600,
-                            boxShadow: "0 4px 12px rgba(46, 125, 50, 0.2)"
-                        }}
+        <Box sx={{ 
+            minHeight: '100vh',
+            bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default,
+            pb: 4
+        }}>
+            {/* Header với Gradient */}
+            <Box
+                sx={{
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                    color: 'white',
+                    py: 4,
+                    mb: 4,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: -50,
+                        right: -50,
+                        width: 200,
+                        height: 200,
+                        borderRadius: '50%',
+                        background: alpha('#fff', 0.1),
+                    }
+                }}
+            >
+                <Box sx={{ maxWidth: 1600, mx: 'auto', px: { xs: 2, sm: 3, md: 4 }, position: 'relative', zIndex: 1 }}>
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
                     >
-                        In Bảng Chấm Công
-                    </Button>
-                </Stack>
+                        <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" spacing={2}>
+                            <Box>
+                                <Typography variant="h4" component="h1" fontWeight={800} sx={{ color: 'white', mb: 0.5 }}>
+                                    Quản Lý Chấm Công
+                                </Typography>
+                                <Typography sx={{ color: alpha('#fff', 0.9), fontSize: '1.1rem' }}>
+                                    Hệ thống báo cáo & theo dõi nhân sự
+                                </Typography>
+                            </Box>
+                            <Button
+                                variant="contained"
+                                startIcon={<Print />}
+                                onClick={handlePrint}
+                                sx={{
+                                    bgcolor: 'white',
+                                    color: theme.palette.primary.main,
+                                    fontWeight: 600,
+                                    px: 3,
+                                    py: 1.5,
+                                    borderRadius: 2,
+                                    boxShadow: theme.shadows[4],
+                                    '&:hover': {
+                                        bgcolor: alpha('#fff', 0.9),
+                                        transform: 'translateY(-2px)',
+                                        boxShadow: theme.shadows[6],
+                                    },
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                In Bảng Chấm Công
+                            </Button>
+                        </Stack>
+                    </motion.div>
+                </Box>
             </Box>
 
-            {/* 2. Action Deck (Upload & Settings) */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid size={{ xs: 12, md: 8 }}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: "1px solid #e0e0e0", display: 'flex', alignItems: 'center', gap: 2, height: '100%' }}>
-                        <Box sx={{ p: 1.5, borderRadius: "50%", backgroundColor: "#e3f2fd", color: "#1976d2" }}>
-                            <CloudUpload />
-                        </Box>
-                        <Box sx={{ flexGrow: 1 }}>
-                            <Typography variant="subtitle2" fontWeight="bold">Dữ liệu chấm công</Typography>
-                            <FileUpload
-                                onFileUpload={handleFileUpload}
-                                isUploading={isUploading}
-                            />
-                        </Box>
-                    </Paper>
-                </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: "1px solid #e0e0e0", height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <FormControlLabel
-                            control={<Checkbox checked={includeSaturday} onChange={(e) => setIncludeSaturday(e.target.checked)} />}
-                            label={<Typography variant="body2" fontWeight="600">In kèm chiều Thứ 7</Typography>}
-                        />
-                        <Typography variant="caption" color="text.secondary" sx={{ ml: 4 }}>
-                            *Tự động từ 18/11/2025
-                        </Typography>
-                    </Paper>
-                </Grid>
-            </Grid>
-
-            {/* 3. Filter Bar (Sticky-like) */}
-            <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 2, border: "1px solid #e0e0e0", backgroundColor: "#fff" }}>
-                <Grid container spacing={2} alignItems="center">
-                    <Grid size={{ xs: 12, md: 3 }}>
-                        <TextField
-                            fullWidth
-                            size="small"
-                            placeholder="Tìm tên, bộ phận..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            InputProps={{
-                                startAdornment: (<InputAdornment position="start"><Search fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment>),
-                            }}
-                            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
-                        />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 3 }}>
-                        <DepartmentFilter depts={depts} value={dept} onChange={setDept} labels={{ all: "Tất cả bộ phận" }} />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 2 }}>
-                        <TextField
-                            select
-                            fullWidth
-                            size="small"
-                            value={selectedCompany}
-                            onChange={(e) => setSelectedCompany(e.target.value)}
-                            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+            <Box sx={{ maxWidth: 1600, mx: 'auto', px: { xs: 2, sm: 3, md: 4 } }}>
+                {/* Stats Cards */}
+                <Grid container spacing={3} sx={{ mb: 4 }}>
+                    <Grid size={{ xs: 6, sm: 3 }}>
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.1 }}
                         >
-                            {companyOptions.map((option) => (
-                                <MenuItem key={option.value} value={option.value}>
-                                    {option.label}
-                                </MenuItem>
-                            ))}
-                        </TextField>
+                            <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3], border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
+                                <CardContent>
+                                    <Stack direction="row" spacing={2} alignItems="center">
+                                        <Box sx={{
+                                            p: 1.5,
+                                            borderRadius: 2,
+                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                            color: theme.palette.primary.main
+                                        }}>
+                                            <People sx={{ fontSize: 28 }} />
+                                        </Box>
+                                        <Box>
+                                            <Typography variant="h4" fontWeight={800} color="primary">
+                                                {stats.totalEmployees}
+                                            </Typography>
+                                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                                                Nhân viên
+                                            </Typography>
+                                        </Box>
+                                    </Stack>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
                     </Grid>
-                    <Grid size={{ xs: 6, md: 2 }}>
-                        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
-                            <Picker
-                                value={fromDate}
-                                onChange={setFromDate}
-                                format="dd/MM/yyyy"
-                                slotProps={{
-                                    textField: {
-                                        size: 'small',
-                                        fullWidth: true,
-                                        placeholder: "Từ ngày",
-                                        helperText: null
-                                    }
-                                }}
-                            />
-                        </LocalizationProvider>
+                    <Grid size={{ xs: 6, sm: 3 }}>
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                        >
+                            <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3], border: `1px solid ${alpha('#10b981', 0.1)}` }}>
+                                <CardContent>
+                                    <Stack direction="row" spacing={2} alignItems="center">
+                                        <Box sx={{
+                                            p: 1.5,
+                                            borderRadius: 2,
+                                            bgcolor: alpha('#10b981', 0.1),
+                                            color: '#10b981'
+                                        }}>
+                                            <AccessTime sx={{ fontSize: 28 }} />
+                                        </Box>
+                                        <Box>
+                                            <Typography variant="h4" fontWeight={800} sx={{ color: '#10b981' }}>
+                                                {stats.totalRecords}
+                                            </Typography>
+                                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                                                Bản ghi
+                                            </Typography>
+                                        </Box>
+                                    </Stack>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
                     </Grid>
-                    <Grid size={{ xs: 6, md: 2 }}>
-                        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
-                            <Picker
-                                value={toDate}
-                                onChange={setToDate}
-                                format="dd/MM/yyyy"
-                                slotProps={{
-                                    textField: {
-                                        size: 'small',
-                                        fullWidth: true,
-                                        placeholder: "Đến ngày",
-                                        helperText: null
-                                    }
-                                }}
-                            />
-                        </LocalizationProvider>
+                    <Grid size={{ xs: 6, sm: 3 }}>
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                        >
+                            <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3], border: `1px solid ${alpha('#f97316', 0.1)}` }}>
+                                <CardContent>
+                                    <Stack direction="row" spacing={2} alignItems="center">
+                                        <Box sx={{
+                                            p: 1.5,
+                                            borderRadius: 2,
+                                            bgcolor: alpha('#f97316', 0.1),
+                                            color: '#f97316'
+                                        }}>
+                                            <CalendarToday sx={{ fontSize: 28 }} />
+                                        </Box>
+                                        <Box>
+                                            <Typography variant="h4" fontWeight={800} sx={{ color: '#f97316' }}>
+                                                {stats.uniqueDates}
+                                            </Typography>
+                                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                                                Ngày làm việc
+                                            </Typography>
+                                        </Box>
+                                    </Stack>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 3 }}>
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.4 }}
+                        >
+                            <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3], border: `1px solid ${alpha('#8b5cf6', 0.1)}` }}>
+                                <CardContent>
+                                    <Stack direction="row" spacing={2} alignItems="center">
+                                        <Box sx={{
+                                            p: 1.5,
+                                            borderRadius: 2,
+                                            bgcolor: alpha('#8b5cf6', 0.1),
+                                            color: '#8b5cf6'
+                                        }}>
+                                            <TrendingUp sx={{ fontSize: 28 }} />
+                                        </Box>
+                                        <Box>
+                                            <Typography variant="h4" fontWeight={800} sx={{ color: '#8b5cf6' }}>
+                                                {stats.departments}
+                                            </Typography>
+                                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                                                Bộ phận
+                                            </Typography>
+                                        </Box>
+                                    </Stack>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
                     </Grid>
                 </Grid>
 
-                {/* Active Filters Chips (Optional, can add later) */}
-                {(dept !== 'all' || searchTerm) && (
-                    <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                        <Button size="small" onClick={handleClearFilters} startIcon={<Clear />} sx={{ textTransform: 'none', color: 'text.secondary' }}>
-                            Xóa bộ lọc
-                        </Button>
-                    </Box>
-                )}
-            </Paper>
+                {/* Upload Section */}
+                <Grid container spacing={3} sx={{ mb: 4 }}>
+                    <Grid size={{ xs: 12, md: 8 }}>
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.5 }}
+                        >
+                            <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3], border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+                                <CardContent>
+                                    <Stack direction="row" spacing={2} alignItems="center">
+                                        <Box sx={{
+                                            p: 2,
+                                            borderRadius: 2,
+                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                            color: theme.palette.primary.main
+                                        }}>
+                                            <CloudUpload sx={{ fontSize: 32 }} />
+                                        </Box>
+                                        <Box sx={{ flexGrow: 1 }}>
+                                            <Typography variant="h6" fontWeight={700} gutterBottom>
+                                                Tải dữ liệu chấm công
+                                            </Typography>
+                                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                                Upload file Excel để nhập dữ liệu chấm công vào hệ thống
+                                            </Typography>
+                                            <FileUpload
+                                                onFileUpload={handleFileUpload}
+                                                isUploading={isUploading}
+                                            />
+                                        </Box>
+                                    </Stack>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.6 }}
+                        >
+                            <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3], border: `1px solid ${alpha(theme.palette.divider, 0.1)}`, height: '100%' }}>
+                                <CardContent>
+                                    <Typography variant="h6" fontWeight={700} gutterBottom>
+                                        Tùy chọn in
+                                    </Typography>
+                                    <FormControlLabel
+                                        control={
+                                            <Checkbox 
+                                                checked={includeSaturday} 
+                                                onChange={(e) => setIncludeSaturday(e.target.checked)}
+                                                sx={{ '& .MuiSvgIcon-root': { fontSize: 24 } }}
+                                            />
+                                        }
+                                        label={<Typography variant="body1" fontWeight={600}>In kèm chiều Thứ 7</Typography>}
+                                    />
+                                    <Typography variant="caption" color="text.secondary" sx={{ ml: 4, display: 'block', mt: 0.5 }}>
+                                        *Tự động từ 18/11/2025
+                                    </Typography>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    </Grid>
+                </Grid>
 
-            {/* 4. Data Table */}
-            <Paper elevation={0} sx={{ borderRadius: 2, border: "1px solid #e0e0e0", overflow: "hidden", minHeight: 400 }}>
-                {filtered.length > 0 ? (
-                    <AttendanceTable
-                        rows={filtered}
-                        includeSaturday={includeSaturday}
-                        onReasonSave={handleReasonSave}
-                        isMobile={isMobile}
-                        company={selectedCompany}
-                    />
-                ) : (
-                    <Box sx={{ p: 8, textAlign: 'center', color: 'text.secondary' }}>
-                        <CloudUpload sx={{ fontSize: 64, color: 'action.disabled', mb: 2 }} />
-                        <Typography variant="h6" sx={{ mb: 1 }}>Chưa có dữ liệu chấm công</Typography>
-                        <Typography variant="body2" sx={{ mb: 3 }}>Vui lòng tải file Excel bằng nút bên trên hoặc điều chỉnh bộ lọc.</Typography>
-                        <Button variant="outlined" startIcon={<CloudUpload />} component="label">
-                            Tải File Excel
-                            <input type="file" hidden accept=".xlsx,.xls" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
-                        </Button>
-                    </Box>
-                )}
-            </Paper>
+                {/* Filter Bar */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.7 }}
+                >
+                    <Paper 
+                        elevation={0}
+                        sx={{ 
+                            p: 3, 
+                            mb: 3, 
+                            borderRadius: 3, 
+                            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                            bgcolor: theme.palette.background.paper,
+                            boxShadow: theme.shadows[2]
+                        }}
+                    >
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                            <FilterList sx={{ color: theme.palette.primary.main }} />
+                            <Typography variant="h6" fontWeight={700}>
+                                Bộ lọc
+                            </Typography>
+                        </Stack>
+                        <Grid container spacing={2} alignItems="center">
+                            <Grid size={{ xs: 12, md: 3 }}>
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    placeholder="Tìm tên, bộ phận..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <Search sx={{ color: 'text.secondary' }} />
+                                            </InputAdornment>
+                                        ),
+                                    }}
+                                    sx={{ 
+                                        "& .MuiOutlinedInput-root": { 
+                                            borderRadius: 2,
+                                            bgcolor: alpha(theme.palette.primary.main, 0.02)
+                                        } 
+                                    }}
+                                />
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 3 }}>
+                                <DepartmentFilter 
+                                    depts={depts} 
+                                    value={dept} 
+                                    onChange={setDept} 
+                                    labels={{ all: "Tất cả bộ phận" }} 
+                                />
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 2 }}>
+                                <TextField
+                                    select
+                                    fullWidth
+                                    size="small"
+                                    value={selectedCompany}
+                                    onChange={(e) => setSelectedCompany(e.target.value)}
+                                    sx={{ 
+                                        "& .MuiOutlinedInput-root": { 
+                                            borderRadius: 2,
+                                            bgcolor: alpha(theme.palette.primary.main, 0.02)
+                                        } 
+                                    }}
+                                >
+                                    {companyOptions.map((option) => (
+                                        <MenuItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+                            </Grid>
+                            <Grid size={{ xs: 6, md: 2 }}>
+                                <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
+                                    <Picker
+                                        value={fromDate}
+                                        onChange={setFromDate}
+                                        format="dd/MM/yyyy"
+                                        slotProps={{
+                                            textField: {
+                                                size: 'small',
+                                                fullWidth: true,
+                                                placeholder: "Từ ngày",
+                                                helperText: null,
+                                                sx: {
+                                                    "& .MuiOutlinedInput-root": { 
+                                                        borderRadius: 2,
+                                                        bgcolor: alpha(theme.palette.primary.main, 0.02)
+                                                    }
+                                                }
+                                            }
+                                        }}
+                                    />
+                                </LocalizationProvider>
+                            </Grid>
+                            <Grid size={{ xs: 6, md: 2 }}>
+                                <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
+                                    <Picker
+                                        value={toDate}
+                                        onChange={setToDate}
+                                        format="dd/MM/yyyy"
+                                        slotProps={{
+                                            textField: {
+                                                size: 'small',
+                                                fullWidth: true,
+                                                placeholder: "Đến ngày",
+                                                helperText: null,
+                                                sx: {
+                                                    "& .MuiOutlinedInput-root": { 
+                                                        borderRadius: 2,
+                                                        bgcolor: alpha(theme.palette.primary.main, 0.02)
+                                                    }
+                                                }
+                                            }
+                                        }}
+                                    />
+                                </LocalizationProvider>
+                            </Grid>
+                        </Grid>
+
+                        {(dept !== 'all' || searchTerm || fromDate || toDate) && (
+                            <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                <Button 
+                                    size="small" 
+                                    onClick={handleClearFilters} 
+                                    startIcon={<Clear />} 
+                                    sx={{ 
+                                        textTransform: 'none',
+                                        borderRadius: 2,
+                                        px: 2
+                                    }}
+                                >
+                                    Xóa bộ lọc
+                                </Button>
+                                {(dept !== 'all') && (
+                                    <Chip label={`Bộ phận: ${dept}`} size="small" onDelete={() => setDept("all")} />
+                                )}
+                                {searchTerm && (
+                                    <Chip label={`Tìm: ${searchTerm}`} size="small" onDelete={() => setSearchTerm("")} />
+                                )}
+                            </Box>
+                        )}
+                    </Paper>
+                </motion.div>
+
+                {/* Data Table */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.8 }}
+                >
+                    <Paper 
+                        elevation={0}
+                        sx={{ 
+                            borderRadius: 3, 
+                            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                            overflow: "hidden",
+                            boxShadow: theme.shadows[3],
+                            minHeight: 400
+                        }}
+                    >
+                        {filtered.length > 0 ? (
+                            <AttendanceTable
+                                rows={filtered}
+                                includeSaturday={includeSaturday}
+                                onReasonSave={handleReasonSave}
+                                isMobile={isMobile}
+                                company={selectedCompany}
+                            />
+                        ) : (
+                            <Box sx={{ p: 8, textAlign: 'center', color: 'text.secondary' }}>
+                                <CloudUpload sx={{ fontSize: 64, color: 'action.disabled', mb: 2 }} />
+                                <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
+                                    Chưa có dữ liệu chấm công
+                                </Typography>
+                                <Typography variant="body2" sx={{ mb: 3 }}>
+                                    Vui lòng tải file Excel bằng nút bên trên hoặc điều chỉnh bộ lọc.
+                                </Typography>
+                                <Button 
+                                    variant="contained" 
+                                    startIcon={<CloudUpload />} 
+                                    component="label"
+                                    sx={{ borderRadius: 2, px: 3 }}
+                                >
+                                    Tải File Excel
+                                    <input 
+                                        type="file" 
+                                        hidden 
+                                        accept=".xlsx,.xls" 
+                                        onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} 
+                                    />
+                                </Button>
+                            </Box>
+                        )}
+                    </Paper>
+                </motion.div>
+            </Box>
         </Box>
     );
 }

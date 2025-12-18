@@ -1,6 +1,7 @@
 // src/pages/AssetTransferPage.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback, } from "react";
 import { Box, Typography, Button, Card, CardContent, Grid, Select, MenuItem, FormControl, InputLabel, Paper, Tabs, Tab, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Checkbox, ListItemText, OutlinedInput, IconButton, TextField, DialogContentText, Toolbar, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Stack, Divider, Tooltip, Snackbar, Alert, Avatar, Skeleton, Drawer, Badge, ToggleButton, ToggleButtonGroup, Stepper, Step, StepLabel, Autocomplete, CardActions, Collapse, CardActionArea, useTheme, useMediaQuery, FormControlLabel, } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import {
     SwapHoriz as ArrowRightLeft,
     Check,
@@ -2097,84 +2098,288 @@ export default function AssetTransferPage() {
     }
 
     return (
-        <Box sx={{ p: { xs: 2, sm: 4 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
-            {/* Header */}
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 3 }}>
-                <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 800 }}>Quản lý Tài sản</Typography>
-                    <Typography color="text.secondary">Theo dõi, luân chuyển và quản lý các yêu cầu thay đổi tài sản.</Typography>
-                </Box>
-                {/* Nút hành động chính thay đổi theo Tab */}
-                {tabIndex === 1 && <Button variant="contained" size="large" startIcon={<ArrowRightLeft />} onClick={handleOpenTransferModal}>Tạo Phiếu Luân Chuyển</Button>}
-                {tabIndex === 2 && (
-                    canManageAssets && (
-                        <Stack direction="row" spacing={1}>
-                            <Tooltip title={filterDeptsForAsset.length !== 1 ? "Vui lòng chọn CHỈ MỘT phòng ban để nhập tài sản" : "Nhập Excel cho phòng ban đã chọn"}>
-                                <span> {/* Bọc bằng span để Tooltip hoạt động với nút bị disabled */}
-                                    <Button
-
-                                        onClick={() => setIsPasteModalOpen(true)}
-                                        disabled={filterDeptsForAsset.length !== 1} // <-- SỬA DÒNG NÀY
+        <Box sx={{ 
+            p: { xs: 1.5, sm: 3, md: 4 }, 
+            bgcolor: theme.palette.mode === 'light' ? "#f8fafc" : theme.palette.background.default,
+            minHeight: "100vh",
+            position: 'relative',
+            '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '300px',
+                background: theme.palette.mode === 'light'
+                    ? `radial-gradient(ellipse 80% 50% at 50% 0%, ${alpha(theme.palette.primary.main, 0.08)} 0%, transparent 50%)`
+                    : `radial-gradient(ellipse 80% 50% at 50% 0%, ${alpha(theme.palette.primary.main, 0.12)} 0%, transparent 50%)`,
+                pointerEvents: 'none',
+                zIndex: 0,
+            },
+        }}>
+            {/* Header với Glassmorphism */}
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                style={{ position: 'relative', zIndex: 1 }}
+            >
+                <Paper
+                    elevation={0}
+                    sx={{
+                        p: { xs: 2, sm: 3 },
+                        mb: 3,
+                        borderRadius: 3,
+                        background: theme.palette.mode === 'light'
+                            ? `linear-gradient(135deg, ${alpha('#ffffff', 0.9)} 0%, ${alpha('#f8fafc', 0.9)} 100%)`
+                            : `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.9)} 0%, ${alpha(theme.palette.background.default, 0.9)} 100%)`,
+                        backdropFilter: "blur(20px) saturate(180%)",
+                        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+                        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                        boxShadow: theme.palette.mode === 'light'
+                            ? "0 4px 20px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.02)"
+                            : "0 4px 20px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.05)",
+                    }}
+                >
+                    <Stack 
+                        direction={{ xs: 'column', sm: 'row' }} 
+                        justifyContent="space-between" 
+                        alignItems={{ xs: 'flex-start', sm: 'center' }} 
+                        spacing={2}
+                    >
+                        <Box sx={{ flex: 1 }}>
+                            <Typography 
+                                variant={isMobile ? "h5" : "h4"} 
+                                sx={{ 
+                                    fontWeight: 800,
+                                    mb: 0.5,
+                                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                                    backgroundClip: 'text',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                }}
+                            >
+                                Quản lý Tài sản
+                            </Typography>
+                            <Typography 
+                                variant="body2" 
+                                color="text.secondary"
+                                sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                            >
+                                Theo dõi, luân chuyển và quản lý các yêu cầu thay đổi tài sản.
+                            </Typography>
+                        </Box>
+                        {/* Nút hành động chính thay đổi theo Tab */}
+                        {tabIndex === 1 && (
+                            <motion.div
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                            >
+                                <Button 
+                                    variant="contained" 
+                                    size={isMobile ? "medium" : "large"} 
+                                    startIcon={<ArrowRightLeft />} 
+                                    onClick={handleOpenTransferModal}
+                                    sx={{
+                                        borderRadius: 2,
+                                        textTransform: 'none',
+                                        fontWeight: 600,
+                                        px: { xs: 2, sm: 3 },
+                                        boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                                        '&:hover': {
+                                            boxShadow: `0 6px 16px ${alpha(theme.palette.primary.main, 0.4)}`,
+                                        },
+                                    }}
+                                >
+                                    {isMobile ? "Tạo Phiếu" : "Tạo Phiếu Luân Chuyển"}
+                                </Button>
+                            </motion.div>
+                        )}
+                        {tabIndex === 2 && (
+                            canManageAssets && (
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                                    <Tooltip title={filterDeptsForAsset.length !== 1 ? "Vui lòng chọn CHỈ MỘT phòng ban để nhập tài sản" : "Nhập Excel cho phòng ban đã chọn"}>
+                                        <span>
+                                            <Button
+                                                variant="outlined"
+                                                size={isMobile ? "medium" : "large"}
+                                                onClick={() => setIsPasteModalOpen(true)}
+                                                disabled={filterDeptsForAsset.length !== 1}
+                                                sx={{
+                                                    borderRadius: 2,
+                                                    textTransform: 'none',
+                                                    fontWeight: 600,
+                                                    width: { xs: '100%', sm: 'auto' },
+                                                }}
+                                            >
+                                                {isMobile ? "Excel" : "Nhập Excel"}
+                                            </Button>
+                                        </span>
+                                    </Tooltip>
+                                    <motion.div
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        style={{ width: isMobile ? '100%' : 'auto' }}
                                     >
-                                        Nhập Excel
-                                    </Button>
-                                </span>
-                            </Tooltip>
-                            <Button variant="contained" size="large" startIcon={<PlusCircle />} onClick={handleOpenAddModal}>Thêm Tài Sản</Button>
-                        </Stack>
-                    )
-                )}
-            </Stack>
-            {/* Stats Cards Động */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-                {stats.map(stat => (
-                    <Grid size={{ xs: 12, md: 4 }} key={stat.label}>
-                        <Paper variant="outlined" sx={{
-                            p: 2.5,
-                            borderRadius: 3,
-                            bgcolor: `${stat.color}.lighter`,
-                            borderColor: `${stat.color}.light`,
-                            cursor: stat.onClick ? 'pointer' : 'default',
-                            transition: 'all 0.2s',
-                            '&:hover': {
-                                transform: stat.onClick ? 'translateY(-4px)' : 'none',
-                                boxShadow: stat.onClick ? '0 4px 12px rgba(0,0,0,0.1)' : 'none'
-                            }
-                        }} onClick={stat.onClick} // Thêm onClick handler
+                                        <Button 
+                                            variant="contained" 
+                                            size={isMobile ? "medium" : "large"} 
+                                            startIcon={<PlusCircle />} 
+                                            onClick={handleOpenAddModal}
+                                            fullWidth={isMobile}
+                                            sx={{
+                                                borderRadius: 2,
+                                                textTransform: 'none',
+                                                fontWeight: 600,
+                                                boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                                                '&:hover': {
+                                                    boxShadow: `0 6px 16px ${alpha(theme.palette.primary.main, 0.4)}`,
+                                                },
+                                            }}
+                                        >
+                                            {isMobile ? "Thêm Tài Sản" : "Thêm Tài Sản"}
+                                        </Button>
+                                    </motion.div>
+                                </Stack>
+                            )
+                        )}
+                    </Stack>
+                </Paper>
+            </motion.div>
+
+            {/* Stats Cards với Animations */}
+            <Grid container spacing={{ xs: 1.5, sm: 2 }} sx={{ mb: 3, position: 'relative', zIndex: 1 }}>
+                {stats.map((stat, index) => (
+                    <Grid size={{ xs: 6, sm: 6, md: 4 }} key={stat.label}>
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.4, delay: index * 0.1 }}
+                            whileHover={{ y: -4 }}
                         >
-                            <Stack direction="row" spacing={2} alignItems="center">
-                                <Avatar sx={{ bgcolor: `${stat.color}.light`, color: `${stat.color}.dark` }}>
-                                    {stat.icon}
-                                </Avatar>
-                                <Box>
-                                    <Typography variant="h5" sx={{ fontWeight: 700 }}>{stat.value}</Typography>
-                                    <Typography color="text.secondary">{stat.label}</Typography>
-                                </Box>
-                            </Stack>
-                        </Paper>
+                            <Paper 
+                                variant="outlined" 
+                                onClick={stat.onClick}
+                                sx={{
+                                    p: { xs: 2, sm: 2.5 },
+                                    borderRadius: 3,
+                                    background: theme.palette.mode === 'light'
+                                        ? `linear-gradient(135deg, ${alpha(theme.palette[stat.color].main, 0.08)} 0%, ${alpha(theme.palette[stat.color].main, 0.03)} 100%)`
+                                        : `linear-gradient(135deg, ${alpha(theme.palette[stat.color].main, 0.15)} 0%, ${alpha(theme.palette[stat.color].main, 0.08)} 100%)`,
+                                    border: `1px solid ${alpha(theme.palette[stat.color].main, 0.2)}`,
+                                    cursor: stat.onClick ? 'pointer' : 'default',
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                    '&::before': {
+                                        content: '""',
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        height: '3px',
+                                        background: `linear-gradient(90deg, ${theme.palette[stat.color].main} 0%, ${theme.palette[stat.color].light} 100%)`,
+                                    },
+                                    '&:hover': {
+                                        transform: stat.onClick ? 'translateY(-4px)' : 'none',
+                                        boxShadow: stat.onClick 
+                                            ? `0 8px 24px ${alpha(theme.palette[stat.color].main, 0.2)}`
+                                            : 'none',
+                                        borderColor: alpha(theme.palette[stat.color].main, 0.4),
+                                    }
+                                }}
+                            >
+                                <Stack direction="row" spacing={2} alignItems="center">
+                                    <Avatar 
+                                        sx={{ 
+                                            bgcolor: `${stat.color}.light`, 
+                                            color: `${stat.color}.dark`,
+                                            width: { xs: 48, sm: 56 },
+                                            height: { xs: 48, sm: 56 },
+                                            boxShadow: `0 4px 12px ${alpha(theme.palette[stat.color].main, 0.2)}`,
+                                        }}
+                                    >
+                                        {stat.icon}
+                                    </Avatar>
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                        <Typography 
+                                            variant={isMobile ? "h6" : "h5"} 
+                                            sx={{ 
+                                                fontWeight: 700,
+                                                fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                                            }}
+                                        >
+                                            {stat.value}
+                                        </Typography>
+                                        <Typography 
+                                            variant="body2" 
+                                            color="text.secondary"
+                                            sx={{ 
+                                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                                mt: 0.25,
+                                            }}
+                                        >
+                                            {stat.label}
+                                        </Typography>
+                                    </Box>
+                                </Stack>
+                            </Paper>
+                        </motion.div>
                     </Grid>
                 ))}
             </Grid>
 
-            {/* Tabs */}
-            <Paper elevation={0} sx={{ border: "1px solid #e2e8f0", borderRadius: 3, overflow: "hidden", }}>
-                <Tabs
-                    value={tabIndex}
-                    onChange={(e, v) => setTabIndex(v)}
-                    sx={{
-                        borderBottom: 1,
-                        borderColor: "divider",
-                        // Đảm bảo padding và minWidth tối ưu cho mobile
-                        '& .MuiTab-root': {
-                            minHeight: '64px',
-                            minWidth: 'auto',
-                            padding: '0 12px', // Giảm padding ngang
-                            textTransform: 'none',
-                        }
+            {/* Tabs với Modern Design */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.2 }}
+                style={{ position: 'relative', zIndex: 1 }}
+            >
+                <Paper 
+                    elevation={0} 
+                    sx={{ 
+                        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`, 
+                        borderRadius: 3, 
+                        overflow: "hidden",
+                        background: theme.palette.mode === 'light'
+                            ? `linear-gradient(135deg, ${alpha('#ffffff', 0.95)} 0%, ${alpha('#f8fafc', 0.95)} 100%)`
+                            : `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.background.default, 0.95)} 100%)`,
+                        backdropFilter: "blur(20px) saturate(180%)",
+                        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+                        boxShadow: theme.palette.mode === 'light'
+                            ? "0 4px 20px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.02)"
+                            : "0 4px 20px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.05)",
                     }}
-                    variant="scrollable" // ✅ BẮT BUỘC: Cho phép cuộn ngang
-                    scrollButtons="auto"
                 >
+                    <Tabs
+                        value={tabIndex}
+                        onChange={(e, v) => setTabIndex(v)}
+                        sx={{
+                            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                            minHeight: { xs: 56, sm: 64 },
+                            '& .MuiTab-root': {
+                                minHeight: { xs: 56, sm: 64 },
+                                minWidth: { xs: 80, sm: 'auto' },
+                                padding: { xs: '12px 16px', sm: '16px 24px' },
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                fontSize: { xs: '0.875rem', sm: '0.9375rem' },
+                                transition: 'all 0.2s ease',
+                                '&.Mui-selected': {
+                                    color: 'primary.main',
+                                },
+                            },
+                            '& .MuiTabs-indicator': {
+                                height: 3,
+                                borderRadius: '3px 3px 0 0',
+                                background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                            },
+                        }}
+                        variant="scrollable"
+                        scrollButtons="auto"
+                        allowScrollButtonsMobile
+                    >
                     {/* TAB 0: Dashboard (Giữ nguyên logic Badge cũ của bạn) */}
                     <Tab
                         label={
@@ -2220,7 +2425,7 @@ export default function AssetTransferPage() {
                     />
                 </Tabs>
                 {tabIndex === 0 && (
-                    <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
+                    <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: 'transparent' }}>
                         {actionableItems.total === 0 ? (
                             // ✅ Cải thiện: Sử dụng EmptyState component
                             <EmptyState
@@ -2382,35 +2587,71 @@ export default function AssetTransferPage() {
                     </Box>
                 )}
                 {tabIndex === 1 && (
-                    <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
-                        {/* Thanh công cụ với Bộ lọc và Nút chuyển đổi View */}
-                        <Paper variant="outlined" sx={{ p: 1.5, mb: 2.5, borderRadius: 2 }}>
-                            <Toolbar disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
+                    <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: 'transparent' }}>
+                        {/* Thanh công cụ với Bộ lọc - Modern Design */}
+                        <Paper 
+                            variant="outlined" 
+                            sx={{ 
+                                p: { xs: 1.5, sm: 2 }, 
+                                mb: 2.5, 
+                                borderRadius: 2.5,
+                                background: theme.palette.mode === 'light'
+                                    ? `linear-gradient(135deg, ${alpha('#ffffff', 0.8)} 0%, ${alpha('#f8fafc', 0.8)} 100%)`
+                                    : `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.default, 0.8)} 100%)`,
+                                backdropFilter: "blur(10px)",
+                                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                                boxShadow: theme.palette.mode === 'light'
+                                    ? "0 2px 8px rgba(0,0,0,0.04)"
+                                    : "0 2px 8px rgba(0,0,0,0.2)",
+                            }}
+                        >
+                            <Stack 
+                                direction={{ xs: 'column', sm: 'row' }} 
+                                spacing={1.5} 
+                                alignItems={{ xs: 'stretch', sm: 'center' }}
+                            >
                                 <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
                                     <TextField
-                                        placeholder="🔎 Tìm mã phiếu, phòng ban..."
+                                        placeholder={isMobile ? "🔎 Tìm kiếm..." : "🔎 Tìm mã phiếu, phòng ban..."}
                                         size="small"
-                                        sx={{ flex: "1 1 360px" }}
                                         value={search}
                                         onChange={(e) => setSearch(e.target.value)}
+                                        sx={{ 
+                                            flex: { xs: '1 1 auto', sm: "1 1 360px" },
+                                            '& .MuiOutlinedInput-root': {
+                                                borderRadius: 2,
+                                                bgcolor: theme.palette.mode === 'light' ? 'white' : alpha(theme.palette.background.paper, 0.5),
+                                            },
+                                        }}
                                     />
                                 </Tooltip>
                                 <Button
                                     variant="outlined"
-                                    startIcon={<Filter size={16} />}
+                                    size={isMobile ? "medium" : "small"}
+                                    startIcon={<Filter />}
                                     onClick={() => setDrawerOpen(true)}
+                                    sx={{
+                                        borderRadius: 2,
+                                        textTransform: 'none',
+                                        fontWeight: 600,
+                                        minWidth: { xs: '100%', sm: 'auto' },
+                                        borderColor: alpha(theme.palette.primary.main, 0.3),
+                                        '&:hover': {
+                                            borderColor: theme.palette.primary.main,
+                                            bgcolor: alpha(theme.palette.primary.main, 0.08),
+                                        },
+                                    }}
                                 >
-                                    Bộ lọc
+                                    {isMobile ? "Lọc" : "Bộ lọc"}
                                     {(statusMulti.length > 0 || fromDeptIds.length > 0 || toDeptIds.length > 0 || createdByDeb.trim()) && (
                                         <Badge
                                             badgeContent={statusMulti.length + fromDeptIds.length + toDeptIds.length + (createdByDeb.trim() ? 1 : 0)}
                                             color="primary"
-                                            sx={{ ml: 1, '& .MuiBadge-badge': { right: -8, top: -8 } }}
+                                            sx={{ ml: 1, '& .MuiBadge-badge': { right: -8, top: -8, fontWeight: 700 } }}
                                         />
                                     )}
                                 </Button>
-
-                            </Toolbar>
+                            </Stack>
                         </Paper>
 
                         {/* --- Khu vực hiển thị nội dung động --- */}
@@ -3093,6 +3334,8 @@ export default function AssetTransferPage() {
                         )}
                     </Box>
                 )}
+            </Paper>
+            </motion.div>
 
                 {/* ✅ BƯỚC 8: Thêm Dialog xác nhận In tem */}
                 <Dialog open={isLabelPrintModalOpen} onClose={() => setIsLabelPrintModalOpen(false)}>
@@ -3195,10 +3438,6 @@ export default function AssetTransferPage() {
                         </Button>
                     </DialogActions>
                 </Dialog>
-
-
-                {/* ... Tất cả các Dialog và Snackbar còn lại (giữ nguyên) ... */}
-            </Paper>
 
             {/* ✅ Cải thiện: Drawer filter với responsive design */}
             <Drawer

@@ -1,9 +1,11 @@
 import React from 'react';
-import { Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, useTheme, alpha, TextField, Dialog, AppBar, Toolbar, IconButton, Tooltip, Slide } from '@mui/material';
+import { Button, Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, useTheme, alpha, TextField, Dialog, AppBar, Toolbar, IconButton, Tooltip, Slide, Grid } from '@mui/material';
 import { DragHandle, Close, Fullscreen, FullscreenExit, Print } from '@mui/icons-material';
 import { parseCurrency, formatCurrencyOrDash } from '../../utils/currencyHelpers';
 import { InternalTaxService } from '../../services/internalTaxService';
+import { useReactToPrint } from 'react-to-print';
 import VATReportPrintView from '../../components/finance/internal-tax/VATReportPrintView';
+
 
 // Transition component for full-screen dialog - defined outside to prevent recreation on every render
 const Transition = React.forwardRef(function Transition(props, ref) {
@@ -129,6 +131,14 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
     // Drag state for Input section
     const dragItemInput = React.useRef(null);
     const dragOverItemInput = React.useRef(null);
+
+    // Print Ref - using useRef for react-to-print v3
+    const printRef = React.useRef(null);
+
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `Bao_Cao_Thue_VAT_T${month}_${year}`,
+    });
 
     // Use formatCurrencyOrDash from shared helpers (returns "-" for zero values)
     const formatCurrency = formatCurrencyOrDash;
@@ -833,38 +843,40 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
     const quarterStr = month ? `QUÝ ${Math.ceil(parseInt(month) / 3)}` : "QUÝ -";
 
 
-    const handlePrint = () => {
-        window.print();
-    };
+
 
     return (
         <Box>
-            <VATReportPrintView
-                month={month}
-                year={year}
-                periodString={periodString}
-                previousPeriodTax={previousPeriodTax}
-                displayData={displayData}
-                summaryRows={summaryRows}
-                summaryRowsConfig={SUMMARY_ROWS_CONFIG}
-            />
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2, position: 'relative' }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b', textAlign: 'center' }}>
+            {/* Hidden Print Component - Use overflow hidden instead of display none to ensure ref attaches */}
+            <div style={{ position: 'absolute', left: '-10000px', top: 0 }}>
+                <VATReportPrintView
+                    ref={printRef}
+                    month={month}
+                    year={year}
+                    data={displayData}
+                    summaryRows={summaryRows}
+                    previousPeriodTax={previousPeriodTax}
+                />
+            </div>
+            <Box sx={{ position: 'relative', mb: 2, textAlign: 'center' }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#000', textTransform: 'uppercase' }}>
                     BÁO CÁO TÌNH HÌNH HÓA ĐƠN VAT {periodString}
                 </Typography>
                 <Button
-                    variant="outlined"
+                    variant="contained"
                     startIcon={<Print />}
                     onClick={handlePrint}
-                    sx={{ position: 'absolute', right: 0 }}
+                    className="no-print"
+                    sx={{ position: 'absolute', right: 0, top: 0 }}
                 >
-                    In Báo Cáo
+                    In báo cáo
                 </Button>
             </Box>
 
 
 
-            <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${ theme.palette.divider } ` }}>
+
+            <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider} ` }}>
                 <Table sx={{ minWidth: 1200 }} size="small" aria-label="vat report table">
                     <TableHead>
                         <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
@@ -1151,7 +1163,7 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
             <Typography variant="h6" sx={{ mt: 4, mb: 2, fontWeight: 700, color: '#1e293b', textAlign: 'center' }}>
                 BẢNG TỔNG HỢP DOANH THU - THUẾ
             </Typography>
-            <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${ theme.palette.divider } `, mb: 4 }}>
+            <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider} `, mb: 4 }}>
                 <Table size="small">
                     <TableHead>
                         <TableRow>
@@ -1202,6 +1214,9 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
                 </Table>
             </TableContainer>
 
+            {/* Signature is now in Print View Component */}
+
+
             {/* Full-screen Dialog for expanded view */}
             <Dialog
                 fullScreen
@@ -1230,7 +1245,7 @@ export default function VATReportTab({ generalInvoices = [], purchaseInvoices = 
                     </Toolbar>
                 </AppBar>
                 <Box sx={{ p: 3, overflow: 'auto', height: '100%', bgcolor: '#f8fafc' }}>
-                    <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${ theme.palette.divider } ` }}>
+                    <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider} ` }}>
                         <Table sx={{ minWidth: 1200 }} size="small">
                             <TableHead>
                                 <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}>

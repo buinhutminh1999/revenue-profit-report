@@ -96,7 +96,24 @@ const PurchaseInvoiceTable = ({
             <TableContainer ref={tableContainerRef} sx={{ maxHeight: 500, overflow: 'auto' }} className="custom-scrollbar">
                 <Table size="small" stickyHeader>
                     <TableHead>
-                        <TableRow sx={{ '& th': { bgcolor: '#FAF5FF', color: 'secondary.dark', fontWeight: 700, whiteSpace: 'nowrap', zIndex: 10, borderBottom: `2px solid ${alpha(theme.palette.secondary.main, 0.1)}`, p: 1 } }}>
+                        <TableRow sx={{ 
+                            '& th': { 
+                                bgcolor: alpha(theme.palette.secondary.main, 0.15), 
+                                color: 'secondary.dark', 
+                                fontWeight: 700, 
+                                whiteSpace: 'nowrap', 
+                                position: 'sticky',
+                                top: 0,
+                                zIndex: 1000,
+                                borderBottom: `2px solid ${alpha(theme.palette.secondary.main, 0.2)}`, 
+                                p: 1.5,
+                                backdropFilter: 'blur(10px) saturate(180%)',
+                                WebkitBackdropFilter: 'blur(10px) saturate(180%)',
+                                boxShadow: `0 4px 12px ${alpha(theme.palette.common.black, 0.15)}`,
+                                // Đảm bảo background đủ đậm để che nội dung
+                                backgroundColor: `${alpha(theme.palette.secondary.main, 0.15)} !important`
+                            } 
+                        }}>
                             <TableCell align="center" sx={{ width: 50, minWidth: 50, borderRight: '1px solid #e2e8f0' }}>STT</TableCell>
                             <TableCell align="center" sx={{ width: 150, minWidth: 150, borderRight: '1px solid #e2e8f0' }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
@@ -145,6 +162,11 @@ const PurchaseInvoiceTable = ({
                                     Thuế GTGT
                                 </TableSortLabel>
                             </TableCell>
+                            <TableCell align="center" sx={{ width: 130, minWidth: 130, borderRight: '1px solid #e2e8f0' }}>
+                                <TableSortLabel active={sortConfig.key === 'total'} direction={sortConfig.key === 'total' ? sortConfig.direction : 'asc'} onClick={createSortHandler('total')}>
+                                    Tổng cộng
+                                </TableSortLabel>
+                            </TableCell>
                             <TableCell align="center" sx={{ width: 70, minWidth: 70, borderRight: '1px solid #e2e8f0' }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                                     <TableSortLabel active={sortConfig.key === 'rate'} direction={sortConfig.key === 'rate' ? sortConfig.direction : 'asc'} onClick={createSortHandler('rate')}>
@@ -174,7 +196,7 @@ const PurchaseInvoiceTable = ({
                     <TableBody>
                         {!data || data.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={11} align="center" sx={{ py: 3 }}>
+                                <TableCell colSpan={12} align="center" sx={{ py: 3 }}>
                                     <EmptyState message="Không có dữ liệu hóa đơn" />
                                 </TableCell>
                             </TableRow>
@@ -202,7 +224,11 @@ const PurchaseInvoiceTable = ({
                                         <TableCell colSpan={6} sx={{ textAlign: 'right' }}>{groupName}:</TableCell>
                                         <TableCell sx={{ textAlign: 'right' }}>{formatCurrency(totals.valueNoTax)}</TableCell>
                                         <TableCell sx={{ textAlign: 'right' }}>{formatCurrency(totals.tax)}</TableCell>
-                                        <TableCell colSpan={3}></TableCell>
+                                        <TableCell sx={{ textAlign: 'right', color: theme.palette.primary.main }}>
+                                            {formatCurrency((totals.valueNoTax || 0) + (totals.tax || 0))}
+                                        </TableCell>
+                                        <TableCell></TableCell>
+                                        <TableCell colSpan={2}></TableCell>
                                     </TableRow>
                                 )}
                             </>

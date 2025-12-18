@@ -1,6 +1,6 @@
 import React from 'react';
 import { TableRow, TableCell, InputBase, alpha, Box } from '@mui/material';
-import { parseCurrency, formatPercentage } from '../../utils/currencyHelpers';
+import { parseCurrency, formatCurrency, formatPercentage } from '../../utils/currencyHelpers';
 
 // Stable empty function to avoid creating new refs
 const noop = () => { };
@@ -23,7 +23,9 @@ export const InvoiceRow = React.memo(({
     handleDragStart = noop,
     handleDragOver = noop,
     handleDrop = noop,
-    dragIndex
+    dragIndex,
+    rowSpanConfig,
+    onClick
 }) => {
     const [editingField, setEditingField] = React.useState(null);
     const [editValue, setEditValue] = React.useState('');
@@ -88,6 +90,9 @@ export const InvoiceRow = React.memo(({
         minHeight: '32px',
         '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) },
         borderRadius: 1,
+        display: 'flex',
+        alignItems: 'center', // Center content vertically
+        height: '100%',
     };
 
     const inputStyle = {
@@ -98,30 +103,66 @@ export const InvoiceRow = React.memo(({
         boxShadow: `0 0 0 2px ${theme.palette.primary.main}`
     };
 
-    const EditableCell = ({ field, value, align = 'left', sx = {} }) => (
-        <TableCell align={align} sx={{ ...sx, p: 0 }}>
-            {editingField === field ? (
-                <InputBase
-                    autoFocus
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={() => handleFinishEdit(field)}
-                    onKeyDown={(e) => handleKeyDown(e, field)}
-                    fullWidth
-                    sx={{ ...inputStyle, textAlign: align }}
-                    inputProps={{ style: { textAlign: align } }}
-                />
-            ) : (
-                <Box onClick={() => handleStartEdit(field, value)} sx={cellStyle}>
-                    {value || '\u00A0'}
-                </Box>
-            )}
-        </TableCell>
-    );
+    // Helper to determine if we should render the cell
+    const getRowSpan = (field) => {
+        if (!rowSpanConfig) return 1;
+        // Map fields to config keys
+        const configKey = field;
+        if (rowSpanConfig[configKey] !== undefined) return rowSpanConfig[configKey];
+        return 1;
+    };
+
+    const EditableCell = ({ field, value, rawValue, align = 'left', sx = {} }) => {
+        const rowSpan = getRowSpan(field);
+        if (rowSpan === 0) return null; // Logic to hide cell
+
+        // Use rawValue for editing (unformatted), value for display (formatted)
+        const displayValue = value || '\u00A0';
+        const editValueToUse = rawValue !== undefined ? rawValue : value;
+
+        return (
+            <TableCell
+                align={align}
+                sx={{ ...sx, p: 0, verticalAlign: rowSpan > 1 ? 'middle' : 'top' }}
+                rowSpan={rowSpan}
+            >
+                {editingField === field ? (
+                    <InputBase
+                        autoFocus
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => handleFinishEdit(field)}
+                        onKeyDown={(e) => handleKeyDown(e, field)}
+                        fullWidth
+                        sx={{ ...inputStyle, textAlign: align }}
+                        inputProps={{ style: { textAlign: align } }}
+                    />
+                ) : (
+                    <Box
+                        onClick={(e) => {
+                            e.stopPropagation(); // Prevent row selection when editing
+                            handleStartEdit(field, editValueToUse);
+                        }}
+                        sx={{
+                            ...cellStyle,
+                            justifyContent: align === 'center' ? 'center' : (align === 'right' ? 'flex-end' : 'flex-start'),
+                            minHeight: rowSpan > 1 ? '60px' : '32px' // Taller visual target for merged cells
+                        }}
+                    >
+                        {displayValue}
+                    </Box>
+                )}
+            </TableCell>
+        );
+    };
+
+    // Special handling for STT cell specifically
+    const sttRowSpan = rowSpanConfig ? rowSpanConfig.stt : 1;
 
     return (
         <TableRow
             data-row-id={row.id}
+            onClick={(e) => onClick && onClick(e)}
             onMouseDown={(event) => handleMouseDown(event, row.id)}
             onMouseEnter={() => handleMouseEnter(row.id)}
             onDragOver={handleDragOver}
@@ -132,23 +173,47 @@ export const InvoiceRow = React.memo(({
                 '&:hover': { bgcolor: '#f1f5f9' },
                 cursor: 'pointer',
                 bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.1) : 'inherit',
+                // Ensure border remains visible for merged cells - may need specific border styling
             }}
         >
-            <TableCell
-                align="center"
-                draggable
-                onDragStart={(e) => handleDragStart(e, dragIndex)}
-                sx={{ cursor: 'grab', '&:active': { cursor: 'grabbing' }, width: 50 }}
-            >
-                {actualIndex}
-            </TableCell>
+            {sttRowSpan > 0 && (
+                <TableCell
+                    align="center"
+                    draggable
+                    rowSpan={sttRowSpan}
+                    onDragStart={(e) => handleDragStart(e, dragIndex)}
+                    sx={{
+                        cursor: 'grab',
+                        '&:active': { cursor: 'grabbing' },
+                        width: 50,
+                        verticalAlign: sttRowSpan > 1 ? 'middle' : 'inherit'
+                    }}
+                >
+                    {actualIndex}
+                </TableCell>
+            )}
+
             <EditableCell field="sellerName" value={row.sellerName} />
             <EditableCell field="invoiceNumber" value={row.invoiceNumber} align="center" sx={{ fontWeight: 600 }} />
             <EditableCell field="date" value={row.date} align="center" />
             <EditableCell field="buyerName" value={row.buyerName} />
             <EditableCell field="buyerTaxCode" value={row.buyerTaxCode} align="center" />
-            <EditableCell field="totalNoTax" value={row.totalNoTax} align="right" sx={{ fontWeight: 600, color: theme.palette.primary.main }} />
-            <EditableCell field="taxAmount" value={row.taxAmount} align="right" />
+
+            {/* These fields are typically unique per row, so no merging default */}
+            {/* Format currency values for display */}
+            <EditableCell 
+                field="totalNoTax" 
+                value={row.totalNoTax ? formatCurrency(parseCurrency(row.totalNoTax)) : ''} 
+                rawValue={row.totalNoTax}
+                align="right" 
+                sx={{ fontWeight: 600, color: theme.palette.primary.main }} 
+            />
+            <EditableCell 
+                field="taxAmount" 
+                value={row.taxAmount ? formatCurrency(parseCurrency(row.taxAmount)) : ''} 
+                rawValue={row.taxAmount}
+                align="right" 
+            />
             <EditableCell field="note" value={row.note} />
             <EditableCell field="costType" value={row.costType} />
         </TableRow>
@@ -184,6 +249,7 @@ export const PurchaseInvoiceRow = React.memo(({
     const valueNoTax = parseCurrency(row.valueNoTax);
     const tax = parseCurrency(row.tax);
     const rate = valueNoTax !== 0 ? tax / valueNoTax : 0;
+    const total = valueNoTax + tax;
 
     // Auto-focus first field if row is empty (newly added)
     React.useEffect(() => {
@@ -252,26 +318,32 @@ export const PurchaseInvoiceRow = React.memo(({
         boxShadow: `0 0 0 2px ${theme.palette.primary.main}`
     };
 
-    const EditableCell = ({ field, value, align = 'left', sx = {} }) => (
-        <TableCell align={align} sx={{ ...sx, p: 0 }}>
-            {editingField === field ? (
-                <InputBase
-                    autoFocus
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={() => handleFinishEdit(field)}
-                    onKeyDown={(e) => handleKeyDown(e, field)}
-                    fullWidth
-                    sx={{ ...inputStyle, textAlign: align }}
-                    inputProps={{ style: { textAlign: align } }}
-                />
-            ) : (
-                <Box onClick={() => handleStartEdit(field, value)} sx={cellStyle}>
-                    {value || '\u00A0'}
-                </Box>
-            )}
-        </TableCell>
-    );
+    const EditableCell = ({ field, value, rawValue, align = 'left', sx = {} }) => {
+        // Use rawValue for editing (unformatted), value for display (formatted)
+        const displayValue = value || '\u00A0';
+        const editValueToUse = rawValue !== undefined ? rawValue : value;
+
+        return (
+            <TableCell align={align} sx={{ ...sx, p: 0 }}>
+                {editingField === field ? (
+                    <InputBase
+                        autoFocus
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => handleFinishEdit(field)}
+                        onKeyDown={(e) => handleKeyDown(e, field)}
+                        fullWidth
+                        sx={{ ...inputStyle, textAlign: align }}
+                        inputProps={{ style: { textAlign: align } }}
+                    />
+                ) : (
+                    <Box onClick={() => handleStartEdit(field, editValueToUse)} sx={cellStyle}>
+                        {displayValue}
+                    </Box>
+                )}
+            </TableCell>
+        );
+    };
 
     return (
         <TableRow
@@ -301,8 +373,22 @@ export const PurchaseInvoiceRow = React.memo(({
             <EditableCell field="date" value={row.date} align="center" />
             <EditableCell field="seller" value={row.seller} />
             <EditableCell field="sellerTax" value={row.sellerTax} align="center" />
-            <EditableCell field="valueNoTax" value={row.valueNoTax} align="right" />
-            <EditableCell field="tax" value={row.tax} align="right" />
+            {/* Format currency values for display */}
+            <EditableCell 
+                field="valueNoTax" 
+                value={row.valueNoTax ? formatCurrency(parseCurrency(row.valueNoTax)) : ''} 
+                rawValue={row.valueNoTax}
+                align="right" 
+            />
+            <EditableCell 
+                field="tax" 
+                value={row.tax ? formatCurrency(parseCurrency(row.tax)) : ''} 
+                rawValue={row.tax}
+                align="right" 
+            />
+            <TableCell align="right" sx={{ width: 130, fontWeight: 600, color: theme.palette.primary.main }}>
+                {formatCurrency(total)}
+            </TableCell>
             <TableCell align="center" sx={{ width: 70 }}>
                 {row.group === 4 ? 'Không kê khai thuế' : formatPercentage(rate)}
             </TableCell>

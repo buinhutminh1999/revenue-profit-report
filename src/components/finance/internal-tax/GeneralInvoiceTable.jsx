@@ -29,12 +29,9 @@ const GeneralInvoiceTable = ({
     // Pagination state
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(25);
+    const [selectedRowId, setSelectedRowId] = useState(null);
 
     // Reset page when data changes significantly
-    // Reset page when data changes significantly (filtering resets), but Add Row should preserve/navigate
-    // We separate the logic:
-    // 1. If length shrinks (filter), reset to 0.
-    // 2. If length grows by 1 (add row), go to last page.
     const tableContainerRef = useRef(null);
     const prevDataLength = useRef(data.length);
 
@@ -64,11 +61,13 @@ const GeneralInvoiceTable = ({
 
     const handleChangePage = (event, newPage) => {
         setPage(newPage);
+        setSelectedRowId(null);
     };
 
     const handleChangeRowsPerPage = (event) => {
         setRowsPerPage(parseInt(event.target.value, 10));
         setPage(0);
+        setSelectedRowId(null);
     };
 
     // Paginated data - only compute visible rows
@@ -77,25 +76,141 @@ const GeneralInvoiceTable = ({
         return data.slice(start, start + rowsPerPage);
     }, [data, page, rowsPerPage]);
 
+    // --- Row Span Calculation Logic ---
+    // Calculates rowSpan for grouping sequential rows with same Invoice Number
+    const rowSpanMap = useMemo(() => {
+        const map = new Map(); // Key: rowId, Value: { colKey: spanValue }
+        let startIndex = 0;
+
+        while (startIndex < paginatedData.length) {
+            const currentRow = paginatedData[startIndex];
+            const currentInvoice = currentRow.invoiceNumber?.trim();
+            const currentSeller = currentRow.sellerName?.trim();
+
+            // If no invoice number, no merge, treat as single row
+            if (!currentInvoice) {
+                map.set(currentRow.id, {
+                    stt: 1,
+                    sellerName: 1,
+                    invoiceNumber: 1,
+                    date: 1,
+                    buyerName: 1,
+                    buyerTaxCode: 1,
+                    costType: 1 // Cost type often same for invoice? Assuming yes.
+                });
+                startIndex++;
+                continue;
+            }
+
+            // Look ahead to find how many rows share the same invoice number AND seller
+            let span = 1;
+            while (
+                startIndex + span < paginatedData.length &&
+                paginatedData[startIndex + span].invoiceNumber?.trim() === currentInvoice &&
+                paginatedData[startIndex + span].sellerName?.trim() === currentSeller
+            ) {
+                span++;
+            }
+
+            // Set span for the first row of the group
+            map.set(currentRow.id, {
+                stt: span,
+                sellerName: span,
+                invoiceNumber: span,
+                date: span,
+                buyerName: span,
+                buyerTaxCode: span
+            });
+
+            // Set span 0 for subsequent rows in the group (to hide them)
+            for (let i = 1; i < span; i++) {
+                const hiddenRow = paginatedData[startIndex + i];
+                map.set(hiddenRow.id, {
+                    stt: 0,
+                    sellerName: 0,
+                    invoiceNumber: 0,
+                    date: 0,
+                    buyerName: 0,
+                    buyerTaxCode: 0
+                });
+            }
+
+            startIndex += span;
+        }
+        return map;
+    }, [paginatedData]);
+
+
+    // Delete Key Handler
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            if (event.key === 'Delete' && selectedRowId) {
+                // If input focused, don't delete row
+                const activeTag = document.activeElement.tagName.toLowerCase();
+                if (activeTag === 'input' || activeTag === 'textarea') return;
+
+                event.preventDefault();
+                onDeleteEmptyRow(selectedRowId); // Reusing delete handler which usually prompts confirm
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedRowId, onDeleteEmptyRow]);
+
+
     if (loading) return <InvoiceTableSkeleton />;
-
-    // Removed early return for EmptyState to keep headers visible
-
 
     const createSortHandler = (property) => (event) => {
         onSort(property);
     };
 
     // Stable empty handlers for optional props
-    const safeMouseDown = handleDragStart ? (e, id) => { } : () => { };
+    const safeMouseDown = (e, id) => {
+        handleDragStart && handleDragStart(e, id);
+        // Also select row on click
+        setSelectedRowId(id);
+    };
     const safeMouseEnter = () => { };
 
     return (
-        <Box sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: 'background.paper' }}>
-            <TableContainer ref={tableContainerRef} sx={{ maxHeight: 500, overflow: 'auto' }} className="custom-scrollbar">
+        <Box 
+            sx={{ 
+                border: `1px solid ${theme.palette.divider}`, 
+                borderRadius: 3, 
+                bgcolor: 'background.paper',
+                overflow: 'hidden',
+                boxShadow: 1,
+                '&:hover': {
+                    boxShadow: 2
+                },
+                transition: 'box-shadow 0.3s'
+            }}
+        >
+            <TableContainer ref={tableContainerRef} sx={{ maxHeight: 600, overflow: 'auto' }} className="custom-scrollbar">
                 <Table size="small" stickyHeader>
                     <TableHead>
-                        <TableRow sx={{ '& th': { bgcolor: '#F0F7FF', color: 'primary.dark', fontWeight: 700, whiteSpace: 'nowrap', textTransform: 'uppercase', borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`, p: 1 } }}>
+                        <TableRow sx={{ 
+                            '& th': { 
+                                bgcolor: alpha(theme.palette.primary.main, 0.15), 
+                                color: 'primary.dark', 
+                                fontWeight: 700, 
+                                whiteSpace: 'nowrap', 
+                                textTransform: 'uppercase', 
+                                fontSize: '0.75rem',
+                                letterSpacing: '0.5px',
+                                borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`, 
+                                p: 1.5,
+                                position: 'sticky',
+                                top: 0,
+                                zIndex: 1000,
+                                backdropFilter: 'blur(10px) saturate(180%)',
+                                WebkitBackdropFilter: 'blur(10px) saturate(180%)',
+                                boxShadow: `0 4px 12px ${alpha(theme.palette.common.black, 0.15)}`,
+                                // Đảm bảo background đủ đậm để che nội dung
+                                backgroundColor: `${alpha(theme.palette.primary.main, 0.15)} !important`
+                            } 
+                        }}>
                             <TableCell align="center" sx={{ width: 50, minWidth: 50, borderRight: '1px solid #e2e8f0' }}>STT</TableCell>
                             <TableCell align="center" sx={{ width: 200, minWidth: 200, borderRight: '1px solid #e2e8f0' }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
@@ -182,14 +297,32 @@ const GeneralInvoiceTable = ({
                                         handleDragOver={handleDragOver || (() => { })}
                                         handleDrop={handleDrop || (() => { })}
                                         dragIndex={page * rowsPerPage + index}
+                                        isSelected={selectedRowId === row.id}
+                                        rowSpanConfig={rowSpanMap.get(row.id)}
+                                        onClick={() => setSelectedRowId(row.id)}
                                     />
                                 ))}
                                 {/* Totals Row */}
                                 {totals && (
-                                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.08), '& td': { fontWeight: 700, color: 'primary.dark', p: 1 } }}>
-                                        <TableCell colSpan={6} sx={{ textAlign: 'right' }}>Tổng cộng:</TableCell>
-                                        <TableCell sx={{ textAlign: 'right' }}>{formatCurrency(totals.totalNoTax)}</TableCell>
-                                        <TableCell sx={{ textAlign: 'right' }}>{formatCurrency(totals.taxAmount)}</TableCell>
+                                    <TableRow sx={{ 
+                                        bgcolor: alpha(theme.palette.primary.main, 0.12), 
+                                        '& td': { 
+                                            fontWeight: 700, 
+                                            color: 'primary.dark', 
+                                            p: 1.5,
+                                            fontSize: '0.95rem',
+                                            borderTop: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`
+                                        } 
+                                    }}>
+                                        <TableCell colSpan={6} sx={{ textAlign: 'right', fontSize: '1rem' }}>
+                                            Tổng cộng:
+                                        </TableCell>
+                                        <TableCell sx={{ textAlign: 'right', fontSize: '1rem' }}>
+                                            {formatCurrency(totals.totalNoTax)}
+                                        </TableCell>
+                                        <TableCell sx={{ textAlign: 'right', fontSize: '1rem' }}>
+                                            {formatCurrency(totals.taxAmount)}
+                                        </TableCell>
                                         <TableCell colSpan={2}></TableCell>
                                     </TableRow>
                                 )}
