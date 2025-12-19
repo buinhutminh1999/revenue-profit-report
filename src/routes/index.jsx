@@ -141,7 +141,6 @@ function AppRoutes() {
                         <Route path="balance-sheet" element={<RequireEmailAccess pathKey="balance-sheet">{lazyLoad(BalanceSheet)}</RequireEmailAccess>} />
                         <Route path="profit-change" element={<RequireEmailAccess pathKey="profit-change">{lazyLoad(ProfitChange)}</RequireEmailAccess>} />
                         <Route path="asset-transfer" element={<RequireEmailAccess pathKey="asset-transfer">{lazyLoad(AssetTransferPage)}</RequireEmailAccess>} />
-                        <Route path="asset-transfer-new" element={<RequireEmailAccess pathKey="asset-transfer">{lazyLoad(AssetTransferPageRefactored)}</RequireEmailAccess>} />
                         <Route path="device-monitoring" element={<RequireEmailAccess pathKey="device-monitoring">{lazyLoad(DeviceMonitoringDashboard)}</RequireEmailAccess>} />
                         <Route path="history" element={lazyLoad(HistoryPage)} />
                         <Route path="help" element={lazyLoad(HelpPage)} />

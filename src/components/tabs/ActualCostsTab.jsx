@@ -369,10 +369,9 @@ export default function ActualCostsTab({ projectId }) {
             {
                 key: "noPhaiTraCK",
                 label: "Nợ Phải Trả CK",
-                // ✅ LOGIC MỚI: Cho phép chỉnh sửa cho tất cả công trình KHÔNG có -CP
                 isCellEditable: (row) => {
                     const project = row.project || "";
-                    return !project.includes("-CP"); // Tất cả công trình không phải -CP được phép sửa
+                    return project.includes("-VT") || project.includes("-NC");
                 },
             },
             {
@@ -919,9 +918,9 @@ export default function ActualCostsTab({ projectId }) {
         // --- BƯỚC 1: TÍNH TOÁN "GIÁ TRỊ GỐC" ĐỂ LƯU SANG QUÝ SAU ---
         const baseValueMap = new Map();
         costItems.forEach((row) => {
-            // ✅ LOGIC MỚI: Tất cả công trình KHÔNG có -CP được xử lý như VT/NC
-            const isCpProject = (row.project || "").includes("-CP");
-            const isVtNcProject = !isCpProject;
+            const isVtNcProject =
+                (row.project || "").includes("-VT") ||
+                (row.project || "").includes("-NC");
             if (isVtNcProject) {
                 const key = `${row.project}|||${row.description}`;
                 // Công thức gốc: Nợ ĐK (hiện tại) - CPTT (hiện tại)
@@ -936,9 +935,9 @@ export default function ActualCostsTab({ projectId }) {
 
         // --- BƯỚC 2: TÍNH TOÁN QUYẾT TOÁN CHO QUÝ HIỆN TẠI (giữ nguyên logic) ---
         const finalizedItems = costItems.map((row) => {
-            // ✅ LOGIC MỚI: Tất cả công trình KHÔNG có -CP được xử lý như VT/NC
-            const isCpProject = (row.project || "").includes("-CP");
-            const isVtNcProject = !isCpProject;
+            const isVtNcProject =
+                (row.project || "").includes("-VT") ||
+                (row.project || "").includes("-NC");
             // ⭐ LOGIC MỚI ƯU TIÊN HÀNG ĐẦU: ÁP DỤNG CÔNG THỨC "SỐNG" ⭐
             // Kiểm tra nếu là công trình VT/NC và có trường 'baseForNptck' được truyền từ quý trước.
             if (
