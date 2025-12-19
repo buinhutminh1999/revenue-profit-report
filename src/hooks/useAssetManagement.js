@@ -285,10 +285,12 @@ export const useAssetManagement = () => {
         departments,
         assets,
         transfers,
+        setTransfers, // Exposed for optimistic updates
         assetRequests,
         inventoryReports,
         loading,
         error,
+        setError, // Exposed for error recovery
         blockLeaders,
         approvalPermissions,
         assetManagerEmails,
