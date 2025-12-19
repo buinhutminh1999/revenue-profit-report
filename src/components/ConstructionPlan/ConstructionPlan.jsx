@@ -55,14 +55,17 @@ import {
     CheckCircleOutline,
     HighlightOff,
     TaskAlt,
-    Business as BusinessIcon, // Icon mới cho Nhà máy
-    AttachMoney as AttachMoneyIcon, // Icon mới cho Doanh thu
-    Close as CloseIcon
+    Business as BusinessIcon,
+    AttachMoney as AttachMoneyIcon,
+    Close as CloseIcon,
+    Lock as LockIcon,
+    ClearAll as ClearAllIcon,
 } from "@mui/icons-material";
+import { useBatchSettlement } from "../../hooks/useBatchSettlement";
+import LinearProgress from "@mui/material/LinearProgress";
 import { DataGrid, GridPagination } from "@mui/x-data-grid";
 import { motion, useSpring, useTransform } from "framer-motion";
 import { useProjects } from "../../hooks/useProjects";
-import { useFinalizedQuarters } from "../../hooks/useFinalizedQuarters";
 import AllocationTimelineModal, {
     getCurrentYear,
 } from "./AllocationTimelineModal";
@@ -328,7 +331,6 @@ export default function ConstructionPlan() {
     const hasLoadedRef = useRef(false); // Để tránh reload khi mount lần đầu
     // --- REFACTORED TO USE HOOKS ---
     const { projects: rawProjects, isLoading: isProjectsLoading } = useProjects();
-    const { finalizedInfo, isLoading: isFinalizedLoading } = useFinalizedQuarters(rawProjects);
 
     // --- LOCAL STATE ---
     const [isLoading, setIsLoading] = useState(true);
@@ -353,8 +355,17 @@ export default function ConstructionPlan() {
         allocationPeriods: {},
     });
 
+    // === BATCH SETTLEMENT STATE ===
+    const [rowSelectionModel, setRowSelectionModel] = useState({ type: 'include', ids: new Set() });
+    const selectedProjectIds = useMemo(() => Array.from(rowSelectionModel.ids || []), [rowSelectionModel]);
+    const [settlementYear, setSettlementYear] = useState(String(new Date().getFullYear()));
+    const [settlementQuarter, setSettlementQuarter] = useState(`Q${Math.floor(new Date().getMonth() / 3) + 1}`);
+    const [showSettlementConfirm, setShowSettlementConfirm] = useState(false);
+    const [showProgressDialog, setShowProgressDialog] = useState(false);
+    const { executeBatchSettlement, isProcessing, progress, results, resetResults } = useBatchSettlement();
+
     // Combine loading states
-    const isLoadingData = isProjectsLoading || isFinalizedLoading;
+    const isLoadingData = isProjectsLoading;
     // Sync local loading state if needed, or just use derived state
     useEffect(() => {
         setIsLoading(isLoadingData);
@@ -366,15 +377,6 @@ export default function ConstructionPlan() {
             revenueHSKH: d.revenueHSKH || 0,
         }));
     }, [rawProjects]);
-
-    // Merge projects với finalizedInfo
-    const mergedProjects = useMemo(() => {
-        return projects.map(p => ({
-            ...p,
-            finalizedQuarters: finalizedInfo[p.id]?.finalizedQuarters || [],
-            latestFinalized: finalizedInfo[p.id]?.latestFinalized || null
-        }));
-    }, [projects, finalizedInfo]);
 
     // --- HANDLERS DỰA TRÊN USECALLBACK ---
     const handleOpenTimelineModal = useCallback((project) => {
@@ -468,25 +470,62 @@ export default function ConstructionPlan() {
         setProjectToDelete(null);
     }, [projectToDelete]);
 
+    // === BATCH SETTLEMENT HANDLERS ===
+    const handleOpenSettlementConfirm = useCallback(() => {
+        if (selectedProjectIds.length === 0) {
+            toast.error("Vui lòng chọn ít nhất một công trình để quyết toán.");
+            return;
+        }
+        setShowSettlementConfirm(true);
+    }, [selectedProjectIds]);
+
+    const handleConfirmBatchSettlement = useCallback(async () => {
+        setShowSettlementConfirm(false);
+        setShowProgressDialog(true);
+
+        const result = await executeBatchSettlement(selectedProjectIds, settlementYear, settlementQuarter);
+
+        if (result) {
+            if (result.success.length > 0) {
+                toast.success(`Quyết toán thành công ${result.success.length} công trình!`);
+            }
+            if (result.failed.length > 0) {
+                toast.error(`${result.failed.length} công trình gặp lỗi khi quyết toán.`);
+            }
+        }
+    }, [selectedProjectIds, settlementYear, settlementQuarter, executeBatchSettlement]);
+
+    const handleCloseProgressDialog = useCallback(() => {
+        setShowProgressDialog(false);
+        if (!isProcessing) {
+            setRowSelectionModel({ type: 'include', ids: new Set() });
+            resetResults();
+        }
+    }, [isProcessing, resetResults]);
+
+    const handleClearSelection = useCallback(() => {
+        setRowSelectionModel({ type: 'include', ids: new Set() });
+    }, []);
+
     // --- MEMOIZED DATA ---
     const filteredProjects = useMemo(() => {
-        return mergedProjects.filter((p) =>
+        return projects.filter((p) =>
             p.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
         );
-    }, [mergedProjects, debouncedSearchTerm]);
+    }, [projects, debouncedSearchTerm]);
 
     const stats = useMemo(
         () => ({
-            total: mergedProjects.length,
-            totalRevenue: mergedProjects.reduce(
+            total: projects.length,
+            totalRevenue: projects.reduce(
                 (sum, p) => sum + Number(p.totalAmount || 0),
                 0
             ),
-            allocatedCount: mergedProjects.filter((p) =>
+            allocatedCount: projects.filter((p) =>
                 isProjectCurrentlyAllocated(p)
             ).length,
         }),
-        [mergedProjects]
+        [projects]
     );
 
     // --- DATAGRID CONFIG ---
@@ -645,62 +684,6 @@ export default function ConstructionPlan() {
                 },
             },
             {
-                field: "latestFinalized",
-                headerName: "Quyết Toán",
-                width: 160,
-                align: "center",
-                headerAlign: "center",
-                sortable: false,
-                renderCell: (params) => {
-                    const { latestFinalized, finalizedQuarters, id, name } = params.row;
-
-                    // Debug log
-                    if (process.env.NODE_ENV === 'development') {
-                        console.log(`🔍 Project ${name} (${id}):`, {
-                            latestFinalized,
-                            finalizedQuarters,
-                            finalizedQuartersLength: finalizedQuarters?.length || 0
-                        });
-                    }
-
-                    if (!latestFinalized || !finalizedQuarters || finalizedQuarters.length === 0) {
-                        return (
-                            <Typography
-                                variant="body2"
-                                color="text.secondary"
-                                sx={{ fontStyle: "italic" }}
-                            >
-                                Chưa quyết toán
-                            </Typography>
-                        );
-                    }
-                    const finalizedCount = finalizedQuarters.length;
-                    const displayText = `${latestFinalized.quarter}/${latestFinalized.year}`;
-                    return (
-                        <Tooltip
-                            title={
-                                finalizedCount > 1
-                                    ? `Đã quyết toán ${finalizedCount} quý. Quý mới nhất: ${displayText}`
-                                    : `Đã quyết toán quý ${displayText}`
-                            }
-                        >
-                            <Chip
-                                icon={<TaskAlt />}
-                                label={displayText}
-                                size="small"
-                                sx={{
-                                    fontWeight: 600,
-                                    borderRadius: "6px",
-                                    color: "success.dark",
-                                    backgroundColor: alpha(theme.palette.success.main, 0.2),
-                                    border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`,
-                                }}
-                            />
-                        </Tooltip>
-                    );
-                },
-            },
-            {
                 field: "actions",
                 headerName: "Thao Tác",
                 width: 100,
@@ -816,6 +799,61 @@ export default function ConstructionPlan() {
                             </Button>
                         </Stack>
 
+                        {/* === BATCH SETTLEMENT TOOLBAR === */}
+                        {selectedProjectIds.length > 0 && (
+                            <Stack
+                                direction={{ xs: "column", sm: "row" }}
+                                spacing={2}
+                                p={2}
+                                alignItems="center"
+                                sx={{
+                                    backgroundColor: alpha(theme.palette.warning.main, 0.08),
+                                    borderTop: `1px solid ${theme.palette.divider}`,
+                                }}
+                            >
+                                <Typography fontWeight={600} sx={{ minWidth: 180 }}>
+                                    ✓ Đã chọn {selectedProjectIds.length} công trình
+                                </Typography>
+                                <TextField
+                                    select
+                                    size="small"
+                                    label="Quý"
+                                    value={settlementQuarter}
+                                    onChange={(e) => setSettlementQuarter(e.target.value)}
+                                    sx={{ width: 100 }}
+                                >
+                                    <MenuItem value="Q1">Q1</MenuItem>
+                                    <MenuItem value="Q2">Q2</MenuItem>
+                                    <MenuItem value="Q3">Q3</MenuItem>
+                                    <MenuItem value="Q4">Q4</MenuItem>
+                                </TextField>
+                                <TextField
+                                    size="small"
+                                    label="Năm"
+                                    type="number"
+                                    value={settlementYear}
+                                    onChange={(e) => setSettlementYear(e.target.value)}
+                                    sx={{ width: 100 }}
+                                />
+                                <Button
+                                    variant="contained"
+                                    color="error"
+                                    startIcon={<LockIcon />}
+                                    onClick={handleOpenSettlementConfirm}
+                                    sx={{ fontWeight: 600 }}
+                                >
+                                    QUYẾT TOÁN ĐÃ CHỌN
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    startIcon={<ClearAllIcon />}
+                                    onClick={handleClearSelection}
+                                >
+                                    Bỏ chọn
+                                </Button>
+                            </Stack>
+                        )}
+
                         <Box sx={{ height: 600, width: "100%", p: 1, pt: 0 }}>
                             <DataGrid
                                 rows={filteredProjects}
@@ -829,6 +867,9 @@ export default function ConstructionPlan() {
                                     footer: CustomFooter
                                 }}
                                 getRowId={(row) => row.id}
+                                checkboxSelection
+                                rowSelectionModel={rowSelectionModel}
+                                onRowSelectionModelChange={(newSelection) => setRowSelectionModel(newSelection)}
                                 disableRowSelectionOnClick
                                 onRowClick={(params, event) => {
                                     if (
@@ -945,6 +986,91 @@ export default function ConstructionPlan() {
                     onSave={handleSaveAllocationTimeline}
                 />
             )}
+
+            {/* === BATCH SETTLEMENT CONFIRMATION DIALOG === */}
+            <Dialog
+                open={showSettlementConfirm}
+                onClose={() => setShowSettlementConfirm(false)}
+                PaperProps={{ sx: { borderRadius: 3, maxWidth: 500 } }}
+            >
+                <DialogTitle fontWeight="700">🔒 Xác Nhận Quyết Toán Hàng Loạt</DialogTitle>
+                <DialogContent>
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                        Bạn sắp quyết toán <strong>{selectedProjectIds.length} công trình</strong> cho <strong>{settlementQuarter}/{settlementYear}</strong>.
+                    </Alert>
+                    <Typography variant="body2" color="text.secondary">
+                        Hành động này sẽ:<br />
+                        • Chốt số liệu cho quý được chọn<br />
+                        • Tự động tạo dữ liệu khởi đầu cho quý tiếp theo<br />
+                        • Không thể hoàn tác trực tiếp
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={() => setShowSettlementConfirm(false)}>Hủy</Button>
+                    <Button
+                        onClick={handleConfirmBatchSettlement}
+                        color="error"
+                        variant="contained"
+                    >
+                        XÁC NHẬN QUYẾT TOÁN
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* === BATCH SETTLEMENT PROGRESS DIALOG === */}
+            <Dialog
+                open={showProgressDialog}
+                onClose={isProcessing ? undefined : handleCloseProgressDialog}
+                PaperProps={{ sx: { borderRadius: 3, minWidth: 400 } }}
+            >
+                <DialogTitle fontWeight="700">
+                    {isProcessing ? "⏳ Đang Quyết Toán..." : "✅ Hoàn Thành"}
+                </DialogTitle>
+                <DialogContent>
+                    {isProcessing ? (
+                        <Box>
+                            <Typography variant="body2" gutterBottom>
+                                Đang xử lý: <strong>{progress.currentProject}</strong>
+                            </Typography>
+                            <LinearProgress
+                                variant="determinate"
+                                value={(progress.current / progress.total) * 100}
+                                sx={{ height: 10, borderRadius: 5, my: 2 }}
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                                {progress.current} / {progress.total} công trình
+                            </Typography>
+                        </Box>
+                    ) : (
+                        <Box>
+                            {results.success.length > 0 && (
+                                <Alert severity="success" sx={{ mb: 2 }}>
+                                    <strong>{results.success.length}</strong> công trình quyết toán thành công!
+                                </Alert>
+                            )}
+                            {results.failed.length > 0 && (
+                                <Alert severity="error">
+                                    <strong>{results.failed.length}</strong> công trình gặp lỗi:
+                                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                                        {results.failed.map((f, i) => (
+                                            <li key={i}>{f.error}</li>
+                                        ))}
+                                    </ul>
+                                </Alert>
+                            )}
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button
+                        onClick={handleCloseProgressDialog}
+                        disabled={isProcessing}
+                        variant="contained"
+                    >
+                        {isProcessing ? "Đang xử lý..." : "Đóng"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }
