@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { functions, db } from '../../../services/firebase-config';
+import { functions, db } from '../../services/firebase-config';
 
 export const useAssetActions = (currentUser, setToast) => {
     const [isProcessing, setIsProcessing] = useState({});
