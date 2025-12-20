@@ -37,6 +37,7 @@ import {
     where,
     orderBy,
     getDocs,
+    getDoc,
     doc,
     onSnapshot,
     setDoc,
@@ -760,7 +761,7 @@ export default function QuarterlyCostAllocationReport() {
                 const savedPercent = savedRow?.byType?.[typeFilter]?.[pctKey];
                 const percent = (typeof savedPercent === 'number') ? savedPercent : null;
 
-               const carryOver = prevCumCurrent;
+                const carryOver = prevCumCurrent;
 
                 // [SỬA] Lấy TOÀN BỘ byType đã lưu (nếu có)
                 const existingByType = savedRow?.byType || {};
@@ -998,10 +999,10 @@ export default function QuarterlyCostAllocationReport() {
 
                         if (typeof carryOverOverride === 'number') {
                             newRow.byType[typeFilter].carryOver = carryOverOverride;
-                        }else {
-                    // Quan trọng: Nếu không có override, giữ nguyên giá trị carryOver hiện tại (đã là cumCurrent quý trước)
-                    newRow.byType[typeFilter].carryOver = finalCarryOver; // finalCarryOver là giá trị cumCurrent quý trước
-                }   
+                        } else {
+                            // Quan trọng: Nếu không có override, giữ nguyên giá trị carryOver hiện tại (đã là cumCurrent quý trước)
+                            newRow.byType[typeFilter].carryOver = finalCarryOver; // finalCarryOver là giá trị cumCurrent quý trước
+                        }
 
                         visibleProjects.forEach(p => {
                             newRow[p.id] = 0;
@@ -1217,10 +1218,10 @@ export default function QuarterlyCostAllocationReport() {
                     // [THÊM MỚI] Thêm đoạn code này vào đây
                     if (typeof carryOverOverride === 'number') {
                         newRow.byType[typeFilter].carryOver = carryOverOverride;
-                    }else {
-                        // Quan trọng: Nếu không có override, giữ nguyên giá trị carryOver hiện tại
-                        newRow.byType[typeFilter].carryOver = finalCarryOver;
-                    }
+                    } else {
+                        // Quan trọng: Nếu không có override, giữ nguyên giá trị carryOver hiện tại
+                        newRow.byType[typeFilter].carryOver = finalCarryOver;
+                    }
                     visibleProjects.forEach(p => {
                         newRow[p.id] = updatedProjectValues[p.id] || 0;
                     });
@@ -1343,17 +1344,57 @@ export default function QuarterlyCostAllocationReport() {
             console.log("Dữ liệu chuẩn bị lưu vào reportAdjustments:", {
                 mainRows: dataToSave,
                 manualLimits: manualLimits,
-                roundingSettings: roundingSettings, // <-- SỬA TÊN
+                roundingSettings: roundingSettings,
                 projectDetails: projectDetailsToSave
             });
 
             await setDoc(docRef, {
                 mainRows: dataToSave,
                 manualLimits: manualLimits,
-                roundingSettings: roundingSettings, // <-- SỬA TÊN
-                projectDetails: projectDetailsToSave, // Lưu chi tiết
+                roundingSettings: roundingSettings,
+                projectDetails: projectDetailsToSave,
                 updated_at: serverTimestamp(),
             }, { merge: false });
+
+            // === THÊM MỚI: Cập nhật giá trị 'allocated' vào từng project ===
+            const updateProjectPromises = visibleProjects.map(async (project) => {
+                const projectDocRef = doc(db, "projects", project.id, "years", String(year), "quarters", quarterStr);
+
+                try {
+                    const projectSnap = await getDoc(projectDocRef);
+                    if (!projectSnap.exists()) return; // Bỏ qua nếu không có dữ liệu
+
+                    const projectData = projectSnap.data();
+                    const existingItems = projectData.items || [];
+
+                    // Tạo map: itemLabel -> giá trị phân bổ từ mainRowsData
+                    const allocationMap = {};
+                    mainRowsData.forEach(row => {
+                        if (row.id !== 'DOANH_THU' && row.id !== 'TONG_CHI_PHI') {
+                            const itemLabel = items.find(i => i.id === row.id)?.item;
+                            if (itemLabel && row[project.id] !== undefined) {
+                                allocationMap[itemLabel] = row[project.id];
+                            }
+                        }
+                    });
+
+                    // Cập nhật trường 'allocated' cho các item tương ứng
+                    const updatedItems = existingItems.map(item => {
+                        if (allocationMap[item.description] !== undefined) {
+                            return { ...item, allocated: String(allocationMap[item.description]) };
+                        }
+                        return item;
+                    });
+
+                    await setDoc(projectDocRef, { items: updatedItems }, { merge: true });
+                    console.log(`Đã cập nhật allocated cho project ${project.name}`);
+                } catch (error) {
+                    console.error(`Lỗi khi cập nhật allocated cho project ${project.id}:`, error);
+                }
+            });
+
+            await Promise.all(updateProjectPromises);
+            // === KẾT THÚC PHẦN THÊM MỚI ===
 
             showSnack("Đã lưu thay đổi thành công!", "success");
             setDirtyRows(new Set());
@@ -1562,7 +1603,7 @@ export default function QuarterlyCostAllocationReport() {
                                                         );
                                                     } else if (col.field === 'percentDT') {
                                                         cellValue = typeData[pctKey];
-                                                        return renderCell(cellValue, cellType, itemRow.id, pctKey, handlePercentChange, isSummaryRow && col.field === 'percentDT')
+                                                        return renderCell(cellValue, cellType, itemRow.id, pctKey, handlePercentChange, isSummaryRow)
                                                     } else {
                                                         cellValue = typeData[col.field]
                                                     }
