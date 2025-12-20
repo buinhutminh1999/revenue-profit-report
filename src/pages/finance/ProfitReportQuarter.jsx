@@ -345,11 +345,14 @@ export default function ProfitReportQuarter() {
                 Array.isArray(saved.data().rows) &&
                 saved.data().rows.length > 0
             ) {
-                // BƯỚC 1: Lấy các hàng không phải là công trình (tiêu đề, tổng, v.v.) từ báo cáo đã lưu.
-                // Điều này giúp giữ lại các giá trị được nhập thủ công ở các hàng tổng hợp.
+                // BƯỚC 1: Giữ lại các hàng hệ thống (không có projectId) VÀ các hàng thêm thủ công (addedFromForm)
                 processedRows = saved
                     .data()
-                    .rows.filter((savedRow) => !savedRow.projectId);
+                    .rows.filter((savedRow) => !savedRow.projectId || savedRow.addedFromForm === true);
+
+                // 🔍 DEBUG: Kiểm tra các rows addedFromForm
+                const addedFromFormRows = processedRows.filter(r => r.addedFromForm === true);
+                console.log(`🔍 DEBUG: Tìm thấy ${addedFromFormRows.length} hàng addedFromForm:`, addedFromFormRows.map(r => r.name));
                 // --- BẮT ĐẦU SỬA LỖI ---
                 // Kiểm tra xem hàng "LỢI NHUẬN RÒNG" đã tồn tại trong dữ liệu đã lưu chưa
                 const loiNhuanRongExists = processedRows.some(
@@ -896,15 +899,28 @@ export default function ProfitReportQuarter() {
                     toNum(finalRows[idxVIII].profit);
             }
 
+            // ✅ Kiểm tra xem có hàng addedFromForm nào trong nhóm I.1 hoặc I.2 không
+            const hasAddedFromFormInI1 = finalRows.some(r =>
+                r.addedFromForm === true &&
+                !(r.name || "").match(/^[IVX]+\./)
+            );
+
             const filteredRows = finalRows.filter((r) => {
+                // ✅ Luôn giữ lại các hàng được thêm thủ công từ form
+                if (r.addedFromForm === true) {
+                    return true;
+                }
+
                 const rev = toNum(r.revenue);
                 const cost = toNum(r.cost);
                 const profit = toNum(r.profit);
                 const nameUpper = (r.name || "").trim().toUpperCase();
-                if (
-                    nameUpper === "I.1. DÂN DỤNG + GIAO THÔNG" ||
-                    nameUpper === "I.2. KÈ"
-                ) {
+
+                // ✅ Giữ I.1 nếu có dữ liệu HOẶC có hàng addedFromForm
+                if (nameUpper === "I.1. DÂN DỤNG + GIAO THÔNG") {
+                    return rev !== 0 || cost !== 0 || profit !== 0 || hasAddedFromFormInI1;
+                }
+                if (nameUpper === "I.2. KÈ") {
                     return rev !== 0 || cost !== 0 || profit !== 0;
                 }
 
@@ -934,7 +950,7 @@ export default function ProfitReportQuarter() {
                             "+VƯỢT CP BPĐT",
                             `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`.toUpperCase(),
                             "+ CHI PHÍ ĐÃ TRẢ TRƯỚC",
-                            "LỢI NHUẬN RÒNG", // <-- THÊM DÒNG NÀY VÀO ĐÂY
+                            "LỢI NHUẬN RÒNG",
                         ].includes(nameUpper)
                     ) {
                         return true;
@@ -994,6 +1010,11 @@ export default function ProfitReportQuarter() {
 
     const handleSave = async (rowsToSave) => {
         const rowsData = Array.isArray(rowsToSave) ? rowsToSave : rows;
+
+        // 🔍 DEBUG: Kiểm tra xem có hàng addedFromForm nào được lưu không
+        const addedFromFormRows = rowsData.filter(r => r.addedFromForm === true);
+        console.log(`🔍 DEBUG SAVE: Đang lưu ${addedFromFormRows.length} hàng addedFromForm:`, addedFromFormRows.map(r => r.name));
+
         const dataToSave = {
             rows: rowsData,
             summaryTargets: summaryTargets,
