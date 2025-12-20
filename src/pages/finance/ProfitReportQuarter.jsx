@@ -33,7 +33,7 @@ import {
     Switch,
     FormControlLabel,
 } from "@mui/material";
-import { ViewColumn as ViewColumnIcon, Tv as TvIcon, Computer as ComputerIcon } from '@mui/icons-material';
+import { ViewColumn as ViewColumnIcon, Tv as TvIcon, Computer as ComputerIcon, Edit as EditIcon, Delete as DeleteIcon, Check as CheckIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles'; // ✅ Thêm useTheme
 import SaveIcon from "@mui/icons-material/Save";
 import { collection, getDocs, setDoc, doc, getDoc, collectionGroup, onSnapshot } from "firebase/firestore";
@@ -57,6 +57,7 @@ export default function ProfitReportQuarter() {
     const [rows, setRows] = useState([]);
     const [tvMode, setTvMode] = useState(false); // ✅ Mặc định false cho PC/laptop
     const [editingCell, setEditingCell] = useState({ idx: -1, field: "" });
+    const [editingRowName, setEditingRowName] = useState({ idx: -1, value: "" }); // State cho editing tên hàng
     const [addModal, setAddModal] = useState(false);
     const [addProject, setAddProject] = useState({
         group: "I.1. Dân Dụng + Giao Thông",
@@ -110,6 +111,7 @@ export default function ProfitReportQuarter() {
     const handleColumnMenuClose = () => setAnchorEl(null);
     const handleToggleColumn = (columnKey) => {
         setColumnVisibility((prev) => ({
+
             ...prev,
             [columnKey]: !prev[columnKey],
         }));
@@ -1801,7 +1803,7 @@ export default function ProfitReportQuarter() {
                                     <TableCell
                                         sx={{
                                             minWidth: 300,
-                                            maxWidth: 300,
+                                            maxWidth: 400,
                                             whiteSpace: "normal",
                                             wordBreak: "break-word",
                                             px: 2,
@@ -1809,17 +1811,99 @@ export default function ProfitReportQuarter() {
                                             position: "sticky",
                                             left: 0,
                                             zIndex: 1,
-                                            backgroundColor: 'inherit', // Thừa hưởng màu nền từ TableRow
+                                            backgroundColor: 'inherit',
                                         }}
                                         title={r.name}
                                     >
-                                        {r.name?.match(/^[IVX]+\./) && (
-                                            <KeyboardArrowRightIcon
-                                                fontSize={tvMode ? "medium" : "small"}
-                                                sx={{ verticalAlign: "middle", mr: 0.5 }}
-                                            />
-                                        )}
-                                        {r.name}
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                                                {r.name?.match(/^[IVX]+\./) && (
+                                                    <KeyboardArrowRightIcon
+                                                        fontSize={tvMode ? "medium" : "small"}
+                                                        sx={{ verticalAlign: "middle", mr: 0.5, flexShrink: 0 }}
+                                                    />
+                                                )}
+                                                {/* Nếu đang editing tên của dòng này */}
+                                                {editingRowName.idx === idx ? (
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
+                                                        <TextField
+                                                            size="small"
+                                                            variant="standard"
+                                                            value={editingRowName.value}
+                                                            onChange={(e) => setEditingRowName(prev => ({ ...prev, value: e.target.value }))}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    const newRows = [...rows];
+                                                                    newRows[idx].name = editingRowName.value;
+                                                                    setRows(newRows);
+                                                                    setEditingRowName({ idx: -1, value: "" });
+                                                                } else if (e.key === 'Escape') {
+                                                                    setEditingRowName({ idx: -1, value: "" });
+                                                                }
+                                                            }}
+                                                            autoFocus
+                                                            sx={{ flex: 1 }}
+                                                        />
+                                                        <Tooltip title="Lưu">
+                                                            <CheckIcon
+                                                                fontSize="small"
+                                                                color="success"
+                                                                sx={{ cursor: 'pointer' }}
+                                                                onClick={() => {
+                                                                    const newRows = [...rows];
+                                                                    newRows[idx].name = editingRowName.value;
+                                                                    setRows(newRows);
+                                                                    setEditingRowName({ idx: -1, value: "" });
+                                                                }}
+                                                            />
+                                                        </Tooltip>
+                                                        <Tooltip title="Hủy">
+                                                            <CloseIcon
+                                                                fontSize="small"
+                                                                color="error"
+                                                                sx={{ cursor: 'pointer' }}
+                                                                onClick={() => setEditingRowName({ idx: -1, value: "" })}
+                                                            />
+                                                        </Tooltip>
+                                                    </Box>
+                                                ) : (
+                                                    <Typography
+                                                        sx={{
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                        }}
+                                                    >
+                                                        {r.name}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                            {/* Hiển thị nút Edit/Delete CHỈ cho các hàng được thêm thủ công từ form */}
+                                            {r.addedFromForm === true && editingRowName.idx !== idx && (
+                                                <Box sx={{ display: 'flex', gap: 0.5, ml: 1, flexShrink: 0 }}>
+                                                    <Tooltip title="Sửa tên">
+                                                        <EditIcon
+                                                            fontSize="small"
+                                                            color="primary"
+                                                            sx={{ cursor: 'pointer', opacity: 0.7, '&:hover': { opacity: 1 } }}
+                                                            onClick={() => setEditingRowName({ idx, value: r.name || "" })}
+                                                        />
+                                                    </Tooltip>
+                                                    <Tooltip title="Xóa dòng">
+                                                        <DeleteIcon
+                                                            fontSize="small"
+                                                            color="error"
+                                                            sx={{ cursor: 'pointer', opacity: 0.7, '&:hover': { opacity: 1 } }}
+                                                            onClick={() => {
+                                                                if (window.confirm(`Bạn có chắc muốn xóa "${r.name}"?`)) {
+                                                                    const newRows = rows.filter((_, i) => i !== idx);
+                                                                    setRows(newRows);
+                                                                }
+                                                            }}
+                                                        />
+                                                    </Tooltip>
+                                                </Box>
+                                            )}
+                                        </Box>
                                     </TableCell>
 
                                     {/* ✅ Bọc các cột còn lại trong điều kiện hiển thị */}
@@ -1991,7 +2075,7 @@ export default function ProfitReportQuarter() {
 
                                 rowsCopy.splice(insertIndex, 0, {
                                     name: addProject.name,
-                                    type: projectType, // <-- SỬ DỤNG TYPE ĐÃ XÁC ĐỊNH
+                                    type: projectType,
                                     revenue: 0,
                                     cost: 0,
                                     profit: 0,
@@ -2001,6 +2085,7 @@ export default function ProfitReportQuarter() {
                                     note: "",
                                     suggest: "",
                                     editable: true,
+                                    addedFromForm: true, // ✅ Flag để nhận biết hàng được thêm thủ công
                                 });
 
                                 setRows(rowsCopy);
@@ -2025,4 +2110,3 @@ export default function ProfitReportQuarter() {
         </Box>
     );
 }
-

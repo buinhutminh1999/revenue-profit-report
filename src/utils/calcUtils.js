@@ -137,18 +137,6 @@ export const calcAllFields = (
     const isCpProject = row.project.includes("-CP");
     const isVtNcProject = !isCpProject; // Tất cả công trình không phải -CP được xử lý như VT/NC
 
-    // ⭐ LOGIC MỚI ƯU TIÊN HÀNG ĐẦU: ÁP DỤNG CÔNG THỨC "SỐNG" ⭐
-    // Kiểm tra nếu là công trình VT/NC và có trường 'baseForNptck' được truyền từ quý trước.
-    if (isVtNcProject && row.hasOwnProperty('baseForNptck') && row.baseForNptck !== null) {
-        // Lấy giá trị gốc đã tính ở quý trước
-        const baseValue = Number(parseNumber(row.baseForNptck));
-        // Lấy Chi Phí Trực Tiếp của quý HIỆN TẠI (khi người dùng nhập)
-        const directCost_Current = Number(parseNumber(row.directCost || "0"));
-
-        // Công thức cuối cùng: NPTĐK(Q2) - CPTT(Q2) - CPTT(Q3)
-        row.noPhaiTraCK = String(baseValue - directCost_Current);
-    }
-
     // Các logic tính toán khác giữ nguyên
     if (isVtNcProject) {
         row.revenue = "0";
@@ -174,12 +162,20 @@ export const calcAllFields = (
         row.cpVuot = calcCpVuot(row);
     }
 
-    // ✅ LUÔN tính lại carryoverEnd (bỏ điều kiện isFinalized để đảm bảo giá trị luôn đúng)
-    row.carryoverEnd = calcCarryoverEnd(row, projectType);
+    if (!row.isFinalized) {
+        row.carryoverEnd = calcCarryoverEnd(row, projectType);
 
-    // Chỉ tính NPT CK tự động cho các dự án -CP (không phải VT/NC)
-    if (!isUserEditingNoPhaiTraCK && !isVtNcProject && row.project.includes("-CP")) {
-        row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
+        // ✅ CÔNG THỨC MỚI: Tính NPT CK cho cả -CP và VT/NC
+        if (!isUserEditingNoPhaiTraCK) {
+            if (isVtNcProject) {
+                // VT/NC: NPT CK = NPT ĐK - Chi Phí Trực Tiếp
+                const debt = Number(parseNumber(row.debt || "0"));
+                const directCost = Number(parseNumber(row.directCost || "0"));
+                row.noPhaiTraCK = String(debt - directCost);
+            } else if (row.project.includes("-CP")) {
+                row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
+            }
+        }
     }
 
     const directCost = parseNumber(row.directCost || "0");
