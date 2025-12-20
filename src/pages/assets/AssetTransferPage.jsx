@@ -1,4 +1,4 @@
-// src/pages/AssetTransferPage.jsx
+﻿// src/pages/AssetTransferPage.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback, } from "react";
 import { Box, Typography, Button, Card, CardContent, Grid, Select, MenuItem, FormControl, InputLabel, Paper, Tabs, Tab, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Checkbox, ListItemText, OutlinedInput, IconButton, TextField, DialogContentText, Toolbar, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Stack, Divider, Tooltip, Snackbar, Alert, Avatar, Skeleton, Drawer, Badge, ToggleButton, ToggleButtonGroup, Stepper, Step, StepLabel, Autocomplete, CardActions, Collapse, CardActionArea, useTheme, useMediaQuery, FormControlLabel, } from "@mui/material";
 import { alpha } from "@mui/material/styles";
@@ -70,6 +70,8 @@ import TransferTableRowMobile from "../../components/assets/TransferTableRowMobi
 import RequestTableRowMobile from "../../components/assets/RequestTableRowMobile";
 import ReportTableRowMobile from "../../components/assets/ReportTableRowMobile";
 import { StatCardSkeleton, TransferSkeleton, AssetCardSkeleton } from "../../components/assets/AssetSkeletons";
+import DashboardTab from "../../components/tabs/DashboardTab";
+import TransferListTab from "../../components/tabs/TransferListTab";
 
 
 // src/pages/AssetTransferPage.jsx (đặt ở đầu file)
@@ -125,17 +127,19 @@ export default function AssetTransferPage() {
         blockLeaders,
         approvalPermissions,
         assetManagerEmails,
-        permissions: {
-            canManageAssets,
-            canSignSender,
-            canSignReceiver,
-            canSignAdmin,
-            canDeleteTransfer,
-            canProcessRequest,
-            canProcessReport,
-            canDeleteReport
-        }
+        permissions
     } = useAssetManagement();
+
+    const {
+        canManageAssets,
+        canSignSender,
+        canSignReceiver,
+        canSignAdmin,
+        canDeleteTransfer,
+        canProcessRequest,
+        canProcessReport,
+        canDeleteReport
+    } = permissions || {};
 
     // UI States (không duplicate với hook)
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -151,15 +155,15 @@ export default function AssetTransferPage() {
 
     const [createNonce, setCreateNonce] = useState("");
     // States for UI controls
-    const [drawerOpen, setDrawerOpen] = useState(false);
+    // const [drawerOpen, setDrawerOpen] = useState(false); // MOVED TO TransferListTab
     const [search, setSearch] = useState("");
-    const [statusMulti, setStatusMulti] = useState([]);
-    const [fromDeptIds, setFromDeptIds] = useState([]);
-    const [toDeptIds, setToDeptIds] = useState([]);
-    const [createdBy, setCreatedBy] = useState("");
+    // const [statusMulti, setStatusMulti] = useState([]); // MOVED TO TransferListTab
+    // const [fromDeptIds, setFromDeptIds] = useState([]); // MOVED TO TransferListTab
+    // const [toDeptIds, setToDeptIds] = useState([]); // MOVED TO TransferListTab
+    // const [createdBy, setCreatedBy] = useState(""); // MOVED TO TransferListTab
     const searchDeb = useRef(null);
     const [debSearch, setDebSearch] = useState("");
-    const [createdByDeb, setCreatedByDeb] = useState("");
+    // const [createdByDeb, setCreatedByDeb] = useState(""); // MOVED TO TransferListTab
     const [tabIndex, setTabIndex] = useState(0);
 
     // Asset Tab states
@@ -313,9 +317,7 @@ export default function AssetTransferPage() {
             }
             // Escape: Đóng drawer/dialog
             if (e.key === 'Escape') {
-                if (drawerOpen) {
-                    setDrawerOpen(false);
-                }
+                // Drawer handling moved to TransferListTab
             }
             // Ctrl/Cmd + N: Tạo mới (tùy theo tab)
             if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
@@ -327,7 +329,7 @@ export default function AssetTransferPage() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [drawerOpen, tabIndex, canManageAssets]);
+    }, [tabIndex, canManageAssets]);
     {/* ✅ THÊM MỚI: useEffect này để lưu lựa chọn tài sản vào sessionStorage */ }
     useEffect(() => {
         try {
@@ -340,7 +342,7 @@ export default function AssetTransferPage() {
 
     // Debounce search inputs
     useEffect(() => { clearTimeout(searchDeb.current); searchDeb.current = setTimeout(() => setDebSearch(search), 300); return () => clearTimeout(searchDeb.current) }, [search]);
-    useEffect(() => { const id = setTimeout(() => setCreatedByDeb(createdBy), 300); return () => clearTimeout(id) }, [createdBy]);
+    // useEffect(() => { const id = setTimeout(() => setCreatedByDeb(createdBy), 300); return () => clearTimeout(id) }, [createdBy]); // MOVED TO TransferListTab
 
     // Permission helpers for Transfers
     // Hàm này kiểm tra người dùng có phải lãnh đạo của phòng ban không
@@ -385,40 +387,7 @@ export default function AssetTransferPage() {
         });
     }, [selectedAssetIdsForPrint, assetsWithDept]);
 
-    const filteredTransfers = useMemo(() => {
-        let list = transfers;
-        if (statusMulti.length > 0)
-            list = list.filter((t) => statusMulti.includes(t.status));
-        if (fromDeptIds.length > 0)
-            list = list.filter((t) => fromDeptIds.includes(t.fromDeptId));
-        if (toDeptIds.length > 0)
-            list = list.filter((t) => toDeptIds.includes(t.toDeptId));
-        if (createdByDeb.trim()) {
-            const q = normVn(createdByDeb);
-            list = list.filter((t) => normVn(t.createdBy?.name || "").includes(q));
-        }
-        if (debSearch.trim()) {
-            const q = normVn(debSearch);
-
-            list = list.filter((t) => {
-                const from = normVn(t.from || "");
-                const to = normVn(t.to || "");
-                const id = normVn(t.id || "");
-                const disp = normVn(t.maPhieuHienThi || "");
-
-                const hitAsset = (t.assets || []).some((a) => normVn(a.name).includes(q));
-
-                return (
-                    id.includes(q) ||
-                    disp.includes(q) ||
-                    from.includes(q) ||
-                    to.includes(q) ||
-                    hitAsset
-                );
-            });
-        }
-        return list;
-    }, [transfers, statusMulti, fromDeptIds, toDeptIds, createdByDeb, debSearch]);
+    // filteredTransfers logic moved to TransferListTab
     const filteredAssets = useMemo(() => {
         // Ẩn record quantity = 0 để không thấy dòng “0 Cái”
         let list = assetsWithDept.filter(a => Number(a.quantity || 0) > 0);
@@ -968,12 +937,8 @@ export default function AssetTransferPage() {
                 value: totalPending,
                 icon: <Clock />,
                 color: 'warning',
-                // ✅ MỚI: Click để xem tất cả các phiếu đang xử lý
-                onClick: () => {
-                    // Chuyển sang tab luân chuyển và lọc các phiếu chưa hoàn thành
-                    setStatusMulti(ALL_STATUS.filter(s => s !== 'COMPLETED'));
-                    setTabIndex(1);
-                }
+                // ✅ FIX: Chuyển về Dashboard (Tab 0) vì đó là nơi hiển thị TẤT CẢ công việc đang xử lý
+                onClick: () => setTabIndex(0)
             },
             {
                 label: 'Tổng số loại tài sản',
@@ -1593,39 +1558,7 @@ export default function AssetTransferPage() {
     // Render functions... (giữ nguyên renderActionButtons, StatCardSkeleton, TransferSkeleton)
     // ...
     // Đặt hàm này gần renderActionButtons cũ
-    const TransferActionButtons = ({ transfer }) => {
-        if (!currentUser) return null;
-
-        // Logic cho Admin
-        if (currentUser.role === 'admin') {
-            let roleToSign, label, icon, color = 'primary';
-            if (transfer.status === "PENDING_SENDER") { roleToSign = "sender"; label = "Ký chuyển"; icon = <FilePen size={16} />; }
-            else if (transfer.status === "PENDING_RECEIVER") { roleToSign = "receiver"; label = "Ký nhận"; icon = <UserCheck size={16} />; color = 'info'; }
-            else if (transfer.status === "PENDING_ADMIN") { roleToSign = "admin"; label = "Duyệt HC"; icon = <Handshake size={16} />; color = 'secondary'; }
-
-            if (roleToSign) {
-                return (
-                    <Button variant="contained" size="small" color={color} startIcon={icon} disabled={signing[transfer.id]} onClick={(e) => { e.stopPropagation(); handleSign(transfer, roleToSign); }}>
-                        {signing[transfer.id] ? "..." : label}
-                    </Button>
-                );
-            }
-            return null; // Không có action gì cho admin ở trạng thái COMPLETED
-        }
-
-        // Logic cho người dùng thường
-        if (transfer.status === "PENDING_SENDER" && canSignSender(transfer)) {
-            return <Button variant="contained" size="small" startIcon={<FilePen size={16} />} disabled={signing[transfer.id]} onClick={(e) => { e.stopPropagation(); handleSign(transfer, "sender"); }}>{signing[transfer.id] ? "..." : "Ký chuyển"}</Button>;
-        }
-        if (transfer.status === "PENDING_RECEIVER" && canSignReceiver(transfer)) {
-            return <Button variant="contained" size="small" color="info" startIcon={<UserCheck size={16} />} disabled={signing[transfer.id]} onClick={(e) => { e.stopPropagation(); handleSign(transfer, "receiver"); }}>{signing[transfer.id] ? "..." : "Ký nhận"}</Button>;
-        }
-        if (transfer.status === "PENDING_ADMIN" && canSignAdmin(transfer)) {
-            return <Button variant="contained" size="small" color="secondary" startIcon={<Handshake size={16} />} disabled={signing[transfer.id]} onClick={(e) => { e.stopPropagation(); handleSign(transfer, "admin"); }}>{signing[transfer.id] ? "..." : "Duyệt HC"}</Button>;
-        }
-
-        return null;
-    };
+    // TransferActionButtons moved to src/components/assets/TransferActionButtons.jsx
     /* ---------- Action buttons for Detail View ---------- */
     const renderActionButtons = (t) => {
         if (!currentUser || !t) return null;
@@ -1924,27 +1857,29 @@ export default function AssetTransferPage() {
                             <motion.div
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
+                                style={{ width: isMobile ? '100%' : 'auto' }}
                             >
                                 <Button
                                     variant="contained"
                                     size={isMobile ? "medium" : "large"}
-                                    startIcon={<ArrowRightLeft />}
+                                    startIcon={<PlusCircle />}
                                     onClick={handleOpenTransferModal}
+                                    fullWidth={isMobile}
                                     sx={{
                                         borderRadius: 2,
                                         textTransform: 'none',
                                         fontWeight: 600,
-                                        px: { xs: 2, sm: 3 },
                                         boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
                                         '&:hover': {
                                             boxShadow: `0 6px 16px ${alpha(theme.palette.primary.main, 0.4)}`,
                                         },
                                     }}
                                 >
-                                    {isMobile ? "Tạo Phiếu" : "Tạo Phiếu Luân Chuyển"}
+                                    {isMobile ? "Tạo Phiếu" : "Tạo Phiếu Chuyển"}
                                 </Button>
                             </motion.div>
                         )}
+
                         {tabIndex === 2 && (
                             canManageAssets && (
                                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
@@ -2175,363 +2110,44 @@ export default function AssetTransferPage() {
                         />
                     </Tabs>
                     {tabIndex === 0 && (
-                        <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: 'transparent' }}>
-                            {actionableItems.total === 0 ? (
-                                // ✅ Cải thiện: Sử dụng EmptyState component
-                                <EmptyState
-                                    icon={<CheckCircleOutline sx={{ fontSize: 64, color: 'success.main' }} />}
-                                    title="Tuyệt vời!"
-                                    description="Bạn không có công việc nào cần xử lý ngay bây giờ. Tất cả các phiếu đã được xử lý hoặc đang chờ người khác."
-                                    size="large"
-                                />
-                            ) : isMobile ? (
-                                // ✅ CHẾ ĐỘ MOBILE: Dùng Card View
-                                <Stack spacing={2.5}>
-                                    {/* 1. Phiếu Luân chuyển */}
-                                    {actionableItems.transfers.map((item) => (
-                                        <DashboardTableRowMobile key={item.id} item={item} type="TRANSFERS" onDetailClick={handleOpenDetailView} />
-                                    ))}
-                                    {/* 2. Yêu cầu Thay đổi */}
-                                    {actionableItems.requests.map((item) => (
-                                        <DashboardTableRowMobile key={item.id} item={item} type="REQUESTS" onDetailClick={handleOpenRequestDetail} />
-                                    ))}
-                                    {/* 3. Báo cáo Kiểm kê */}
-                                    {actionableItems.reports.map((item) => (
-                                        <DashboardTableRowMobile key={item.id} item={item} type="REPORTS" onDetailClick={handleOpenReportDetail} />
-                                    ))}
-                                </Stack>
-                            ) : (
-                                // ✅ CHẾ ĐỘ DESKTOP: Dùng Table View (Giữ nguyên logic bảng trước đó)
-                                <Stack spacing={4}>
-                                    <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-                                        <Table sx={{ minWidth: 650, '& .MuiTableCell-root': { borderBottom: '1px solid', borderColor: 'divider' } }} aria-label="dashboard-actionable-table">
-                                            <TableHead sx={{ bgcolor: 'grey.50' }}>
-                                                <TableRow>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary', width: '25%' }}>Mã Phiếu/Báo cáo</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary', width: '30%' }}>Nội dung</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary', width: '15%' }}>Loại</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary', width: '15%' }}>Trạng thái</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary', width: '15%' }} align="right">Hành động</TableCell>
-                                                </TableRow>
-                                            </TableHead>
-                                            <TableBody>
-
-                                                {/* ====== 1. PHIẾU LUÂN CHUYỂN CHỜ KÝ (TRANSFERS) ====== */}
-                                                {actionableItems.transfers.map((t) => (
-                                                    <TableRow
-                                                        key={t.id}
-                                                        hover
-                                                        onClick={() => handleOpenDetailView(t)}
-                                                        sx={{ cursor: 'pointer', bgcolor: 'background.paper' }}
-                                                    >
-                                                        <TableCell component="th" scope="row">
-                                                            <Chip size="small" label={t.maPhieuHienThi || `#${shortId(t.id)}`} sx={{ fontWeight: 600, bgcolor: 'grey.100' }} />
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{t.from} → {t.to}</Typography>
-                                                            <Typography variant="caption" color="text.secondary">Tạo bởi: {t.createdBy?.name} </Typography>
-                                                        </TableCell>
-                                                        <TableCell><Chip label="Luân chuyển" size="small" color="secondary" icon={<ArrowRightLeft size={14} />} /></TableCell>
-                                                        <TableCell>
-                                                            <Chip
-                                                                size="small"
-                                                                label={statusConfig[t.status]?.label}
-                                                                color={statusConfig[t.status]?.color || "default"}
-                                                                variant="outlined"
-                                                                icon={statusConfig[t.status]?.icon}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                                                            <TransferActionButtons transfer={t} />
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-
-                                                {/* ====== 2. YÊU CẦU THAY ĐỔI CHỜ DUYỆT (REQUESTS) ====== */}
-                                                {actionableItems.requests.map((req) => (
-                                                    <TableRow
-                                                        key={req.id}
-                                                        hover
-                                                        onClick={() => handleOpenRequestDetail(req)}
-                                                        sx={{ cursor: 'pointer', bgcolor: 'background.paper' }}
-                                                    >
-                                                        <TableCell component="th" scope="row">
-                                                            <Chip size="small" label={req.maPhieuHienThi || `#${shortId(req.id)}`} sx={{ fontWeight: 600, bgcolor: 'grey.100' }} />
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{req.assetData?.name}</Typography>
-                                                            <Typography variant="caption" color="text.secondary">Phòng: {req.departmentName}</Typography>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Chip
-                                                                label={req.type === 'ADD' ? 'Y/C Thêm' : (req.type === 'DELETE' ? 'Y/C Xóa' : 'Y/C Giảm SL')}
-                                                                size="small"
-                                                                color={req.type === 'ADD' ? 'success' : (req.type === 'DELETE' ? 'error' : 'warning')}
-                                                                icon={req.type === 'ADD' ? <FilePlus size={14} /> : (req.type === 'DELETE' ? <FileX size={14} /> : <FilePen size={14} />)}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Chip
-                                                                size="small"
-                                                                label={requestStatusConfig[req.status]?.label}
-                                                                color={requestStatusConfig[req.status]?.color || "default"}
-                                                                variant="outlined"
-                                                                icon={requestStatusConfig[req.status]?.icon}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                                                            <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
-                                                                <Button variant="outlined" size="small" color="error" onClick={() => setRejectConfirm(req)} disabled={isProcessingRequest[req.id]}>
-                                                                    {isProcessingRequest[req.id] ? "..." : "Từ chối"}
-                                                                </Button>
-                                                                <Button variant="contained" size="small" onClick={() => handleProcessRequest(req, 'approve')} disabled={isProcessingRequest[req.id]} startIcon={<Check size={16} />}>
-                                                                    {isProcessingRequest[req.id] ? "..." : getApprovalActionLabel(req)}
-                                                                </Button>
-                                                            </Stack>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-
-                                                {/* ====== 3. BÁO CÁO KIỂM KÊ CHỜ DUYỆT (REPORTS) ====== */}
-                                                {actionableItems.reports.map((report) => (
-                                                    <TableRow
-                                                        key={report.id}
-                                                        hover
-                                                        onClick={() => handleOpenReportDetail(report)}
-                                                        sx={{ cursor: 'pointer', bgcolor: 'background.paper' }}
-                                                    >
-                                                        <TableCell component="th" scope="row">
-                                                            <Chip size="small" label={report.maPhieuHienThi || `#${shortId(report.id)}`} sx={{ fontWeight: 600, bgcolor: 'grey.100' }} />
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{report.title}</Typography>
-                                                            <Typography variant="caption" color="text.secondary">Phạm vi: {report.departmentName}</Typography>
-                                                        </TableCell>
-                                                        <TableCell><Chip label="Báo cáo" size="small" color="info" icon={<Sheet size={14} />} /></TableCell>
-                                                        <TableCell>
-                                                            <Chip
-                                                                size="small"
-                                                                label={reportStatusConfig[report.status]?.label}
-                                                                color={reportStatusConfig[report.status]?.color || "default"}
-                                                                variant="outlined"
-                                                                icon={reportStatusConfig[report.status]?.icon}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                                                            <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
-                                                                <Button variant="outlined" size="small" color="error" onClick={() => setRejectReportConfirm(report)} disabled={processingReport[report.id]}>
-                                                                    {processingReport[report.id] ? "..." : "Từ chối"}
-                                                                </Button>
-                                                                <Button variant="contained" size="small" onClick={() => handleSignReport(report)} disabled={processingReport[report.id]} startIcon={<Check size={16} />}>
-                                                                    {processingReport[report.id] ? "..." : "Duyệt"}
-                                                                </Button>
-                                                            </Stack>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </TableContainer>
-                                </Stack>
-                            )}
-                        </Box>
+                        <DashboardTab
+                            actionableItems={actionableItems}
+                            isMobile={isMobile}
+                            signing={signing}
+                            processingReport={processingReport}
+                            onTransferClick={handleOpenDetailView}
+                            onRequestClick={handleOpenRequestDetail}
+                            onReportClick={handleOpenReportDetail}
+                            onSignTransfer={handleSign}
+                            onProcessRequest={handleProcessRequest}
+                            onSignReport={handleSignReport}
+                            onRejectRequest={(item) => setRejectConfirm(item)}
+                            onRejectReport={(item) => setRejectReportConfirm(item)}
+                            currentUser={currentUser}
+                            canSignSender={canSignSender}
+                            canSignReceiver={canSignReceiver}
+                            canSignAdmin={canSignAdmin}
+                            isMyTurn={isMyTurn}
+                            canProcessRequest={canProcessRequest}
+                            canProcessReport={canProcessReport}
+                        />
                     )}
                     {tabIndex === 1 && (
-                        <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: 'transparent' }}>
-                            {/* Thanh công cụ với Bộ lọc - Modern Design */}
-                            <Paper
-                                variant="outlined"
-                                sx={{
-                                    p: { xs: 1.5, sm: 2 },
-                                    mb: 2.5,
-                                    borderRadius: 2.5,
-                                    background: theme.palette.mode === 'light'
-                                        ? `linear-gradient(135deg, ${alpha('#ffffff', 0.8)} 0%, ${alpha('#f8fafc', 0.8)} 100%)`
-                                        : `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.default, 0.8)} 100%)`,
-                                    backdropFilter: "blur(10px)",
-                                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                                    boxShadow: theme.palette.mode === 'light'
-                                        ? "0 2px 8px rgba(0,0,0,0.04)"
-                                        : "0 2px 8px rgba(0,0,0,0.2)",
-                                }}
-                            >
-                                <Stack
-                                    direction={{ xs: 'column', sm: 'row' }}
-                                    spacing={1.5}
-                                    alignItems={{ xs: 'stretch', sm: 'center' }}
-                                >
-                                    <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
-                                        <TextField
-                                            placeholder={isMobile ? "🔎 Tìm kiếm..." : "🔎 Tìm mã phiếu, phòng ban..."}
-                                            size="small"
-                                            value={search}
-                                            onChange={(e) => setSearch(e.target.value)}
-                                            sx={{
-                                                flex: { xs: '1 1 auto', sm: "1 1 360px" },
-                                                '& .MuiOutlinedInput-root': {
-                                                    borderRadius: 2,
-                                                    bgcolor: theme.palette.mode === 'light' ? 'white' : alpha(theme.palette.background.paper, 0.5),
-                                                },
-                                            }}
-                                        />
-                                    </Tooltip>
-                                    <Button
-                                        variant="outlined"
-                                        size={isMobile ? "medium" : "small"}
-                                        startIcon={<Filter />}
-                                        onClick={() => setDrawerOpen(true)}
-                                        sx={{
-                                            borderRadius: 2,
-                                            textTransform: 'none',
-                                            fontWeight: 600,
-                                            minWidth: { xs: '100%', sm: 'auto' },
-                                            borderColor: alpha(theme.palette.primary.main, 0.3),
-                                            '&:hover': {
-                                                borderColor: theme.palette.primary.main,
-                                                bgcolor: alpha(theme.palette.primary.main, 0.08),
-                                            },
-                                        }}
-                                    >
-                                        {isMobile ? "Lọc" : "Bộ lọc"}
-                                        {(statusMulti.length > 0 || fromDeptIds.length > 0 || toDeptIds.length > 0 || createdByDeb.trim()) && (
-                                            <Badge
-                                                badgeContent={statusMulti.length + fromDeptIds.length + toDeptIds.length + (createdByDeb.trim() ? 1 : 0)}
-                                                color="primary"
-                                                sx={{ ml: 1, '& .MuiBadge-badge': { right: -8, top: -8, fontWeight: 700 } }}
-                                            />
-                                        )}
-                                    </Button>
-                                </Stack>
-                            </Paper>
-
-                            {/* --- Khu vực hiển thị nội dung động --- */}
-
-                            {/* Chế độ xem thẻ (Card View) - GIAO DIỆN MỚI */}
-
-                            {/* Chế độ xem bảng (Table View) - GIAO DIỆN MỚI HIỆN ĐẠI */}
-                            {(
-                                isMobile ? (
-                                    // Giao diện cho mobile: Danh sách các Card
-                                    <Box mt={2.5}>
-                                        {filteredTransfers.map((t) => (
-                                            <TransferTableRowMobile
-                                                key={t.id}
-                                                transfer={t}
-                                                onDetailClick={handleOpenDetailView}
-                                                isMyTurn={isMyTurn(t)}
-                                                actionButtons={<TransferActionButtons transfer={t} />}
-                                            />
-                                        ))}
-                                    </Box>
-                                ) : (
-                                    // ✅ THAY THẾ KHỐI <TableContainer> CỦA tabIndex === 1 BẰNG CODE NÀY
-
-                                    <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-                                        <Table sx={{ minWidth: 650, '& .MuiTableCell-root': { borderBottom: '1px solid', borderColor: 'divider' } }} aria-label="transfer table">
-                                            <TableHead sx={{ bgcolor: 'grey.50' }}>
-                                                <TableRow>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Mã Phiếu</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Lộ trình</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Người tạo & Ngày tạo</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Trạng thái</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary', width: '180px' }} align="right">Hành động</TableCell>
-                                                </TableRow>
-                                            </TableHead>
-                                            <TableBody>
-                                                {filteredTransfers.map((t) => (
-                                                    <TableRow
-                                                        key={t.id}
-                                                        hover
-                                                        sx={{
-                                                            cursor: 'pointer',
-                                                            // Tạo hiệu ứng "card"
-                                                            '&:last-child td, &:last-child th': { border: 0 },
-                                                            '&:hover': {
-                                                                boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                                                                transform: 'translateY(-1px)',
-                                                            },
-                                                            transition: 'all 0.15s ease-in-out',
-                                                            bgcolor: 'background.paper'
-                                                        }}
-                                                        onClick={() => handleOpenDetailView(t)}
-                                                    >
-                                                        <TableCell component="th" scope="row">
-                                                            <Badge color="primary" variant="dot" invisible={!isMyTurn(t)}>
-                                                                <Chip size="small" label={t.maPhieuHienThi || `#${shortId(t.id)}`} sx={{ fontWeight: 600, bgcolor: 'grey.100' }} />
-                                                            </Badge>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Stack>
-                                                                <Typography variant="body2" sx={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                                    <Avatar sx={{ width: 24, height: 24, bgcolor: 'action.hover', color: 'text.secondary' }}><Send size={14} /></Avatar>
-                                                                    {hi(t.from, debSearch)}
-                                                                </Typography>
-                                                                <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                                    <Avatar sx={{ width: 24, height: 24, bgcolor: 'transparent' }}><ArrowRight size={14} /></Avatar>
-                                                                    {hi(t.to, debSearch)}
-                                                                </Typography>
-                                                            </Stack>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Stack direction="row" spacing={1.5} alignItems="center">
-                                                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.lighter', color: 'primary.main', fontSize: '0.9rem' }}>
-                                                                    {t.createdBy?.name?.charAt(0)?.toUpperCase() || 'B'}
-                                                                </Avatar>
-                                                                <Box>
-                                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{t.createdBy?.name}</Typography>
-                                                                    <Typography variant="caption" color="text.secondary">{fullTime(t.date)}</Typography>
-                                                                </Box>
-                                                            </Stack>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Chip
-                                                                size="small"
-                                                                label={statusConfig[t.status]?.label}
-                                                                color={statusConfig[t.status]?.color || "default"}
-                                                                icon={statusConfig[t.status]?.icon}
-                                                                variant="outlined"
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                                                            <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
-                                                                {t.status !== 'COMPLETED' ? (
-                                                                    <TransferActionButtons transfer={t} />
-                                                                ) : (
-                                                                    <Button size="small" variant="outlined" onClick={() => handleOpenDetailView(t)} sx={{ whiteSpace: 'nowrap' }}>
-                                                                        Chi tiết
-                                                                    </Button>
-                                                                )}
-                                                                {canDeleteTransfer(t) && (
-                                                                    <Tooltip title="Xóa phiếu">
-                                                                        <IconButton size="small" sx={{ color: 'error.main' }} onClick={(e) => { e.stopPropagation(); deleteTransfer(t); }}>
-                                                                            <Trash2 size={18} />
-                                                                        </IconButton>
-                                                                    </Tooltip>
-                                                                )}
-                                                            </Stack>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </TableContainer>
-                                )
-                            )}
-                            {/* ✅ Cải thiện: Sử dụng EmptyState component */}
-                            {filteredTransfers.length === 0 && (
-                                <EmptyState
-                                    icon={<Inbox size={64} />}
-                                    title="Không có phiếu nào phù hợp"
-                                    description={
-                                        (statusMulti.length > 0 || fromDeptIds.length > 0 || toDeptIds.length > 0 || debSearch.trim())
-                                            ? "Thử điều chỉnh bộ lọc để xem thêm kết quả."
-                                            : "Chưa có phiếu luân chuyển nào. Tạo phiếu mới để bắt đầu."
-                                    }
-                                    actionLabel={statusMulti.length === 0 && fromDeptIds.length === 0 && toDeptIds.length === 0 && !debSearch.trim() ? "Tạo Phiếu Mới" : undefined}
-                                    onAction={statusMulti.length === 0 && fromDeptIds.length === 0 && toDeptIds.length === 0 && !debSearch.trim() ? handleOpenTransferModal : undefined}
-                                />
-                            )}
-                        </Box>
+                        <TransferListTab
+                            isMobile={isMobile}
+                            search={search}
+                            setSearch={setSearch}
+                            debSearch={debSearch}
+                            transfers={transfers}
+                            departments={departments}
+                            currentUser={currentUser}
+                            permissions={permissions}
+                            onOpenDetail={handleOpenDetailView}
+                            onOpenTransferModal={handleOpenTransferModal}
+                            onDeleteTransfer={deleteTransfer}
+                            onSign={handleSign}
+                            signing={signing}
+                        />
                     )}
 
                     {tabIndex === 2 && (
@@ -3189,61 +2805,7 @@ export default function AssetTransferPage() {
                 </DialogActions>
             </Dialog>
 
-            {/* ✅ Cải thiện: Drawer filter với responsive design */}
-            <Drawer
-                anchor="right"
-                open={drawerOpen}
-                onClose={() => setDrawerOpen(!1)}
-                PaperProps={{
-                    sx: {
-                        width: { xs: '85vw', sm: 340 },
-                        maxWidth: 400
-                    }
-                }}
-            >
-                <Box sx={{ width: '100%', p: { xs: 2, sm: 2.5 } }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 800 }}>Bộ lọc</Typography>
-                        <IconButton onClick={() => setDrawerOpen(!1)}><X size={18} /></IconButton>
-                    </Stack>
-
-                    <Typography variant="caption" color="text.secondary">Trạng thái</Typography>
-                    <FormControl fullWidth size="small" sx={{ mt: 0.5, mb: 2 }}>
-                        <InputLabel>Chọn trạng thái</InputLabel>
-                        <Select multiple value={statusMulti} label="Chọn trạng thái" input={<OutlinedInput label="Chọn trạng thái" />}
-                            onChange={(e) => setStatusMulti(typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value)}
-                            renderValue={(selected) => selected.map((s) => statusConfig[s]?.label || s).join(", ")}
-                            MenuProps={{ PaperProps: { sx: { maxHeight: 280 } }, }}>
-                            {ALL_STATUS.map((s) => (
-                                <MenuItem key={s} value={s}>
-                                    <Checkbox checked={statusMulti.indexOf(s) > -1} /><ListItemText primary={statusConfig[s]?.label || s} />
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-
-                    <Typography variant="caption" color="text.secondary">Từ phòng</Typography>
-                    <Autocomplete multiple size="small" sx={{ mt: 0.5, mb: 2 }} options={departments} getOptionLabel={(option) => option.name}
-                        value={departments.filter(d => fromDeptIds.includes(d.id))}
-                        onChange={(event, newValue) => { setFromDeptIds(newValue.map(item => item.id)) }}
-                        renderInput={(params) => (<TextField{...params} label="Chọn phòng chuyển" />)} />
-
-                    <Typography variant="caption" color="text.secondary">Đến phòng</Typography>
-                    <Autocomplete multiple size="small" sx={{ mt: 0.5, mb: 2 }} options={departments} getOptionLabel={(option) => option.name}
-                        value={departments.filter(d => toDeptIds.includes(d.id))}
-                        onChange={(event, newValue) => { setToDeptIds(newValue.map(item => item.id)) }}
-                        renderInput={(params) => (<TextField{...params} label="Chọn phòng nhận" />)} />
-
-                    <Typography variant="caption" color="text.secondary">Người tạo</Typography>
-                    <TextField placeholder="Nhập tên / UID người tạo" size="small" fullWidth value={createdBy} onChange={(e) => setCreatedBy(e.target.value)} sx={{ mt: 0.5, mb: 2 }} />
-
-                    <Divider sx={{ my: 1.5 }} />
-                    <Stack direction="row" spacing={1}>
-                        <Button variant="outlined" fullWidth onClick={() => { setStatusMulti([]); setFromDeptIds([]); setToDeptIds([]); setCreatedBy("") }}>Xóa bộ lọc</Button>
-                        <Button variant="contained" fullWidth onClick={() => setDrawerOpen(!1)}>Áp dụng</Button>
-                    </Stack>
-                </Box>
-            </Drawer>
+            {/* Drawer moved to TransferListTab */}
 
             {/* ✅ Cải thiện: Paste from Excel Dialog với responsive design */}
             <Dialog

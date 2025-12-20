@@ -174,13 +174,12 @@ export const calcAllFields = (
         row.cpVuot = calcCpVuot(row);
     }
 
-    if (!row.isFinalized) {
-        row.carryoverEnd = calcCarryoverEnd(row, projectType);
+    // ✅ LUÔN tính lại carryoverEnd (bỏ điều kiện isFinalized để đảm bảo giá trị luôn đúng)
+    row.carryoverEnd = calcCarryoverEnd(row, projectType);
 
-        // Chỉ tính NPT CK tự động cho các dự án -CP (không phải VT/NC)
-        if (!isUserEditingNoPhaiTraCK && !isVtNcProject && row.project.includes("-CP")) {
-            row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
-        }
+    // Chỉ tính NPT CK tự động cho các dự án -CP (không phải VT/NC)
+    if (!isUserEditingNoPhaiTraCK && !isVtNcProject && row.project.includes("-CP")) {
+        row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
     }
 
     const directCost = parseNumber(row.directCost || "0");
