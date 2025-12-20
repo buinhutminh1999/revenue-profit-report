@@ -218,3 +218,8 @@ export const getHiddenColumnsForProject = (project) => {
         ? ["allocated", "carryover", "carryoverMinus", "carryoverEnd", "hskh", "revenue", "cpVuot"]
         : [];
 };
+
+// =================================================================
+// KẾT THÚC KHỐI CODE THAY THẾ
+// =================================================================
+// ---------- Hidden Columns Helper (cho -VT, -NC) ----------
