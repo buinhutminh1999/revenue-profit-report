@@ -72,6 +72,7 @@ import ReportTableRowMobile from "../../components/assets/ReportTableRowMobile";
 import { StatCardSkeleton, TransferSkeleton, AssetCardSkeleton } from "../../components/assets/AssetSkeletons";
 import DashboardTab from "../../components/tabs/DashboardTab";
 import TransferListTab from "../../components/tabs/TransferListTab";
+import RequestListTab from "../../components/tabs/RequestListTab";
 
 
 // src/pages/AssetTransferPage.jsx (đặt ở đầu file)
@@ -2379,162 +2380,20 @@ export default function AssetTransferPage() {
                         </Box>
                     )}
                     {tabIndex === 3 && (
-                        <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
-                            {/* Thanh công cụ với Bộ lọc và Nút chuyển đổi View */}
-                            <Paper variant="outlined" sx={{ p: 1.5, mb: 2.5, borderRadius: 2 }}>
-                                <Toolbar disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
-                                    <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
-                                        <TextField
-                                            placeholder="🔎 Tìm tên tài sản, người yêu cầu..."
-                                            size="small"
-                                            sx={{ flex: "1 1 360px" }}
-                                            value={search}
-                                            onChange={(e) => setSearch(e.target.value)}
-                                        />
-                                    </Tooltip>
-                                </Toolbar>
-                            </Paper>
-
-                            {/* --- Khu vực hiển thị nội dung động (Đã được cấu trúc lại) --- */}
-                            {loading ? (
-                                // 1. Trạng thái đang tải
-                                <Grid container spacing={2.5}>
-                                    {[...Array(6)].map((_, i) => (
-                                        <Grid size={{ xs: 12, md: 6, lg: 4 }} key={i}>
-                                            <RequestCardSkeleton />
-                                        </Grid>
-                                    ))}
-                                </Grid>
-                            ) : filteredRequests.length === 0 ? (
-                                // ✅ Cải thiện: Sử dụng EmptyState component
-                                <EmptyState
-                                    icon={<History size={64} />}
-                                    title="Không có yêu cầu nào"
-                                    description={
-                                        search.trim()
-                                            ? "Không tìm thấy yêu cầu nào phù hợp với từ khóa tìm kiếm. Thử từ khóa khác hoặc xóa bộ lọc."
-                                            : "Chưa có yêu cầu thay đổi tài sản nào. Yêu cầu sẽ xuất hiện ở đây khi được tạo."
-                                    }
-                                />
-                            ) : (
-                                // 3. Hiển thị dữ liệu (LOGIC ĐÚNG)
-                                isMobile ? (
-                                    // Giao diện cho mobile: Danh sách các Card tóm tắt
-                                    <Box mt={2.5} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                        {filteredRequests.map((req) => (
-                                            <RequestTableRowMobile
-                                                key={req.id}
-                                                request={req}
-                                            />
-                                        ))}
-                                    </Box>
-                                ) : (
-                                    // Giao diện cho desktop: Bảng đầy đủ
-                                    // ✅ THAY THẾ KHỐI <TableContainer> CỦA tabIndex === 3 BẰNG CODE NÀY
-
-                                    <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-                                        <Table sx={{ minWidth: 650, '& .MuiTableCell-root': { borderBottom: '1px solid', borderColor: 'divider' } }} aria-label="danh sách yêu cầu">
-                                            <TableHead sx={{ bgcolor: 'grey.50' }}>
-                                                <TableRow>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Mã phiếu</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Tài sản & Loại Y/C</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Phòng ban</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Người Y/C</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Trạng thái</TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary', width: '210px' }} align="right">Hành động</TableCell>
-                                                </TableRow>
-                                            </TableHead>
-                                            <TableBody>
-                                                {filteredRequests.map((req) => (
-                                                    <TableRow
-                                                        key={req.id}
-                                                        hover
-                                                        sx={{
-                                                            '&:last-child td, &:last-child th': { border: 0 },
-                                                            cursor: 'pointer',
-                                                            '&:hover': {
-                                                                boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                                                                transform: 'translateY(-1px)',
-                                                            },
-                                                            transition: 'all 0.15s ease-in-out',
-                                                            bgcolor: 'background.paper'
-                                                        }}
-                                                        onClick={() => handleOpenRequestDetail(req)}
-                                                    >
-                                                        <TableCell>
-                                                            <Chip size="small" label={req.maPhieuHienThi || `#${shortId(req.id)}`} sx={{ fontWeight: 600, bgcolor: 'grey.100' }} />
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Stack direction="row" spacing={1.5} alignItems="center">
-                                                                <Avatar sx={{
-                                                                    width: 32, height: 32,
-                                                                    bgcolor: req.type === 'ADD' ? 'success.lighter' : (req.type === 'DELETE' ? 'error.lighter' : 'warning.lighter'),
-                                                                    color: req.type === 'ADD' ? 'success.dark' : (req.type === 'DELETE' ? 'error.dark' : 'warning.dark'),
-                                                                }}>
-                                                                    {req.type === 'ADD' ? <FilePlus size={16} /> : (req.type === 'DELETE' ? <FileX size={16} /> : <FilePen size={16} />)}
-                                                                </Avatar>
-                                                                <Box>
-                                                                    <Typography sx={{ fontWeight: 600 }}>{req.assetData?.name}</Typography>
-                                                                    <Typography variant="caption" color="text.secondary">
-                                                                        {req.type === 'ADD' ? 'Y/C Thêm' : (req.type === 'DELETE' ? 'Y/C Xóa' : `Y/C Giảm ${req.assetData?.quantity} SL`)}
-                                                                    </Typography>
-                                                                </Box>
-                                                            </Stack>
-                                                        </TableCell>
-                                                        <TableCell>{req.departmentName}</TableCell>
-                                                        <TableCell>
-                                                            <Stack direction="row" spacing={1.5} alignItems="center">
-                                                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.lighter', color: 'secondary.main', fontSize: '0.9rem' }}>
-                                                                    {req.requester?.name?.charAt(0)?.toUpperCase() || 'Y'}
-                                                                </Avatar>
-                                                                <Box>
-                                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{req.requester?.name}</Typography>
-                                                                    <Typography variant="caption" color="text.secondary">{formatTime(req.createdAt)}</Typography>
-                                                                </Box>
-                                                            </Stack>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Chip
-                                                                size="small"
-                                                                label={requestStatusConfig[req.status]?.label}
-                                                                color={requestStatusConfig[req.status]?.color || "default"}
-                                                                icon={requestStatusConfig[req.status]?.icon}
-                                                                variant="outlined"
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell align="right">
-                                                            <Stack direction="row" spacing={0.5} justifyContent="flex-end" onClick={(e) => e.stopPropagation()}>
-                                                                {canProcessRequest(req) ? (
-                                                                    <>
-                                                                        <Button variant="outlined" size="small" color="error" onClick={() => setRejectConfirm(req)} disabled={isProcessingRequest[req.id]}>
-                                                                            {isProcessingRequest[req.id] ? "..." : "Từ chối"}
-                                                                        </Button>
-                                                                        <Button variant="contained" size="small" onClick={() => handleProcessRequest(req, 'approve')} disabled={isProcessingRequest[req.id]} startIcon={<Check size={16} />}>
-                                                                            {isProcessingRequest[req.id] ? "..." : getApprovalActionLabel(req)}
-                                                                        </Button>
-                                                                    </>
-                                                                ) : (
-                                                                    <Button size="small" variant="outlined" onClick={() => handleOpenRequestDetail(req)}>
-                                                                        Chi tiết
-                                                                    </Button>
-                                                                )}
-                                                                {currentUser?.role === 'admin' && (
-                                                                    <Tooltip title="Xóa">
-                                                                        <IconButton size="small" onClick={() => setDeleteRequestConfirm(req)}>
-                                                                            <Trash2 size={16} />
-                                                                        </IconButton>
-                                                                    </Tooltip>
-                                                                )}
-                                                            </Stack>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </TableContainer>
-                                )
-                            )}
-                        </Box>
+                        <RequestListTab
+                            isMobile={isMobile}
+                            search={search}
+                            setSearch={setSearch}
+                            requests={requestsWithDeptName}
+                            loading={loading}
+                            currentUser={currentUser}
+                            isProcessingRequest={isProcessingRequest}
+                            canProcessRequest={canProcessRequest}
+                            onOpenDetail={handleOpenRequestDetail}
+                            onProcessRequest={handleProcessRequest}
+                            onRejectRequest={(req) => setRejectConfirm(req)}
+                            onDeleteRequest={(req) => setDeleteRequestConfirm(req)}
+                        />
                     )}
                     {tabIndex === 4 && (
                         <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>

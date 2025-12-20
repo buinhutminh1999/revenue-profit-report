@@ -39,15 +39,15 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
         profitTargetDauTu: 0,
     });
     const [refreshTrigger, setRefreshTrigger] = useState(0);
-    
+
     // Sử dụng ref để luôn lấy giá trị mới nhất của rows và summaryTargets
     const rowsRef = useRef(rows);
     const summaryTargetsRef = useRef(summaryTargets);
-    
+
     useEffect(() => {
         rowsRef.current = rows;
     }, [rows]);
-    
+
     useEffect(() => {
         summaryTargetsRef.current = summaryTargets;
     }, [summaryTargets]);
@@ -60,10 +60,10 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
         try {
             // Lấy dữ liệu hiện tại để giữ lại addedFromFormProjectIds
             const currentDoc = await getDoc(doc(db, 'profitReports', `${selectedYear}_${selectedQuarter}`));
-            const existingAddedFromForm = currentDoc.exists() 
+            const existingAddedFromForm = currentDoc.exists()
                 ? (currentDoc.data().addedFromFormProjectIds || [])
                 : [];
-            
+
             // Sử dụng ref để lấy giá trị mới nhất
             await setDoc(doc(db, 'profitReports', `${selectedYear}_${selectedQuarter}`), {
                 rows: rowsRef.current,
@@ -129,9 +129,9 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
             const saved = await getDoc(
                 doc(db, 'profitReports', `${selectedYear}_${selectedQuarter}`)
             );
-            
+
             // Lấy danh sách các projectId được thêm từ form
-            const addedFromFormProjectIds = saved.exists() 
+            const addedFromFormProjectIds = saved.exists()
                 ? (saved.data().addedFromFormProjectIds || [])
                 : [];
 
@@ -254,6 +254,22 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                 })
             );
 
+            // 🔍 DEBUG: Tìm project THOẠI SƠN
+            const thoaiSonProject = projects.find(p =>
+                (p.name || '').toUpperCase().includes('THOẠI SƠN') ||
+                (p.name || '').toUpperCase().includes('THOAI SON')
+            );
+            if (thoaiSonProject) {
+                console.log(`🔍 DEBUG [${selectedYear}/${selectedQuarter}]: Tìm thấy project THOẠI SƠN:`);
+                console.log(`    name: ${thoaiSonProject.name}`);
+                console.log(`    type: "${thoaiSonProject.type}"`);
+                console.log(`    revenue: ${thoaiSonProject.revenue}`);
+                console.log(`    cost: ${thoaiSonProject.cost}`);
+                console.log(`    profit: ${thoaiSonProject.profit}`);
+            } else {
+                console.log(`🔍 DEBUG [${selectedYear}/${selectedQuarter}]: KHÔNG tìm thấy project THOẠI SƠN trong danh sách!`);
+            }
+
             const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
 
             const defaultTargets = {
@@ -299,7 +315,7 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                         }
                         return savedRow;
                     });
-                
+
                 const loiNhuanRongExists = processedRows.some(
                     (r) => (r.name || '').toUpperCase() === 'LỢI NHUẬN RÒNG'
                 );
@@ -321,7 +337,7 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                         .filter(r => r.projectId)
                         .map(r => r.projectId)
                 );
-                
+
                 const newProjects = projects.filter(p => !existingProjectIds.has(p.projectId));
 
                 if (newProjects.length > 0) {
@@ -756,7 +772,7 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                 const cost = toNum(r.cost);
                 const profit = toNum(r.profit);
                 const nameUpper = (r.name || '').trim().toUpperCase();
-                
+
                 // Với các project có projectId: chỉ hiển thị nếu có dữ liệu cho quý/năm hiện tại HOẶC được thêm từ form cho quý/năm này
                 if (r.projectId) {
                     // Nếu được thêm từ form cho quý/năm này, luôn hiển thị
@@ -766,7 +782,7 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                     // Nếu không được thêm từ form, chỉ hiển thị nếu có dữ liệu (revenue, cost, hoặc profit > 0)
                     return rev !== 0 || cost !== 0 || profit !== 0;
                 }
-                
+
                 if (
                     nameUpper === 'I.1. DÂN DỤNG + GIAO THÔNG' ||
                     nameUpper === 'I.2. KÈ'

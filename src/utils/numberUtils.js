@@ -50,11 +50,19 @@ export function toNum(v) {
     // We check the part after the dot.
     const parts = s.split('.');
     if (parts[1].length === 3) {
-      // Ambiguous case: 1.234 could be 1234 or 1.234
-      // Given the context of financial reports in VN, we prioritize integer thousands separator
-      // UNLESS the user specifically wants decimals. But usually financial reports are integers.
-      // Let's assume it's thousands separator.
-      s = s.replace(/\./g, "");
+      // Ambiguous case: could be thousands separator or decimal
+      // Vietnamese format: 1.234 or 10.108.321 (would have multiple dots)
+      // Since there's only ONE dot, check if it looks like Vietnamese format:
+      // - Vietnamese thousands: the part BEFORE dot should be 1-3 digits (e.g., "1.234", "12.345")
+      // - If integer part before dot has MORE than 3 digits (e.g., "10108321.255"),
+      //   it's NOT Vietnamese thousands format, so treat as DECIMAL
+      if (parts[0].length > 3) {
+        // Decimal number like 10108321.255 → keep the dot
+        // parseFloat will handle it correctly
+      } else {
+        // Short integer part (1-3 digits) → assume Vietnamese thousands separator
+        s = s.replace(/\./g, "");
+      }
     } else {
       // If it's not 3 digits (e.g. 500.5 or 500.05), it's likely a decimal
       // Standard parseFloat handles dot as decimal

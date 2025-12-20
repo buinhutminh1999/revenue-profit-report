@@ -292,6 +292,28 @@ export default function ProfitReportQuarter() {
             // ✅ KẾT THÚC KHỐI CODE THAY THẾ
             // =================================================================
 
+            // 🔍 DEBUG: Tìm project THOẠI SƠN
+            const thoaiSonProject = projects.find(p =>
+                (p.name || '').toUpperCase().includes('THOẠI SƠN') ||
+                (p.name || '').toUpperCase().includes('THOAI SON')
+            );
+            if (thoaiSonProject) {
+                console.log(`🔍 DEBUG ProfitReportQuarter [${selectedYear}/${selectedQuarter}]: Tìm thấy project THOẠI SƠN:`);
+                console.log(`    name: ${thoaiSonProject.name}`);
+                console.log(`    type: "${thoaiSonProject.type}"`);
+                console.log(`    revenue: ${thoaiSonProject.revenue}`);
+                console.log(`    cost: ${thoaiSonProject.cost}`);
+                console.log(`    profit: ${thoaiSonProject.profit}`);
+                // Kiểm tra điều kiện lọc
+                const isThiCong = thoaiSonProject.type === "Thi cong" || thoaiSonProject.type === "Thi công";
+                const hasData = thoaiSonProject.revenue !== 0 || thoaiSonProject.cost !== 0;
+                const isKe = (thoaiSonProject.name || "").toUpperCase().includes("KÈ");
+                console.log(`    Điều kiện lọc: isThiCong=${isThiCong}, hasData=${hasData}, isKe=${isKe}`);
+                console.log(`    ➜ Sẽ vào groupI1: ${isThiCong && hasData && !isKe}`);
+            } else {
+                console.log(`🔍 DEBUG ProfitReportQuarter [${selectedYear}/${selectedQuarter}]: KHÔNG tìm thấy project THOẠI SƠN!`);
+            }
+
             const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
             const saved = await getDoc(
                 doc(db, "profitReports", `${selectedYear}_${selectedQuarter}`)
@@ -399,13 +421,63 @@ export default function ProfitReportQuarter() {
                             // Chỉ lọc từ các dự án còn lại (otherProjects)
                             const projectsToAdd = otherProjects
                                 .filter((p) => p.type === type)
-                                .sort((a, b) => a.name.localeCompare(b.name)); // ✨ THÊM DÒNG NÀY
+                                .sort((a, b) => a.name.localeCompare(b.name));
                             if (projectsToAdd.length > 0) {
-                                const groupIndex = processedRows.findIndex(
+                                let groupIndex = processedRows.findIndex(
                                     (r) =>
                                         (r.name || "").trim().toUpperCase() ===
                                         groupName.toUpperCase()
                                 );
+
+                                // ✅ FIX: Nếu không tìm thấy group header, tạo mới
+                                if (groupIndex === -1) {
+                                    console.log(`⚠️ Group header "${groupName}" không tồn tại, đang tạo mới...`);
+
+                                    // Tìm vị trí phù hợp để chèn group header
+                                    // Dựa vào thứ tự: I.1 -> I.2 -> I.3 -> I.4 -> II.1 -> III
+                                    const groupOrder = [
+                                        "I. XÂY DỰNG",
+                                        "I.1. DÂN DỤNG + GIAO THÔNG",
+                                        "I.2. KÈ",
+                                        "I.3. CÔNG TRÌNH CÔNG TY CĐT",
+                                        "I.4. XÍ NGHIỆP XD II",
+                                        "II. SẢN XUẤT",
+                                        "II.1. SẢN XUẤT",
+                                        "III. ĐẦU TƯ",
+                                    ];
+
+                                    const targetOrderIndex = groupOrder.findIndex(g => g.toUpperCase() === groupName.toUpperCase());
+                                    let insertPosition = 0;
+
+                                    // Tìm group cuối cùng có thứ tự nhỏ hơn target
+                                    for (let i = targetOrderIndex - 1; i >= 0; i--) {
+                                        const prevGroupIndex = processedRows.findIndex(
+                                            r => (r.name || "").trim().toUpperCase() === groupOrder[i].toUpperCase()
+                                        );
+                                        if (prevGroupIndex !== -1) {
+                                            // Tìm vị trí sau tất cả projects của group trước đó
+                                            insertPosition = prevGroupIndex + 1;
+                                            while (insertPosition < processedRows.length &&
+                                                processedRows[insertPosition].projectId) {
+                                                insertPosition++;
+                                            }
+                                            break;
+                                        }
+                                    }
+
+                                    // Tạo group header mới
+                                    const newGroupHeader = {
+                                        name: groupName,
+                                        revenue: 0,
+                                        cost: 0,
+                                        profit: 0,
+                                        percent: null,
+                                    };
+
+                                    processedRows.splice(insertPosition, 0, newGroupHeader);
+                                    groupIndex = insertPosition;
+                                }
+
                                 if (groupIndex !== -1) {
                                     processedRows.splice(
                                         groupIndex + 1,
@@ -695,6 +767,16 @@ export default function ProfitReportQuarter() {
                 processedRows[idxDT].costOverQuarter = cpVuotKhdt || 0;
 
             let finalRows = processedRows;
+
+            // 🔍 DEBUG: Kiểm tra THOẠI SƠN có trong finalRows không
+            const thoaiSonInFinalRows = finalRows.find(r =>
+                (r.name || '').toUpperCase().includes('THOẠI SƠN') ||
+                (r.name || '').toUpperCase().includes('THOAI SON')
+            );
+            console.log(`🔍 DEBUG: THOẠI SƠN trong finalRows:`, thoaiSonInFinalRows ? 'CÓ' : 'KHÔNG');
+            if (thoaiSonInFinalRows) {
+                console.log(`    ➜ Row:`, JSON.stringify(thoaiSonInFinalRows));
+            }
 
             let totalDecreaseProfit = 0;
             let totalIncreaseProfit = 0;
