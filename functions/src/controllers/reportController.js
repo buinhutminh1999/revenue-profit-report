@@ -2,6 +2,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { db, admin } = require("../config/firebase");
 const { ensureSignedIn, ensureAdmin } = require("../utils/auth");
 const { writeAuditLog } = require("../utils/audit");
+const { getDocumentNumberSettings, formatDisplayId } = require("../utils/documentNumber");
 const logger = require("firebase-functions/logger");
 
 exports.createInventoryReport = onCall(async (request) => {
@@ -22,8 +23,10 @@ exports.createInventoryReport = onCall(async (request) => {
         const result = await db.runTransaction(async (tx) => {
             const counterDoc = await tx.get(counterRef);
             const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
-            const year = new Date().getFullYear();
-            const displayId = `PBC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+
+            // Lấy cấu hình mã phiếu từ settings
+            const settings = await getDocumentNumberSettings("inventory_reports");
+            const displayId = formatDisplayId(settings, newCounterValue);
 
             const userSnap = await tx.get(db.collection("users").doc(uid));
             const requester = {
@@ -102,7 +105,7 @@ exports.createInventoryReport = onCall(async (request) => {
             return { reportId: newReportRef.id, displayId: displayId };
         });
 
-        await writeAuditLog("REPORT_CREATED_VIA_FUNC", uid, { type: "inventory_report", id: result.reportId }, { type, displayId: result.displayId }, { request });
+
 
         return { ok: true, reportId: result.reportId, displayId: result.displayId };
     } catch (error) {

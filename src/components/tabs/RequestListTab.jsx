@@ -8,6 +8,7 @@ import {
 import {
     FilePlus, FileX, FilePen, History, Check, Trash2
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { requestStatusConfig } from '../../utils/constants';
 import { shortId, normVn, formatTime } from '../../utils/assetUtils';
 import RequestTableRowMobile from '../assets/RequestTableRowMobile';
@@ -157,6 +158,11 @@ const RequestListTab = ({
                                             transition: 'all 0.15s ease-in-out',
                                             bgcolor: 'background.paper'
                                         }}
+                                        component={motion.tr}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.3 }}
+                                        layout
                                         onClick={() => onOpenDetail(req)}
                                     >
                                         <TableCell>

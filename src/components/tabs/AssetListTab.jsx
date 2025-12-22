@@ -9,6 +9,7 @@ import {
 import {
     Warehouse, QrCode, Calendar, Printer
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import AssetCardMobile from '../assets/AssetCardMobile';
 import AssetTableRow from '../assets/AssetTableRow';
 import { EmptyState } from '../common';
@@ -293,7 +294,12 @@ const AssetListTab = ({
                         <TableBody>
                             {groupedAssets.map((group) => (
                                 <React.Fragment key={group.name}>
-                                    <TableRow>
+                                    <TableRow
+                                        component={motion.tr}
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ duration: 0.3, delay: 0.1 }}
+                                    >
                                         <TableCell colSpan={canManageAssets ? 8 : 6}
                                             sx={{
                                                 position: 'sticky', top: 56, zIndex: 1,

@@ -2,6 +2,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { db, admin } = require("../config/firebase");
 const { ensureSignedIn } = require("../utils/auth");
 const { writeAuditLog } = require("../utils/audit");
+const { getDocumentNumberSettings, formatDisplayId } = require("../utils/documentNumber");
 const logger = require("firebase-functions/logger");
 
 exports.createTransfer = onCall(async (request) => {
@@ -26,8 +27,10 @@ exports.createTransfer = onCall(async (request) => {
 
             const counterDoc = await tx.get(counterRef);
             const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
-            const year = new Date().getFullYear();
-            const displayId = `PLC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+
+            // Lấy cấu hình mã phiếu từ settings
+            const settings = await getDocumentNumberSettings("transfers");
+            const displayId = formatDisplayId(settings, newCounterValue);
 
             const fromDeptSnap = await tx.get(db.collection("departments").doc(fromDeptId));
             const toDeptSnap = await tx.get(db.collection("departments").doc(toDeptId));

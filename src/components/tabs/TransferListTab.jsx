@@ -12,6 +12,7 @@ import {
     MoreVertical, Check, X, FilePlus, FileText, ArrowRightLeft,
     Inbox, Search
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { statusConfig, ALL_STATUS } from '../../utils/constants';
 import { shortId, normVn, fullTime, hi } from '../../utils/assetUtils';
 import TransferTableRowMobile from '../assets/TransferTableRowMobile';
@@ -236,6 +237,11 @@ const TransferListTab = ({
                                             transition: 'all 0.15s ease-in-out',
                                             bgcolor: 'background.paper'
                                         }}
+                                        component={motion.tr}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.3 }}
+                                        layout
                                         onClick={() => onOpenDetail(t)}
                                     >
                                         <TableCell component="th" scope="row">

@@ -40,6 +40,8 @@ import { db, functions } from "../../services/firebase-config";
 import { httpsCallable } from "firebase/functions";
 import { doc, updateDoc, deleteDoc, writeBatch, serverTimestamp, onSnapshot, runTransaction, increment, collection } from "firebase/firestore";
 import { useAssetManagement } from "../../hooks/useAssetManagement";
+import DocumentNumberSettings from "../../components/settings/DocumentNumberSettings";
+import { Settings } from "@mui/icons-material";
 import { useReactToPrint } from "react-to-print";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -139,6 +141,8 @@ export default function AssetTransferPage() {
         canProcessReport,
         canDeleteReport
     } = permissions || {};
+
+    const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
     // UI States (không duplicate với hook)
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -1902,6 +1906,23 @@ export default function AssetTransferPage() {
                                 Theo dõi, luân chuyển và quản lý các yêu cầu thay đổi tài sản.
                             </Typography>
                         </Box>
+
+                        {/* Admin Settings Button */}
+                        {currentUser?.role === 'admin' && (
+                            <Box sx={{ mr: 1 }}>
+                                <IconButton
+                                    onClick={() => setIsSettingsModalOpen(true)}
+                                    sx={{
+                                        bgcolor: 'background.paper',
+                                        boxShadow: 1,
+                                        '&:hover': { bgcolor: 'grey.100' }
+                                    }}
+                                >
+                                    <Settings color="primary" />
+                                </IconButton>
+                            </Box>
+                        )}
+
                         {/* Nút hành động chính thay đổi theo Tab */}
                         {tabIndex === 1 && (
                             <motion.div
@@ -2106,24 +2127,33 @@ export default function AssetTransferPage() {
                         onChange={(e, v) => setTabIndex(v)}
                         sx={{
                             borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                            minHeight: { xs: 56, sm: 64 },
+                            minHeight: { xs: 60, sm: 72 },
+                            p: 1, // Add padding for pills
                             '& .MuiTab-root': {
-                                minHeight: { xs: 56, sm: 64 },
-                                minWidth: { xs: 80, sm: 'auto' },
-                                padding: { xs: '12px 16px', sm: '16px 24px' },
+                                minHeight: { xs: 48, sm: 56 },
+                                minWidth: { xs: 'auto', sm: 'auto' },
+                                padding: { xs: '12px 16px', sm: '12px 24px' },
                                 textTransform: 'none',
-                                fontWeight: 600,
+                                fontWeight: 700,
                                 fontSize: { xs: '0.875rem', sm: '0.9375rem' },
-                                transition: 'all 0.2s ease',
+                                borderRadius: 3, // Round tabs
+                                color: 'text.secondary',
+                                zIndex: 1,
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                                 '&.Mui-selected': {
-                                    color: 'primary.main',
+                                    color: theme.palette.mode === 'light' ? '#fff' : '#000', // Text color on pill
                                 },
                             },
                             '& .MuiTabs-indicator': {
-                                height: 3,
-                                borderRadius: '3px 3px 0 0',
-                                background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                                height: '100%',
+                                borderRadius: 3,
+                                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                                boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                                zIndex: 0,
                             },
+                            '& .MuiTabs-flexContainer': {
+                                gap: { xs: 0.5, sm: 1 }
+                            }
                         }}
                         variant="scrollable"
                         scrollButtons="auto"
@@ -3549,6 +3579,16 @@ export default function AssetTransferPage() {
                     >
                         Gửi Yêu Cầu Cập Nhật
                     </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* SETTINGS DIALOG */}
+            <Dialog open={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} maxWidth="lg" fullWidth>
+                <DialogContent>
+                    <DocumentNumberSettings />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setIsSettingsModalOpen(false)}>Đóng</Button>
                 </DialogActions>
             </Dialog>
 

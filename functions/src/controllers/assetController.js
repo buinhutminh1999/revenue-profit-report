@@ -3,6 +3,7 @@ const { db, admin } = require("../config/firebase");
 const { ensureSignedIn, ensureAdmin } = require("../utils/auth");
 const { writeAuditLog } = require("../utils/audit");
 const { findMatchingAsset } = require("../utils/common");
+const { getDocumentNumberSettings, formatDisplayId } = require("../utils/documentNumber");
 const { closeQuarterAndCarryOver } = require("../../dataProcessing");
 const logger = require("firebase-functions/logger");
 
@@ -74,8 +75,8 @@ exports.createAssetRequest = onCall(async (request) => {
                 const { newRequestRef, displayId } = await db.runTransaction(async (tx) => {
                     const counterDoc = await tx.get(counterRef);
                     const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
-                    const year = new Date().getFullYear();
-                    const displayId = `PYC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+                    const settings = await getDocumentNumberSettings("asset_requests");
+                    const displayId = formatDisplayId(settings, newCounterValue);
                     const requestPayload = {
                         type: "ADD",
                         status: "PENDING_HC",
@@ -101,8 +102,8 @@ exports.createAssetRequest = onCall(async (request) => {
                 return db.runTransaction(async (tx) => {
                     const counterDoc = await tx.get(counterRef);
                     const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
-                    const year = new Date().getFullYear();
-                    const displayId = `PYC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+                    const settings = await getDocumentNumberSettings("asset_requests");
+                    const displayId = formatDisplayId(settings, newCounterValue);
                     const assetToDeleteSnap = await tx.get(db.collection("assets").doc(targetAssetId));
                     if (!assetToDeleteSnap.exists) {
                         throw new HttpsError("not-found", "Không tìm thấy tài sản để tạo yêu cầu xóa.");
@@ -140,8 +141,8 @@ exports.createAssetRequest = onCall(async (request) => {
                 return db.runTransaction(async (tx) => {
                     const counterDoc = await tx.get(counterRef);
                     const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
-                    const year = new Date().getFullYear();
-                    const displayId = `PYC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+                    const settings = await getDocumentNumberSettings("asset_requests");
+                    const displayId = formatDisplayId(settings, newCounterValue);
 
                     const assetToReduceSnap = await tx.get(db.collection("assets").doc(targetAssetId));
                     if (!assetToReduceSnap.exists) {
@@ -188,8 +189,8 @@ exports.createAssetRequest = onCall(async (request) => {
                 return db.runTransaction(async (tx) => {
                     const counterDoc = await tx.get(counterRef);
                     const newCounterValue = (counterDoc.data()?.currentValue || 0) + 1;
-                    const year = new Date().getFullYear();
-                    const displayId = `PYC-${year}-${String(newCounterValue).padStart(5, "0")}`;
+                    const settings = await getDocumentNumberSettings("asset_requests");
+                    const displayId = formatDisplayId(settings, newCounterValue);
 
                     const assetToIncreaseSnap = await tx.get(db.collection("assets").doc(targetAssetId));
                     if (!assetToIncreaseSnap.exists) {
@@ -230,12 +231,12 @@ exports.createAssetRequest = onCall(async (request) => {
                     throw new HttpsError("invalid-argument", "Thiếu dữ liệu.");
                 }
                 const batch = db.batch();
-                const year = new Date().getFullYear();
                 const counterSnap = await counterRef.get();
                 let counter = counterSnap.data()?.currentValue || 0;
+                const settings = await getDocumentNumberSettings("asset_requests");
                 assetsData.forEach((singleAssetData) => {
                     counter++;
-                    const displayId = `PYC-${year}-${String(counter).padStart(5, "0")}`;
+                    const displayId = formatDisplayId(settings, counter);
                     const docRef = db.collection("asset_requests").doc();
                     batch.set(docRef, {
                         maPhieuHienThi: displayId,

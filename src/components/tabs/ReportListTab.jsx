@@ -8,6 +8,7 @@ import {
 import {
     Check, Trash2, BookCheck as BookCheckIcon
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Description as Sheet } from '@mui/icons-material';
 import { reportStatusConfig } from '../../utils/constants';
 import { shortId, normVn, formatTime } from '../../utils/assetUtils';
@@ -121,6 +122,11 @@ const ReportListTab = ({
                                         transition: 'all 0.15s ease-in-out',
                                         bgcolor: 'background.paper'
                                     }}
+                                    component={motion.tr}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.3 }}
+                                    layout
                                     onClick={() => onOpenDetail(r)}
                                 >
                                     <TableCell sx={{ fontWeight: 600 }}>
