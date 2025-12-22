@@ -70,21 +70,38 @@ const AssetListTab = ({
     };
 
     return (
-        <Box sx={{ p: { xs: 1.5, sm: 2.5 } }}>
+        <Box sx={{ p: { xs: 1, sm: 2.5 } }}>
             {/* Toolbar with filters and action buttons */}
-            <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 2 }}>
-                <Toolbar disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
+            <Paper variant="outlined" sx={{ p: { xs: 1, sm: 1.5 }, mb: 2, borderRadius: 2 }}>
+                <Toolbar disableGutters sx={{ gap: { xs: 0.5, sm: 1 }, flexWrap: "wrap", minHeight: { xs: 'auto', sm: 64 } }}>
+                    {/* Search field - full width on mobile */}
                     <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
                         <TextField
-                            placeholder="🔎 Tìm theo tên tài sản..."
+                            placeholder="🔎 Tìm..."
                             size="small"
-                            sx={{ flex: "1 1 320px" }}
+                            sx={{
+                                flex: { xs: "1 1 100%", sm: "1 1 320px" },
+                                order: { xs: 1, sm: 1 },
+                                mb: { xs: 0.5, sm: 0 },
+                                '& .MuiInputBase-input': {
+                                    fontSize: { xs: '0.875rem', sm: '1rem' }
+                                }
+                            }}
                             value={assetSearch}
                             onChange={(e) => setAssetSearch(e.target.value)}
                         />
                     </Tooltip>
-                    <FormControl size="small" sx={{ minWidth: 220, maxWidth: 300 }}>
-                        <InputLabel>Lọc theo phòng ban</InputLabel>
+
+                    {/* Department filter - compact on mobile */}
+                    <FormControl size="small" sx={{
+                        minWidth: { xs: 120, sm: 220 },
+                        maxWidth: { xs: 160, sm: 300 },
+                        order: { xs: 2, sm: 2 },
+                        flex: { xs: '1 1 auto', sm: '0 0 auto' }
+                    }}>
+                        <InputLabel sx={{ fontSize: { xs: '0.75rem', sm: '1rem' } }}>
+                            {isMobile ? "Phòng ban" : "Lọc theo phòng ban"}
+                        </InputLabel>
                         <Select
                             multiple
                             value={filterDeptsForAsset}
@@ -92,9 +109,11 @@ const AssetListTab = ({
                                 const value = e.target.value;
                                 setFilterDeptsForAsset(typeof value === 'string' ? value.split(',') : value);
                             }}
-                            input={<OutlinedInput label="Lọc theo phòng ban" />}
+                            input={<OutlinedInput label={isMobile ? "Phòng ban" : "Lọc theo phòng ban"} />}
                             renderValue={(selectedIds) => (
-                                selectedIds.map(id => departments.find(d => d.id === id)?.name || id).join(', ')
+                                isMobile
+                                    ? `${selectedIds.length} đã chọn`
+                                    : selectedIds.map(id => departments.find(d => d.id === id)?.name || id).join(', ')
                             )}
                             MenuProps={{ PaperProps: { sx: { maxHeight: 280 } } }}
                         >
@@ -106,31 +125,78 @@ const AssetListTab = ({
                             ))}
                         </Select>
                     </FormControl>
-                    <Box flexGrow={1} />
+
+                    <Box flexGrow={1} sx={{ display: { xs: 'none', sm: 'block' } }} />
+
+                    {/* Action buttons - icon only on mobile */}
                     {canManageAssets && (
-                        <Stack direction="row" spacing={1} flexWrap="wrap">
-                            <Button
-                                variant="outlined"
-                                color="secondary"
-                                startIcon={<QrCode size={16} />}
-                                onClick={onOpenLabelPrintModal}
-                                disabled={selectedAssetIdsForPrint.length === 0}
-                            >
-                                In Tem ({selectedAssetIdsForPrint.length})
-                            </Button>
+                        <Stack
+                            direction="row"
+                            spacing={{ xs: 0.5, sm: 1 }}
+                            order={{ xs: 3, sm: 3 }}
+                            sx={{
+                                flexWrap: { xs: 'nowrap', sm: 'wrap' },
+                                ml: { xs: 'auto', sm: 0 }
+                            }}
+                        >
+                            {/* In Tem button */}
+                            <Tooltip title={`In Tem (${selectedAssetIdsForPrint.length})`}>
+                                <span>
+                                    <Button
+                                        variant="outlined"
+                                        color="secondary"
+                                        size={isMobile ? "small" : "medium"}
+                                        onClick={onOpenLabelPrintModal}
+                                        disabled={selectedAssetIdsForPrint.length === 0}
+                                        sx={{
+                                            minWidth: { xs: 'auto', sm: 'auto' },
+                                            px: { xs: 1, sm: 2 }
+                                        }}
+                                    >
+                                        <QrCode size={isMobile ? 18 : 16} />
+                                        <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, ml: 0.5 }}>
+                                            In Tem ({selectedAssetIdsForPrint.length})
+                                        </Box>
+                                    </Button>
+                                </span>
+                            </Tooltip>
 
-                            <Button
-                                variant="outlined"
-                                color="info"
-                                startIcon={<Calendar size={16} />}
-                                onClick={onOpenUpdateDateModal}
-                                disabled={selectedAssetIdsForPrint.length === 0}
-                            >
-                                Cập nhật Ngày ({selectedAssetIdsForPrint.length})
-                            </Button>
+                            {/* Update Date button */}
+                            <Tooltip title={`Cập nhật Ngày (${selectedAssetIdsForPrint.length})`}>
+                                <span>
+                                    <Button
+                                        variant="outlined"
+                                        color="info"
+                                        size={isMobile ? "small" : "medium"}
+                                        onClick={onOpenUpdateDateModal}
+                                        disabled={selectedAssetIdsForPrint.length === 0}
+                                        sx={{
+                                            minWidth: { xs: 'auto', sm: 'auto' },
+                                            px: { xs: 1, sm: 2 }
+                                        }}
+                                    >
+                                        <Calendar size={isMobile ? 18 : 16} />
+                                        <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, ml: 0.5 }}>
+                                            Cập nhật Ngày ({selectedAssetIdsForPrint.length})
+                                        </Box>
+                                    </Button>
+                                </span>
+                            </Tooltip>
 
-                            <Button variant="contained" startIcon={<Printer size={16} />} onClick={onOpenPrintModal}>
-                                In Báo cáo
+                            {/* Print Report button */}
+                            <Button
+                                variant="contained"
+                                size={isMobile ? "small" : "medium"}
+                                onClick={onOpenPrintModal}
+                                sx={{
+                                    minWidth: { xs: 'auto', sm: 'auto' },
+                                    px: { xs: 1, sm: 2 }
+                                }}
+                            >
+                                <Printer size={isMobile ? 18 : 16} />
+                                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, ml: 0.5 }}>
+                                    In Báo cáo
+                                </Box>
                             </Button>
                         </Stack>
                     )}

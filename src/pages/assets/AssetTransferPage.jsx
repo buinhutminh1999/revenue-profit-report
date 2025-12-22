@@ -1796,9 +1796,9 @@ export default function AssetTransferPage() {
                 <Paper
                     elevation={0}
                     sx={{
-                        p: { xs: 2, sm: 3 },
-                        mb: 3,
-                        borderRadius: 3,
+                        p: { xs: 1.5, sm: 3 },
+                        mb: { xs: 2, sm: 3 },
+                        borderRadius: { xs: 2, sm: 3 },
                         background: theme.palette.mode === 'light'
                             ? `linear-gradient(135deg, ${alpha('#ffffff', 0.9)} 0%, ${alpha('#f8fafc', 0.9)} 100%)`
                             : `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.9)} 0%, ${alpha(theme.palette.background.default, 0.9)} 100%)`,
@@ -1818,10 +1818,11 @@ export default function AssetTransferPage() {
                     >
                         <Box sx={{ flex: 1 }}>
                             <Typography
-                                variant={isMobile ? "h5" : "h4"}
+                                variant={isMobile ? "h6" : "h4"}
                                 sx={{
                                     fontWeight: 800,
-                                    mb: 0.5,
+                                    mb: { xs: 0, sm: 0.5 },
+                                    fontSize: { xs: '1.1rem', sm: '2rem' },
                                     background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                                     backgroundClip: 'text',
                                     WebkitBackgroundClip: 'text',
@@ -1830,10 +1831,14 @@ export default function AssetTransferPage() {
                             >
                                 Quản lý Tài sản
                             </Typography>
+                            {/* Ẩn description trên mobile để tiết kiệm không gian */}
                             <Typography
                                 variant="body2"
                                 color="text.secondary"
-                                sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                                sx={{
+                                    fontSize: { xs: '0.75rem', sm: '1rem' },
+                                    display: { xs: 'none', sm: 'block' }
+                                }}
                             >
                                 Theo dõi, luân chuyển và quản lý các yêu cầu thay đổi tài sản.
                             </Typography>
@@ -1919,9 +1924,9 @@ export default function AssetTransferPage() {
             </motion.div>
 
             {/* Stats Cards với Animations */}
-            <Grid container spacing={{ xs: 1.5, sm: 2 }} sx={{ mb: 3, position: 'relative', zIndex: 1 }}>
+            <Grid container spacing={{ xs: 1, sm: 2 }} sx={{ mb: { xs: 2, sm: 3 }, position: 'relative', zIndex: 1 }}>
                 {stats.map((stat, index) => (
-                    <Grid size={{ xs: 6, sm: 6, md: 4 }} key={stat.label}>
+                    <Grid size={{ xs: 4, sm: 6, md: 4 }} key={stat.label}>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -1932,8 +1937,8 @@ export default function AssetTransferPage() {
                                 variant="outlined"
                                 onClick={stat.onClick}
                                 sx={{
-                                    p: { xs: 2, sm: 2.5 },
-                                    borderRadius: 3,
+                                    p: { xs: 1.25, sm: 2.5 },
+                                    borderRadius: { xs: 2, sm: 3 },
                                     background: theme.palette.mode === 'light'
                                         ? `linear-gradient(135deg, ${alpha(theme.palette[stat.color].main, 0.08)} 0%, ${alpha(theme.palette[stat.color].main, 0.03)} 100%)`
                                         : `linear-gradient(135deg, ${alpha(theme.palette[stat.color].main, 0.15)} 0%, ${alpha(theme.palette[stat.color].main, 0.08)} 100%)`,
@@ -1960,24 +1965,33 @@ export default function AssetTransferPage() {
                                     }
                                 }}
                             >
-                                <Stack direction="row" spacing={2} alignItems="center">
+                                {/* Mobile: layout dọc compact */}
+                                <Stack
+                                    direction={{ xs: "column", sm: "row" }}
+                                    spacing={{ xs: 1, sm: 2 }}
+                                    alignItems={{ xs: "center", sm: "center" }}
+                                >
                                     <Avatar
                                         sx={{
                                             bgcolor: `${stat.color}.light`,
                                             color: `${stat.color}.dark`,
-                                            width: { xs: 48, sm: 56 },
-                                            height: { xs: 48, sm: 56 },
+                                            width: { xs: 36, sm: 56 },
+                                            height: { xs: 36, sm: 56 },
                                             boxShadow: `0 4px 12px ${alpha(theme.palette[stat.color].main, 0.2)}`,
+                                            '& .MuiSvgIcon-root': {
+                                                fontSize: { xs: 18, sm: 24 }
+                                            }
                                         }}
                                     >
                                         {stat.icon}
                                     </Avatar>
-                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Box sx={{ flex: 1, minWidth: 0, textAlign: { xs: 'center', sm: 'left' } }}>
                                         <Typography
                                             variant={isMobile ? "h6" : "h5"}
                                             sx={{
                                                 fontWeight: 700,
-                                                fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                                                fontSize: { xs: '1.1rem', sm: '1.5rem' },
+                                                lineHeight: 1.2,
                                             }}
                                         >
                                             {stat.value}
@@ -1986,8 +2000,13 @@ export default function AssetTransferPage() {
                                             variant="body2"
                                             color="text.secondary"
                                             sx={{
-                                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                                fontSize: { xs: '0.65rem', sm: '0.875rem' },
                                                 mt: 0.25,
+                                                lineHeight: 1.2,
+                                                // Truncate text on mobile if too long
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: { xs: 'nowrap', sm: 'normal' }
                                             }}
                                         >
                                             {stat.label}
