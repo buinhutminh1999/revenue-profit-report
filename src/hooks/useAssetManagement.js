@@ -62,7 +62,11 @@ export const useAssetManagement = () => {
 
         const unsubAssets = onSnapshot(
             query(collection(db, "assets")),
-            (qs) => setAssets(qs.docs.map((d) => ({ id: d.id, ...d.data() }))),
+            (qs) => setAssets(qs.docs.map((d) => {
+                // Ensure id from Firestore document ID is used, not empty id field from data
+                const docId = d.id && d.id.trim() !== '' ? d.id : crypto.randomUUID();
+                return { ...d.data(), id: docId }; // id comes AFTER spread to prevent overwrite
+            })),
             (err) => { console.error("Error loading assets:", err); setError(err); }
         );
 

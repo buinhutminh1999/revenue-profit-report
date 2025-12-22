@@ -185,7 +185,8 @@ const AssetListTab = ({
                                         key={a.id || `temp-mobile-${group.name}-${index}`}
                                         asset={a}
                                         isSelected={isSelected}
-                                        canManageAssets={canManageAssets && hasValidId}
+                                        canManageAssets={canManageAssets}
+                                        showCheckbox={hasValidId}
                                         onSelect={hasValidId ? handleSelectAssetForPrint : undefined}
                                         onEdit={() => onEditAsset(a)}
                                         onDelete={() => onDeleteAsset(a)}
@@ -248,7 +249,8 @@ const AssetListTab = ({
                                                 key={a.id || `temp-${group.name}-${index}`}
                                                 asset={a}
                                                 isSelected={isSelected}
-                                                canManageAssets={canManageAssets && hasValidId}
+                                                canManageAssets={canManageAssets}
+                                                showCheckbox={hasValidId}
                                                 assetSearch={assetSearch}
                                                 onSelect={hasValidId ? handleSelectAssetForPrint : undefined}
                                                 onEdit={onEditAsset}

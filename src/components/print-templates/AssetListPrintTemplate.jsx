@@ -244,14 +244,14 @@ const SignatureDisplay = ({ signature, role }) => (
 
 // --- Main Print Component ---
 export const AssetListPrintTemplate = React.forwardRef(({ report, company, departments }, ref) => {
-    
+
     // 1. HOOK: TÍNH TOÁN VÀ NHÓM ASSETS (Vị trí 1 - Hợp lệ)
     const groupedAssets = useMemo(() => {
         if (!report?.assets || !departments) return [];
 
         const departmentMap = new Map(departments.map(d => [d.id, d.name]));
         const groups = new Map();
-        
+
         const assetsToPrint = report.assets.filter(asset => Number(asset.quantity || 0) > 0);
 
         for (const asset of assetsToPrint) {
@@ -265,19 +265,19 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
         return Array.from(groups.entries())
             .map(([departmentName, assets]) => ({ departmentName, assets }))
             .sort((a, b) => a.departmentName.localeCompare(b.departmentName, 'vi'));
-            
+
     }, [report?.assets, departments]);
 
 
     // 2. HOOK: TÍNH TOÁN TÊN VAI TRÒ CHỮ KÝ
     const leaderRoleName = useMemo(() => {
         if (!report?.blockName) {
-             return "Lãnh đạo Khối/Phòng ban";
+            return "Phòng/Bộ phận";
         }
         if (report.blockName === 'Nhà máy') {
             return report.blockName; // Chỉ hiển thị "Nhà máy"
         }
-        return `Lãnh đạo Khối ${report.blockName}`; // Ví dụ: "Lãnh đạo Khối XNXD1"
+        return `Phòng ${report.blockName}`; // Ví dụ: "Phòng Cung ứng"
     }, [report?.blockName]);
 
 
@@ -286,10 +286,10 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
 
     const createdDate = formatDate(report.createdAt);
     const { signatures = {} } = report;
-    
+
     // managementBlockName là tên Khối (Nhà máy) hoặc tên Phòng (Phòng Hành chính)
-    const managementBlockName = report.blockName || report.departmentName; 
-    
+    const managementBlockName = report.blockName || report.departmentName;
+
     const qrValue = typeof window !== 'undefined'
         ? `${window.location.origin}/inventory-reports/${report.id}`
         : `/inventory-reports/${report.id}`;
@@ -319,13 +319,13 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
                     Mã biên bản: {report.maPhieuHienThi || report.id?.slice(0, 8).toUpperCase()}
                 </p>
             </section>
-            
+
             <main>
                 <table style={styles.infoTable}>
                     <tbody>
                         <tr>
-                            <td style={styles.infoLabel}>{report.blockName ? "Khối kiểm kê:" : "Phòng ban kiểm kê:"}</td>
-                            <td style={styles.infoValue}><b>{managementBlockName}</b></td>
+                            <td style={styles.infoLabel}>Phòng kiểm kê:</td>
+                            <td style={styles.infoValue}><b>{report.blockName ? `Phòng ${managementBlockName}` : managementBlockName}</b></td>
                         </tr>
                         <tr>
                             <td style={styles.infoLabel}>Người lập biên bản:</td>
@@ -335,7 +335,7 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
                 </table>
 
                 <p style={{ margin: '20px 0 15px 0' }}>
-                    Danh sách tài sản và công cụ được kiểm kê tại <b>{managementBlockName}</b> như sau:
+                    Danh sách tài sản và công cụ được kiểm kê tại <b>{report.blockName ? `Phòng ${managementBlockName}` : managementBlockName}</b> như sau:
                 </p>
 
                 <table style={styles.table}>
@@ -349,7 +349,7 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
                             <th style={{ ...styles.th, width: '30%', textAlign: 'left' }}>Ghi chú</th>
                         </tr>
                     </thead>
-                    
+
                     <tbody>
                         {groupedAssets.map(({ departmentName, assets }) => (
                             <React.Fragment key={departmentName}>
@@ -382,10 +382,10 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
                 <div style={styles.conclusionSection} className="no-break">
                     <div style={styles.conclusionTitle}>KẾT LUẬN:</div>
                     <div style={styles.conclusionPoint}>
-                        <b>1. Sở hữu và quản lý tài sản:</b> Hai bên thống nhất rằng số tài sản trên đang thuộc quản lý và sở hữu của <b>{managementBlockName}</b>.
+                        <b>1. Sở hữu và quản lý tài sản:</b> Hai bên thống nhất rằng số tài sản trên đang thuộc quản lý và sở hữu của <b>{report.blockName ? `Phòng ${managementBlockName}` : managementBlockName}</b>.
                     </div>
                     <div style={styles.conclusionPoint}>
-                        <b>2. Trách nhiệm bảo quản tài sản:</b> <b>{managementBlockName}</b> có trách nhiệm bảo quản tài sản này và đảm bảo tài sản luôn trong tình trạng tốt, không bị hư hỏng hoặc mất mát.
+                        <b>2. Trách nhiệm bảo quản tài sản:</b> <b>{report.blockName ? `Phòng ${managementBlockName}` : managementBlockName}</b> có trách nhiệm bảo quản tài sản này và đảm bảo tài sản luôn trong tình trạng tốt, không bị hư hỏng hoặc mất mát.
                     </div>
                     <div style={styles.conclusionPoint}>
                         <b>3. Quy trình luân chuyển tài sản:</b> Trong trường hợp có luân chuyển tài sản, phải có biên bản luân chuyển để cập nhật lại thông tin tài sản của phòng mình.

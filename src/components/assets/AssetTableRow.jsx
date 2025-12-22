@@ -8,8 +8,12 @@ import { motion } from "framer-motion";
 const MotionTableRow = motion(TableRow);
 
 const AssetTableRow = React.memo(({
-    asset, isSelected, canManageAssets, onSelect, onEdit, onDelete, assetSearch
+    asset, isSelected, canManageAssets, showCheckbox = true, onSelect, onEdit, onDelete, assetSearch
 }) => {
+    // showCheckbox controls checkbox visibility (requires valid id)
+    // canManageAssets controls action buttons visibility
+    const shouldShowCheckbox = canManageAssets && showCheckbox;
+
     return (
         <MotionTableRow
             initial={{ opacity: 0 }}
@@ -35,15 +39,17 @@ const AssetTableRow = React.memo(({
         >
             {canManageAssets && (
                 <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
-                    <Checkbox
-                        color="primary"
-                        checked={isSelected}
-                        onChange={(event) => onSelect(event, asset.id)}
-                        inputProps={{ 'aria-labelledby': `asset-checkbox-${asset.id}` }}
-                        sx={{
-                            '& .MuiSvgIcon-root': { fontSize: 22 }
-                        }}
-                    />
+                    {shouldShowCheckbox ? (
+                        <Checkbox
+                            color="primary"
+                            checked={isSelected}
+                            onChange={(event) => onSelect(event, asset.id)}
+                            inputProps={{ 'aria-labelledby': `asset-checkbox-${asset.id}` }}
+                            sx={{
+                                '& .MuiSvgIcon-root': { fontSize: 22 }
+                            }}
+                        />
+                    ) : null}
                 </TableCell>
             )}
             <TableCell id={`asset-checkbox-${asset.id}`}>

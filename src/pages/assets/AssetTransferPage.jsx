@@ -399,6 +399,15 @@ export default function AssetTransferPage() {
             const q = normVn(assetSearch);
             list = list.filter((a) => normVn(a.name).includes(q));
         }
+
+        // ✅ FIX: Sắp xếp theo phòng ban và tên tài sản TRƯỚC khi phân trang
+        // Điều này đảm bảo các tài sản từ cùng phòng ban được giữ cùng nhau
+        list.sort((a, b) => {
+            const deptCompare = (a.departmentName || '').localeCompare(b.departmentName || '', 'vi');
+            if (deptCompare !== 0) return deptCompare;
+            return (a.name || '').localeCompare(b.name || '', 'vi');
+        });
+
         return list;
     }, [assetsWithDept, assetSearch, filterDeptsForAsset]);
 
