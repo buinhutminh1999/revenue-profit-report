@@ -115,41 +115,63 @@ const ControlSidebar = ({ report, workflow, onApprove, isApproving, canProcess, 
     const isMyTurn = currentStep && canProcess(report);
 
     return (
-        <Card variant="outlined" sx={{ borderRadius: 3, p: 1.5 }}>
-            <CardContent>
+        <Card variant="outlined" sx={{ borderRadius: 3, p: { xs: 1, sm: 1.5 } }}>
+            <CardContent sx={{ p: { xs: 1.5, sm: 2 }, "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
                 {isMyTurn && (
                     <>
-                        <Stack spacing={1} alignItems="center" textAlign="center" sx={{ mb: 2.5 }}>
-                            <UserCheck sx={{ fontSize: 28 }} color={theme.palette.primary.main} />
-                            <Typography variant="h6" fontWeight={700}>Đến lượt duyệt của bạn</Typography>
-                            <Typography variant="body2" color="text.secondary">Vui lòng xem kỹ nội dung và ký duyệt biên bản.</Typography>
+                        <Stack spacing={1} alignItems="center" textAlign="center" sx={{ mb: 2 }}>
+                            <UserCheck sx={{ fontSize: { xs: 24, sm: 28 } }} color={theme.palette.primary.main} />
+                            <Typography variant="h6" fontWeight={700} sx={{ fontSize: { xs: "1rem", sm: "1.25rem" } }}>
+                                Đến lượt duyệt của bạn
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
+                                Vui lòng xem kỹ nội dung và ký duyệt biên bản.
+                            </Typography>
                         </Stack>
                         <Button
                             fullWidth variant="contained" size="large"
                             onClick={() => onApprove(currentStep.signatureKey)}
                             disabled={isApproving}
                             startIcon={isApproving ? <CircularProgress size={20} color="inherit" /> : <Check />}
-                            sx={{ borderRadius: 2, textTransform: "none", fontWeight: 700 }}
+                            sx={{ borderRadius: 2, textTransform: "none", fontWeight: 700, py: { xs: 1, sm: 1.5 } }}
                         >
                             {isApproving ? "Đang xử lý..." : "Ký duyệt ngay"}
                         </Button>
-                        <Divider sx={{ my: 3 }} />
+                        <Divider sx={{ my: { xs: 2, sm: 3 } }} />
                     </>
                 )}
-                <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>Luồng duyệt</Typography>
+                <Typography variant="h6" fontWeight={700} sx={{ mb: 2, fontSize: { xs: "0.95rem", sm: "1.25rem" } }}>
+                    Luồng duyệt
+                </Typography>
                 <EnhancedWorkflowStepper report={report} workflow={workflow} />
-                <Divider sx={{ my: 3 }} />
-                <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>Thông tin</Typography>
+                <Divider sx={{ my: { xs: 2, sm: 3 } }} />
+                <Typography variant="h6" fontWeight={700} sx={{ mb: 2, fontSize: { xs: "0.95rem", sm: "1.25rem" } }}>
+                    Thông tin
+                </Typography>
                 <Stack spacing={1.5}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Typography variant="body2" color="text.secondary">Loại biên bản</Typography>
-                        <Typography fontWeight={700}>
+                    <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        justifyContent="space-between"
+                        alignItems={{ xs: "flex-start", sm: "center" }}
+                        spacing={{ xs: 0.5, sm: 0 }}
+                    >
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
+                            Loại biên bản
+                        </Typography>
+                        <Typography fontWeight={700} sx={{ fontSize: { xs: "0.85rem", sm: "1rem" } }}>
                             {report.type === "BLOCK_INVENTORY" ? "Kiểm kê khối" : "Báo cáo Tổng hợp"}
                         </Typography>
                     </Stack>
                     {(report.type === "SUMMARY_REPORT" || report.type === "BLOCK_INVENTORY") && (
-                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                            <Typography variant="body2" color="text.secondary" sx={{ mr: 1, flexShrink: 0 }}>Phòng/Khối</Typography>
+                        <Stack
+                            direction={{ xs: "column", sm: "row" }}
+                            justifyContent="space-between"
+                            alignItems={{ xs: "flex-start", sm: "flex-start" }}
+                            spacing={{ xs: 0.5, sm: 0 }}
+                        >
+                            <Typography variant="body2" color="text.secondary" sx={{ mr: 1, flexShrink: 0, fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
+                                Phòng/Khối
+                            </Typography>
                             <Chip size="small" label={report.departmentName || report.blockName || "—"} />
                         </Stack>
                     )}
@@ -243,7 +265,17 @@ export default function InventoryReportPublicView() {
         <Box sx={{ minHeight: "100vh", pb: 4, bgcolor: "grey.100" }}>
             <ReportHeader elevation={0}>
                 <Container maxWidth="xl">
-                    <Stack direction="row" alignItems="center" spacing={2} sx={{ height: "64px" }}>
+                    {/* Desktop Header */}
+                    <Stack
+                        direction="row"
+                        alignItems="center"
+                        spacing={2}
+                        sx={{
+                            height: { xs: "auto", sm: "64px" },
+                            py: { xs: 1.5, sm: 0 },
+                            display: { xs: "none", sm: "flex" }
+                        }}
+                    >
                         <Button component={Link} to="/" variant="text" startIcon={<ArrowLeft sx={{ fontSize: 20 }} />} sx={{ color: "text.secondary", mr: 1, flexShrink: 0 }}>
                             Quay về
                         </Button>
@@ -265,13 +297,77 @@ export default function InventoryReportPublicView() {
                             {!companyInfo ? "Đang tải..." : (report?.status === "COMPLETED" ? "In Biên bản" : "In Bản nháp")}
                         </Button>
                     </Stack>
+
+                    {/* Mobile Header */}
+                    <Stack
+                        spacing={1.5}
+                        sx={{
+                            py: 1.5,
+                            display: { xs: "flex", sm: "none" }
+                        }}
+                    >
+                        {/* Row 1: Back button + Status */}
+                        <Stack direction="row" alignItems="center" justifyContent="space-between">
+                            <Button
+                                component={Link}
+                                to="/"
+                                variant="text"
+                                size="small"
+                                startIcon={<ArrowLeft sx={{ fontSize: 18 }} />}
+                                sx={{ color: "text.secondary", minWidth: "auto", px: 1 }}
+                            >
+                                Quay về
+                            </Button>
+                            <StatusBadge status={report?.status} />
+                        </Stack>
+
+                        {/* Row 2: Title */}
+                        <Typography
+                            variant="subtitle1"
+                            fontWeight={700}
+                            sx={{
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                fontSize: "0.95rem"
+                            }}
+                        >
+                            {report.maPhieuHienThi || reportId}
+                        </Typography>
+
+                        {/* Row 3: Actions */}
+                        <Stack direction="row" spacing={1}>
+                            <Button
+                                onClick={handlePrint}
+                                variant="contained"
+                                size="small"
+                                fullWidth
+                                startIcon={<Printer sx={{ fontSize: 16 }} />}
+                                sx={{ borderRadius: 2 }}
+                                disabled={!reportForPrint || !companyInfo}
+                            >
+                                {report?.status === "COMPLETED" ? "In Biên bản" : "In Bản nháp"}
+                            </Button>
+                            <IconButton
+                                size="small"
+                                sx={{ border: 1, borderColor: "divider", borderRadius: 2 }}
+                                onClick={() => {
+                                    navigator.clipboard.writeText(report.maPhieuHienThi || report.id);
+                                    setToast({ open: true, msg: "Đã sao chép mã", severity: "success" });
+                                }}
+                            >
+                                <Copy sx={{ fontSize: 18 }} />
+                            </IconButton>
+                        </Stack>
+                    </Stack>
                 </Container>
             </ReportHeader>
 
-            <Container maxWidth="xl" sx={{ pt: 4 }}>
-                <Grid container spacing={4}>
-                    <Grid size={{ xs: 12, md: 4, lg: 3.5 }}>
-                        <Box sx={{ position: "sticky", top: "80px" }}>
+            <Container maxWidth="xl" sx={{ pt: { xs: 2, sm: 4 } }}>
+                <Grid container spacing={{ xs: 2, sm: 4 }}>
+                    {/* Sidebar - hiển thị đầu tiên trên mobile */}
+                    <Grid size={{ xs: 12, md: 4, lg: 3.5 }} order={{ xs: 1, md: 1 }}>
+                        <Box sx={{ position: { xs: "static", md: "sticky" }, top: "80px" }}>
                             <ControlSidebar
                                 report={report}
                                 workflow={currentWorkflow}
@@ -282,20 +378,74 @@ export default function InventoryReportPublicView() {
                             />
                         </Box>
                     </Grid>
-                    <Grid size={{ xs: 12, md: 8, lg: 8.5 }}>
+
+                    {/* Content - biên bản */}
+                    <Grid size={{ xs: 12, md: 8, lg: 8.5 }} order={{ xs: 2, md: 2 }}>
                         <Stack spacing={2}>
-                            <Paper variant="outlined" sx={{ p: 1, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <Typography variant="h6" sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
-                                    <FileText sx={{ fontSize: 20 }} /> Nội dung biên bản
+                            {/* Toolbar - ẩn zoom trên mobile nhỏ */}
+                            <Paper
+                                variant="outlined"
+                                sx={{
+                                    p: 1,
+                                    borderRadius: 2,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    flexWrap: "wrap",
+                                    gap: 1
+                                }}
+                            >
+                                <Typography
+                                    variant="h6"
+                                    sx={{
+                                        fontWeight: 700,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 1,
+                                        fontSize: { xs: "0.95rem", sm: "1.25rem" }
+                                    }}
+                                >
+                                    <FileText sx={{ fontSize: { xs: 18, sm: 20 } }} /> Nội dung biên bản
                                 </Typography>
-                                <ButtonGroup variant="outlined" size="small">
+                                <ButtonGroup variant="outlined" size="small" sx={{ display: { xs: "none", sm: "flex" } }}>
                                     <Button onClick={() => setScale((s) => clamp(s - 0.15, 0.5, 1.5))}><ZoomOut sx={{ fontSize: 16 }} /></Button>
                                     <Button onClick={() => setScale(1)} sx={{ minWidth: "55px" }}>{Math.round(scale * 100)}%</Button>
                                     <Button onClick={() => setScale((s) => clamp(s + 0.15, 0.5, 1.5))}><ZoomIn sx={{ fontSize: 16 }} /></Button>
                                 </ButtonGroup>
                             </Paper>
-                            <Paper elevation={0} variant="outlined" sx={{ backgroundColor: "white", overflow: "auto", p: { xs: 1, sm: 2 }, display: "flex", justifyContent: "center", borderRadius: 3, height: "calc(100vh - 180px)" }}>
-                                <Box sx={{ width: "210mm", minWidth: "210mm", transform: `scale(${scale})`, transformOrigin: "top center", transition: "transform 0.2s ease" }}>
+
+                            {/* Document preview - responsive */}
+                            <Paper
+                                elevation={0}
+                                variant="outlined"
+                                sx={{
+                                    backgroundColor: "white",
+                                    overflow: "auto",
+                                    p: { xs: 0.5, sm: 2 },
+                                    display: "flex",
+                                    justifyContent: { xs: "flex-start", sm: "center" },
+                                    borderRadius: 3,
+                                    height: { xs: "auto", md: "calc(100vh - 180px)" },
+                                    minHeight: { xs: "400px", md: "auto" }
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        // Trên mobile: scale xuống để vừa màn hình
+                                        // Trên desktop: sử dụng scale control
+                                        width: { xs: "100%", sm: "210mm" },
+                                        minWidth: { xs: "auto", sm: "210mm" },
+                                        transform: { xs: "none", sm: `scale(${scale})` },
+                                        transformOrigin: "top center",
+                                        transition: "transform 0.2s ease",
+                                        // Mobile: scale document bằng CSS
+                                        "& > *": {
+                                            transform: { xs: "scale(0.45)", sm: "none" },
+                                            transformOrigin: { xs: "top left", sm: "top center" },
+                                            width: { xs: "210mm", sm: "auto" }
+                                        }
+                                    }}
+                                >
                                     <SelectedTemplate report={reportForPrint} company={companyInfo} departments={reportForPrint?.departments} />
                                 </Box>
                             </Paper>
