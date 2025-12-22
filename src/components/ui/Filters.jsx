@@ -17,7 +17,6 @@ export default function Filters({
   year,
   onYearChange,
   quarter,
-  quarter,
   onQuarterChange,
   loading = false, // Thêm prop loading, mặc định false
 }) {

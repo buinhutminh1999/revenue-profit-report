@@ -102,12 +102,41 @@ export const useActualCosts = (projectId, year, quarter) => {
 
                 const recalculated = rawItems.map(row => {
                     const r = { ...row };
+
+                    // Xác định loại công trình
+                    const isCpProject = (r.project || "").includes("-CP");
+                    const isVtNcProject = !isCpProject;
+
+                    // ✅ LƯU GIÁ TRỊ TỪ FIRESTORE TRƯỚC KHI calcAllFields
+                    // VT/NC: Lưu noPhaiTraCK
+                    const savedNoPhaiTraCK = isVtNcProject ? r.noPhaiTraCK : null;
+                    // -CP đã quyết toán: Lưu carryoverEnd và noPhaiTraCK
+                    const isFinalized = r.isFinalized === true || r.isFinalized === "true";
+                    const savedCarryoverEnd = (isCpProject && isFinalized) ? r.carryoverEnd : null;
+                    const savedCpNoPhaiTraCK = (isCpProject && isFinalized) ? r.noPhaiTraCK : null;
+
                     calcAllFields(r, {
                         overallRevenue: orv,
                         projectTotalAmount,
                         projectType: projectData?.type,
                         isUserEditingNoPhaiTraCK: false
                     });
+
+                    // ✅ KHÔI PHỤC LẠI GIÁ TRỊ TỪ FIRESTORE
+                    // VT/NC: Khôi phục noPhaiTraCK
+                    if (isVtNcProject && savedNoPhaiTraCK !== null && savedNoPhaiTraCK !== undefined) {
+                        r.noPhaiTraCK = savedNoPhaiTraCK;
+                    }
+                    // -CP đã quyết toán: Khôi phục carryoverEnd và noPhaiTraCK
+                    if (isCpProject && isFinalized) {
+                        if (savedCarryoverEnd !== null && savedCarryoverEnd !== undefined) {
+                            r.carryoverEnd = savedCarryoverEnd;
+                        }
+                        if (savedCpNoPhaiTraCK !== null && savedCpNoPhaiTraCK !== undefined) {
+                            r.noPhaiTraCK = savedCpNoPhaiTraCK;
+                        }
+                    }
+
                     return r;
                 });
 

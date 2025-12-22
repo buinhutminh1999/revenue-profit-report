@@ -29,18 +29,14 @@ import ConfirmDialog from "../ui/ConfirmDialog";
 import { useActualCosts } from "../../hooks/useActualCosts";
 import { motion } from "framer-motion";
 
-
-// ... (keep defaultRow and helpers) ...
-// The tool won't touch lines I don't specify, so I can just target the imports and component definition.
-// Wait, I need to match the imports block top.
-
 const SORT_CONFIG = {
     "Thi công": { key: "orderThiCong" },
     "Nhà máy": { key: "orderNhaMay" },
     "KH-ĐT": { key: "orderKhdt" },
 };
 
-export const defaultRow = {
+// Factory function to create a new row with unique ID
+export const createDefaultRow = () => ({
     id: generateUniqueId(),
     project: "",
     description: "",
@@ -61,7 +57,10 @@ export const defaultRow = {
     hskh: "0",
     cpSauQuyetToan: 0,
     baseForNptck: null,
-};
+});
+
+// Backward compatibility export
+export const defaultRow = createDefaultRow();
 
 const transformProjectName = (name) => {
     if (!name) return "";
@@ -693,18 +692,36 @@ export default function ActualCostsTab({ projectId }) {
         const updatedItems = costItems.map((row) => {
             const newRow = { ...row, isFinalized: false };
 
-            // ✅ KHÔI PHỤC giá trị noPhaiTraCK ban đầu nếu có lưu trữ
+            // Xác định loại công trình
+            const isCpProject = (newRow.project || "").includes("-CP");
+            const isVtNcProject = !isCpProject;
+
+            // ✅ KHÔI PHỤC giá trị noPhaiTraCK ban đầu
+            let restoredNoPhaiTraCK = null;
+
             if (newRow.hasOwnProperty('originalNoPhaiTraCK') && newRow.originalNoPhaiTraCK !== null && newRow.originalNoPhaiTraCK !== undefined) {
-                newRow.noPhaiTraCK = String(newRow.originalNoPhaiTraCK);
-                // Xóa field tạm sau khi khôi phục
+                restoredNoPhaiTraCK = String(newRow.originalNoPhaiTraCK);
                 delete newRow.originalNoPhaiTraCK;
+            } else if (isVtNcProject) {
+                // ✅ NẾU KHÔNG CÓ originalNoPhaiTraCK (dữ liệu cũ), reset VT/NC về "0"
+                restoredNoPhaiTraCK = "0";
             }
 
+            // ✅ XÓA flag chỉnh sửa thủ công để cho phép tính toán mới
+            delete newRow.isNoPhaiTraCKManual;
+
+            // Gọi calcAllFields để tính lại các field khác
             calcAllFields(newRow, {
                 overallRevenue,
                 projectTotalAmount,
                 projectType: projectData?.type,
             });
+
+            // ✅ SAU KHI calcAllFields, khôi phục lại giá trị gốc
+            if (restoredNoPhaiTraCK !== null) {
+                newRow.noPhaiTraCK = restoredNoPhaiTraCK;
+            }
+
             return newRow;
         });
         setCostItems(updatedItems);
@@ -947,6 +964,10 @@ export default function ActualCostsTab({ projectId }) {
             // ✅ LOGIC MỚI: Tất cả công trình KHÔNG có -CP được xử lý như VT/NC
             const isCpProject = (row.project || "").includes("-CP");
             const isVtNcProject = !isCpProject;
+
+            // ✅ LƯU GIÁ TRỊ GỐC TRƯỚC KHI THAY ĐỔI
+            const originalNoPhaiTraCK = row.noPhaiTraCK || "0";
+
             // ⭐ LOGIC MỚI ƯU TIÊN HÀNG ĐẦU: ÁP DỤNG CÔNG THỨC "SỐNG" ⭐
             // Kiểm tra nếu là công trình VT/NC và có trường 'baseForNptck' được truyền từ quý trước.
             if (
@@ -971,8 +992,8 @@ export default function ActualCostsTab({ projectId }) {
                 const newNoPhaiTraCK = debtDK - directCost;
                 return {
                     ...row,
-                    // ✅ LƯU GIÁ TRỊ BAN ĐẦU để khôi phục khi hủy quyết toán
-                    originalNoPhaiTraCK: row.noPhaiTraCK || "0",
+                    // ✅ SỬ DỤNG GIÁ TRỊ ĐÃ LƯU TRƯỚC (không dùng row.noPhaiTraCK đã bị ghi đè)
+                    originalNoPhaiTraCK: originalNoPhaiTraCK,
                     noPhaiTraCK: String(newNoPhaiTraCK),
                     isFinalized: true,
                 };
@@ -984,8 +1005,8 @@ export default function ActualCostsTab({ projectId }) {
                 const newNoPhaiTraCK = currentNoPhaiTraCK - currentCarryoverEnd;
                 return {
                     ...row,
-                    // ✅ LƯU GIÁ TRỊ BAN ĐẦU để khôi phục khi hủy quyết toán
-                    originalNoPhaiTraCK: row.noPhaiTraCK || "0",
+                    // ✅ SỬ DỤNG GIÁ TRỊ ĐÃ LƯU TRƯỚC (đảm bảo consistency)
+                    originalNoPhaiTraCK: originalNoPhaiTraCK,
                     noPhaiTraCK: String(newNoPhaiTraCK),
                     carryoverEnd: "0",
                     isFinalized: true,

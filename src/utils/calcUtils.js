@@ -140,7 +140,8 @@ export const calcAllFields = (
     // ⭐ LOGIC MỚI ƯU TIÊN HÀNG ĐẦU: ÁP DỤNG CÔNG THỨC "SỐNG" ⭐
     // Kiểm tra nếu là công trình VT/NC và có trường 'baseForNptck' được truyền từ quý trước.
     // ✅ CHỈ áp dụng công thức TỰ ĐỘNG nếu người dùng KHÔNG đang chỉnh sửa noPhaiTraCK
-    if (!isUserEditingNoPhaiTraCK && isVtNcProject && row.hasOwnProperty('baseForNptck') && row.baseForNptck !== null) {
+    // ✅ MỚI: Bỏ qua nếu row đã được đánh dấu là chỉnh sửa thủ công
+    if (!isUserEditingNoPhaiTraCK && !row.isNoPhaiTraCKManual && isVtNcProject && row.hasOwnProperty('baseForNptck') && row.baseForNptck !== null) {
         // Lấy giá trị gốc đã tính ở quý trước
         const baseValue = Number(parseNumber(row.baseForNptck));
         // Lấy Chi Phí Trực Tiếp của quý HIỆN TẠI (khi người dùng nhập)
@@ -148,6 +149,11 @@ export const calcAllFields = (
 
         // Công thức cuối cùng: NPTĐK(Q2) - CPTT(Q2) - CPTT(Q3)
         row.noPhaiTraCK = String(baseValue - directCost_Current);
+    }
+
+    // ✅ MỚI: Nếu user đang edit, đánh dấu row đã được chỉnh sửa thủ công
+    if (isUserEditingNoPhaiTraCK && isVtNcProject) {
+        row.isNoPhaiTraCKManual = true;
     }
 
     // Các logic tính toán khác giữ nguyên

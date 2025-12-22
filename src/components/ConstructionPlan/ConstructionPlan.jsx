@@ -43,9 +43,6 @@ import {
     InputAdornment,
     Alert,
     Skeleton,
-    CircularProgress,
-    Fab,
-    Zoom,
 } from "@mui/material";
 import {
     Search,
@@ -63,13 +60,11 @@ import {
     Close as CloseIcon,
     Lock as LockIcon,
     ClearAll as ClearAllIcon,
-    Construction as ConstructionIcon,
-    Add as AddIcon,
 } from "@mui/icons-material";
 import { useBatchSettlement } from "../../hooks/useBatchSettlement";
 import LinearProgress from "@mui/material/LinearProgress";
 import { DataGrid, GridPagination } from "@mui/x-data-grid";
-import { motion, useSpring, useTransform, AnimatePresence } from "framer-motion";
+import { motion, useSpring, useTransform } from "framer-motion";
 import { useProjects } from "../../hooks/useProjects";
 import AllocationTimelineModal, {
     getCurrentYear,
@@ -123,43 +118,6 @@ const containerVariants = {
 const itemVariants = {
     hidden: { y: 20, opacity: 0 },
     visible: { y: 0, opacity: 1 },
-};
-
-// --- COMPONENT EMPTY STATE ---
-const CustomNoRowsOverlay = () => {
-    return (
-        <Stack
-            height="100%"
-            alignItems="center"
-            justifyContent="center"
-            spacing={2}
-            sx={{ p: 3, color: "text.secondary" }}
-        >
-            <Box
-                component={motion.div}
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.5 }}
-            >
-                <Avatar
-                    sx={{
-                        width: 80,
-                        height: 80,
-                        bgcolor: (theme) => alpha(theme.palette.grey[400], 0.1),
-                        color: "text.disabled",
-                    }}
-                >
-                    <ConstructionIcon sx={{ fontSize: 40 }} />
-                </Avatar>
-            </Box>
-            <Typography variant="h6" fontWeight={500}>
-                Không tìm thấy dữ liệu
-            </Typography>
-            <Typography variant="body2">
-                Thử thay đổi bộ lọc hoặc thêm công trình mới.
-            </Typography>
-        </Stack>
-    );
 };
 
 // --- COMPONENT STAT CARD ---
@@ -820,11 +778,7 @@ export default function ConstructionPlan() {
                                 InputProps={{
                                     startAdornment: (
                                         <InputAdornment position="start">
-                                            {searchTerm !== debouncedSearchTerm ? (
-                                                <CircularProgress size={20} color="inherit" />
-                                            ) : (
-                                                <Search color="action" />
-                                            )}
+                                            <Search color="action" />
                                         </InputAdornment>
                                     ),
                                 }}
@@ -839,15 +793,68 @@ export default function ConstructionPlan() {
                                     borderRadius: "10px",
                                     boxShadow: theme.shadows[4],
                                     width: { xs: "100%", md: "auto" },
-                                    display: { xs: "none", md: "flex" }, // Ẩn trên mobile để dùng FAB
                                 }}
                             >
                                 THÊM CÔNG TRÌNH MỚI
                             </Button>
                         </Stack>
 
-                        {/* === DATA GRID === */}
-                        <Box sx={{ height: 600, width: "100%", p: 1, pt: 2 }}>
+                        {/* === BATCH SETTLEMENT TOOLBAR === */}
+                        {selectedProjectIds.length > 0 && (
+                            <Stack
+                                direction={{ xs: "column", sm: "row" }}
+                                spacing={2}
+                                p={2}
+                                alignItems="center"
+                                sx={{
+                                    backgroundColor: alpha(theme.palette.warning.main, 0.08),
+                                    borderTop: `1px solid ${theme.palette.divider}`,
+                                }}
+                            >
+                                <Typography fontWeight={600} sx={{ minWidth: 180 }}>
+                                    ✓ Đã chọn {selectedProjectIds.length} công trình
+                                </Typography>
+                                <TextField
+                                    select
+                                    size="small"
+                                    label="Quý"
+                                    value={settlementQuarter}
+                                    onChange={(e) => setSettlementQuarter(e.target.value)}
+                                    sx={{ width: 100 }}
+                                >
+                                    <MenuItem value="Q1">Q1</MenuItem>
+                                    <MenuItem value="Q2">Q2</MenuItem>
+                                    <MenuItem value="Q3">Q3</MenuItem>
+                                    <MenuItem value="Q4">Q4</MenuItem>
+                                </TextField>
+                                <TextField
+                                    size="small"
+                                    label="Năm"
+                                    type="number"
+                                    value={settlementYear}
+                                    onChange={(e) => setSettlementYear(e.target.value)}
+                                    sx={{ width: 100 }}
+                                />
+                                <Button
+                                    variant="contained"
+                                    color="error"
+                                    startIcon={<LockIcon />}
+                                    onClick={handleOpenSettlementConfirm}
+                                    sx={{ fontWeight: 600 }}
+                                >
+                                    QUYẾT TOÁN ĐÃ CHỌN
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    startIcon={<ClearAllIcon />}
+                                    onClick={handleClearSelection}
+                                >
+                                    Bỏ chọn
+                                </Button>
+                            </Stack>
+                        )}
+
+                        <Box sx={{ height: 600, width: "100%", p: 1, pt: 0 }}>
                             <DataGrid
                                 rows={filteredProjects}
                                 columns={columns}
@@ -857,8 +864,7 @@ export default function ConstructionPlan() {
                                 onPaginationModelChange={setPaginationModel}
                                 pageSizeOptions={[10, 25, 50]}
                                 slots={{
-                                    footer: CustomFooter,
-                                    noRowsOverlay: CustomNoRowsOverlay,
+                                    footer: CustomFooter
                                 }}
                                 getRowId={(row) => row.id}
                                 checkboxSelection
@@ -1065,104 +1071,6 @@ export default function ConstructionPlan() {
                     </Button>
                 </DialogActions>
             </Dialog>
-            {/* === FLOATING BATCH TOOLBAR === */}
-            <AnimatePresence>
-                {selectedProjectIds.length > 0 && (
-                    <motion.div
-                        initial={{ y: 100, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: 100, opacity: 0 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        style={{
-                            position: "fixed",
-                            bottom: 24,
-                            left: "50%",
-                            transform: "translateX(-50%)",
-                            zIndex: 1000,
-                            width: "90%",
-                            maxWidth: 800,
-                        }}
-                    >
-                        <Paper
-                            elevation={8}
-                            sx={{
-                                p: 2,
-                                borderRadius: 4,
-                                bgcolor: "background.paper",
-                                border: `1px solid ${theme.palette.warning.main}`,
-                                display: "flex",
-                                flexDirection: { xs: "column", sm: "row" },
-                                alignItems: "center",
-                                gap: 2,
-                            }}
-                        >
-                            <Box sx={{ flexGrow: 1, display: "flex", alignItems: "center", gap: 1 }}>
-                                <Chip
-                                    label={selectedProjectIds.length}
-                                    color="warning"
-                                    size="small"
-                                    sx={{ fontWeight: "bold" }}
-                                />
-                                <Typography variant="body2" fontWeight={600}>
-                                    công trình đang chọn
-                                </Typography>
-                            </Box>
-
-                            <Stack direction="row" spacing={2} alignItems="center">
-                                <TextField
-                                    select
-                                    size="small"
-                                    label="Quý"
-                                    value={settlementQuarter}
-                                    onChange={(e) => setSettlementQuarter(e.target.value)}
-                                    sx={{ width: 80 }}
-                                >
-                                    {["Q1", "Q2", "Q3", "Q4"].map((q) => (
-                                        <MenuItem key={q} value={q}>{q}</MenuItem>
-                                    ))}
-                                </TextField>
-                                <TextField
-                                    size="small"
-                                    label="Năm"
-                                    type="number"
-                                    value={settlementYear}
-                                    onChange={(e) => setSettlementYear(e.target.value)}
-                                    sx={{ width: 90 }}
-                                />
-                                <Button
-                                    variant="contained"
-                                    color="warning"
-                                    startIcon={<LockIcon />}
-                                    onClick={handleOpenSettlementConfirm}
-                                    sx={{ whiteSpace: "nowrap" }}
-                                >
-                                    Quyết Toán
-                                </Button>
-                                <IconButton onClick={handleClearSelection} size="small">
-                                    <CloseIcon />
-                                </IconButton>
-                            </Stack>
-                        </Paper>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* === MOBILE FAB === */}
-            <Zoom in={!selectedProjectIds.length}>
-                <Fab
-                    color="primary"
-                    aria-label="add"
-                    sx={{
-                        position: "fixed",
-                        bottom: 24,
-                        right: 24,
-                        display: { xs: "flex", md: "none" },
-                    }}
-                    onClick={() => setOpenAddDrawer(true)}
-                >
-                    <AddIcon />
-                </Fab>
-            </Zoom>
         </Box>
     );
 }
