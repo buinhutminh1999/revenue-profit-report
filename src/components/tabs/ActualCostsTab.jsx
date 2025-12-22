@@ -692,6 +692,14 @@ export default function ActualCostsTab({ projectId }) {
     const executeUndoFinalize = useCallback(async () => {
         const updatedItems = costItems.map((row) => {
             const newRow = { ...row, isFinalized: false };
+
+            // ✅ KHÔI PHỤC giá trị noPhaiTraCK ban đầu nếu có lưu trữ
+            if (newRow.hasOwnProperty('originalNoPhaiTraCK') && newRow.originalNoPhaiTraCK !== null && newRow.originalNoPhaiTraCK !== undefined) {
+                newRow.noPhaiTraCK = String(newRow.originalNoPhaiTraCK);
+                // Xóa field tạm sau khi khôi phục
+                delete newRow.originalNoPhaiTraCK;
+            }
+
             calcAllFields(newRow, {
                 overallRevenue,
                 projectTotalAmount,
@@ -963,6 +971,8 @@ export default function ActualCostsTab({ projectId }) {
                 const newNoPhaiTraCK = debtDK - directCost;
                 return {
                     ...row,
+                    // ✅ LƯU GIÁ TRỊ BAN ĐẦU để khôi phục khi hủy quyết toán
+                    originalNoPhaiTraCK: row.noPhaiTraCK || "0",
                     noPhaiTraCK: String(newNoPhaiTraCK),
                     isFinalized: true,
                 };
@@ -974,6 +984,8 @@ export default function ActualCostsTab({ projectId }) {
                 const newNoPhaiTraCK = currentNoPhaiTraCK - currentCarryoverEnd;
                 return {
                     ...row,
+                    // ✅ LƯU GIÁ TRỊ BAN ĐẦU để khôi phục khi hủy quyết toán
+                    originalNoPhaiTraCK: row.noPhaiTraCK || "0",
                     noPhaiTraCK: String(newNoPhaiTraCK),
                     carryoverEnd: "0",
                     isFinalized: true,
