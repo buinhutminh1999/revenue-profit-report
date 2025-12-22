@@ -6,7 +6,8 @@ import {
   TextField,
   MenuItem,
   Stack,
-  InputAdornment, // Import thêm InputAdornment
+  InputAdornment,
+  CircularProgress, // Import thêm CircularProgress
 } from "@mui/material";
 import { Search } from "@mui/icons-material"; // Import icon Search
 
@@ -16,7 +17,9 @@ export default function Filters({
   year,
   onYearChange,
   quarter,
+  quarter,
   onQuarterChange,
+  loading = false, // Thêm prop loading, mặc định false
 }) {
   return (
     // Modern Filters with Glass Effect
@@ -39,7 +42,11 @@ export default function Filters({
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
-              <Search sx={{ color: "primary.main" }} />
+              {loading ? (
+                <CircularProgress size={20} color="primary" />
+              ) : (
+                <Search sx={{ color: "primary.main" }} />
+              )}
             </InputAdornment>
           ),
           sx: {

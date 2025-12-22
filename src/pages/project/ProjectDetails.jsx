@@ -6,6 +6,8 @@ import {
     Alert,
     ThemeProvider,
     createTheme,
+    Typography,
+    Chip,
 } from "@mui/material";
 import {
     doc,
@@ -13,187 +15,20 @@ import {
 } from "firebase/firestore";
 import { db } from "../../../services/firebase-config";
 import { parseNumber } from "../../../utils/numberUtils";
-import { generateUniqueId } from "../../../utils/idUtils";
 import { calcAllFields } from "../../../utils/calcUtils";
-import { exportToExcel, readExcelFile } from "../../../utils/excelUtils";
+import { exportToExcel } from "../../../utils/excelUtils";
 import { groupByProject } from "../../../utils/groupingUtils";
+import { createDefaultRow, defaultRow } from "../../../utils/defaultRow";
+import { handleFileUpload } from "../../../utils/fileUploadUtils";
 import Filters from "../../../components/ui/Filters";
 import ActionBar from "../../../components/project/ActionBar";
 import ColumnSelector from "../../../components/ui/ColumnSelector";
 import CostTable from "../../../components/project/CostTable";
 import SummaryPanel from "../../../components/ui/SummaryPanel";
+import ConfirmDialog from "../../../components/ui/ConfirmDialog"; // Unified Dialog
 import { useActualCosts } from "../../../hooks/useActualCosts";
 import { motion } from "framer-motion";
-
-// ---------- Default Data ----------
-export const defaultRow = {
-    id: generateUniqueId(), // đảm bảo mỗi dòng luôn có id
-    project: "",
-    description: "",
-    inventory: "0",
-    debt: "0",
-    directCost: "0",
-    allocated: "0",
-    carryover: "0",
-    carryoverMinus: "0",
-    carryoverEnd: "0",
-    tonKhoUngKH: "0",
-    noPhaiTraCK: "0",
-    totalCost: "0",
-    revenue: "0",
-    hskh: "0",
-};
-
-export const handleFileUpload = async (
-    input,
-    costItems,
-    setCostItems,
-    setLoading,
-    overallRevenue,
-    projectTotalAmount,
-    mode = "merge"
-) => {
-    let file;
-    let sheetName;
-
-    if (input?.file && input?.sheetName) {
-        file = input.file;
-        sheetName = input.sheetName;
-    } else if (input?.target?.files?.[0]) {
-        file = input.target.files[0];
-    } else {
-        console.error("Không tìm thấy file hợp lệ để xử lý");
-        return;
-    }
-
-    setLoading(true);
-
-    const excelToField = {
-        "Tồn ĐK": "inventory",
-        "Nợ Phải Trả ĐK": "debt",
-        "Chi Phí Trực Tiếp": "directCost",
-        "Phân Bổ": "allocated",
-        "Chuyển Tiếp ĐK": "carryover",
-        "Trừ Quỹ": "carryoverMinus",
-        "Cuối Kỳ": "carryoverEnd",
-        "Tồn Kho/Ứng KH": "tonKhoUngKH",
-        "Nợ Phải Trả CK": "noPhaiTraCK",
-        "Tổng Chi Phí": "totalCost",
-        "Doanh Thu": "revenue",
-        HSKH: "hskh",
-    };
-
-    try {
-        const dataFromFile = await readExcelFile(file, sheetName);
-
-        if (mode === "replaceAll") {
-            const newItems = dataFromFile.map((row) => {
-                const newItem = {
-                    ...defaultRow,
-                    id: generateUniqueId(),
-                    project: (row["Công Trình"] || "").trim().toUpperCase(),
-                    description: (row["Khoản Mục Chi Phí"] || "").trim(),
-                };
-
-                for (const excelKey in excelToField) {
-                    if (row.hasOwnProperty(excelKey)) {
-                        newItem[excelToField[excelKey]] = String(
-                            row[excelKey]
-                        );
-                    }
-                }
-
-                calcAllFields(newItem, {
-                    overallRevenue,
-                    projectTotalAmount,
-                });
-                return newItem;
-            });
-
-            setCostItems(newItems);
-        } else {
-            // mode: "merge" hoặc "multiSheet"
-            const newDataMap = {};
-            for (const row of dataFromFile) {
-                const key = `${(row["Công Trình"] || "")
-                    .trim()
-                    .toUpperCase()}|||${(
-                        row["Khoản Mục Chi Phí"] || ""
-                    ).trim()}`;
-                newDataMap[key] = row;
-            }
-
-            const merged = costItems.map((oldRow) => {
-                const key = `${oldRow.project}|||${oldRow.description}`;
-                const excelRow = newDataMap[key];
-                if (!excelRow) return oldRow;
-
-                let newRow = { ...oldRow };
-                for (const excelKey in excelToField) {
-                    if (excelRow.hasOwnProperty(excelKey)) {
-                        newRow[excelToField[excelKey]] = String(
-                            excelRow[excelKey] ??
-                            oldRow[excelToField[excelKey]]
-                        );
-                    }
-                }
-                calcAllFields(newRow, {
-                    overallRevenue,
-                    projectTotalAmount,
-                });
-                return newRow;
-            });
-
-            const added = dataFromFile
-                .filter((row) => {
-                    const key = `${(row["Công Trình"] || "")
-                        .trim()
-                        .toUpperCase()}|||${(
-                            row["Khoản Mục Chi Phí"] || ""
-                        ).trim()}`;
-                    return !costItems.some(
-                        (oldRow) =>
-                            oldRow.project ===
-                            (row["Công Trình"] || "")
-                                .trim()
-                                .toUpperCase() &&
-                            oldRow.description ===
-                            (row["Khoản Mục Chi Phí"] || "").trim()
-                    );
-                })
-                .map((row) => {
-                    const newItem = {
-                        ...defaultRow,
-                        id: generateUniqueId(),
-                        project: (row["Công Trình"] || "")
-                            .trim()
-                            .toUpperCase(),
-                        description: (
-                            row["Khoản Mục Chi Phí"] || ""
-                        ).trim(),
-                    };
-                    for (const excelKey in excelToField) {
-                        if (row.hasOwnProperty(excelKey)) {
-                            newItem[excelToField[excelKey]] = String(
-                                row[excelKey]
-                            );
-                        }
-                    }
-                    calcAllFields(newItem, {
-                        overallRevenue,
-                        projectTotalAmount,
-                    });
-                    return newItem;
-                });
-
-            setCostItems([...merged, ...added]);
-        }
-    } catch (err) {
-        console.error("Lỗi khi đọc file Excel:", err);
-    } finally {
-        setLoading(false);
-    }
-};
+import BusinessIcon from "@mui/icons-material/Business";
 
 // ---------- Validation ----------
 const numericFields = [
@@ -221,16 +56,31 @@ const validateData = (rows) => rows.every(validateRow);
 export default function ProjectDetails() {
     const { id } = useParams();
     const navigate = useNavigate();
+
     // Local UI State
     const [year, setYear] = useState(String(new Date().getFullYear()));
     const [quarter, setQuarter] = useState("Q1");
     const [search, setSearch] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState(""); // Debounce search
     const [snackOpen, setSnackOpen] = useState(false);
     const [error, setError] = useState(null);
     const [editingCell, setEditingCell] = useState({ id: null, colKey: null });
     const [overallRevenueEditing, setOverallRevenueEditing] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const setLoading = setIsProcessing;
+
+    // Derived state for smart search interaction
+    const isSearchLoading = search !== debouncedSearch;
+
+    // Unified Confirmation Dialog State
+    const [confirmDialog, setConfirmDialog] = useState({
+        open: false,
+        title: "",
+        content: null,
+        onConfirm: () => { },
+        confirmText: "Xác nhận",
+        confirmColor: "primary",
+    });
 
     // Hook Data
     const {
@@ -249,6 +99,14 @@ export default function ProjectDetails() {
     useEffect(() => {
         if (hookError) setError(hookError);
     }, [hookError]);
+
+    // Debounce search - 300ms delay
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [search]);
 
     const columnsAll = useMemo(
         () => [
@@ -269,7 +127,6 @@ export default function ProjectDetails() {
             {
                 key: "noPhaiTraCK",
                 label: "Nợ Phải Trả CK",
-                // ✅ CHO PHÉP sửa cho tất cả công trình KHÔNG có -CP (VT, NC, v.v.)
                 isCellEditable: (row) => {
                     const project = row.project || "";
                     return !project.includes("-CP");
@@ -287,8 +144,6 @@ export default function ProjectDetails() {
             JSON.parse(localStorage.getItem("columnsVisibility")) ||
             columnsAll.reduce((acc, col) => ({ ...acc, [col.key]: true }), {})
     );
-
-
 
     useEffect(() => {
         localStorage.setItem(
@@ -337,9 +192,6 @@ export default function ProjectDetails() {
         [sumKeys]
     );
 
-
-
-    // Cập nhật trường dựa trên id (không sử dụng index)
     const handleChangeField = useCallback(
         (id, field, val) => {
             setCostItems((prev) =>
@@ -349,7 +201,7 @@ export default function ProjectDetails() {
                         if (field === "project" || field === "description") {
                             newVal = val;
                         } else if (field === "noPhaiTraCK") {
-                            newVal = String(val); // ép về chuỗi
+                            newVal = String(val);
                         } else {
                             newVal = parseNumber(val.trim() === "" ? "0" : val);
                         }
@@ -384,21 +236,43 @@ export default function ProjectDetails() {
             setSnackOpen(true);
         }
     };
-    const handleSaveNextQuarter = async () => {
+
+    const handleSaveNextQuarter = () => {
         if (!validateData(costItems)) {
             setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
             return;
         }
 
-        setLoading(true);
-        try {
-            const quarters = ["Q1", "Q2", "Q3", "Q4"];
-            const currIndex = quarters.indexOf(quarter);
-            const isLastQuarter = currIndex === 3;
-            const nextQuarter = isLastQuarter ? "Q1" : quarters[currIndex + 1];
-            const nextYear = isLastQuarter ? String(Number(year) + 1) : year;
+        const quarters = ["Q1", "Q2", "Q3", "Q4"];
+        const currIndex = quarters.indexOf(quarter);
+        const isLastQuarter = currIndex === 3;
+        const nextQuarter = isLastQuarter ? "Q1" : quarters[currIndex + 1];
+        const nextYear = isLastQuarter ? String(Number(year) + 1) : year;
 
-            // Lưu dữ liệu hiện tại
+        setConfirmDialog({
+            open: true,
+            title: "Xác nhận Lưu & Chuyển Quý",
+            content: (
+                <Box>
+                    <Typography variant="body1" gutterBottom>
+                        Bạn có chắc chắn muốn lưu dữ liệu quý <b>{quarter}/{year}</b> và bắt đầu làm quý <b>{nextQuarter}/{nextYear}</b>?
+                    </Typography>
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                        Dữ liệu sẽ được chốt và tự động chuyển số dư sang quý mới.
+                    </Alert>
+                </Box>
+            ),
+            confirmText: "Thực hiện",
+            confirmColor: "primary",
+            onConfirm: () => executeSaveNextQuarter(nextQuarter, nextYear),
+        });
+    };
+
+    const executeSaveNextQuarter = async (nextQuarter, nextYear) => {
+        setConfirmDialog((prev) => ({ ...prev, open: false }));
+        setLoading(true);
+
+        try {
             await setDoc(
                 doc(db, "projects", id, "years", year, "quarters", quarter),
                 {
@@ -408,16 +282,13 @@ export default function ProjectDetails() {
                 }
             );
 
-            // Logic chuyển số dư sang quý sau
-
             const nextItems = costItems.map((item) => ({
-                ...defaultRow,
-                id: generateUniqueId(),
+                ...createDefaultRow(),
                 hskh: item.hskh,
                 project: item.project,
                 description: item.description,
-                inventory: item.tonKhoUngKH || "0", // inventory quý sau = tonKhoUngKH quý này
-                debt: item.noPhaiTraCK || "0", // debt quý sau = noPhaiTraCK quý này
+                inventory: item.tonKhoUngKH || "0",
+                debt: item.noPhaiTraCK || "0",
                 carryover: item.carryoverEnd || "0",
             }));
 
@@ -439,7 +310,6 @@ export default function ProjectDetails() {
             );
 
             setSnackOpen(true);
-            alert(`Đã lưu và tạo dữ liệu cho ${nextQuarter} / ${nextYear}`);
         } catch (err) {
             setError("Lỗi khi lưu & chuyển quý: " + err.message);
         } finally {
@@ -451,7 +321,7 @@ export default function ProjectDetails() {
         () =>
             setCostItems((prev) => [
                 ...prev,
-                { ...defaultRow, id: generateUniqueId() },
+                createDefaultRow(),
             ]),
         []
     );
@@ -462,12 +332,12 @@ export default function ProjectDetails() {
                 (x) =>
                     (x.project || "")
                         .toLowerCase()
-                        .includes(search.toLowerCase()) ||
+                        .includes(debouncedSearch.toLowerCase()) ||
                     (x.description || "")
                         .toLowerCase()
-                        .includes(search.toLowerCase())
+                        .includes(debouncedSearch.toLowerCase())
             ),
-        [costItems, search]
+        [costItems, debouncedSearch]
     );
     const groupedData = useMemo(() => groupByProject(filtered), [filtered]);
 
@@ -508,6 +378,35 @@ export default function ProjectDetails() {
 
     return (
         <ThemeProvider theme={modernTheme}>
+            {/* Project Header */}
+            <Box
+                sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 2,
+                    mb: 2,
+                    p: 2,
+                    backgroundColor: "white",
+                    borderRadius: 2,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                }}
+            >
+                <BusinessIcon sx={{ fontSize: 32, color: "primary.main" }} />
+                <Box sx={{ flex: 1 }}>
+                    <Typography variant="h5" fontWeight={600}>
+                        {projectData?.name || "Đang tải..."}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        {projectData?.code || ""} • {projectData?.type || ""}
+                    </Typography>
+                </Box>
+                <Chip
+                    label={`${quarter} / ${year}`}
+                    color="primary"
+                    variant="outlined"
+                />
+            </Box>
+
             <ActionBar
                 onAddRow={handleAddRow}
                 onFileUpload={(e, mode) =>
@@ -518,7 +417,8 @@ export default function ProjectDetails() {
                         setLoading,
                         overallRevenue,
                         projectTotalAmount,
-                        mode // 👈 truyền mode từ modal ở ActionBar
+                        mode,
+                        projectData?.type
                     )
                 }
                 onExport={(items) => exportToExcel(items)}
@@ -544,6 +444,7 @@ export default function ProjectDetails() {
                     onYearChange={(e) => setYear(e.target.value)}
                     quarter={quarter}
                     onQuarterChange={(e) => setQuarter(e.target.value)}
+                    loading={isSearchLoading} // Pass loading state
                 />
                 <CostTable
                     columnsAll={columnsAll}
@@ -557,7 +458,8 @@ export default function ProjectDetails() {
                     handleRemoveRow={handleRemoveRow}
                     overallRevenue={overallRevenue}
                     projectTotalAmount={projectTotalAmount}
-                    categories={categories} // ← truyền vào đây
+                    categories={categories}
+                    projectData={projectData} // Pass projectData to CostTable
                 />
 
                 <SummaryPanel
@@ -579,6 +481,18 @@ export default function ProjectDetails() {
                 onClose={handleCloseColumnsDialog}
                 onToggleColumn={handleToggleColumn}
             />
+
+            {/* Unified Confirm Dialog */}
+            <ConfirmDialog
+                open={confirmDialog.open}
+                title={confirmDialog.title}
+                content={confirmDialog.content}
+                onClose={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
+                onConfirm={confirmDialog.onConfirm}
+                confirmText={confirmDialog.confirmText}
+                confirmColor={confirmDialog.confirmColor}
+            />
+
             <Snackbar
                 open={snackOpen}
                 autoHideDuration={3000}
@@ -603,4 +517,5 @@ export default function ProjectDetails() {
     );
 }
 
-
+// Re-export for backward compatibility
+export { defaultRow, handleFileUpload };
