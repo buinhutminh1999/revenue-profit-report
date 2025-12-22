@@ -76,7 +76,7 @@ const UserSection = styled(Box)(({ theme }) => ({
     borderRadius: theme.shape.borderRadius * 2.5,
     cursor: "pointer",
     transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-    background: theme.palette.mode === 'light' 
+    background: theme.palette.mode === 'light'
         ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.primary.main, 0.03)} 100%)`
         : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)} 0%, ${alpha(theme.palette.common.white, 0.05)} 100%)`,
     border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
@@ -263,7 +263,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
     // Hàm xác định route dựa trên notification action và details
     const getNotificationRoute = (notification) => {
         const { action, details = {}, target = {} } = notification;
-        
+
         // Asset Request related routes - ưu tiên điều hướng đến request
         if (action?.includes('ASSET_REQUEST')) {
             // Kiểm tra target.id trước (thường là requestId)
@@ -289,7 +289,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
             // Mặc định điều hướng đến trang asset-transfer (trang quản lý requests)
             return '/asset-transfer';
         }
-        
+
         // Asset related routes (ASSET_CREATED, ASSET_DELETED, etc.)
         if (action?.includes('ASSET') && !action?.includes('ASSET_REQUEST')) {
             // Ưu tiên target.id (thường là assetId)
@@ -303,7 +303,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
             // Mặc định điều hướng đến trang danh sách assets
             return '/assets';
         }
-        
+
         // Transfer related routes
         if (action?.includes('TRANSFER')) {
             // Ưu tiên target.id (thường là transferId)
@@ -321,21 +321,21 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
             // Mặc định điều hướng đến trang danh sách transfers (asset-transfer page)
             return '/asset-transfer';
         }
-        
-        // Report related routes - có thể cần điều chỉnh dựa trên loại report
+
+        // Report related routes - sử dụng inventory-reports path
         if (action?.includes('REPORT')) {
             // Kiểm tra target.id
             if (target?.id) {
-                return `/reports/${target.id}`;
+                return `/inventory-reports/${target.id}`;
             }
             // Kiểm tra details.reportId
             if (details?.reportId) {
-                return `/reports/${details.reportId}`;
+                return `/inventory-reports/${details.reportId}`;
             }
-            // Mặc định điều hướng đến dashboard
-            return '/dashboard';
+            // Mặc định điều hướng đến asset-transfer (tab báo cáo kiểm kê)
+            return '/asset-transfer';
         }
-        
+
         // Close quarter - điều hướng đến trang báo cáo lợi nhuận
         if (action === 'CLOSE_QUARTER' || action === 'CLOSE_QUARTER_FAILED') {
             if (details?.quarter && details?.year) {
@@ -343,7 +343,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
             }
             return '/profit-report-quarter';
         }
-        
+
         // Mặc định không điều hướng (trả về null)
         return null;
     };
@@ -353,10 +353,10 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         if (!notification.isRead) {
             await handleMarkAsRead(notification.id);
         }
-        
+
         // Đóng menu
         setNotificationAnchor(null);
-        
+
         // Điều hướng đến trang liên quan
         const route = getNotificationRoute(notification);
         if (route) {
@@ -530,14 +530,14 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         <Breadcrumbs
                             aria-label="breadcrumb"
                             separator={
-                                <ChevronRight 
-                                    sx={{ 
-                                        fontSize: 18, 
+                                <ChevronRight
+                                    sx={{
+                                        fontSize: 18,
                                         color: (t) => alpha(t.palette.text.secondary, 0.5),
-                                    }} 
+                                    }}
                                 />
                             }
-                            sx={{ 
+                            sx={{
                                 '& .MuiBreadcrumbs-separator': { mx: 0.75 },
                                 '& .MuiBreadcrumbs-ol': { alignItems: 'center' },
                             }}
@@ -545,9 +545,9 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                             <MuiLink
                                 component={RouterLink}
                                 underline="none"
-                                sx={{ 
-                                    display: "flex", 
-                                    alignItems: "center", 
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
                                     transition: 'all 0.2s ease',
                                     borderRadius: 1,
                                     px: 0.75,
@@ -620,9 +620,9 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                 {/* Right: actions */}
                 <Stack direction="row" alignItems="center" spacing={{ xs: 0.5, sm: 1 }}>
                     <Tooltip title="Tìm kiếm nhanh (⌘K)" arrow>
-                        <StyledIconButton 
-                            color="inherit" 
-                            onClick={() => setSearchOpen(true)} 
+                        <StyledIconButton
+                            color="inherit"
+                            onClick={() => setSearchOpen(true)}
                             aria-label="Mở bảng lệnh nhanh"
                         >
                             <Search sx={{ fontSize: 22 }} />
@@ -644,8 +644,8 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                     exit={reduce ? {} : { rotate: 180, opacity: 0, scale: 0.8 }}
                                     transition={{ duration: 0.3, ease: "easeInOut" }}
                                 >
-                                    {theme.palette.mode === "dark" ? 
-                                        <Sun sx={{ fontSize: 22, color: 'warning.main' }} /> : 
+                                    {theme.palette.mode === "dark" ?
+                                        <Sun sx={{ fontSize: 22, color: 'warning.main' }} /> :
                                         <Moon sx={{ fontSize: 22, color: 'primary.main' }} />
                                     }
                                 </motion.div>
@@ -671,16 +671,16 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         </StyledIconButton>
                     </Tooltip>
 
-                    <Divider 
-                        orientation="vertical" 
-                        flexItem 
-                        sx={{ 
-                            mx: 1.5, 
+                    <Divider
+                        orientation="vertical"
+                        flexItem
+                        sx={{
+                            mx: 1.5,
                             display: { xs: "none", sm: "block" },
                             height: 32,
                             alignSelf: 'center',
                             bgcolor: (t) => alpha(t.palette.divider, 0.3),
-                        }} 
+                        }}
                     />
 
                     <UserSection
@@ -711,11 +711,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                 onClose={() => setUserMenuAnchor(null)}
                 anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
                 transformOrigin={{ vertical: "top", horizontal: "right" }}
-                PaperProps={{ 
-                    sx: { 
-                        mt: 1.5, 
-                        minWidth: 240, 
-                        borderRadius: 2.5, 
+                PaperProps={{
+                    sx: {
+                        mt: 1.5,
+                        minWidth: 240,
+                        borderRadius: 2.5,
                         boxShadow: theme.palette.mode === 'light'
                             ? "0 8px 32px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.05)"
                             : "0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1)",
@@ -725,7 +725,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         backdropFilter: "blur(20px)",
                         border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                         overflow: 'hidden',
-                    } 
+                    }
                 }}
             >
                 <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
@@ -737,11 +737,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     </Typography>
                 </Box>
                 <Box sx={{ py: 0.5 }}>
-                    <MenuItem 
+                    <MenuItem
                         onClick={() => { setUserMenuAnchor(null); navigate("/user"); }}
-                        sx={{ 
-                            borderRadius: 1.5, 
-                            mx: 1, 
+                        sx={{
+                            borderRadius: 1.5,
+                            mx: 1,
                             my: 0.25,
                             transition: 'all 0.2s ease',
                             '&:hover': {
@@ -753,11 +753,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         <ListItemIcon><UserIcon sx={{ fontSize: 20, color: 'primary.main' }} /></ListItemIcon>
                         <ListItemText primary="Hồ sơ cá nhân" primaryTypographyProps={{ fontWeight: 500 }} />
                     </MenuItem>
-                    <MenuItem 
+                    <MenuItem
                         onClick={() => { setUserMenuAnchor(null); navigate("/settings"); }}
-                        sx={{ 
-                            borderRadius: 1.5, 
-                            mx: 1, 
+                        sx={{
+                            borderRadius: 1.5,
+                            mx: 1,
                             my: 0.25,
                             transition: 'all 0.2s ease',
                             '&:hover': {
@@ -771,11 +771,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     </MenuItem>
 
                     {user?.role === 'admin' && (
-                        <MenuItem 
+                        <MenuItem
                             onClick={() => { setUserMenuAnchor(null); navigate("/admin"); }}
-                            sx={{ 
-                                borderRadius: 1.5, 
-                                mx: 1, 
+                            sx={{
+                                borderRadius: 1.5,
+                                mx: 1,
                                 my: 0.25,
                                 transition: 'all 0.2s ease',
                                 '&:hover': {
@@ -789,11 +789,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         </MenuItem>
                     )}
 
-                    <MenuItem 
+                    <MenuItem
                         onClick={() => { setUserMenuAnchor(null); navigate("/help"); }}
-                        sx={{ 
-                            borderRadius: 1.5, 
-                            mx: 1, 
+                        sx={{
+                            borderRadius: 1.5,
+                            mx: 1,
                             my: 0.25,
                             transition: 'all 0.2s ease',
                             '&:hover': {
@@ -808,11 +808,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                 </Box>
                 <Divider sx={{ my: 0.5 }} />
                 <Box sx={{ py: 0.5 }}>
-                    <MenuItem 
+                    <MenuItem
                         onClick={() => { toggleColorMode(); }}
-                        sx={{ 
-                            borderRadius: 1.5, 
-                            mx: 1, 
+                        sx={{
+                            borderRadius: 1.5,
+                            mx: 1,
                             my: 0.25,
                             transition: 'all 0.2s ease',
                             '&:hover': {
@@ -822,21 +822,21 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         }}
                     >
                         <ListItemIcon>
-                            {theme.palette.mode === "dark" ? 
-                                <Sun sx={{ fontSize: 20, color: 'warning.main' }} /> : 
+                            {theme.palette.mode === "dark" ?
+                                <Sun sx={{ fontSize: 20, color: 'warning.main' }} /> :
                                 <Moon sx={{ fontSize: 20, color: 'primary.main' }} />
                             }
                         </ListItemIcon>
-                        <ListItemText 
-                            primary={theme.palette.mode === "dark" ? "Chế độ Sáng" : "Chế độ Tối"} 
+                        <ListItemText
+                            primary={theme.palette.mode === "dark" ? "Chế độ Sáng" : "Chế độ Tối"}
                             primaryTypographyProps={{ fontWeight: 500 }}
                         />
                     </MenuItem>
-                    <MenuItem 
+                    <MenuItem
                         onClick={async () => { setUserMenuAnchor(null); await handleLogout(); }}
-                        sx={{ 
-                            borderRadius: 1.5, 
-                            mx: 1, 
+                        sx={{
+                            borderRadius: 1.5,
+                            mx: 1,
                             my: 0.25,
                             transition: 'all 0.2s ease',
                             '&:hover': {
@@ -859,11 +859,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                 onClose={() => setNotificationAnchor(null)}
                 anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
                 transformOrigin={{ vertical: "top", horizontal: "right" }}
-                PaperProps={{ 
-                    sx: { 
-                        mt: 1.5, 
-                        width: 420, 
-                        maxWidth: "90vw", 
+                PaperProps={{
+                    sx: {
+                        mt: 1.5,
+                        width: 420,
+                        maxWidth: "90vw",
                         borderRadius: 2.5,
                         boxShadow: theme.palette.mode === 'light'
                             ? "0 8px 32px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.05)"
@@ -874,15 +874,15 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         backdropFilter: "blur(20px)",
                         border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                         overflow: 'hidden',
-                    } 
+                    }
                 }}
             >
-                <Box sx={{ 
-                    px: 2.5, 
-                    pt: 2, 
-                    pb: 1.5, 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
+                <Box sx={{
+                    px: 2.5,
+                    pt: 2,
+                    pb: 1.5,
+                    display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                     borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                     background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, transparent 100%)`,
@@ -891,23 +891,23 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         <Bell sx={{ fontSize: 22, color: 'primary.main' }} />
                         Thông báo
                         {unreadCount > 0 && (
-                            <Chip 
-                                label={unreadCount} 
-                                size="small" 
+                            <Chip
+                                label={unreadCount}
+                                size="small"
                                 color="primary"
-                                sx={{ 
-                                    height: 22, 
-                                    fontSize: '0.7rem', 
+                                sx={{
+                                    height: 22,
+                                    fontSize: '0.7rem',
                                     fontWeight: 700,
-                                }} 
+                                }}
                             />
                         )}
                     </Typography>
                     {unreadCount > 0 && (
-                        <Button 
-                            size="small" 
-                            onClick={handleMarkAllAsRead} 
-                            sx={{ 
+                        <Button
+                            size="small"
+                            onClick={handleMarkAllAsRead}
+                            sx={{
                                 textTransform: 'none',
                                 fontWeight: 600,
                                 borderRadius: 1.5,
@@ -922,7 +922,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     value={notificationTab}
                     onChange={(_, v) => setNotificationTab(v)}
                     variant="fullWidth"
-                    sx={{ 
+                    sx={{
                         borderBottom: (t) => `1px solid ${alpha(t.palette.divider, 0.1)}`,
                         '& .MuiTab-root': {
                             textTransform: 'none',
@@ -936,24 +936,24 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     }}
                 >
                     <Tab label="Tất cả" />
-                    <Tab 
+                    <Tab
                         label={
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 Chưa đọc
                                 {unreadCount > 0 && (
-                                    <Chip 
-                                        label={unreadCount} 
-                                        size="small" 
+                                    <Chip
+                                        label={unreadCount}
+                                        size="small"
                                         color="primary"
-                                        sx={{ 
-                                            height: 20, 
-                                            fontSize: '0.65rem', 
+                                        sx={{
+                                            height: 20,
+                                            fontSize: '0.65rem',
                                             fontWeight: 700,
-                                        }} 
+                                        }}
                                     />
                                 )}
                             </Box>
-                        } 
+                        }
                     />
                 </Tabs>
                 <Box sx={{ maxHeight: 360, overflowY: "auto", p: 1 }}>
@@ -1020,11 +1020,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                                 alignItems: 'flex-start',
                                                 cursor: 'pointer',
                                                 transition: 'all 0.2s ease',
-                                                bgcolor: n.isRead 
-                                                    ? 'transparent' 
+                                                bgcolor: n.isRead
+                                                    ? 'transparent'
                                                     : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.primary.main, 0.03)} 100%)`,
-                                                border: n.isRead 
-                                                    ? 'none' 
+                                                border: n.isRead
+                                                    ? 'none'
                                                     : `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
                                                 "&:hover": {
                                                     bgcolor: alpha(theme.palette.primary.main, 0.12),
@@ -1033,56 +1033,56 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                                 }
                                             }}
                                         >
-                                        <ListItemIcon sx={{ mt: 0.5, minWidth: 36 }}>{config.icon}</ListItemIcon>
+                                            <ListItemIcon sx={{ mt: 0.5, minWidth: 36 }}>{config.icon}</ListItemIcon>
 
-                                        <ListItemText
-                                            primary={
-                                                <Typography variant="body2" fontWeight={n.isRead ? 400 : 700} sx={{ mb: 0.25 }}>
-                                                    {config.template(
-                                                        n.actor?.name || "Một người dùng",
-                                                        n.target?.name || "",
-                                                        n.details || {}
-                                                    ).split('**').map((text, index) => (
-                                                        <b key={index} style={{ color: n.isRead ? undefined : theme.palette.primary.main }}>{index % 2 === 1 ? text : text}</b>
-                                                    ))}
-                                                </Typography>
-                                            }
-                                            secondary={
-                                                <Typography variant="caption" color="text.secondary">
-                                                    {n.timestamp?.toDate().toLocaleString("vi-VN", {
-                                                        day: '2-digit', month: '2-digit', year: 'numeric',
-                                                        hour: '2-digit', minute: '2-digit'
-                                                    })}
-                                                </Typography>
-                                            }
-                                        />
-                                        {!n.isRead && (
-                                            <Box 
-                                                sx={{ 
-                                                    mt: 0.75, 
-                                                    width: 10, 
-                                                    height: 10, 
-                                                    borderRadius: '50%', 
-                                                    bgcolor: 'primary.main', 
-                                                    flexShrink: 0,
-                                                    boxShadow: `0 0 8px ${alpha(theme.palette.primary.main, 0.5)}`,
-                                                }} 
+                                            <ListItemText
+                                                primary={
+                                                    <Typography variant="body2" fontWeight={n.isRead ? 400 : 700} sx={{ mb: 0.25 }}>
+                                                        {config.template(
+                                                            n.actor?.name || "Một người dùng",
+                                                            n.target?.name || "",
+                                                            n.details || {}
+                                                        ).split('**').map((text, index) => (
+                                                            <b key={index} style={{ color: n.isRead ? undefined : theme.palette.primary.main }}>{index % 2 === 1 ? text : text}</b>
+                                                        ))}
+                                                    </Typography>
+                                                }
+                                                secondary={
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {n.timestamp?.toDate().toLocaleString("vi-VN", {
+                                                            day: '2-digit', month: '2-digit', year: 'numeric',
+                                                            hour: '2-digit', minute: '2-digit'
+                                                        })}
+                                                    </Typography>
+                                                }
                                             />
-                                        )}
+                                            {!n.isRead && (
+                                                <Box
+                                                    sx={{
+                                                        mt: 0.75,
+                                                        width: 10,
+                                                        height: 10,
+                                                        borderRadius: '50%',
+                                                        bgcolor: 'primary.main',
+                                                        flexShrink: 0,
+                                                        boxShadow: `0 0 8px ${alpha(theme.palette.primary.main, 0.5)}`,
+                                                    }}
+                                                />
+                                            )}
                                         </ListItemButton>
                                     </motion.div>
                                 );
                             })
                     )}
                 </Box>
-                <Box sx={{ 
-                    p: 1.5, 
+                <Box sx={{
+                    p: 1.5,
                     borderTop: t => `1px solid ${alpha(t.palette.divider, 0.1)}`,
                     background: `linear-gradient(135deg, transparent 0%, ${alpha(theme.palette.primary.main, 0.02)} 100%)`,
                 }}>
-                    <Button 
-                        fullWidth 
-                        size="medium" 
+                    <Button
+                        fullWidth
+                        size="medium"
                         onClick={() => {
                             setNotificationAnchor(null)
                         }}
@@ -1110,11 +1110,11 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         onClick={() => setSearchOpen(false)}
                     >
                         <CommandPalette onClick={(e) => e.stopPropagation()}>
-                            <Box sx={{ 
-                                p: 2, 
-                                borderBottom: (t) => `1px solid ${alpha(t.palette.divider, 0.1)}`, 
-                                display: "flex", 
-                                alignItems: "center", 
+                            <Box sx={{
+                                p: 2,
+                                borderBottom: (t) => `1px solid ${alpha(t.palette.divider, 0.1)}`,
+                                display: "flex",
+                                alignItems: "center",
                                 gap: 1.5,
                                 background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, transparent 100%)`,
                             }}>
@@ -1126,7 +1126,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                     onChange={(e) => setSearchValue(e.target.value)}
                                     autoFocus
                                     inputProps={{ "aria-label": "Tìm kiếm nhanh" }}
-                                    sx={{ 
+                                    sx={{
                                         fontSize: '1rem',
                                         fontWeight: 500,
                                         '& input::placeholder': {
@@ -1139,9 +1139,9 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                     size="small"
                                     color="inherit"
                                     startIcon={<X sx={{ fontSize: 16 }} />}
-                                    sx={{ 
-                                        textTransform: 'none', 
-                                        minWidth: 'auto', 
+                                    sx={{
+                                        textTransform: 'none',
+                                        minWidth: 'auto',
                                         px: 1.5,
                                         py: 0.5,
                                         borderRadius: 1.5,
