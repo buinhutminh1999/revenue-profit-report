@@ -37,13 +37,31 @@ exports.createTransfer = onCall(async (request) => {
                 throw new Error("Phòng ban không tồn tại.");
             }
 
+            // ✅ Tính reserved ĐỘNG từ các phiếu PENDING thực tế
+            // Lấy tất cả phiếu PENDING để tính reserved thực tế
+            const pendingTransfersSnap = await db.collection("transfers")
+                .where("status", "in", ["PENDING_SENDER", "PENDING_RECEIVER", "PENDING_ADMIN"])
+                .get();
+
+            // Tính reserved cho mỗi asset từ các phiếu PENDING
+            const pendingReservedMap = new Map();
+            pendingTransfersSnap.docs.forEach((doc) => {
+                const transferData = doc.data();
+                (transferData.assets || []).forEach((item) => {
+                    const currentReserved = pendingReservedMap.get(item.id) || 0;
+                    pendingReservedMap.set(item.id, currentReserved + Number(item.quantity || 0));
+                });
+            });
+
             for (const item of assets) {
                 const assetRef = db.collection("assets").doc(item.id);
                 const assetSnap = await tx.get(assetRef);
                 if (!assetSnap.exists) throw new Error(`Tài sản không tồn tại: ${item.name}`);
 
                 const aData = assetSnap.data();
-                const availableQty = Number(aData.quantity || 0) - Number(aData.reserved || 0);
+                // Sử dụng reserved tính động thay vì giá trị stored
+                const calculatedReserved = pendingReservedMap.get(item.id) || 0;
+                const availableQty = Number(aData.quantity || 0) - calculatedReserved;
                 if (item.quantity > availableQty) {
                     throw new Error(`"${item.name}" vượt tồn khả dụng trên server (${item.quantity} > ${availableQty}).`);
                 }

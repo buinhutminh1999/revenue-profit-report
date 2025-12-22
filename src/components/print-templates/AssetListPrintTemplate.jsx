@@ -290,6 +290,11 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
     // managementBlockName là tên Khối (Nhà máy) hoặc tên Phòng (Phòng Hành chính)
     const managementBlockName = report.blockName || report.departmentName;
 
+    // ✅ Tên hiển thị: "Nhà máy" thì giữ nguyên, còn lại thêm "Phòng" phía trước
+    const displayBlockName = report.blockName === 'Nhà máy'
+        ? managementBlockName
+        : (report.blockName ? `Phòng ${managementBlockName}` : managementBlockName);
+
     const qrValue = typeof window !== 'undefined'
         ? `${window.location.origin}/inventory-reports/${report.id}`
         : `/inventory-reports/${report.id}`;
@@ -325,7 +330,7 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
                     <tbody>
                         <tr>
                             <td style={styles.infoLabel}>Phòng kiểm kê:</td>
-                            <td style={styles.infoValue}><b>{report.blockName ? `Phòng ${managementBlockName}` : managementBlockName}</b></td>
+                            <td style={styles.infoValue}><b>{displayBlockName}</b></td>
                         </tr>
                         <tr>
                             <td style={styles.infoLabel}>Người lập biên bản:</td>
@@ -335,7 +340,7 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
                 </table>
 
                 <p style={{ margin: '20px 0 15px 0' }}>
-                    Danh sách tài sản và công cụ được kiểm kê tại <b>{report.blockName ? `Phòng ${managementBlockName}` : managementBlockName}</b> như sau:
+                    Danh sách tài sản và công cụ được kiểm kê tại <b>{displayBlockName}</b> như sau:
                 </p>
 
                 <table style={styles.table}>
@@ -382,10 +387,10 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
                 <div style={styles.conclusionSection} className="no-break">
                     <div style={styles.conclusionTitle}>KẾT LUẬN:</div>
                     <div style={styles.conclusionPoint}>
-                        <b>1. Sở hữu và quản lý tài sản:</b> Hai bên thống nhất rằng số tài sản trên đang thuộc quản lý và sở hữu của <b>{report.blockName ? `Phòng ${managementBlockName}` : managementBlockName}</b>.
+                        <b>1. Sở hữu và quản lý tài sản:</b> Hai bên thống nhất rằng số tài sản trên đang thuộc quản lý và sở hữu của <b>{displayBlockName}</b>.
                     </div>
                     <div style={styles.conclusionPoint}>
-                        <b>2. Trách nhiệm bảo quản tài sản:</b> <b>{report.blockName ? `Phòng ${managementBlockName}` : managementBlockName}</b> có trách nhiệm bảo quản tài sản này và đảm bảo tài sản luôn trong tình trạng tốt, không bị hư hỏng hoặc mất mát.
+                        <b>2. Trách nhiệm bảo quản tài sản:</b> <b>{displayBlockName}</b> có trách nhiệm bảo quản tài sản và đảm bảo tài sản luôn trong tình trạng tốt, không bị hư hỏng hoặc mất mát. Khi tài sản hư hỏng mất mát thì báo Phòng Hành chính xử lý.
                     </div>
                     <div style={styles.conclusionPoint}>
                         <b>3. Quy trình luân chuyển tài sản:</b> Trong trường hợp có luân chuyển tài sản, phải có biên bản luân chuyển để cập nhật lại thông tin tài sản của phòng mình.

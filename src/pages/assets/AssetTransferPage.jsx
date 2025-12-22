@@ -38,7 +38,7 @@ import {
 import { motion } from "framer-motion";
 import { db, functions } from "../../services/firebase-config";
 import { httpsCallable } from "firebase/functions";
-import { doc, updateDoc, deleteDoc, writeBatch, serverTimestamp, onSnapshot, runTransaction, increment, } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, writeBatch, serverTimestamp, onSnapshot, runTransaction, increment, collection } from "firebase/firestore";
 import { useAssetManagement } from "../../hooks/useAssetManagement";
 import { useReactToPrint } from "react-to-print";
 import { QRCodeSVG } from "qrcode.react";
@@ -363,7 +363,30 @@ export default function AssetTransferPage() {
     }, [currentUser, canSignSender, canSignReceiver, canSignAdmin]);
     // Derived data
     const assetsWithDept = useMemo(() => { const byId = new Map(departments.map((d) => [d.id, d.name])); return assets.map((a) => ({ ...a, departmentName: byId.get(a.departmentId) || "Chưa gán" })) }, [assets, departments]);
-    const assetsWithAvailability = useMemo(() => { return assetsWithDept.map((a) => ({ ...a, reserved: Number(a.reserved || 0), availableQuantity: Math.max(0, Number(a.quantity || 0) - Number(a.reserved || 0)) })) }, [assetsWithDept]);
+    // ✅ Tính reserved ĐỘNG từ các phiếu PENDING thực tế, không dùng giá trị stored
+    const assetsWithAvailability = useMemo(() => {
+        // Tính reserved cho mỗi asset từ các phiếu PENDING (chưa COMPLETED)
+        const pendingReservedMap = new Map();
+
+        transfers
+            .filter(t => t.status !== 'COMPLETED') // Chỉ tính các phiếu chưa hoàn thành
+            .forEach(t => {
+                (t.assets || []).forEach(item => {
+                    const currentReserved = pendingReservedMap.get(item.id) || 0;
+                    pendingReservedMap.set(item.id, currentReserved + Number(item.quantity || 0));
+                });
+            });
+
+        return assetsWithDept.map((a) => {
+            // Sử dụng reserved tính động thay vì giá trị stored
+            const calculatedReserved = pendingReservedMap.get(a.id) || 0;
+            return {
+                ...a,
+                reserved: calculatedReserved,
+                availableQuantity: Math.max(0, Number(a.quantity || 0) - calculatedReserved)
+            };
+        });
+    }, [assetsWithDept, transfers]);
     // ✅ BƯỚC 4: Tạo một useMemo để lấy thông tin chi tiết các tài sản đã chọn để in
     const assetsToPrint = useMemo(() => {
         if (selectedAssetIdsForPrint.length === 0) return [];
@@ -774,6 +797,22 @@ export default function AssetTransferPage() {
                     const batch = writeBatch(db);
                     const toId =
                         t.toDeptId || departments.find((d) => d.name === t.to)?.id || null;
+                    const fromId =
+                        t.fromDeptId || departments.find((d) => d.name === t.from)?.id || null;
+
+                    console.log('[Move Stock] Transfer:', {
+                        id: t.id,
+                        fromDeptId: t.fromDeptId,
+                        toDeptId: t.toDeptId,
+                        fromId,
+                        toId,
+                        assets: t.assets
+                    });
+
+                    if (!toId) {
+                        console.error('[Move Stock] ERROR: toId is null! Cannot move stock.');
+                        throw new Error('Không xác định được phòng đích. Vui lòng kiểm tra lại phiếu.');
+                    }
 
                     // map hiện trạng assets để tra nhanh
                     const assetMap = new Map(assets.map((a) => [a.id, a]));
@@ -784,17 +823,38 @@ export default function AssetTransferPage() {
 
                     for (const item of (t.assets || [])) {
                         const src = assetMap.get(item.id);
-                        if (!src) continue;
+                        if (!src) {
+                            console.warn(`[Move Stock] Asset not found: ${item.id} (${item.name})`);
+                            continue;
+                        }
 
                         const move = Number(item.quantity || 0);
                         const srcQty = Number(src.quantity || 0);
+                        const curReserved = Number(src.reserved || 0);
+                        const newReserved = Math.max(0, curReserved - move);
 
-                        // Nếu chuyển hết => đổi departmentId luôn
+                        console.log(`[Move Stock] Processing: ${src.name}`, {
+                            srcId: src.id,
+                            srcDeptId: src.departmentId,
+                            srcQty,
+                            move,
+                            curReserved,
+                            newReserved,
+                            moveAll: move >= srcQty
+                        });
+
+                        // Nếu chuyển hết => đổi departmentId luôn + giảm reserved
                         if (move >= srcQty) {
-                            batch.update(doc(db, 'assets', src.id), { departmentId: toId });
+                            batch.update(doc(db, 'assets', src.id), {
+                                departmentId: toId,
+                                reserved: newReserved
+                            });
                         } else {
-                            // Chuyển một phần => giảm tại nguồn
-                            batch.update(doc(db, 'assets', src.id), { quantity: srcQty - move });
+                            // Chuyển một phần => giảm tại nguồn + giảm reserved
+                            batch.update(doc(db, 'assets', src.id), {
+                                quantity: srcQty - move,
+                                reserved: newReserved
+                            });
 
                             // Tăng / tạo tại đích (khớp theo name+unit+size)
                             const existingDest = assets.find(
@@ -802,10 +862,12 @@ export default function AssetTransferPage() {
                             );
 
                             if (existingDest) {
+                                console.log(`[Move Stock] Incrementing existing dest: ${existingDest.id}`);
                                 batch.update(doc(db, 'assets', existingDest.id), {
                                     quantity: Number(existingDest.quantity || 0) + move,
                                 });
                             } else {
+                                console.log(`[Move Stock] Creating new asset at dest department`);
                                 batch.set(doc(collection(db, 'assets')), {
                                     name: src.name,
                                     size: src.size || '',
@@ -817,16 +879,13 @@ export default function AssetTransferPage() {
                                 });
                             }
                         }
-
-                        // Giảm reserved tại nguồn
-                        const curReserved = Number(src.reserved || 0);
-                        const newReserved = Math.max(0, curReserved - move);
-                        batch.update(doc(db, 'assets', src.id), { reserved: newReserved });
                     }
 
                     await batch.commit();
+                    console.log('[Move Stock] Batch committed successfully');
                 } catch (e) {
                     console.error('Lỗi chuyển kho/khấu trừ reserved sau COMPLETED:', e);
+                    setToast({ open: true, msg: e.message || 'Lỗi khi chuyển kho', severity: 'error' });
                 }
             }
 
