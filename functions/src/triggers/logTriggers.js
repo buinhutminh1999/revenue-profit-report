@@ -82,7 +82,8 @@ exports.logAssetDeletion = onDocumentDeleted(
 // Import push notification helper
 const { sendPushToDepartments, sendPushToAdmins } = require("../utils/sendPushNotification");
 
-// 1. Ghi log khi một phiếu luân chuyển MỚI được tạo
+// 1. GỬI PUSH khi một phiếu luân chuyển MỚI được tạo
+// NOTE: Audit log đã được ghi bởi transferController, trigger này chỉ gửi push
 exports.logTransferCreation = onDocumentCreated("transfers/{transferId}", async (event) => {
     const snap = event.data;
     if (!snap) return;
@@ -91,21 +92,12 @@ exports.logTransferCreation = onDocumentCreated("transfers/{transferId}", async 
     const { transferId } = event.params;
     const actor = transferData.createdBy || "unknown_actor";
     const actorName = actor?.name || "Ai đó";
-    const target = {
-        type: "transfer",
-        id: transferId,
-        name: `#${transferId.slice(0, 6)} từ ${transferData.from} đến ${transferData.to}`,
-    };
 
-    // Write audit log
-    await writeAuditLog("TRANSFER_CREATED", actor, target, transferData, {
-        origin: "trigger:logTransferCreation",
-    });
-
-    // Send push notification to receiver department and admins
+    // Send push notification to receiver department only (avoid duplicates)
     const displayId = transferData.maPhieuHienThi || `#${transferId.slice(0, 6)}`;
     try {
-        // Notify receiver department (they need to sign)
+        // Only notify receiver department (they need to sign)
+        // Admins can see via in-app notification from audit log
         if (transferData.toDeptId) {
             await sendPushToDepartments(
                 [transferData.toDeptId],
@@ -116,18 +108,8 @@ exports.logTransferCreation = onDocumentCreated("transfers/{transferId}", async 
                 { url: "/asset-transfer", transferId }
             );
         }
-
-        // Also notify admins (HC department)
-        await sendPushToAdmins(
-            {
-                title: "📦 Phiếu luân chuyển mới",
-                body: `${displayId}: ${transferData.from} → ${transferData.to}`,
-            },
-            { url: "/asset-transfer", transferId }
-        );
     } catch (pushError) {
         console.error("Error sending push for transfer creation:", pushError);
-        // Don't fail the trigger if push fails
     }
 });
 

@@ -288,12 +288,38 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         }
     }, []);
 
-    // Push Notification: Setup foreground listener
+    // Push Notification: Setup foreground listener with Text-to-Speech
     useEffect(() => {
         if (isPushSupported() && getPermissionStatus() === 'granted') {
             setupForegroundListener((payload) => {
-                // Show in-app toast for foreground messages
                 console.log('🔔 Push received in foreground:', payload);
+
+                // Read notification aloud using Text-to-Speech
+                const title = payload.notification?.title || 'Thông báo mới';
+                const body = payload.notification?.body || '';
+                const textToSpeak = `${title}. ${body}`;
+
+                // Use Web Speech API
+                if ('speechSynthesis' in window) {
+                    // Cancel any ongoing speech
+                    window.speechSynthesis.cancel();
+
+                    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+                    utterance.lang = 'vi-VN'; // Vietnamese
+                    utterance.rate = 1.0; // Normal speed
+                    utterance.pitch = 1.0; // Normal pitch
+                    utterance.volume = 1.0; // Full volume
+
+                    // Try to use Vietnamese voice if available
+                    const voices = window.speechSynthesis.getVoices();
+                    const vietnameseVoice = voices.find(v => v.lang.includes('vi'));
+                    if (vietnameseVoice) {
+                        utterance.voice = vietnameseVoice;
+                    }
+
+                    window.speechSynthesis.speak(utterance);
+                    console.log('🔊 Speaking:', textToSpeak);
+                }
             });
         }
     }, [pushEnabled]);
