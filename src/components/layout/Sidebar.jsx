@@ -196,7 +196,7 @@ function SidebarNavItem({ item, isOpen, persistKey, level = 0 }) {
         pl: paddingLeft,
         pr: 1.5,
         transition: 'all 0.2s ease',
-        "& .MuiListItemIcon-root": { 
+        "& .MuiListItemIcon-root": {
             minWidth: isChild ? 28 : 40,
             color: "inherit",
         },
@@ -225,7 +225,7 @@ function SidebarNavItem({ item, isOpen, persistKey, level = 0 }) {
         color: theme.palette.primary.main,
         fontWeight: 600,
         backgroundColor: (t) => alpha(t.palette.primary.main, isChild ? 0.1 : 0.12),
-        "&::before": { 
+        "&::before": {
             height: isChild ? "70%" : "60%",
         },
         "& .MuiListItemIcon-root": {
@@ -243,8 +243,8 @@ function SidebarNavItem({ item, isOpen, persistKey, level = 0 }) {
                     onClick={() => setSubMenuOpen((v) => !v)}
                     sx={{
                         ...itemStyle,
-                        ...(parentActive && { 
-                            color: "text.primary", 
+                        ...(parentActive && {
+                            color: "text.primary",
                             fontWeight: 600,
                             backgroundColor: alpha(theme.palette.primary.main, 0.08),
                         }),
@@ -273,7 +273,7 @@ function SidebarNavItem({ item, isOpen, persistKey, level = 0 }) {
                         animate={reduce ? {} : { opacity: 1, y: 0 }}
                         transition={{ duration: 0.2 }}
                         disablePadding
-                        sx={{ 
+                        sx={{
                             pl: 0,
                             borderLeft: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
                             ml: 2.5,
@@ -304,12 +304,12 @@ function SidebarNavItem({ item, isOpen, persistKey, level = 0 }) {
             >
                 <ListItemIcon sx={{ color: "inherit" }}>{icon}</ListItemIcon>
                 {isOpen && (
-                    <ListItemText 
-                        primary={title} 
-                        primaryTypographyProps={{ 
+                    <ListItemText
+                        primary={title}
+                        primaryTypographyProps={{
                             fontSize: isChild ? '0.8125rem' : '0.875rem',
                             fontWeight: isActive ? 600 : 500,
-                        }} 
+                        }}
                     />
                 )}
             </ListItemButton>
@@ -366,10 +366,10 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
             >
-                <Stack 
-                    sx={{ 
-                        alignItems: "center", 
-                        p: 2.5, 
+                <Stack
+                    sx={{
+                        alignItems: "center",
+                        p: 2.5,
                         minHeight: 72,
                         justifyContent: "center",
                         borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
@@ -383,9 +383,9 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
                             component="img"
                             src="https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png"
                             alt="Logo Bách Khoa An Giang"
-                            sx={{ 
-                                height: isOpen ? 40 : 32, 
-                                width: "auto", 
+                            sx={{
+                                height: isOpen ? 40 : 32,
+                                width: "auto",
                                 display: "block",
                                 transition: 'height 0.3s ease',
                                 filter: theme.palette.mode === 'dark' ? 'brightness(0.9)' : 'none',
@@ -404,7 +404,7 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
                     overflowY: "auto",
                     overflowX: "hidden",
                     pr: isOpen ? 0.5 : 0,
-                    "&::-webkit-scrollbar": { 
+                    "&::-webkit-scrollbar": {
                         width: 6,
                     },
                     "&::-webkit-scrollbar-track": {
@@ -426,7 +426,7 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
                 ) : (
                     <List disablePadding dense sx={{ pt: 1, pb: 1 }}>
                         {filteredConfig.map((group, groupIndex) => (
-                            <motion.li 
+                            <motion.li
                                 key={group.subheader}
                                 initial={{ opacity: 0, x: -10 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -472,10 +472,10 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
                 >
                     <Stack spacing={1} sx={{ p: isOpen ? 2 : 1.5 }}>
                         <Tooltip title={!isOpen ? (user?.displayName || "Hồ sơ") : ""} placement="right" arrow>
-                            <Box 
-                                component={RouterLink} 
-                                to="/user" 
-                                sx={{ 
+                            <Box
+                                component={RouterLink}
+                                to="/user"
+                                sx={{
                                     textDecoration: "none",
                                     borderRadius: 2,
                                     overflow: 'hidden',
@@ -495,7 +495,7 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
                                     '&:hover::before': {
                                         opacity: 1,
                                     },
-                                }} 
+                                }}
                                 aria-label="Hồ sơ người dùng"
                             >
                                 <Stack
@@ -509,7 +509,7 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
                                         backgroundColor: alpha(theme.palette.action.hover, 0.04),
                                         transition: 'all 0.2s ease',
                                         width: '100%',
-                                        "&:hover": { 
+                                        "&:hover": {
                                             backgroundColor: alpha(theme.palette.primary.main, 0.08),
                                             transform: isOpen ? 'translateX(2px)' : 'none',
                                         },
@@ -518,8 +518,8 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
                                     <Avatar
                                         src={user?.photoURL || undefined}
                                         alt={user?.displayName || "User"}
-                                        sx={{ 
-                                            width: isOpen ? 40 : 36, 
+                                        sx={{
+                                            width: isOpen ? 40 : 36,
                                             height: isOpen ? 40 : 36,
                                             border: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`,
                                             boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.15)}`,
@@ -530,10 +530,10 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
                                     </Avatar>
                                     {isOpen && (
                                         <Box sx={{ overflow: "hidden", flex: 1, minWidth: 0 }}>
-                                            <Typography 
-                                                variant="subtitle2" 
+                                            <Typography
+                                                variant="subtitle2"
                                                 noWrap
-                                                sx={{ 
+                                                sx={{
                                                     fontWeight: 600,
                                                     color: theme.palette.text.primary,
                                                     fontSize: '0.875rem',
@@ -542,9 +542,9 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
                                                 {user?.displayName || "Người dùng"}
                                             </Typography>
                                             <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.25 }}>
-                                                <Typography 
-                                                    variant="caption" 
-                                                    color="text.secondary" 
+                                                <Typography
+                                                    variant="caption"
+                                                    color="text.secondary"
                                                     noWrap
                                                     sx={{ fontSize: '0.75rem' }}
                                                 >
@@ -597,13 +597,13 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
             open={isOpen}
             onClose={onClose}
             ModalProps={{ keepMounted: true }}
-            PaperProps={{ 
-                sx: { 
+            PaperProps={{
+                sx: {
                     width: widthExpanded,
                     background: theme.palette.mode === 'light'
                         ? `linear-gradient(180deg, #ffffff 0%, ${alpha('#f8fafc', 0.8)} 100%)`
                         : theme.palette.background.paper,
-                } 
+                }
             }}
             role="dialog"
             aria-label="Menu điều hướng"

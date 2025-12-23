@@ -1,13 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect, useCallback } from 'react';
 import {
     Box, Stack, Typography, Paper, Toolbar, TextField, Button,
     Card, CardContent, IconButton, Tooltip, Avatar, Chip,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     MenuItem, ListItemText, Checkbox, FormControl, InputLabel, Select, OutlinedInput,
-    FormControlLabel, useTheme, alpha
+    FormControlLabel, useTheme, alpha, CircularProgress, Drawer, Badge, InputAdornment
 } from '@mui/material';
 import {
-    Warehouse, QrCode, Calendar, Printer
+    Warehouse, QrCode, Calendar, Printer, Send, Filter, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AssetCardMobile from '../assets/AssetCardMobile';
@@ -35,9 +35,44 @@ const AssetListTab = ({
     onDeleteAsset,
     onOpenPrintModal,
     onOpenLabelPrintModal,
-    onOpenUpdateDateModal
+    onOpenUpdateDateModal,
+    onCreateBulkTransfer // NEW: callback to open transfer modal with selected assets
 }) => {
     const theme = useTheme();
+
+    // ✅ Infinite Scroll: Ref for the sentinel element and loading state
+    const loadMoreRef = useRef(null);
+    const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+    const [drawerOpen, setDrawerOpen] = React.useState(false); // State for filter drawer
+
+    // Infinite Scroll: IntersectionObserver effect
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const [entry] = entries;
+                if (entry.isIntersecting && filteredAssets.length > visibleAssetCount) {
+                    setIsLoadingMore(true);
+                    // Simulate slight delay for smooth UX
+                    setTimeout(() => {
+                        setVisibleAssetCount(prev => prev + 100);
+                        setIsLoadingMore(false);
+                    }, 300);
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' }
+        );
+
+        const currentRef = loadMoreRef.current;
+        if (currentRef) {
+            observer.observe(currentRef);
+        }
+
+        return () => {
+            if (currentRef) {
+                observer.unobserve(currentRef);
+            }
+        };
+    }, [filteredAssets.length, visibleAssetCount, setVisibleAssetCount]);
 
     // Handle select all assets
     const handleSelectAllAssets = (event) => {
@@ -78,7 +113,7 @@ const AssetListTab = ({
                     {/* Search field - full width on mobile */}
                     <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
                         <TextField
-                            placeholder="🔎 Tìm..."
+                            placeholder={isMobile ? "🔎 Tìm..." : "🔎 Tìm tài sản... (Ctrl+K)"}
                             size="small"
                             sx={{
                                 flex: { xs: "1 1 100%", sm: "1 1 320px" },
@@ -90,42 +125,104 @@ const AssetListTab = ({
                             }}
                             value={assetSearch}
                             onChange={(e) => setAssetSearch(e.target.value)}
+                            InputProps={{
+                                endAdornment: assetSearch ? (
+                                    <InputAdornment position="end">
+                                        <IconButton size="small" onClick={() => setAssetSearch('')}>
+                                            <X size={16} />
+                                        </IconButton>
+                                    </InputAdornment>
+                                ) : null
+                            }}
                         />
                     </Tooltip>
 
-                    {/* Department filter - compact on mobile */}
-                    <FormControl size="small" sx={{
-                        minWidth: { xs: 120, sm: 220 },
-                        maxWidth: { xs: 160, sm: 300 },
-                        order: { xs: 2, sm: 2 },
-                        flex: { xs: '1 1 auto', sm: '0 0 auto' }
-                    }}>
-                        <InputLabel sx={{ fontSize: { xs: '0.75rem', sm: '1rem' } }}>
-                            {isMobile ? "Phòng ban" : "Lọc theo phòng ban"}
-                        </InputLabel>
-                        <Select
-                            multiple
-                            value={filterDeptsForAsset}
-                            onChange={(e) => {
-                                const value = e.target.value;
-                                setFilterDeptsForAsset(typeof value === 'string' ? value.split(',') : value);
-                            }}
-                            input={<OutlinedInput label={isMobile ? "Phòng ban" : "Lọc theo phòng ban"} />}
-                            renderValue={(selectedIds) => (
-                                isMobile
-                                    ? `${selectedIds.length} đã chọn`
-                                    : selectedIds.map(id => departments.find(d => d.id === id)?.name || id).join(', ')
-                            )}
-                            MenuProps={{ PaperProps: { sx: { maxHeight: 280 } } }}
-                        >
-                            {departments.map((d) => (
-                                <MenuItem key={d.id} value={d.id}>
-                                    <Checkbox checked={filterDeptsForAsset.indexOf(d.id) > -1} />
-                                    <ListItemText primary={d.name} />
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
+                    {/* Filter Button - replaces inline Select on mobile/desktop for consistency */}
+                    <Button
+                        variant="outlined"
+                        size={isMobile ? "medium" : "small"}
+                        startIcon={<Filter size={18} />}
+                        onClick={() => setDrawerOpen(true)}
+                        sx={{
+                            order: { xs: 2, sm: 2 },
+                            borderRadius: 2,
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            minWidth: { xs: '100%', sm: 'auto' }, // Full width on mobile
+                            borderColor: alpha(theme.palette.primary.main, 0.3),
+                            color: theme.palette.text.secondary,
+                            '&:hover': {
+                                borderColor: theme.palette.primary.main,
+                                color: theme.palette.primary.main,
+                                bgcolor: alpha(theme.palette.primary.main, 0.08),
+                            },
+                        }}
+                    >
+                        {isMobile ? "Lọc" : "Bộ lọc"}
+                        {filterDeptsForAsset.length > 0 && (
+                            <Badge
+                                badgeContent={filterDeptsForAsset.length}
+                                color="primary"
+                                sx={{ ml: 1, '& .MuiBadge-badge': { right: -8, top: -8, fontWeight: 700 } }}
+                            />
+                        )}
+                    </Button>
+
+                    {/* Filter Drawer */}
+                    <Drawer
+                        anchor="right"
+                        open={drawerOpen}
+                        onClose={() => setDrawerOpen(false)}
+                        PaperProps={{
+                            sx: { width: { xs: '85vw', sm: 340 }, maxWidth: 400, p: 3 }
+                        }}
+                    >
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                            <Typography variant="h6" fontWeight={700}>Bộ lọc tài sản</Typography>
+                            <IconButton onClick={() => setDrawerOpen(false)} size="small"><X /></IconButton>
+                        </Box>
+
+                        <Stack spacing={3}>
+                            <FormControl size="small" fullWidth>
+                                <InputLabel>Phòng ban</InputLabel>
+                                <Select
+                                    multiple
+                                    value={filterDeptsForAsset}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setFilterDeptsForAsset(typeof value === 'string' ? value.split(',') : value);
+                                    }}
+                                    input={<OutlinedInput label="Phòng ban" />}
+                                    renderValue={(selectedIds) => (
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                            {selectedIds.map((id) => (
+                                                <Chip key={id} label={departments.find(d => d.id === id)?.name || id} size="small" />
+                                            ))}
+                                        </Box>
+                                    )}
+                                    MenuProps={{ PaperProps: { sx: { maxHeight: 280 } } }}
+                                >
+                                    {departments.map((d) => (
+                                        <MenuItem key={d.id} value={d.id}>
+                                            <Checkbox checked={filterDeptsForAsset.indexOf(d.id) > -1} />
+                                            <ListItemText primary={d.name} />
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+
+                            {/* Add more filters here if needed */}
+                        </Stack>
+
+                        <Box sx={{ mt: 'auto', pt: 3, display: 'flex', gap: 2 }}>
+                            <Button fullWidth variant="outlined" onClick={() => { setFilterDeptsForAsset([]); setDrawerOpen(false); }}>
+                                Xóa bộ lọc
+                            </Button>
+                            <Button fullWidth variant="contained" onClick={() => setDrawerOpen(false)}>
+                                Áp dụng
+                            </Button>
+                        </Box>
+                    </Drawer>
 
                     <Box flexGrow={1} sx={{ display: { xs: 'none', sm: 'block' } }} />
 
@@ -136,6 +233,7 @@ const AssetListTab = ({
                             spacing={{ xs: 0.5, sm: 1 }}
                             order={{ xs: 3, sm: 3 }}
                             sx={{
+                                display: { xs: 'none', sm: 'flex' }, // Hide on mobile, show on desktop
                                 flexWrap: { xs: 'nowrap', sm: 'wrap' },
                                 ml: { xs: 'auto', sm: 0 }
                             }}
@@ -184,9 +282,33 @@ const AssetListTab = ({
                                 </span>
                             </Tooltip>
 
+                            {/* NEW: Bulk Transfer button */}
+                            {onCreateBulkTransfer && (
+                                <Tooltip title={`Tạo phiếu luân chuyển (${selectedAssetIdsForPrint.length} tài sản)`}>
+                                    <span>
+                                        <Button
+                                            variant="contained"
+                                            color="primary"
+                                            size={isMobile ? "small" : "medium"}
+                                            onClick={() => onCreateBulkTransfer(selectedAssetIdsForPrint)}
+                                            disabled={selectedAssetIdsForPrint.length === 0}
+                                            sx={{
+                                                minWidth: { xs: 'auto', sm: 'auto' },
+                                                px: { xs: 1, sm: 2 }
+                                            }}
+                                        >
+                                            <Send size={isMobile ? 18 : 16} />
+                                            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, ml: 0.5 }}>
+                                                Luân chuyển ({selectedAssetIdsForPrint.length})
+                                            </Box>
+                                        </Button>
+                                    </span>
+                                </Tooltip>
+                            )}
+
                             {/* Print Report button */}
                             <Button
-                                variant="contained"
+                                variant="outlined"
                                 size={isMobile ? "small" : "medium"}
                                 onClick={onOpenPrintModal}
                                 sx={{
@@ -352,17 +474,39 @@ const AssetListTab = ({
                 />
             )}
 
-            {/* Load More Button */}
+            {/* ✅ Infinite Scroll Sentinel - replaces Load More button */}
             {filteredAssets.length > visibleAssetCount && (
-                <Box sx={{ textAlign: 'center', p: 3 }}>
-                    <Button
-                        variant="outlined"
-                        onClick={() => setVisibleAssetCount(prevCount => prevCount + 100)}
-                        size="large"
-                    >
-                        Tải thêm {Math.min(100, filteredAssets.length - visibleAssetCount)} tài sản
-                        ({visibleAssetCount} / {filteredAssets.length})
-                    </Button>
+                <Box
+                    ref={loadMoreRef}
+                    sx={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        p: 3,
+                        gap: 2
+                    }}
+                >
+                    {isLoadingMore ? (
+                        <>
+                            <CircularProgress size={24} />
+                            <Typography variant="body2" color="text.secondary">
+                                Đang tải thêm...
+                            </Typography>
+                        </>
+                    ) : (
+                        <Typography variant="body2" color="text.secondary">
+                            Cuộn xuống để tải thêm ({visibleAssetCount} / {filteredAssets.length} tài sản)
+                        </Typography>
+                    )}
+                </Box>
+            )}
+
+            {/* Show total when all loaded */}
+            {filteredAssets.length > 0 && filteredAssets.length <= visibleAssetCount && (
+                <Box sx={{ textAlign: 'center', p: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                        Đã hiển thị tất cả {filteredAssets.length} tài sản
+                    </Typography>
                 </Box>
             )}
         </Box>

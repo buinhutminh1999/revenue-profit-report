@@ -211,6 +211,15 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
     const [notificationsError, setNotificationsError] = useState(null); // ✅ Thêm error state
 
     // ✅ Cải thiện: Thêm loading và error handling cho notifications
+    // Kiểm tra xem user có thuộc P.HC hoặc Kế toán không (xem được tất cả thông báo)
+    const isHCOrKT = useMemo(() => {
+        if (!user) return false;
+        if (user.role === 'admin') return true;
+        const dept = (user.departmentName || user.department || '').toLowerCase();
+        return dept.includes('hành chính') || dept.includes('kế toán') ||
+            dept.includes('hanh chinh') || dept.includes('ke toan');
+    }, [user]);
+
     useEffect(() => {
         if (!user?.uid) {
             setNotificationsLoading(false);
@@ -218,16 +227,41 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         }
         setNotificationsLoading(true);
         setNotificationsError(null);
-        const q = query(collection(db, "audit_logs"), orderBy("timestamp", "desc"), limit(20));
+        const q = query(collection(db, "audit_logs"), orderBy("timestamp", "desc"), limit(30));
         const unsubscribe = onSnapshot(
             q,
             (querySnapshot) => {
-                const logsData = querySnapshot.docs.map(doc => ({
+                let logsData = querySnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data(),
                     isRead: doc.data().readBy?.includes(user.uid),
                 }));
-                setNotifications(logsData);
+
+                // ✅ Lọc thông báo theo phòng ban - chỉ HC và Kế toán mới thấy tất cả
+                if (!isHCOrKT) {
+                    const userDeptId = user.departmentId;
+                    const userDeptName = (user.departmentName || user.department || '').toLowerCase();
+
+                    logsData = logsData.filter(log => {
+                        // Nếu log liên quan đến user hiện tại (actor)
+                        if (log.actor?.uid === user.uid) return true;
+                        if (log.actor?.email === user.email) return true;
+
+                        // Nếu log liên quan đến phòng ban của user
+                        const logDeptId = log.details?.departmentId || log.target?.departmentId;
+                        const logDeptName = (log.details?.departmentName || log.target?.departmentName || '').toLowerCase();
+
+                        if (logDeptId && userDeptId && logDeptId === userDeptId) return true;
+                        if (logDeptName && userDeptName && logDeptName.includes(userDeptName)) return true;
+
+                        // Cho phép xem các thông báo chung (close quarter, etc.)
+                        if (log.action === 'CLOSE_QUARTER' || log.action === 'CLOSE_QUARTER_FAILED') return true;
+
+                        return false;
+                    });
+                }
+
+                setNotifications(logsData.slice(0, 20)); // Limit 20 after filtering
                 setNotificationsLoading(false);
             },
             (error) => {
@@ -237,7 +271,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
             }
         );
         return () => unsubscribe();
-    }, [user?.uid]);
+    }, [user?.uid, user?.departmentId, user?.departmentName, user?.email, isHCOrKT]);
 
     useHotkeys("ctrl+k, cmd+k", (e) => { e.preventDefault(); setSearchOpen(true); });
     useHotkeys("ctrl+b, cmd+b", (e) => { e.preventDefault(); onSidebarToggle?.(); });
@@ -267,7 +301,8 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         // Asset Request related routes - ưu tiên điều hướng đến request
         if (action?.includes('ASSET_REQUEST')) {
             // Kiểm tra target.id trước (thường là requestId)
-            if (target?.id && target?.type === 'request') {
+            // Backend có thể trả về type là 'request' hoặc 'asset_request'
+            if (target?.id && (target?.type === 'request' || target?.type === 'asset_request')) {
                 return `/asset-requests/${target.id}`;
             }
             // Kiểm tra details.requestId
@@ -278,13 +313,13 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
             if (details?.id) {
                 return `/asset-requests/${details.id}`;
             }
+            // Nếu có target.id mà không có type cụ thể (cũng có thể là requestId)
+            if (target?.id) {
+                return `/asset-requests/${target.id}`;
+            }
             // Nếu có assetId trong details, điều hướng đến trang chi tiết asset
             if (details?.assetId) {
                 return `/assets/${details.assetId}`;
-            }
-            // Nếu target là asset
-            if (target?.id && target?.type === 'asset') {
-                return `/assets/${target.id}`;
             }
             // Mặc định điều hướng đến trang asset-transfer (trang quản lý requests)
             return '/asset-transfer';
@@ -1039,8 +1074,8 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                                                 primary={
                                                     <Typography variant="body2" fontWeight={n.isRead ? 400 : 700} sx={{ mb: 0.25 }}>
                                                         {config.template(
-                                                            n.actor?.name || "Một người dùng",
-                                                            n.target?.name || "",
+                                                            n.actor?.name || n.actor?.email?.split('@')[0] || "Hệ thống",
+                                                            n.target?.name || n.target?.displayId || "",
                                                             n.details || {}
                                                         ).split('**').map((text, index) => (
                                                             <b key={index} style={{ color: n.isRead ? undefined : theme.palette.primary.main }}>{index % 2 === 1 ? text : text}</b>

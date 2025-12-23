@@ -222,7 +222,7 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
         zIndex: 10,
     }));
 
-    const MotionTableRow = motion(TableRow);
+    const MotionTableRow = motion.create(TableRow);
 
     const renderTable = () => {
         if (data.type === 'constructionPayablesSummary') {

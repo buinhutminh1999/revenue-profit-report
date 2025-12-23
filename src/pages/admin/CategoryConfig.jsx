@@ -118,7 +118,7 @@ const TableSkeleton = () => (
     </Stack>
 );
 
-const MotionPaper = motion(Paper);
+const MotionPaper = motion.create(Paper);
 
 const CategoryFormDialog = ({ open, onClose, onSave, initialValues, isEdit }) => {
     const { control, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({

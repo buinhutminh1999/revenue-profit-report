@@ -114,14 +114,14 @@ const EnhancedWorkflowStepper = ({ transfer, workflow }) => {
                 else { icon = <MoreHorizontal sx={{ fontSize: 20 }} />; }
 
                 return (
-                    <Stack key={step.signatureKey} direction="row" spacing={2} sx={{ alignItems: "flex-start" }}>
-                        <Stack alignItems="center" sx={{ minHeight: "60px" }}>
+                    <Box key={step.signatureKey} sx={{ display: 'flex', alignItems: 'flex-start', position: 'relative', pb: index < workflow.length - 1 ? 2.5 : 0 }}>
+                        <Stack alignItems="center" sx={{ mr: 2, flexShrink: 0 }}>
                             <Box sx={{ color: iconColor, lineHeight: 1 }}>{icon}</Box>
                             {index < workflow.length - 1 && (
                                 <Box sx={{ width: "2px", flexGrow: 1, my: 1, background: isCompleted ? "success.main" : "divider" }} />
                             )}
                         </Stack>
-                        <Box sx={{ pb: index < workflow.length - 1 ? 2.5 : 0, mt: "-4px" }}>
+                        <Box sx={{ mt: "-4px", flexGrow: 1 }}>
                             <Typography variant="body1" fontWeight={isActive ? 700 : 500} color={isFuture ? "text.disabled" : "text.primary"}>
                                 {step.label}
                             </Typography>
@@ -134,7 +134,7 @@ const EnhancedWorkflowStepper = ({ transfer, workflow }) => {
                                 <Typography variant="caption" color="primary.main">Đang chờ ký...</Typography>
                             )}
                         </Box>
-                    </Stack>
+                    </Box>
                 );
             })}
         </Stack>
@@ -147,14 +147,18 @@ const ControlSidebar = ({ transfer, onApprove, isApproving, canProcess }) => {
     const isMyTurn = currentStep && canProcess(transfer);
 
     return (
-        <Card variant="outlined" sx={{ borderRadius: 3, p: 1.5 }}>
-            <CardContent>
+        <Card variant="outlined" sx={{ borderRadius: 3, p: { xs: 1, sm: 1.5 } }}>
+            <CardContent sx={{ p: { xs: 1.5, sm: 2 }, "&:last-child": { pb: { xs: 1.5, sm: 2 } } }}>
                 {isMyTurn && (
                     <>
-                        <Stack spacing={1} alignItems="center" textAlign="center" sx={{ mb: 2.5 }}>
-                            <UserCheck sx={{ fontSize: 28 }} color={theme.palette.primary.main} />
-                            <Typography variant="h6" fontWeight={700}>Đến lượt duyệt của bạn</Typography>
-                            <Typography variant="body2" color="text.secondary">Vui lòng xem kỹ nội dung và ký duyệt phiếu.</Typography>
+                        <Stack spacing={1} alignItems="center" textAlign="center" sx={{ mb: 2 }}>
+                            <UserCheck sx={{ fontSize: { xs: 24, sm: 28 } }} color={theme.palette.primary.main} />
+                            <Typography variant="h6" fontWeight={700} sx={{ fontSize: { xs: "1rem", sm: "1.25rem" } }}>
+                                Đến lượt duyệt của bạn
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
+                                Vui lòng xem kỹ nội dung và ký duyệt phiếu.
+                            </Typography>
                         </Stack>
                         <Button
                             fullWidth variant="contained" size="large"
@@ -165,13 +169,17 @@ const ControlSidebar = ({ transfer, onApprove, isApproving, canProcess }) => {
                         >
                             {isApproving ? "Đang xử lý..." : "Ký duyệt ngay"}
                         </Button>
-                        <Divider sx={{ my: 3 }} />
+                        <Divider sx={{ my: { xs: 2, sm: 3 } }} />
                     </>
                 )}
-                <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>Luồng duyệt</Typography>
+                <Typography variant="h6" fontWeight={700} sx={{ mb: 2, fontSize: { xs: "0.95rem", sm: "1.25rem" } }}>
+                    Luồng duyệt
+                </Typography>
                 <EnhancedWorkflowStepper transfer={transfer} workflow={transferWorkflows} />
-                <Divider sx={{ my: 3 }} />
-                <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>Thông tin</Typography>
+                <Divider sx={{ my: { xs: 2, sm: 3 } }} />
+                <Typography variant="h6" fontWeight={700} sx={{ mb: 2, fontSize: { xs: "0.95rem", sm: "1.25rem" } }}>
+                    Thông tin
+                </Typography>
                 <Stack spacing={1.5}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Typography variant="body2" color="text.secondary">Từ phòng</Typography>
@@ -343,25 +351,25 @@ export default function TransferDetailPage() {
         <Box sx={{ minHeight: "100vh", pb: 4, bgcolor: "grey.100" }}>
             <PageHeader elevation={0}>
                 <Container maxWidth="xl">
-                    <Stack direction="row" alignItems="center" spacing={2} sx={{ height: "64px" }}>
-                        <Button component={Link} to="/" variant="text" startIcon={<ArrowLeft sx={{ fontSize: 20 }} />} sx={{ color: "text.secondary", mr: 1 }}>
+                    {/* Desktop Header */}
+                    <Stack
+                        direction="row"
+                        alignItems="center"
+                        spacing={2}
+                        sx={{
+                            height: { xs: "auto", sm: "64px" },
+                            py: { xs: 1.5, sm: 0 },
+                            display: { xs: "none", sm: "flex" }
+                        }}
+                    >
+                        <Button component={Link} to="/asset-transfer" variant="text" startIcon={<ArrowLeft sx={{ fontSize: 20 }} />} sx={{ color: "text.secondary", mr: 1, flexShrink: 0 }}>
                             Quay về
                         </Button>
                         <Divider orientation="vertical" flexItem />
-                        <Typography
-                            variant="h6"
-                            fontWeight={700}
-                            noWrap
-                            sx={{
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                flexShrink: 1, // Cho phép co lại
-                                minWidth: 100, // Chiều rộng tối thiểu
-                            }}
-                        >
+                        <Typography variant="h6" fontWeight={700} noWrap sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 100 }}>
                             Phiếu LC: {transfer.maPhieuHienThi || transferId}
-                        </Typography>                        <Tooltip title="Sao chép mã">
+                        </Typography>
+                        <Tooltip title="Sao chép mã">
                             <IconButton size="small" onClick={() => {
                                 navigator.clipboard.writeText(transferId);
                                 setToast({ open: true, msg: "Đã sao chép mã phiếu", severity: "success" });
@@ -371,19 +379,75 @@ export default function TransferDetailPage() {
                         </Tooltip>
                         <Box flexGrow={1} />
                         <StatusBadge status={transfer?.status} />
-                        <Button onClick={handlePrint} variant="contained" startIcon={<Printer sx={{ fontSize: 18 }} />} sx={{ borderRadius: 2 }} disabled={!transfer || !companyInfo}>
+                        <Button onClick={handlePrint} variant="contained" startIcon={<Printer sx={{ fontSize: 18 }} />} sx={{ borderRadius: 2, flexShrink: 0 }} disabled={!transfer || !companyInfo}>
                             {!companyInfo ? "Đang tải..." : (transfer?.status === "COMPLETED" ? "In Phiếu" : "In Bản nháp")}
                         </Button>
+                    </Stack>
+
+                    {/* Mobile Header */}
+                    <Stack
+                        spacing={1.5}
+                        sx={{
+                            py: 1.5,
+                            display: { xs: "flex", sm: "none" }
+                        }}
+                    >
+                        <Stack direction="row" alignItems="center" justifyContent="space-between">
+                            <Button
+                                component={Link}
+                                to="/asset-transfer"
+                                variant="text"
+                                size="small"
+                                startIcon={<ArrowLeft sx={{ fontSize: 18 }} />}
+                                sx={{ color: "text.secondary", minWidth: "auto", px: 1 }}
+                            >
+                                Quay về
+                            </Button>
+                            <StatusBadge status={transfer?.status} />
+                        </Stack>
+                        <Typography
+                            variant="subtitle1"
+                            fontWeight={700}
+                            sx={{
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                fontSize: "0.95rem"
+                            }}
+                        >
+                            Phiếu LC: {transfer.maPhieuHienThi || transferId}
+                        </Typography>
+                        <Stack direction="row" spacing={1}>
+                            <Button
+                                onClick={handlePrint}
+                                variant="contained"
+                                size="small"
+                                fullWidth
+                                startIcon={<Printer sx={{ fontSize: 16 }} />}
+                                sx={{ borderRadius: 2 }}
+                                disabled={!transfer || !companyInfo}
+                            >
+                                {transfer?.status === "COMPLETED" ? "In Phiếu" : "In Bản nháp"}
+                            </Button>
+                            <IconButton
+                                size="small"
+                                sx={{ border: 1, borderColor: "divider", borderRadius: 2 }}
+                                onClick={() => {
+                                    navigator.clipboard.writeText(transferId);
+                                    setToast({ open: true, msg: "Đã sao chép mã", severity: "success" });
+                                }}
+                            >
+                                <Copy sx={{ fontSize: 18 }} />
+                            </IconButton>
+                        </Stack>
                     </Stack>
                 </Container>
             </PageHeader>
 
-            {/* ======================= PHẦN SỬA LỖI LAYOUT ======================= */}
-            <Container maxWidth="xl" sx={{ pt: 4 }}>
-                <Grid container spacing={4}>
-                    {/* CỘT 1: THANH ĐIỀU KHIỂN */}
-                    <Grid size={{ xs: 12, md: 4, lg: 3.5 }}>
-                        <Box sx={{ position: "sticky", top: "80px" }}>
+            <Container maxWidth="xl" sx={{ pt: { xs: 2, sm: 4 } }}>
+                <Grid container spacing={{ xs: 2, sm: 4 }}>
+                    <Grid size={{ xs: 12, md: 4, lg: 3.5 }} order={{ xs: 1, md: 1 }}>
+                        <Box sx={{ position: { xs: "static", md: "sticky" }, top: "80px" }}>
                             <ControlSidebar
                                 transfer={transfer}
                                 onApprove={handleApprove}
@@ -393,21 +457,44 @@ export default function TransferDetailPage() {
                         </Box>
                     </Grid>
 
-                    {/* CỘT 2: NỘI DUNG PHIẾU */}
-                    <Grid size={{ xs: 12, md: 8, lg: 8.5 }}>
+                    <Grid size={{ xs: 12, md: 8, lg: 8.5 }} order={{ xs: 2, md: 2 }}>
                         <Stack spacing={2}>
                             <Paper variant="outlined" sx={{ p: 1, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <Typography variant="h6" sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
-                                    <ArrowRightLeft sx={{ fontSize: 20 }} /> Nội dung Phiếu
+                                <Typography variant="h6" sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 1, fontSize: { xs: "0.95rem", sm: "1.25rem" } }}>
+                                    <ArrowRightLeft sx={{ fontSize: { xs: 18, sm: 20 } }} /> Nội dung Phiếu
                                 </Typography>
-                                <ButtonGroup variant="outlined" size="small">
+                                <ButtonGroup variant="outlined" size="small" sx={{ display: { xs: "none", sm: "flex" } }}>
                                     <Button onClick={() => setScale((s) => clamp(s - 0.15, 0.5, 1.5))}><ZoomOut sx={{ fontSize: 16 }} /></Button>
                                     <Button onClick={() => setScale(1)} sx={{ minWidth: "55px" }}>{Math.round(scale * 100)}%</Button>
                                     <Button onClick={() => setScale((s) => clamp(s + 0.15, 0.5, 1.5))}><ZoomIn sx={{ fontSize: 16 }} /></Button>
                                 </ButtonGroup>
                             </Paper>
-                            <Paper elevation={0} variant="outlined" sx={{ backgroundColor: "white", overflow: "auto", p: { xs: 1, sm: 2 }, display: "flex", justifyContent: "center", borderRadius: 3, height: "calc(100vh - 180px)" }}>
-                                <Box sx={{ width: "210mm", minWidth: "210mm", transform: `scale(${scale})`, transformOrigin: "top center", transition: "transform 0.2s ease" }}>
+                            <Paper
+                                elevation={0}
+                                variant="outlined"
+                                sx={{
+                                    backgroundColor: "white",
+                                    overflow: "auto",
+                                    p: { xs: 0.5, sm: 2 },
+                                    display: "flex",
+                                    justifyContent: "center",
+                                    borderRadius: 3,
+                                    height: { xs: "auto", md: "calc(100vh - 180px)" },
+                                    minHeight: { xs: "100px", md: "auto" }
+                                }}
+                            >
+                                <Box sx={{
+                                    width: { xs: "100%", sm: "210mm" },
+                                    minWidth: { xs: "auto", sm: "210mm" },
+                                    transform: { xs: "none", sm: `scale(${scale})` },
+                                    transformOrigin: "top center",
+                                    transition: "transform 0.2s ease",
+                                    "& > *": {
+                                        transform: { xs: "scale(0.48)", sm: "none" },
+                                        transformOrigin: { xs: "top left", sm: "top center" },
+                                        width: { xs: "210mm", sm: "auto" }
+                                    }
+                                }}>
                                     <TransferPrintTemplate transfer={transfer} company={companyInfo} />
                                 </Box>
                             </Paper>
@@ -415,7 +502,6 @@ export default function TransferDetailPage() {
                     </Grid>
                 </Grid>
             </Container>
-            {/* ======================= KẾT THÚC PHẦN SỬA LỖI ======================= */}
 
 
             {/* Host for printing */}

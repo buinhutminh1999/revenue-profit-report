@@ -5,7 +5,7 @@ import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Menu, MenuItem, ListItemText, ListItemIcon, Divider, Badge,
     Drawer, FormControl, InputLabel, Select, OutlinedInput,
-    Autocomplete, Checkbox, Grid, useMediaQuery, useTheme, alpha
+    Autocomplete, Checkbox, Grid, useMediaQuery, useTheme, alpha, InputAdornment
 } from '@mui/material';
 import {
     Filter, Send, ArrowRight, Trash2, Printer, Eye,
@@ -149,6 +149,15 @@ const TransferListTab = ({
                                 size="small"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
+                                InputProps={{
+                                    endAdornment: search ? (
+                                        <InputAdornment position="end">
+                                            <IconButton size="small" onClick={() => setSearch('')}>
+                                                <X size={16} />
+                                            </IconButton>
+                                        </InputAdornment>
+                                    ) : null
+                                }}
                                 sx={{
                                     flex: { xs: '1 1 auto', sm: "1 1 360px" },
                                     '& .MuiOutlinedInput-root': {

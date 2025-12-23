@@ -5,7 +5,7 @@ import { Edit, Delete, CalendarMonth } from "@mui/icons-material";
 import { hi, formatDate } from "../../utils/assetUtils";
 import { motion } from "framer-motion";
 
-const MotionTableRow = motion(TableRow);
+const MotionTableRow = motion.create(TableRow);
 
 const AssetTableRow = React.memo(({
     asset, isSelected, canManageAssets, showCheckbox = true, onSelect, onEdit, onDelete, assetSearch

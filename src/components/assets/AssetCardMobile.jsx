@@ -1,8 +1,8 @@
 // src/components/assets/AssetCardMobile.jsx
 import React from "react";
 import {
-    Card, CardContent, CardActionArea, Stack, Checkbox, Box, Typography,
-    Tooltip, IconButton, Chip, Fade
+    Card, CardContent, Stack, Checkbox, Box, Typography,
+    Tooltip, IconButton, Chip
 } from "@mui/material";
 import {
     Edit, Delete as Trash2, Inventory2, CalendarMonth,
@@ -11,7 +11,7 @@ import {
 import { formatDate } from "../../utils/assetUtils";
 import { motion } from "framer-motion";
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const AssetCardMobile = React.memo(({ asset, isSelected, canManageAssets, showCheckbox = true, onSelect, onEdit, onDelete }) => {
     // showCheckbox controls checkbox visibility (requires valid id)
@@ -26,6 +26,7 @@ const AssetCardMobile = React.memo(({ asset, isSelected, canManageAssets, showCh
             transition={{ duration: 0.2 }}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
+            tabIndex={-1} // Prevent focus retention that causes aria-hidden warning
             sx={{
                 mb: 1.5,
                 borderRadius: 3,
@@ -37,10 +38,18 @@ const AssetCardMobile = React.memo(({ asset, isSelected, canManageAssets, showCh
                 '&:hover': {
                     boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
                     borderColor: 'primary.light',
-                }
+                },
+                '&:focus': { outline: 'none' } // Remove focus ring since not keyboard navigable
             }}
         >
-            <CardActionArea onClick={onEdit} sx={{ p: 0 }}>
+            {/* Use Box instead of CardActionArea to avoid button-inside-button nesting error */}
+            <Box
+                onClick={onEdit}
+                sx={{
+                    cursor: 'pointer',
+                    '&:active': { opacity: 0.9 }
+                }}
+            >
                 <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                     <Stack direction="row" spacing={1.5} alignItems="flex-start">
                         {/* Checkbox để chọn in tem */}
@@ -188,7 +197,7 @@ const AssetCardMobile = React.memo(({ asset, isSelected, canManageAssets, showCh
                         )}
                     </Stack>
                 </CardContent>
-            </CardActionArea>
+            </Box>
         </MotionCard>
     );
 });

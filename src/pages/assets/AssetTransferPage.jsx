@@ -1,6 +1,6 @@
 ﻿// src/pages/AssetTransferPage.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback, } from "react";
-import { Box, Typography, Button, Card, CardContent, Grid, Select, MenuItem, FormControl, InputLabel, Paper, Tabs, Tab, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Checkbox, ListItemText, OutlinedInput, IconButton, TextField, DialogContentText, Toolbar, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Stack, Divider, Tooltip, Snackbar, Alert, Avatar, Skeleton, Drawer, Badge, ToggleButton, ToggleButtonGroup, Stepper, Step, StepLabel, Autocomplete, CardActions, Collapse, CardActionArea, useTheme, useMediaQuery, FormControlLabel, } from "@mui/material";
+import { Box, Typography, Button, Card, CardContent, Grid, Select, MenuItem, FormControl, InputLabel, Paper, Tabs, Tab, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Checkbox, ListItemText, OutlinedInput, IconButton, TextField, DialogContentText, Toolbar, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Stack, Divider, Tooltip, Snackbar, Alert, Avatar, Skeleton, Drawer, Badge, ToggleButton, ToggleButtonGroup, Stepper, Step, StepLabel, Autocomplete, CardActions, Collapse, CardActionArea, useTheme, useMediaQuery, FormControlLabel, Fab, Zoom, Slide } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import {
     SwapHoriz as ArrowRightLeft,
@@ -648,13 +648,64 @@ export default function AssetTransferPage() {
         setIsTransferModalOpen(!0)
     };
 
-    // ✅ THÊM HÀM MỚI NÀY VÀO
-    const handleCloseTransferDrawer = () => {
+    // ✅ IMPROVED: Close handler with dirty-state confirmation
+    const handleCloseTransferModal = (event, reason) => {
+        // Check if user has made any changes
+        const isDirty = fromDept || toDept || selectedAssets.length > 0;
+
+        // If clicking backdrop or pressing escape with dirty data, confirm first
+        if (isDirty && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
+            if (!window.confirm('Bạn có chắc muốn đóng? Dữ liệu đã nhập sẽ bị mất.')) {
+                return; // Don't close if user cancels
+            }
+        }
+
+        // Reset and close
         setIsTransferModalOpen(false);
         setAssetSearchInDialog("");
-        // Tùy chọn: reset về bước 0 khi đóng
-        // setCreateStep(0); 
     };
+
+    // ✅ NEW: Bulk Transfer handler - opens transfer modal with pre-selected assets
+    const handleCreateBulkTransfer = useCallback((assetIds) => {
+        if (!assetIds || assetIds.length === 0) {
+            setToast({ open: true, msg: "Vui lòng chọn ít nhất một tài sản.", severity: "warning" });
+            return;
+        }
+
+        // Get the department of the first selected asset
+        const firstAsset = assets.find(a => assetIds.includes(a.id));
+        const fromDeptId = firstAsset?.departmentId;
+
+        // Check if all selected assets are from the same department
+        const selectedAssetsData = assets.filter(a => assetIds.includes(a.id));
+        const allSameDept = selectedAssetsData.every(a => a.departmentId === fromDeptId);
+
+        if (!allSameDept) {
+            setToast({
+                open: true,
+                msg: "Các tài sản được chọn phải cùng phòng ban nguồn. Vui lòng chọn lại.",
+                severity: "warning"
+            });
+            return;
+        }
+
+        // Reset and open modal with pre-filled data
+        setCreating(false);
+        setCreateStep(1); // Jump to step 2 (asset selection) since we already have assets
+        setFromDept(fromDeptId || "");
+        setToDept("");
+        setSelectedAssets(assetIds);
+        // Set default quantities to 1 for each asset
+        const defaultQuantities = {};
+        assetIds.forEach(id => { defaultQuantities[id] = 1; });
+        setSelectedQuantities(defaultQuantities);
+        setAssetSearchInDialog("");
+        setCreateNonce(crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random()}`);
+        setIsTransferModalOpen(true);
+
+        // Switch to transfer tab for context
+        setTabIndex(1);
+    }, [assets, setToast, setTabIndex]);
 
     const handleOpenDetailView = (t) => { setSelectedTransfer(t); setDetailViewOpen(true) };
     const handleCloseDetailView = () => { setDetailViewOpen(false); setSelectedTransfer(null) };
@@ -1860,7 +1911,7 @@ export default function AssetTransferPage() {
                     elevation={0}
                     sx={{
                         p: { xs: 1.5, sm: 3 },
-                        mb: { xs: 2, sm: 3 },
+                        mb: { xs: 1.5, sm: 3 }, // Giảm margin bottom trên mobile
                         borderRadius: { xs: 2, sm: 3 },
                         background: theme.palette.mode === 'light'
                             ? `linear-gradient(135deg, ${alpha('#ffffff', 0.9)} 0%, ${alpha('#f8fafc', 0.9)} 100%)`
@@ -1877,15 +1928,15 @@ export default function AssetTransferPage() {
                         direction={{ xs: 'column', sm: 'row' }}
                         justifyContent="space-between"
                         alignItems={{ xs: 'flex-start', sm: 'center' }}
-                        spacing={2}
+                        spacing={1.5} // Giảm spacing trên mobile
                     >
                         <Box sx={{ flex: 1 }}>
                             <Typography
-                                variant={isMobile ? "h6" : "h4"}
+                                variant={isMobile ? "h6" : "h4"} // Giữ nguyên variant, nhưng có thể điều chỉnh style nếu cần
                                 sx={{
                                     fontWeight: 800,
                                     mb: { xs: 0, sm: 0.5 },
-                                    fontSize: { xs: '1.1rem', sm: '2rem' },
+                                    fontSize: { xs: '1.25rem', sm: '2rem' }, // Tăng nhẹ font size mobile cho dễ đọc tiêu đề
                                     background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                                     backgroundClip: 'text',
                                     WebkitBackgroundClip: 'text',
@@ -1894,7 +1945,7 @@ export default function AssetTransferPage() {
                             >
                                 Quản lý Tài sản
                             </Typography>
-                            {/* Ẩn description trên mobile để tiết kiệm không gian */}
+                            {/* Ẩn description trên mobile để tiết kiệm không gian - Đã có sẵn */}
                             <Typography
                                 variant="body2"
                                 color="text.secondary"
@@ -1909,22 +1960,23 @@ export default function AssetTransferPage() {
 
                         {/* Admin Settings Button */}
                         {currentUser?.role === 'admin' && (
-                            <Box sx={{ mr: 1 }}>
+                            <Box sx={{ mr: 1, position: { xs: 'absolute', sm: 'relative' }, top: { xs: 12, sm: 'auto' }, right: { xs: 12, sm: 'auto' } }}>
                                 <IconButton
                                     onClick={() => setIsSettingsModalOpen(true)}
+                                    size={isMobile ? "small" : "medium"}
                                     sx={{
                                         bgcolor: 'background.paper',
                                         boxShadow: 1,
                                         '&:hover': { bgcolor: 'grey.100' }
                                     }}
                                 >
-                                    <Settings color="primary" />
+                                    <Settings color="primary" fontSize={isMobile ? "small" : "medium"} />
                                 </IconButton>
                             </Box>
                         )}
 
                         {/* Nút hành động chính thay đổi theo Tab */}
-                        {tabIndex === 1 && (
+                        {tabIndex === 1 && !isMobile && (
                             <motion.div
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
@@ -1946,56 +1998,58 @@ export default function AssetTransferPage() {
                                         },
                                     }}
                                 >
-                                    {isMobile ? "Tạo Phiếu" : "Tạo Phiếu Chuyển"}
+                                    {isMobile ? "Tạo Phiếu Mới" : "Tạo Phiếu Chuyển"}
                                 </Button>
                             </motion.div>
                         )}
 
                         {tabIndex === 2 && (
                             canManageAssets && (
-                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                                <Stack direction={{ xs: 'row', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
                                     <Tooltip title={filterDeptsForAsset.length !== 1 ? "Vui lòng chọn CHỈ MỘT phòng ban để nhập tài sản" : "Nhập Excel cho phòng ban đã chọn"}>
-                                        <span>
+                                        <Box sx={{ flex: 1 }}>
                                             <Button
                                                 variant="outlined"
                                                 size={isMobile ? "medium" : "large"}
                                                 onClick={() => setIsPasteModalOpen(true)}
                                                 disabled={filterDeptsForAsset.length !== 1}
+                                                fullWidth={isMobile}
                                                 sx={{
                                                     borderRadius: 2,
                                                     textTransform: 'none',
                                                     fontWeight: 600,
-                                                    width: { xs: '100%', sm: 'auto' },
                                                 }}
                                             >
-                                                {isMobile ? "Excel" : "Nhập Excel"}
+                                                {isMobile ? "Nhập Excel" : "Nhập Excel"}
                                             </Button>
-                                        </span>
+                                        </Box>
                                     </Tooltip>
-                                    <motion.div
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        style={{ width: isMobile ? '100%' : 'auto' }}
-                                    >
-                                        <Button
-                                            variant="contained"
-                                            size={isMobile ? "medium" : "large"}
-                                            startIcon={<PlusCircle />}
-                                            onClick={handleOpenAddModal}
-                                            fullWidth={isMobile}
-                                            sx={{
-                                                borderRadius: 2,
-                                                textTransform: 'none',
-                                                fontWeight: 600,
-                                                boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
-                                                '&:hover': {
-                                                    boxShadow: `0 6px 16px ${alpha(theme.palette.primary.main, 0.4)}`,
-                                                },
-                                            }}
+                                    {!isMobile && (
+                                        <motion.div
+                                            whileHover={{ scale: 1.02 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            style={{ flex: 1 }}
                                         >
-                                            {isMobile ? "Thêm Tài Sản" : "Thêm Tài Sản"}
-                                        </Button>
-                                    </motion.div>
+                                            <Button
+                                                variant="contained"
+                                                size={isMobile ? "medium" : "large"}
+                                                startIcon={<PlusCircle />}
+                                                onClick={handleOpenAddModal}
+                                                fullWidth={isMobile}
+                                                sx={{
+                                                    borderRadius: 2,
+                                                    textTransform: 'none',
+                                                    fontWeight: 600,
+                                                    boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                                                    '&:hover': {
+                                                        boxShadow: `0 6px 16px ${alpha(theme.palette.primary.main, 0.4)}`,
+                                                    },
+                                                }}
+                                            >
+                                                {isMobile ? "Thêm Mới" : "Thêm Tài Sản"}
+                                            </Button>
+                                        </motion.div>
+                                    )}
                                 </Stack>
                             )
                         )}
@@ -2004,9 +2058,9 @@ export default function AssetTransferPage() {
             </motion.div>
 
             {/* Stats Cards với Animations */}
-            <Grid container spacing={{ xs: 1, sm: 2 }} sx={{ mb: { xs: 2, sm: 3 }, position: 'relative', zIndex: 1 }}>
+            <Grid container spacing={{ xs: 1.5, sm: 2 }} sx={{ mb: { xs: 2, sm: 3 }, position: 'relative', zIndex: 1 }}>
                 {stats.map((stat, index) => (
-                    <Grid size={{ xs: 4, sm: 6, md: 4 }} key={stat.label}>
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }} key={stat.label}>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -2017,7 +2071,7 @@ export default function AssetTransferPage() {
                                 variant="outlined"
                                 onClick={stat.onClick}
                                 sx={{
-                                    p: { xs: 1.25, sm: 2.5 },
+                                    p: { xs: 1.5, sm: 2.5 },
                                     borderRadius: { xs: 2, sm: 3 },
                                     background: theme.palette.mode === 'light'
                                         ? `linear-gradient(135deg, ${alpha(theme.palette[stat.color].main, 0.08)} 0%, ${alpha(theme.palette[stat.color].main, 0.03)} 100%)`
@@ -2045,32 +2099,32 @@ export default function AssetTransferPage() {
                                     }
                                 }}
                             >
-                                {/* Mobile: layout dọc compact */}
+                                {/* Mobile: layout dọc compact - Đã chuyển thành xs=12 nên sẽ rộng rãi hơn */}
                                 <Stack
-                                    direction={{ xs: "column", sm: "row" }}
-                                    spacing={{ xs: 1, sm: 2 }}
-                                    alignItems={{ xs: "center", sm: "center" }}
+                                    direction="row"
+                                    spacing={{ xs: 2, sm: 2 }}
+                                    alignItems="center"
                                 >
                                     <Avatar
                                         sx={{
                                             bgcolor: `${stat.color}.light`,
                                             color: `${stat.color}.dark`,
-                                            width: { xs: 36, sm: 56 },
-                                            height: { xs: 36, sm: 56 },
+                                            width: { xs: 48, sm: 56 }, // Tăng kích thước icon mobile một chút vì card đã to ra
+                                            height: { xs: 48, sm: 56 },
                                             boxShadow: `0 4px 12px ${alpha(theme.palette[stat.color].main, 0.2)}`,
                                             '& .MuiSvgIcon-root': {
-                                                fontSize: { xs: 18, sm: 24 }
+                                                fontSize: { xs: 24, sm: 24 }
                                             }
                                         }}
                                     >
                                         {stat.icon}
                                     </Avatar>
-                                    <Box sx={{ flex: 1, minWidth: 0, textAlign: { xs: 'center', sm: 'left' } }}>
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
                                         <Typography
-                                            variant={isMobile ? "h6" : "h5"}
+                                            variant={isMobile ? "h5" : "h5"}
                                             sx={{
                                                 fontWeight: 700,
-                                                fontSize: { xs: '1.1rem', sm: '1.5rem' },
+                                                fontSize: { xs: '1.25rem', sm: '1.5rem' },
                                                 lineHeight: 1.2,
                                             }}
                                         >
@@ -2080,13 +2134,10 @@ export default function AssetTransferPage() {
                                             variant="body2"
                                             color="text.secondary"
                                             sx={{
-                                                fontSize: { xs: '0.65rem', sm: '0.875rem' },
+                                                fontSize: { xs: '0.875rem', sm: '0.875rem' },
                                                 mt: 0.25,
                                                 lineHeight: 1.2,
-                                                // Truncate text on mobile if too long
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: { xs: 'nowrap', sm: 'normal' }
+                                                // Không cần truncate nữa vì card đã full width
                                             }}
                                         >
                                             {stat.label}
@@ -2120,6 +2171,9 @@ export default function AssetTransferPage() {
                         boxShadow: theme.palette.mode === 'light'
                             ? "0 4px 20px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.02)"
                             : "0 4px 20px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.05)",
+                        position: 'sticky',
+                        top: { xs: 0, sm: 0 },
+                        zIndex: 100,
                     }}
                 >
                     <Tabs
@@ -2127,26 +2181,26 @@ export default function AssetTransferPage() {
                         onChange={(e, v) => setTabIndex(v)}
                         sx={{
                             borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                            minHeight: { xs: 60, sm: 72 },
-                            p: 1, // Add padding for pills
+                            minHeight: { xs: 48, sm: 72 }, // Giảm chiều cao tối thiểu trên mobile
+                            p: { xs: 0.5, sm: 1 }, // Giảm padding container
                             '& .MuiTab-root': {
-                                minHeight: { xs: 48, sm: 56 },
+                                minHeight: { xs: 40, sm: 56 }, // Giảm chiều cao tab con
                                 minWidth: { xs: 'auto', sm: 'auto' },
-                                padding: { xs: '12px 16px', sm: '12px 24px' },
+                                padding: { xs: '8px 12px', sm: '12px 24px' }, // Compact padding
                                 textTransform: 'none',
                                 fontWeight: 700,
-                                fontSize: { xs: '0.875rem', sm: '0.9375rem' },
-                                borderRadius: 3, // Round tabs
+                                fontSize: { xs: '0.8125rem', sm: '0.9375rem' }, // Font nhỏ hơn xíu
+                                borderRadius: { xs: 2, sm: 3 },
                                 color: 'text.secondary',
                                 zIndex: 1,
                                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                                 '&.Mui-selected': {
-                                    color: theme.palette.mode === 'light' ? '#fff' : '#000', // Text color on pill
+                                    color: theme.palette.mode === 'light' ? '#fff' : '#000',
                                 },
                             },
                             '& .MuiTabs-indicator': {
                                 height: '100%',
-                                borderRadius: 3,
+                                borderRadius: { xs: 2, sm: 3 },
                                 background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                                 boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
                                 zIndex: 0,
@@ -2159,54 +2213,60 @@ export default function AssetTransferPage() {
                         scrollButtons="auto"
                         allowScrollButtonsMobile
                     >
-                        {/* TAB 0: Dashboard (Giữ nguyên logic Badge cũ của bạn) */}
-                        <Tab
-                            label={
-                                <Badge badgeContent={actionableItems.total} color="primary" max={99}>
-                                    <Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Dashboard</Typography>
-                                </Badge>
-                            }
-                            icon={<Inbox size={18} />}
-                            iconPosition="start"
-                        />
+                        {/* TAB 0: Dashboard */}
+                        <Tooltip title="Dashboard - Công việc cần xử lý" arrow enterTouchDelay={0}>
+                            <Tab
+                                label={
+                                    <Badge badgeContent={actionableItems.total} color="primary" max={99}>
+                                        <Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Dashboard</Typography>
+                                    </Badge>
+                                }
+                                icon={<Inbox size={18} />}
+                                iconPosition="start"
+                            />
+                        </Tooltip>
 
                         {/* TAB 1: Theo dõi Luân chuyển */}
-                        <Tab
-                            icon={<Send size={18} />}
-                            iconPosition="start"
-                            label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Theo dõi Luân chuyển</Typography>}
-                            // Thêm Tooltip cho mobile (chỉ hiện icon)
-                            title="Theo dõi Luân chuyển"
-                        />
+                        <Tooltip title="Theo dõi Luân chuyển" arrow enterTouchDelay={0}>
+                            <Tab
+                                icon={<Send size={18} />}
+                                iconPosition="start"
+                                label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Luân chuyển</Typography>}
+                            />
+                        </Tooltip>
 
                         {/* TAB 2: Danh sách Tài sản */}
-                        <Tab
-                            icon={<Warehouse size={18} />}
-                            iconPosition="start"
-                            label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Danh sách Tài sản</Typography>}
-                            title="Danh sách Tài sản"
-                        />
+                        <Tooltip title="Danh sách Tài sản" arrow enterTouchDelay={0}>
+                            <Tab
+                                icon={<Warehouse size={18} />}
+                                iconPosition="start"
+                                label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Tài sản</Typography>}
+                            />
+                        </Tooltip>
 
                         {/* TAB 3: Yêu cầu Thay đổi */}
-                        <Tab
-                            icon={<History size={18} />}
-                            iconPosition="start"
-                            label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Yêu cầu Thay đổi</Typography>}
-                            title="Yêu cầu Thay đổi"
-                        />
+                        <Tooltip title="Yêu cầu Thay đổi Tài sản" arrow enterTouchDelay={0}>
+                            <Tab
+                                icon={<History size={18} />}
+                                iconPosition="start"
+                                label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Yêu cầu</Typography>}
+                            />
+                        </Tooltip>
 
                         {/* TAB 4: Báo cáo Kiểm kê */}
-                        <Tab
-                            icon={<BookCheck size={18} />}
-                            iconPosition="start"
-                            label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Báo cáo Kiểm kê</Typography>}
-                            title="Báo cáo Kiểm kê"
-                        />
+                        <Tooltip title="Báo cáo Kiểm kê Tài sản" arrow enterTouchDelay={0}>
+                            <Tab
+                                icon={<BookCheck size={18} />}
+                                iconPosition="start"
+                                label={<Typography sx={{ display: { xs: 'none', sm: 'block' } }}>Báo cáo</Typography>}
+                            />
+                        </Tooltip>
                     </Tabs>
                     {tabIndex === 0 && (
                         <DashboardTab
                             actionableItems={actionableItems}
                             isMobile={isMobile}
+                            loading={loading}
                             signing={signing}
                             processingReport={processingReport}
                             onTransferClick={handleOpenDetailView}
@@ -2269,6 +2329,7 @@ export default function AssetTransferPage() {
                                 setNewCheckDate(new Date());
                                 setIsUpdateDateModalOpen(true);
                             }}
+                            onCreateBulkTransfer={handleCreateBulkTransfer}
                         />
                     )}
                     {tabIndex === 3 && (
@@ -2307,6 +2368,110 @@ export default function AssetTransferPage() {
                     )}
                 </Paper>
             </motion.div>
+
+            {/* FLOATING ACTION BUTTON (FAB) FOR MOBILE */}
+            {/* Hide when selection is active to avoid overlap with Action Bar */}
+            <Zoom in={isMobile && (tabIndex === 1 || (tabIndex === 2 && canManageAssets)) && selectedAssetIdsForPrint.length === 0} unmountOnExit>
+                <Fab
+                    color="primary"
+                    aria-label="add"
+                    sx={{
+                        position: 'fixed',
+                        bottom: 16,
+                        right: 16,
+                        zIndex: 100,
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                    }}
+                    onClick={() => {
+                        if (tabIndex === 1) handleOpenTransferModal();
+                        else if (tabIndex === 2) handleOpenAddModal();
+                    }}
+                >
+                    <PlusCircle />
+                </Fab>
+            </Zoom>
+
+            {/* Mobile Contextual Action Bar (Sticky Bottom) */}
+            <Slide direction="up" in={isMobile && selectedAssetIdsForPrint.length > 0} mountOnEnter unmountOnExit>
+                <Paper
+                    elevation={4}
+                    sx={{
+                        position: 'fixed',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        zIndex: 1100,
+                        p: 2,
+                        borderRadius: '16px 16px 0 0',
+                        bgcolor: 'background.paper',
+                        borderTop: '1px solid',
+                        borderColor: 'divider',
+                        boxShadow: '0 -4px 20px rgba(0,0,0,0.1)'
+                    }}
+                >
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+                        <Typography variant="subtitle1" fontWeight={600}>
+                            Đã chọn {selectedAssetIdsForPrint.length} tài sản
+                        </Typography>
+                        <Button
+                            size="small"
+                            color="inherit"
+                            onClick={() => setSelectedAssetIdsForPrint([])}
+                            startIcon={<X fontSize="small" />}
+                            sx={{ color: 'text.secondary' }}
+                        >
+                            Hủy
+                        </Button>
+                    </Stack>
+                    <Grid container spacing={1}>
+                        {/* Update Dates */}
+                        <Grid item xs={4}>
+                            <Button
+                                fullWidth
+                                variant="outlined"
+                                color="info"
+                                size="small"
+                                onClick={() => {
+                                    setNewCheckDate(new Date());
+                                    setIsUpdateDateModalOpen(true);
+                                }}
+                                sx={{ flexDirection: 'column', gap: 0.5, py: 1, textTransform: 'none', fontSize: '0.75rem', height: '100%' }}
+                            >
+                                <Calendar fontSize="small" />
+                                <span>Cập nhật</span>
+                            </Button>
+                        </Grid>
+                        {/* Print Labels */}
+                        <Grid item xs={4}>
+                            <Button
+                                fullWidth
+                                variant="outlined"
+                                color="secondary"
+                                size="small"
+                                onClick={() => setIsLabelPrintModalOpen(true)}
+                                sx={{ flexDirection: 'column', gap: 0.5, py: 1, textTransform: 'none', fontSize: '0.75rem', height: '100%' }}
+                            >
+                                <QrCode fontSize="small" />
+                                <span>In Tem</span>
+                            </Button>
+                        </Grid>
+                        {/* Transfer - Primary Action */}
+                        <Grid item xs={4}>
+                            <Button
+                                fullWidth
+                                variant="contained"
+                                color="primary"
+                                size="small"
+                                onClick={() => handleCreateBulkTransfer(selectedAssetIdsForPrint)}
+                                sx={{ flexDirection: 'column', gap: 0.5, py: 1, textTransform: 'none', fontSize: '0.75rem', height: '100%', boxShadow: 'none' }}
+                            >
+                                <Send fontSize="small" />
+                                <span>Chuyển</span>
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </Paper>
+            </Slide>
 
             {/* ✅ BƯỚC 8: Thêm Dialog xác nhận In tem */}
             <Dialog open={isLabelPrintModalOpen} onClose={() => setIsLabelPrintModalOpen(false)}>
@@ -2416,13 +2581,15 @@ export default function AssetTransferPage() {
             <Dialog
                 open={isPasteModalOpen}
                 onClose={() => setIsPasteModalOpen(false)}
+                fullScreen={isMobile}
                 fullWidth
                 maxWidth="md"
                 PaperProps={{
                     sx: {
-                        m: { xs: 1, sm: 2 },
-                        width: { xs: 'calc(100% - 16px)', sm: 'auto' },
-                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' }
+                        m: isMobile ? 0 : { xs: 1, sm: 2 },
+                        width: isMobile ? '100%' : { xs: 'calc(100% - 16px)', sm: 'auto' },
+                        maxHeight: isMobile ? '100%' : { xs: 'calc(100% - 32px)', sm: '90vh' },
+                        borderRadius: isMobile ? 0 : 2 // Reset radius on fullscreen
                     }
                 }}
             >
@@ -2463,13 +2630,15 @@ export default function AssetTransferPage() {
             <Dialog
                 open={detailViewOpen}
                 onClose={handleCloseDetailView}
+                fullScreen={isMobile}
                 fullWidth
                 maxWidth="md"
                 PaperProps={{
                     sx: {
-                        m: { xs: 1, sm: 2 },
-                        width: { xs: 'calc(100% - 16px)', sm: 'auto' },
-                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' }
+                        m: isMobile ? 0 : { xs: 1, sm: 2 },
+                        width: isMobile ? '100%' : { xs: 'calc(100% - 16px)', sm: 'auto' },
+                        maxHeight: isMobile ? '100%' : { xs: 'calc(100% - 32px)', sm: '90vh' },
+                        borderRadius: isMobile ? 0 : 2
                     }
                 }}
             >
@@ -2593,22 +2762,33 @@ export default function AssetTransferPage() {
             {/* ✅ Cải thiện: Create Transfer dialog với responsive design */}
             <Dialog
                 open={isTransferModalOpen}
-                onClose={() => { setIsTransferModalOpen(false); setAssetSearchInDialog("") }}
+                onClose={handleCloseTransferModal}
+                fullScreen={isMobile}
                 maxWidth="md"
                 fullWidth
                 PaperProps={{
                     sx: {
-                        m: { xs: 1, sm: 2 },
-                        width: { xs: 'calc(100% - 16px)', sm: 'auto' },
-                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' }
+                        m: isMobile ? 0 : { xs: 1, sm: 2 },
+                        width: isMobile ? '100%' : { xs: 'calc(100% - 16px)', sm: 'auto' },
+                        maxHeight: isMobile ? '100%' : { xs: 'calc(100% - 32px)', sm: '90vh' },
+                        borderRadius: isMobile ? 0 : 2
                     }
                 }}
             >
                 <DialogTitle sx={{ fontWeight: 700 }}>Tạo Phiếu Luân Chuyển Tài Sản</DialogTitle>
                 <DialogContent>
-                    <Stepper activeStep={createStep} sx={{ my: 2 }}>
-                        <Step><StepLabel>Thông tin chung</StepLabel></Step>
-                        <Step><StepLabel>Chọn tài sản</StepLabel></Step>
+                    <Stepper
+                        activeStep={createStep}
+                        alternativeLabel={!isMobile}
+                        sx={{
+                            my: 2,
+                            '& .MuiStepLabel-label': {
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                            }
+                        }}
+                    >
+                        <Step><StepLabel>{isMobile ? "Thông tin" : "Thông tin chung"}</StepLabel></Step>
+                        <Step><StepLabel>{isMobile ? "Tài sản" : "Chọn tài sản"}</StepLabel></Step>
                         <Step><StepLabel>Xác nhận</StepLabel></Step>
                     </Stepper>
 
@@ -2638,7 +2818,7 @@ export default function AssetTransferPage() {
                                         MenuProps={{ PaperProps: { sx: { maxHeight: 250 }, }, }}
                                     >
                                         {assetsWithAvailability
-                                            .filter((a) => a.departmentId === fromDept && normVn(a.name).includes(normVn(assetSearchInDialog)))
+                                            .filter((a) => a.departmentId === fromDept && Number(a.quantity) > 0 && normVn(a.name).includes(normVn(assetSearchInDialog)))
                                             .map((a) => (
                                                 <MenuItem key={a.id} value={a.id} disabled={a.availableQuantity <= 0}>
                                                     <Checkbox checked={selectedAssets.indexOf(a.id) > -1} />
@@ -2646,9 +2826,9 @@ export default function AssetTransferPage() {
                                                     {a.availableQuantity <= 0 && (<Chip label="Đang khóa" size="small" color="warning" variant="outlined" sx={{ ml: 1 }} />)}
                                                 </MenuItem>
                                             ))}
-                                        {assetsWithAvailability.filter((a) => a.departmentId === fromDept).length === 0 && (<MenuItem disabled>Không có tài sản nào trong phòng này.</MenuItem>)}
-                                        {assetsWithAvailability.filter((a) => a.departmentId === fromDept && normVn(a.name).includes(normVn(assetSearchInDialog))).length === 0
-                                            && assetsWithAvailability.filter((a) => a.departmentId === fromDept).length > 0 && (<MenuItem disabled>Không tìm thấy tài sản phù hợp.</MenuItem>)}
+                                        {assetsWithAvailability.filter((a) => a.departmentId === fromDept && Number(a.quantity) > 0).length === 0 && (<MenuItem disabled>Không có tài sản nào trong phòng này.</MenuItem>)}
+                                        {assetsWithAvailability.filter((a) => a.departmentId === fromDept && Number(a.quantity) > 0 && normVn(a.name).includes(normVn(assetSearchInDialog))).length === 0
+                                            && assetsWithAvailability.filter((a) => a.departmentId === fromDept && Number(a.quantity) > 0).length > 0 && (<MenuItem disabled>Không tìm thấy tài sản phù hợp.</MenuItem>)}
                                     </Select>
                                 </FormControl>
 
@@ -2688,7 +2868,7 @@ export default function AssetTransferPage() {
                     </Box>
                 </DialogContent>
                 <DialogActions sx={{ p: "0 24px 16px" }}>
-                    <Button onClick={() => { setIsTransferModalOpen(false); setAssetSearchInDialog("") }}>Hủy</Button>
+                    <Button onClick={() => handleCloseTransferModal(null, 'cancelButton')}>Hủy</Button>
                     <Box sx={{ flex: 1 }} />
                     {createStep > 0 && (<Button onClick={() => setCreateStep((s) => s - 1)}>Quay lại</Button>)}
                     {createStep < 2 && (
@@ -2709,14 +2889,15 @@ export default function AssetTransferPage() {
             <Dialog
                 open={isAssetModalOpen}
                 onClose={() => setIsAssetModalOpen(false)}
+                fullScreen={isMobile}
                 maxWidth="sm"
                 fullWidth
                 PaperProps={{
                     sx: {
-                        m: { xs: 1, sm: 2 },
-                        width: { xs: 'calc(100% - 16px)', sm: 'auto' },
-                        maxHeight: { xs: 'calc(100% - 32px)', sm: '90vh' },
-                        borderRadius: 3,
+                        m: isMobile ? 0 : { xs: 1, sm: 2 },
+                        width: isMobile ? '100%' : { xs: 'calc(100% - 16px)', sm: 'auto' },
+                        maxHeight: isMobile ? '100%' : { xs: 'calc(100% - 32px)', sm: '90vh' },
+                        borderRadius: isMobile ? 0 : 3,
                     }
                 }}
             >
@@ -3593,8 +3774,16 @@ export default function AssetTransferPage() {
             </Dialog>
 
             {/* Snackbars */}
-            <Snackbar open={toast.open} autoHideDuration={4000} onClose={() => setToast({ ...toast, open: false })}
-                anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
+            <Snackbar
+                open={toast.open}
+                autoHideDuration={4000}
+                onClose={() => setToast({ ...toast, open: false })}
+                anchorOrigin={{
+                    vertical: isMobile ? "top" : "bottom",
+                    horizontal: "center"
+                }}
+                sx={{ mt: isMobile ? 7 : 0 }} // Offset for mobile header
+            >
                 <Alert onClose={() => setToast({ ...toast, open: false })} severity={toast.severity} variant="filled" sx={{ width: "100%" }}>{toast.msg}</Alert>
             </Snackbar>
 

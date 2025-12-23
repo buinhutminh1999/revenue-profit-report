@@ -440,7 +440,7 @@ export default function InventoryReportPublicView() {
                                         transition: "transform 0.2s ease",
                                         // Mobile: scale document bằng CSS
                                         "& > *": {
-                                            transform: { xs: "scale(0.45)", sm: "none" },
+                                            transform: { xs: "scale(0.48)", sm: "none" },
                                             transformOrigin: { xs: "top left", sm: "top center" },
                                             width: { xs: "210mm", sm: "auto" }
                                         }

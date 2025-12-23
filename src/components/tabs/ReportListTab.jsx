@@ -3,10 +3,10 @@ import {
     Box, Stack, Typography, Paper, Toolbar, TextField, Button,
     Card, CardContent, IconButton, Tooltip, Avatar, Chip,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    useTheme, alpha
+    useTheme, alpha, InputAdornment
 } from '@mui/material';
 import {
-    Check, Trash2, BookCheck as BookCheckIcon
+    Check, Trash2, BookCheck as BookCheckIcon, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Description as Sheet } from '@mui/icons-material';
@@ -32,13 +32,27 @@ const ReportListTab = ({
     onCreateReport
 }) => {
     const theme = useTheme();
+    const [statusFilter, setStatusFilter] = React.useState('ALL');
 
     // Filter Logic
     const filteredReports = useMemo(() => {
-        const q = normVn(search || "");
-        if (!q) return reports;
+        let list = reports;
 
-        return reports.filter((r) => {
+        // 1. Filter by Status
+        if (statusFilter !== 'ALL') {
+            if (statusFilter === 'PENDING') {
+                list = list.filter(r => ['PENDING_SENDER', 'PENDING_RECEIVER'].includes(r.status));
+            } else if (statusFilter === 'COMPLETED') {
+                list = list.filter(r => r.status === 'COMPLETED');
+            } else if (statusFilter === 'REJECTED') {
+                list = list.filter(r => r.status === 'REJECTED');
+            }
+        }
+
+        const q = normVn(search || "");
+        if (!q) return list;
+
+        return list.filter((r) => {
             const id = normVn(r.id || "");
             const disp = normVn(r.maPhieuHienThi || "");
             const title = normVn(r.title || "");
@@ -53,12 +67,19 @@ const ReportListTab = ({
                 requester.includes(q)
             );
         });
-    }, [reports, search]);
+    }, [reports, search, statusFilter]);
+
+    const statusOptions = [
+        { value: 'ALL', label: 'Tất cả' },
+        { value: 'PENDING', label: 'Cần duyệt', color: 'warning' },
+        { value: 'COMPLETED', label: 'Hoàn thành', color: 'success' },
+        { value: 'REJECTED', label: 'Đã hủy', color: 'error' },
+    ];
 
     return (
         <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
             {/* Toolbar: Search */}
-            <Paper variant="outlined" sx={{ p: 1.5, mb: 2.5, borderRadius: 2 }}>
+            <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5, borderRadius: 2 }}>
                 <Toolbar disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
                     <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
                         <TextField
@@ -67,10 +88,33 @@ const ReportListTab = ({
                             sx={{ flex: "1 1 360px" }}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
+                            InputProps={{
+                                endAdornment: search ? (
+                                    <InputAdornment position="end">
+                                        <IconButton size="small" onClick={() => setSearch('')}>
+                                            <X size={16} />
+                                        </IconButton>
+                                    </InputAdornment>
+                                ) : null
+                            }}
                         />
                     </Tooltip>
                 </Toolbar>
             </Paper>
+
+            {/* Quick Status Filter */}
+            <Box sx={{ mb: 2.5, overflowX: 'auto', display: 'flex', gap: 1, pb: 0.5 }}>
+                {statusOptions.map((opt) => (
+                    <Chip
+                        key={opt.value}
+                        label={opt.label}
+                        onClick={() => setStatusFilter(opt.value)}
+                        color={statusFilter === opt.value ? (opt.color || 'primary') : 'default'}
+                        variant={statusFilter === opt.value ? 'filled' : 'outlined'}
+                        sx={{ fontWeight: statusFilter === opt.value ? 600 : 400 }}
+                    />
+                ))}
+            </Box>
 
             {/* Content Area */}
             {filteredReports.length === 0 ? (
@@ -90,7 +134,14 @@ const ReportListTab = ({
                 // Mobile: Card list
                 <Box mt={2.5}>
                     {filteredReports.map((report) => (
-                        <ReportTableRowMobile key={report.id} report={report} />
+                        <ReportTableRowMobile
+                            key={report.id}
+                            report={report}
+                            onDetailClick={onOpenDetail}
+                            canProcess={canProcessReport && canProcessReport(report)}
+                            onReject={onRejectReport}
+                            onApprove={onSignReport}
+                        />
                     ))}
                 </Box>
             ) : (

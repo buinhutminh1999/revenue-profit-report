@@ -21,6 +21,7 @@ import {
     TableRow,
     TableCell,
     TableBody,
+    Skeleton,
 } from '@mui/material';
 import {
     SwapHoriz as ArrowRightLeft,
@@ -63,9 +64,79 @@ import { statusConfig, requestStatusConfig, reportStatusConfig } from '../../uti
  * @param {Function} props.canProcessRequest - Permission check for requests
  * @param {Function} props.canProcessReport - Permission check for reports
  */
+// Skeleton component for loading state
+const DashboardSkeleton = ({ isMobile }) => {
+    if (isMobile) {
+        // Mobile skeleton - shows card placeholders
+        return (
+            <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: 'transparent' }}>
+                <Stack spacing={2}>
+                    {[...Array(4)].map((_, i) => (
+                        <Card key={i} variant="outlined" sx={{ borderRadius: 3 }}>
+                            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                                    <Skeleton width={100} height={28} sx={{ borderRadius: 1 }} />
+                                    <Skeleton width={80} height={24} sx={{ borderRadius: 1 }} />
+                                </Stack>
+                                <Skeleton width="100%" height={1} sx={{ mb: 1.5 }} />
+                                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                    <Box sx={{ flexGrow: 1, pr: 1 }}>
+                                        <Skeleton width="70%" height={24} sx={{ mb: 0.5 }} />
+                                        <Skeleton width="50%" height={16} />
+                                    </Box>
+                                    <Skeleton width={90} height={28} sx={{ borderRadius: 1 }} />
+                                </Stack>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </Stack>
+            </Box>
+        );
+    }
+
+    // Desktop skeleton - shows table rows
+    return (
+        <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: 'transparent' }}>
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                <Table sx={{ minWidth: 650 }}>
+                    <TableHead sx={{ bgcolor: 'grey.50' }}>
+                        <TableRow>
+                            {['Mã Phiếu', 'Nội dung', 'Loại', 'Trạng thái', 'Hành động'].map((header, i) => (
+                                <TableCell key={i} sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                                    {header}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {[...Array(5)].map((_, rowIndex) => (
+                            <TableRow key={rowIndex}>
+                                <TableCell><Skeleton width={100} height={24} sx={{ borderRadius: 1 }} /></TableCell>
+                                <TableCell>
+                                    <Skeleton width="80%" height={20} sx={{ mb: 0.5 }} />
+                                    <Skeleton width="50%" height={14} />
+                                </TableCell>
+                                <TableCell><Skeleton width={80} height={24} sx={{ borderRadius: 1 }} /></TableCell>
+                                <TableCell><Skeleton width={100} height={24} sx={{ borderRadius: 1 }} /></TableCell>
+                                <TableCell align="right">
+                                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                        <Skeleton width={70} height={32} sx={{ borderRadius: 1 }} />
+                                        <Skeleton width={60} height={32} sx={{ borderRadius: 1 }} />
+                                    </Stack>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+        </Box>
+    );
+};
+
 export default function DashboardTab({
     actionableItems,
     isMobile,
+    loading = false,
     signing = {},
     processingReport = {},
     onTransferClick,
@@ -84,6 +155,10 @@ export default function DashboardTab({
     canProcessRequest,
     canProcessReport,
 }) {
+    // Show skeleton while loading
+    if (loading) {
+        return <DashboardSkeleton isMobile={isMobile} />;
+    }
     // Action buttons for transfers
     const TransferActionButtons = ({ transfer }) => {
         if (!currentUser) return null;
@@ -219,7 +294,7 @@ export default function DashboardTab({
     if (isMobile) {
         return (
             <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: 'transparent' }}>
-                <Stack spacing={2.5}>
+                <Stack spacing={2}>
                     {actionableItems.transfers.map((item) => (
                         <DashboardRowMobile key={item.id} item={item} type="TRANSFERS" onDetailClick={onTransferClick} />
                     ))}

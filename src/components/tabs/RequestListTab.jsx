@@ -1,12 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     Box, Stack, Typography, Paper, Toolbar, TextField, Button,
     Card, CardContent, CardActionArea, IconButton, Tooltip, Avatar, Chip,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Grid, useTheme, alpha, Skeleton
+    Grid, useTheme, alpha, Skeleton, InputAdornment
 } from '@mui/material';
 import {
-    FilePlus, FileX, FilePen, History, Check, Trash2
+    FilePlus, FileX, FilePen, History, Check, Trash2, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { requestStatusConfig } from '../../utils/constants';
@@ -14,7 +14,7 @@ import { shortId, normVn, formatTime } from '../../utils/assetUtils';
 import RequestTableRowMobile from '../assets/RequestTableRowMobile';
 import { EmptyState } from '../common';
 
-// Skeleton for loading state
+// ... Skeleton and helper ...
 const RequestCardSkeleton = () => (
     <Card variant="outlined" sx={{ p: 2.5, borderRadius: 3 }}>
         <Stack direction="row" justifyContent="space-between">
@@ -26,7 +26,6 @@ const RequestCardSkeleton = () => (
     </Card>
 );
 
-// Helper: Get approval action label
 const getApprovalActionLabel = (req) => {
     if (!req) return "Duyệt";
     switch (req.status) {
@@ -56,13 +55,27 @@ const RequestListTab = ({
     onDeleteRequest
 }) => {
     const theme = useTheme();
+    const [statusFilter, setStatusFilter] = useState('ALL');
 
     // Filter Logic
     const filteredRequests = useMemo(() => {
-        const q = normVn(search || "");
-        if (!q) return requests;
+        let list = requests;
 
-        return requests.filter((req) => {
+        // 1. Filter by Status
+        if (statusFilter !== 'ALL') {
+            if (statusFilter === 'PENDING') {
+                list = list.filter(r => ['PENDING_HC', 'PENDING_BLOCK_LEADER', 'PENDING_KT'].includes(r.status));
+            } else if (statusFilter === 'APPROVED') {
+                list = list.filter(r => r.status === 'APPROVED');
+            } else if (statusFilter === 'REJECTED') {
+                list = list.filter(r => r.status === 'REJECTED');
+            }
+        }
+
+        const q = normVn(search || "");
+        if (!q) return list;
+
+        return list.filter((req) => {
             const id = normVn(req.id || "");
             const disp = normVn(req.maPhieuHienThi || "");
             const assetName = normVn(req.assetData?.name || "");
@@ -77,12 +90,19 @@ const RequestListTab = ({
                 requester.includes(q)
             );
         });
-    }, [requests, search]);
+    }, [requests, search, statusFilter]);
+
+    const statusOptions = [
+        { value: 'ALL', label: 'Tất cả' },
+        { value: 'PENDING', label: 'Chờ duyệt', color: 'warning' },
+        { value: 'APPROVED', label: 'Hoàn thành', color: 'success' },
+        { value: 'REJECTED', label: 'Đã hủy', color: 'error' },
+    ];
 
     return (
         <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
             {/* Toolbar: Search */}
-            <Paper variant="outlined" sx={{ p: 1.5, mb: 2.5, borderRadius: 2 }}>
+            <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5, borderRadius: 2 }}>
                 <Toolbar disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
                     <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
                         <TextField
@@ -91,10 +111,33 @@ const RequestListTab = ({
                             sx={{ flex: "1 1 360px" }}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
+                            InputProps={{
+                                endAdornment: search ? (
+                                    <InputAdornment position="end">
+                                        <IconButton size="small" onClick={() => setSearch('')}>
+                                            <X size={16} />
+                                        </IconButton>
+                                    </InputAdornment>
+                                ) : null
+                            }}
                         />
                     </Tooltip>
                 </Toolbar>
             </Paper>
+
+            {/* Quick Status Filter */}
+            <Box sx={{ mb: 2.5, overflowX: 'auto', display: 'flex', gap: 1, pb: 0.5 }}>
+                {statusOptions.map((opt) => (
+                    <Chip
+                        key={opt.value}
+                        label={opt.label}
+                        onClick={() => setStatusFilter(opt.value)}
+                        color={statusFilter === opt.value ? (opt.color || 'primary') : 'default'}
+                        variant={statusFilter === opt.value ? 'filled' : 'outlined'}
+                        sx={{ fontWeight: statusFilter === opt.value ? 600 : 400 }}
+                    />
+                ))}
+            </Box>
 
             {/* Content Area */}
             {loading ? (
@@ -126,6 +169,11 @@ const RequestListTab = ({
                             <RequestTableRowMobile
                                 key={req.id}
                                 request={req}
+                                onDetailClick={onOpenDetail}
+                                canProcess={canProcessRequest && canProcessRequest(req)}
+                                onReject={onRejectRequest}
+                                onApprove={(r) => onProcessRequest(r, 'approve')}
+                                getApprovalLabel={getApprovalActionLabel}
                             />
                         ))}
                     </Box>
