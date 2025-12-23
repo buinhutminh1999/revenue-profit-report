@@ -127,20 +127,25 @@ const ConstructionPayablesPrintTemplate = React.forwardRef(({ data, summary, yea
             </Box>
 
             {/* Signatures */}
-            <Stack direction="row" sx={{ justifyContent: 'space-between', px: 4, textAlign: 'center' }}>
-                <Box sx={{ width: '30%' }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: '11pt', fontFamily: 'inherit' }}>NGƯỜI LẬP BIỂU</Typography>
-                    <Typography sx={{ fontStyle: 'italic', fontSize: '10pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', px: 2, textAlign: 'center' }}>
+                <Box sx={{ width: '23%' }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>NGƯỜI LẬP BIỂU</Typography>
+                    <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
                     <Box sx={{ height: '80px' }}></Box>
                 </Box>
-                <Box sx={{ width: '30%' }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: '11pt', fontFamily: 'inherit' }}>KẾ TOÁN TRƯỞNG</Typography>
-                    <Typography sx={{ fontStyle: 'italic', fontSize: '10pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
+                <Box sx={{ width: '23%' }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>TP. KẾ TOÁN</Typography>
+                    <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
                     <Box sx={{ height: '80px' }}></Box>
                 </Box>
-                <Box sx={{ width: '30%' }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: '11pt', fontFamily: 'inherit' }}>TỔNG GIÁM ĐỐC</Typography>
-                    <Typography sx={{ fontStyle: 'italic', fontSize: '10pt', fontFamily: 'inherit' }}>(Ký, họ tên, đóng dấu)</Typography>
+                <Box sx={{ width: '23%' }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>QL. TÀI CHÍNH</Typography>
+                    <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
+                    <Box sx={{ height: '80px' }}></Box>
+                </Box>
+                <Box sx={{ width: '23%' }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>TỔNG GIÁM ĐỐC</Typography>
+                    <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên, đóng dấu)</Typography>
                     <Box sx={{ height: '80px' }}></Box>
                 </Box>
             </Stack>
