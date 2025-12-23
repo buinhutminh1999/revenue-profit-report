@@ -74,36 +74,26 @@ const AssetListTab = ({
         };
     }, [filteredAssets.length, visibleAssetCount, setVisibleAssetCount]);
 
-    // Handle select all assets
-    const handleSelectAllAssets = (event) => {
+    // Handle select all assets - Memoized for stable reference
+    const handleSelectAllAssets = useCallback((event) => {
         if (event.target.checked) {
             const allIds = filteredAssets.map((a) => a.id);
             setSelectedAssetIdsForPrint(allIds);
         } else {
             setSelectedAssetIdsForPrint([]);
         }
-    };
+    }, [filteredAssets, setSelectedAssetIdsForPrint]);
 
-    // Handle select single asset - signature matches AssetTableRow: (event, assetId)
-    const handleSelectAssetForPrint = (event, assetId) => {
-        const selectedIndex = selectedAssetIdsForPrint.indexOf(assetId);
-        let newSelected = [];
-
-        if (selectedIndex === -1) {
-            newSelected = newSelected.concat(selectedAssetIdsForPrint, assetId);
-        } else if (selectedIndex === 0) {
-            newSelected = newSelected.concat(selectedAssetIdsForPrint.slice(1));
-        } else if (selectedIndex === selectedAssetIdsForPrint.length - 1) {
-            newSelected = newSelected.concat(selectedAssetIdsForPrint.slice(0, -1));
-        } else if (selectedIndex > 0) {
-            newSelected = newSelected.concat(
-                selectedAssetIdsForPrint.slice(0, selectedIndex),
-                selectedAssetIdsForPrint.slice(selectedIndex + 1)
-            );
-        }
-
-        setSelectedAssetIdsForPrint(newSelected);
-    };
+    // Handle select single asset - Memoized for stable reference
+    const handleSelectAssetForPrint = useCallback((event, assetId) => {
+        setSelectedAssetIdsForPrint(prev => {
+            const selectedIndex = prev.indexOf(assetId);
+            if (selectedIndex === -1) {
+                return [...prev, assetId];
+            }
+            return prev.filter(id => id !== assetId);
+        });
+    }, [setSelectedAssetIdsForPrint]);
 
     return (
         <Box sx={{ p: { xs: 1, sm: 2.5 } }}>
@@ -330,40 +320,82 @@ const AssetListTab = ({
             {isMobile ? (
                 // Mobile: Card list
                 <Box>
-                    {/* Select all checkbox */}
+                    {/* Select All Bar */}
                     {canManageAssets && (
-                        <FormControlLabel
-                            control={
-                                <Checkbox
-                                    color="primary"
-                                    indeterminate={selectedAssetIdsForPrint.length > 0 && selectedAssetIdsForPrint.length < filteredAssets.length}
-                                    checked={filteredAssets.length > 0 && selectedAssetIdsForPrint.length === filteredAssets.length}
-                                    onChange={handleSelectAllAssets}
+                        <Box
+                            sx={{
+                                position: 'sticky',
+                                top: 0,
+                                zIndex: 10,
+                                bgcolor: 'background.paper',
+                                p: 1.5,
+                                mb: 1,
+                                borderRadius: 0, // Should flush with edges if possible, but keep simple
+                                borderBottom: '1px solid',
+                                borderColor: 'divider',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                            }}
+                        >
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        size="small"
+                                        color="primary"
+                                        indeterminate={selectedAssetIdsForPrint.length > 0 && selectedAssetIdsForPrint.length < filteredAssets.length}
+                                        checked={filteredAssets.length > 0 && selectedAssetIdsForPrint.length === filteredAssets.length}
+                                        onChange={handleSelectAllAssets}
+                                    />
+                                }
+                                label={
+                                    <Typography variant="body2" fontWeight={600}>
+                                        {selectedAssetIdsForPrint.length > 0 ? `Đã chọn ${selectedAssetIdsForPrint.length}` : "Chọn tất cả hiển thị"}
+                                    </Typography>
+                                }
+                                sx={{ mr: 0 }}
+                            />
+                            {selectedAssetIdsForPrint.length > 0 && (
+                                <Chip
+                                    label="Bỏ chọn"
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => handleSelectAllAssets({ target: { checked: false } })}
                                 />
-                            }
-                            label="Chọn tất cả để in tem"
-                            sx={{ mb: 1, color: 'text.secondary' }}
-                        />
+                            )}
+                        </Box>
                     )}
 
                     {groupedAssets.map((group) => (
                         <React.Fragment key={group.name}>
                             {/* Department name */}
-                            <Typography
-                                variant="overline"
+                            {/* Sticky Department Header */}
+                            <Box
                                 sx={{
-                                    display: 'block',
-                                    fontWeight: 700,
-                                    color: 'primary.main',
+                                    position: 'sticky',
+                                    top: canManageAssets ? 56 : 0, // Adjust based on Select All bar height
+                                    zIndex: 9,
                                     py: 1,
-                                    px: 1.5,
-                                    mt: 1,
-                                    bgcolor: 'primary.lighter',
-                                    borderRadius: 1.5,
+                                    px: 0.5,
+                                    bgcolor: alpha(theme.palette.background.default, 0.85),
+                                    backdropFilter: 'blur(8px)',
+                                    mb: 1
                                 }}
                             >
-                                {group.name}
-                            </Typography>
+                                <Chip
+                                    label={group.name}
+                                    color="primary"
+                                    variant="filled"
+                                    size="small"
+                                    sx={{
+                                        fontWeight: 700,
+                                        borderRadius: 1.5,
+                                        height: 28,
+                                        px: 1
+                                    }}
+                                />
+                            </Box>
 
                             {/* Asset list */}
                             {group.items.map((a, index) => {
@@ -424,11 +456,16 @@ const AssetListTab = ({
                                     >
                                         <TableCell colSpan={canManageAssets ? 8 : 6}
                                             sx={{
-                                                position: 'sticky', top: 56, zIndex: 1,
-                                                backgroundColor: 'grey.100', fontWeight: 800,
+                                                position: 'sticky', top: 56, zIndex: 9,
+                                                background: theme.palette.mode === 'light'
+                                                    ? `linear-gradient(to right, ${alpha('#ffffff', 0.95)}, ${alpha('#f8fafc', 0.95)})`
+                                                    : alpha(theme.palette.background.paper, 0.95),
+                                                backdropFilter: 'blur(8px)',
+                                                fontWeight: 800,
                                                 textTransform: 'uppercase', letterSpacing: '0.5px',
-                                                color: 'primary.main', borderBottom: '2px solid',
-                                                borderColor: 'grey.300'
+                                                color: 'primary.main', borderBottom: '1px solid',
+                                                borderColor: 'divider',
+                                                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
                                             }}
                                         >
                                             PHÒNG BAN: {group.name}

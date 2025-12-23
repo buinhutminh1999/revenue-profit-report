@@ -691,7 +691,7 @@ export default function AssetTransferPage() {
 
         // Reset and open modal with pre-filled data
         setCreating(false);
-        setCreateStep(1); // Jump to step 2 (asset selection) since we already have assets
+        setCreateStep(0); // Start at step 0 so user can select destination department
         setFromDept(fromDeptId || "");
         setToDept("");
         setSelectedAssets(assetIds);
@@ -3059,8 +3059,21 @@ export default function AssetTransferPage() {
             </Dialog>
 
 
-            {/* ✅ THÊM DIALOG MỚI CHO VIỆC GIẢM SỐ LƯỢNG */}
-            <Dialog open={!!reduceQuantityTarget} onClose={() => setReduceQuantityTarget(null)}>
+            {/* ✅ THÊM DIALOG MỚI CHO VIỆC GIẢM SỐ LƯỢNG - Responsive */}
+            <Dialog
+                open={!!reduceQuantityTarget}
+                onClose={() => setReduceQuantityTarget(null)}
+                fullScreen={isMobile}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{
+                    sx: {
+                        m: isMobile ? 0 : { xs: 1, sm: 2 },
+                        width: isMobile ? '100%' : { xs: 'calc(100% - 16px)', sm: 'auto' },
+                        borderRadius: isMobile ? 0 : 2
+                    }
+                }}
+            >
                 <DialogTitle>Xác nhận Giảm Số lượng Tài sản</DialogTitle>
                 <DialogContent>
                     <DialogContentText component="div" sx={{ mb: 2 }}>
@@ -3764,7 +3777,19 @@ export default function AssetTransferPage() {
             </Dialog>
 
             {/* SETTINGS DIALOG */}
-            <Dialog open={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} maxWidth="lg" fullWidth>
+            <Dialog
+                open={isSettingsModalOpen}
+                onClose={() => setIsSettingsModalOpen(false)}
+                maxWidth="lg"
+                fullWidth
+                fullScreen={isMobile}
+                PaperProps={{
+                    sx: {
+                        m: isMobile ? 0 : { xs: 1, sm: 2 },
+                        borderRadius: isMobile ? 0 : 2
+                    }
+                }}
+            >
                 <DialogContent>
                     <DocumentNumberSettings />
                 </DialogContent>

@@ -196,7 +196,39 @@ const TransferListTab = ({
                     </Stack>
                 </Paper>
 
-                {/* --- Khu vực hiển thị nội dung động --- */}
+                {/* Quick Status Filter - matching Request/Report tabs */}
+                <Box sx={{ mb: 2.5, overflowX: 'auto', display: 'flex', gap: 1, pb: 0.5 }}>
+                    {[
+                        { value: 'ALL', label: 'Tất cả' },
+                        { value: 'PENDING', label: 'Chờ duyệt', color: 'warning' },
+                        { value: 'COMPLETED', label: 'Hoàn thành', color: 'success' },
+                        { value: 'REJECTED', label: 'Đã hủy', color: 'error' },
+                    ].map((opt) => {
+                        const isActive = opt.value === 'ALL'
+                            ? statusMulti.length === 0
+                            : (opt.value === 'PENDING'
+                                ? statusMulti.some(s => ['PENDING_SENDER', 'PENDING_RECEIVER', 'PENDING_ADMIN'].includes(s))
+                                : statusMulti.includes(opt.value));
+                        return (
+                            <Chip
+                                key={opt.value}
+                                label={opt.label}
+                                onClick={() => {
+                                    if (opt.value === 'ALL') {
+                                        setStatusMulti([]);
+                                    } else if (opt.value === 'PENDING') {
+                                        setStatusMulti(['PENDING_SENDER', 'PENDING_RECEIVER', 'PENDING_ADMIN']);
+                                    } else {
+                                        setStatusMulti([opt.value]);
+                                    }
+                                }}
+                                color={isActive ? (opt.color || 'primary') : 'default'}
+                                variant={isActive ? 'filled' : 'outlined'}
+                                sx={{ fontWeight: isActive ? 600 : 400 }}
+                            />
+                        );
+                    })}
+                </Box>
                 {isMobile ? (
                     // Giao diện cho mobile: Danh sách các Card
                     <Box mt={2.5}>
@@ -237,7 +269,6 @@ const TransferListTab = ({
                                         hover
                                         sx={{
                                             cursor: 'pointer',
-                                            // Tạo hiệu ứng "card"
                                             '&:last-child td, &:last-child th': { border: 0 },
                                             '&:hover': {
                                                 boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
@@ -246,11 +277,6 @@ const TransferListTab = ({
                                             transition: 'all 0.15s ease-in-out',
                                             bgcolor: 'background.paper'
                                         }}
-                                        component={motion.tr}
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.3 }}
-                                        layout
                                         onClick={() => onOpenDetail(t)}
                                     >
                                         <TableCell component="th" scope="row">

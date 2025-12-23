@@ -2,11 +2,11 @@
 import React from "react";
 import {
     Card, CardContent, Stack, Checkbox, Box, Typography,
-    Tooltip, IconButton, Chip
+    Tooltip, IconButton, Chip, alpha, useTheme
 } from "@mui/material";
 import {
     Edit, Delete as Trash2, Inventory2, CalendarMonth,
-    StraightenOutlined, NotesOutlined
+    StraightenOutlined, NotesOutlined, Circle
 } from "@mui/icons-material";
 import { formatDate } from "../../utils/assetUtils";
 import { motion } from "framer-motion";
@@ -14,6 +14,7 @@ import { motion } from "framer-motion";
 const MotionCard = motion.create(Card);
 
 const AssetCardMobile = React.memo(({ asset, isSelected, canManageAssets, showCheckbox = true, onSelect, onEdit, onDelete }) => {
+    const theme = useTheme();
     // showCheckbox controls checkbox visibility (requires valid id)
     // canManageAssets controls action buttons visibility
     const shouldShowCheckbox = canManageAssets && showCheckbox;
@@ -24,106 +25,108 @@ const AssetCardMobile = React.memo(({ asset, isSelected, canManageAssets, showCh
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            tabIndex={-1} // Prevent focus retention that causes aria-hidden warning
+            // Removed whileHover and whileTap for performance
             sx={{
                 mb: 1.5,
                 borderRadius: 3,
                 overflow: 'hidden',
-                border: isSelected ? '2px solid' : '1px solid',
+                border: '1px solid',
                 borderColor: isSelected ? 'primary.main' : 'divider',
-                bgcolor: isSelected ? 'primary.50' : 'background.paper',
-                transition: 'all 0.2s ease-in-out',
+                bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.04) : 'background.paper',
+                position: 'relative',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: isSelected ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.15)}` : 'none',
                 '&:hover': {
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                    borderColor: 'primary.light',
-                },
-                '&:focus': { outline: 'none' } // Remove focus ring since not keyboard navigable
+                    borderColor: 'primary.main',
+                    boxShadow: `0 4px 16px ${alpha(theme.palette.primary.main, 0.1)}`,
+                }
             }}
         >
-            {/* Use Box instead of CardActionArea to avoid button-inside-button nesting error */}
+            {/* Selection Indicator Strip */}
+            {isSelected && (
+                <Box sx={{
+                    position: 'absolute',
+                    top: 0, bottom: 0, left: 0,
+                    width: 4,
+                    bgcolor: 'primary.main'
+                }} />
+            )}
+
+            {/* Clickable Area */}
             <Box
                 onClick={onEdit}
                 sx={{
                     cursor: 'pointer',
-                    '&:active': { opacity: 0.9 }
+                    '&:active': { bgcolor: alpha(theme.palette.action.active, 0.05) }
                 }}
             >
                 <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                    <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                        {/* Checkbox để chọn in tem */}
+                    <Stack direction="row" spacing={2} alignItems="flex-start">
+                        {/* Checkbox for selection */}
                         {shouldShowCheckbox && (
-                            <Checkbox
-                                checked={isSelected}
-                                onChange={(event) => {
-                                    event.stopPropagation();
-                                    onSelect(event, asset.id);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                sx={{
-                                    p: 0.5,
-                                    mt: 0,
-                                    '& .MuiSvgIcon-root': { fontSize: 24 } // Larger touch target
-                                }}
-                            />
+                            <Box onClick={(e) => e.stopPropagation()} sx={{ mt: 0.5 }}>
+                                <Checkbox
+                                    checked={isSelected}
+                                    onChange={(event) => onSelect(event, asset.id)}
+                                    icon={<Circle variant="outlined" sx={{ color: 'text.disabled', fontSize: 24 }} />}
+                                    checkedIcon={<Circle sx={{ color: 'primary.main', fontSize: 24 }} />}
+                                    sx={{ p: 0 }}
+                                />
+                            </Box>
                         )}
 
-                        {/* Icon đại diện tài sản */}
+                        {/* Icon Block */}
                         <Box
                             sx={{
                                 width: 48,
                                 height: 48,
-                                borderRadius: 2,
-                                bgcolor: 'primary.lighter',
+                                borderRadius: 2.5,
+                                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.2)} 0%, ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                flexShrink: 0
+                                flexShrink: 0,
+                                color: 'primary.main'
                             }}
                         >
-                            <Inventory2 sx={{ color: 'primary.main', fontSize: 24 }} />
+                            <Inventory2 sx={{ fontSize: 24 }} />
                         </Box>
 
-                        {/* Phần thông tin chính */}
+                        {/* Content */}
                         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                            {/* Tên tài sản - nổi bật */}
-                            <Typography
-                                fontWeight={700}
-                                fontSize="1rem"
-                                sx={{
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    mb: 0.5
-                                }}
-                            >
-                                {asset.name}
-                            </Typography>
+                            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                                <Typography
+                                    variant="subtitle1"
+                                    fontWeight={700}
+                                    sx={{
+                                        lineHeight: 1.3,
+                                        mb: 0.5,
+                                        color: isSelected ? 'primary.main' : 'text.primary'
+                                    }}
+                                >
+                                    {asset.name}
+                                </Typography>
 
-                            {/* Thông tin chi tiết với icons */}
-                            <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mb: 1 }}>
-                                {/* Số lượng - chip nổi bật */}
-                                <Chip
-                                    size="small"
-                                    label={`${asset.quantity} ${asset.unit || 'cái'}`}
-                                    color="primary"
-                                    variant="outlined"
-                                    sx={{ fontWeight: 600, borderRadius: 1.5 }}
-                                />
-
-                                {/* Ngày kiểm kê */}
-                                <Chip
-                                    size="small"
-                                    icon={<CalendarMonth sx={{ fontSize: '16px !important' }} />}
-                                    label={formatDate(asset.lastChecked)}
-                                    color={asset.lastChecked ? 'success' : 'warning'}
-                                    variant="outlined"
-                                    sx={{ borderRadius: 1.5 }}
-                                />
+                                {/* Status Dot based on availability */}
+                                {Number(asset.availableQuantity) <= 0 && (
+                                    <Tooltip title="Đang khóa / Hết hàng">
+                                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main', mt: 1, flexShrink: 0 }} />
+                                    </Tooltip>
+                                )}
                             </Stack>
 
-                            {/* Thông tin phụ */}
+                            {/* Quantity & Date */}
+                            <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1.5 }}>
+                                <Typography variant="body2" fontWeight={600} color="text.primary">
+                                    {asset.quantity} {asset.unit || 'cái'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <CalendarMonth sx={{ fontSize: 14 }} />
+                                    {formatDate(asset.lastChecked)}
+                                </Typography>
+                            </Stack>
+
+                            {/* Secondary Info */}
                             <Stack spacing={0.5}>
                                 {asset.size && (
                                     <Stack direction="row" alignItems="center" spacing={0.5}>
@@ -154,48 +157,52 @@ const AssetCardMobile = React.memo(({ asset, isSelected, canManageAssets, showCh
                                 )}
                             </Stack>
                         </Box>
-
-                        {/* Các nút hành động - larger touch targets */}
-                        {canManageAssets && (
-                            <Stack spacing={0.5} onClick={(e) => e.stopPropagation()}>
-                                <Tooltip title="Chỉnh sửa" arrow placement="left">
-                                    <IconButton
-                                        size="medium"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onEdit();
-                                        }}
-                                        sx={{
-                                            bgcolor: 'grey.100',
-                                            '&:hover': { bgcolor: 'primary.lighter' },
-                                            width: 40,
-                                            height: 40,
-                                        }}
-                                    >
-                                        <Edit sx={{ fontSize: 20 }} />
-                                    </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Xóa/Giảm SL" arrow placement="left">
-                                    <IconButton
-                                        size="medium"
-                                        color="error"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onDelete();
-                                        }}
-                                        sx={{
-                                            bgcolor: 'error.lighter',
-                                            '&:hover': { bgcolor: 'error.light' },
-                                            width: 40,
-                                            height: 40,
-                                        }}
-                                    >
-                                        <Trash2 sx={{ fontSize: 20 }} />
-                                    </IconButton>
-                                </Tooltip>
-                            </Stack>
-                        )}
                     </Stack>
+
+                    {/* Action Bar - Only visible if managing */}
+                    {canManageAssets && (
+                        <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: 1,
+                            mt: 1.5,
+                            pt: 1.5,
+                            borderTop: '1px dashed',
+                            borderColor: 'divider'
+                        }}>
+                            <Box
+                                onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                                sx={{
+                                    display: 'flex', alignItems: 'center', gap: 0.5,
+                                    px: 1.5, py: 0.5, borderRadius: 1.5,
+                                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                                    color: 'primary.main',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.15) }
+                                }}
+                            >
+                                <Edit sx={{ fontSize: 16 }} />
+                                <Typography variant="caption" fontWeight={600}>Sửa</Typography>
+                            </Box>
+
+                            <Box
+                                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                                sx={{
+                                    display: 'flex', alignItems: 'center', gap: 0.5,
+                                    px: 1.5, py: 0.5, borderRadius: 1.5,
+                                    bgcolor: alpha(theme.palette.error.main, 0.08),
+                                    color: 'error.main',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.15) }
+                                }}
+                            >
+                                <Trash2 sx={{ fontSize: 16 }} />
+                                <Typography variant="caption" fontWeight={600}>Xóa</Typography>
+                            </Box>
+                        </Box>
+                    )}
                 </CardContent>
             </Box>
         </MotionCard>

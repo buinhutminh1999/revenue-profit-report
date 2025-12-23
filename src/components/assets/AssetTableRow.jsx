@@ -28,12 +28,15 @@ const AssetTableRow = React.memo(({
                 cursor: 'pointer',
                 bgcolor: isSelected ? 'primary.50' : 'background.paper',
                 '&:hover': {
-                    bgcolor: isSelected ? 'primary.100' : 'grey.50',
+                    bgcolor: isSelected ? 'primary.100' : 'background.paper',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                    transform: 'translateY(-1px)',
+                    zIndex: 1,
                     '& .action-buttons': {
                         opacity: 1,
                     }
                 },
-                transition: 'all 0.15s ease-in-out',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
             onClick={() => onEdit(asset)}
         >

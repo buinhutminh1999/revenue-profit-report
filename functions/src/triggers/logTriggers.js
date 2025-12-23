@@ -79,6 +79,9 @@ exports.logAssetDeletion = onDocumentDeleted(
 // NEW: CÁC TRIGGER GHI LOG CHO PHIẾU LUÂN CHUYỂN
 // ====================================================================
 
+// Import push notification helper
+const { sendPushToDepartments, sendPushToAdmins } = require("../utils/sendPushNotification");
+
 // 1. Ghi log khi một phiếu luân chuyển MỚI được tạo
 exports.logTransferCreation = onDocumentCreated("transfers/{transferId}", async (event) => {
     const snap = event.data;
@@ -87,15 +90,45 @@ exports.logTransferCreation = onDocumentCreated("transfers/{transferId}", async 
     const transferData = snap.data();
     const { transferId } = event.params;
     const actor = transferData.createdBy || "unknown_actor";
+    const actorName = actor?.name || "Ai đó";
     const target = {
         type: "transfer",
         id: transferId,
         name: `#${transferId.slice(0, 6)} từ ${transferData.from} đến ${transferData.to}`,
     };
 
-    return writeAuditLog("TRANSFER_CREATED", actor, target, transferData, {
+    // Write audit log
+    await writeAuditLog("TRANSFER_CREATED", actor, target, transferData, {
         origin: "trigger:logTransferCreation",
     });
+
+    // Send push notification to receiver department and admins
+    const displayId = transferData.maPhieuHienThi || `#${transferId.slice(0, 6)}`;
+    try {
+        // Notify receiver department (they need to sign)
+        if (transferData.toDeptId) {
+            await sendPushToDepartments(
+                [transferData.toDeptId],
+                {
+                    title: "📦 Có phiếu luân chuyển mới!",
+                    body: `${actorName} gửi phiếu ${displayId} từ ${transferData.from} đến ${transferData.to}`,
+                },
+                { url: "/asset-transfer", transferId }
+            );
+        }
+
+        // Also notify admins (HC department)
+        await sendPushToAdmins(
+            {
+                title: "📦 Phiếu luân chuyển mới",
+                body: `${displayId}: ${transferData.from} → ${transferData.to}`,
+            },
+            { url: "/asset-transfer", transferId }
+        );
+    } catch (pushError) {
+        console.error("Error sending push for transfer creation:", pushError);
+        // Don't fail the trigger if push fails
+    }
 });
 
 // 2. Ghi log khi một phiếu luân chuyển BỊ XÓA
@@ -139,16 +172,61 @@ exports.logTransferSignature = onDocumentUpdated("transfers/{transferId}", async
 
     const actor = signaturesAfter[signedRole];
     const { transferId } = event.params;
+    const displayId = afterData.maPhieuHienThi || `#${transferId.slice(0, 6)}`;
     const target = {
         type: "transfer",
         id: transferId,
-        name: `#${transferId.slice(0, 6)}`,
+        name: displayId,
     };
     const stepName = signedRole === "sender" ? "Phòng chuyển" : signedRole === "receiver" ? "Phòng nhận" : "P.Hành chính";
 
-    return writeAuditLog("TRANSFER_SIGNED", actor, target, { step: stepName }, {
+    // Write audit log
+    await writeAuditLog("TRANSFER_SIGNED", actor, target, { step: stepName }, {
         origin: "trigger:logTransferSignature"
     });
+
+    // Send push notification to next approver
+    try {
+        const actorName = actor?.name || "Ai đó";
+
+        if (signedRole === "sender") {
+            // Sender signed → Notify receiver department
+            if (afterData.toDeptId) {
+                await sendPushToDepartments(
+                    [afterData.toDeptId],
+                    {
+                        title: "✍️ Cần ký duyệt phiếu",
+                        body: `${actorName} đã ký phiếu ${displayId}. Đến lượt bạn duyệt!`,
+                    },
+                    { url: "/asset-transfer", transferId }
+                );
+            }
+        } else if (signedRole === "receiver") {
+            // Receiver signed → Notify admins (HC department)
+            await sendPushToAdmins(
+                {
+                    title: "✍️ Phiếu cần duyệt cuối",
+                    body: `${displayId} đã được phòng nhận ký. Cần P.HC duyệt!`,
+                },
+                { url: "/asset-transfer", transferId }
+            );
+        } else if (signedRole === "admin") {
+            // Admin signed (completed) → Notify both departments
+            const deptIds = [afterData.fromDeptId, afterData.toDeptId].filter(Boolean);
+            if (deptIds.length > 0) {
+                await sendPushToDepartments(
+                    deptIds,
+                    {
+                        title: "✅ Phiếu đã hoàn thành!",
+                        body: `Phiếu ${displayId} đã được duyệt xong.`,
+                    },
+                    { url: "/asset-transfer", transferId }
+                );
+            }
+        }
+    } catch (pushError) {
+        console.error("Error sending push for transfer signature:", pushError);
+    }
 });
 
 // ====================================================================

@@ -71,19 +71,38 @@ const ReportListTab = ({
 
     const statusOptions = [
         { value: 'ALL', label: 'Tất cả' },
-        { value: 'PENDING', label: 'Cần duyệt', color: 'warning' },
+        { value: 'PENDING', label: 'Chờ duyệt', color: 'warning' },
         { value: 'COMPLETED', label: 'Hoàn thành', color: 'success' },
         { value: 'REJECTED', label: 'Đã hủy', color: 'error' },
     ];
 
     return (
         <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
-            {/* Toolbar: Search */}
-            <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5, borderRadius: 2 }}>
-                <Toolbar disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
+            {/* Toolbar: Search - Premium Style matching TransferListTab */}
+            <Paper
+                variant="outlined"
+                sx={{
+                    p: { xs: 1.5, sm: 2 },
+                    mb: 2.5,
+                    borderRadius: 2.5,
+                    background: theme.palette.mode === 'light'
+                        ? `linear-gradient(135deg, ${alpha('#ffffff', 0.8)} 0%, ${alpha('#f8fafc', 0.8)} 100%)`
+                        : `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.default, 0.8)} 100%)`,
+                    backdropFilter: "blur(10px)",
+                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                    boxShadow: theme.palette.mode === 'light'
+                        ? "0 2px 8px rgba(0,0,0,0.04)"
+                        : "0 2px 8px rgba(0,0,0,0.2)",
+                }}
+            >
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1.5}
+                    alignItems={{ xs: 'stretch', sm: 'center' }}
+                >
                     <Tooltip title="Nhấn Ctrl+K (hoặc Cmd+K) để tìm kiếm nhanh" placement="top">
                         <TextField
-                            placeholder="🔎 Tìm mã phiếu, tiêu đề, phòng ban, người yêu cầu..."
+                            placeholder={isMobile ? "🔎 Tìm kiếm..." : "🔎 Tìm mã phiếu, tiêu đề, phòng ban..."}
                             size="small"
                             sx={{ flex: "1 1 360px" }}
                             value={search}
@@ -99,7 +118,7 @@ const ReportListTab = ({
                             }}
                         />
                     </Tooltip>
-                </Toolbar>
+                </Stack>
             </Paper>
 
             {/* Quick Status Filter */}
@@ -173,11 +192,6 @@ const ReportListTab = ({
                                         transition: 'all 0.15s ease-in-out',
                                         bgcolor: 'background.paper'
                                     }}
-                                    component={motion.tr}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                    layout
                                     onClick={() => onOpenDetail(r)}
                                 >
                                     <TableCell sx={{ fontWeight: 600 }}>

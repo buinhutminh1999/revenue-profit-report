@@ -16,6 +16,7 @@ import { ThemeSettingsContext } from "../../styles/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
 import DensityToggleButton from "../ui/DensityToggleButton";
 import { EmptyState, ErrorState } from "../common";
+import { isPushSupported, getPermissionStatus, requestNotificationPermission, setupForegroundListener } from "../../services/pushNotification";
 
 // Firestore
 import { db } from "../../services/firebase-config";
@@ -42,6 +43,8 @@ import {
     HowToReg as UserCheck,
     Send,
     DriveFileRenameOutline as FilePen,
+    NotificationsActive,
+    NotificationsOff,
 } from "@mui/icons-material";
 
 // ---------- styled ----------
@@ -210,6 +213,10 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
     const [notificationsLoading, setNotificationsLoading] = useState(true); // ✅ Thêm loading state
     const [notificationsError, setNotificationsError] = useState(null); // ✅ Thêm error state
 
+    // Push Notification States
+    const [pushEnabled, setPushEnabled] = useState(false);
+    const [pushLoading, setPushLoading] = useState(false);
+
     // ✅ Cải thiện: Thêm loading và error handling cho notifications
     // Kiểm tra xem user có thuộc P.HC hoặc Kế toán không (xem được tất cả thông báo)
     const isHCOrKT = useMemo(() => {
@@ -272,6 +279,45 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         );
         return () => unsubscribe();
     }, [user?.uid, user?.departmentId, user?.departmentName, user?.email, isHCOrKT]);
+
+    // Push Notification: Check status on mount
+    useEffect(() => {
+        if (isPushSupported()) {
+            const status = getPermissionStatus();
+            setPushEnabled(status === 'granted');
+        }
+    }, []);
+
+    // Push Notification: Setup foreground listener
+    useEffect(() => {
+        if (isPushSupported() && getPermissionStatus() === 'granted') {
+            setupForegroundListener((payload) => {
+                // Show in-app toast for foreground messages
+                console.log('🔔 Push received in foreground:', payload);
+            });
+        }
+    }, [pushEnabled]);
+
+    // Handle toggle push notifications
+    const handleTogglePush = async () => {
+        if (!user?.uid) return;
+
+        setPushLoading(true);
+        try {
+            const result = await requestNotificationPermission(user.uid);
+            if (result.success) {
+                setPushEnabled(true);
+                console.log('✅ Push notifications enabled');
+            } else {
+                console.error('❌ Failed to enable push:', result.error);
+                alert(result.error || 'Không thể bật thông báo đẩy');
+            }
+        } catch (error) {
+            console.error('❌ Error toggling push:', error);
+        } finally {
+            setPushLoading(false);
+        }
+    };
 
     useHotkeys("ctrl+k, cmd+k", (e) => { e.preventDefault(); setSearchOpen(true); });
     useHotkeys("ctrl+b, cmd+b", (e) => { e.preventDefault(); onSidebarToggle?.(); });
@@ -951,6 +997,30 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                         >
                             Đánh dấu đã đọc
                         </Button>
+                    )}
+
+                    {/* Push Notification Toggle */}
+                    {isPushSupported() && (
+                        <Tooltip title={pushEnabled ? "Đã bật thông báo đẩy" : "Bật thông báo đẩy"} arrow>
+                            <IconButton
+                                size="small"
+                                onClick={handleTogglePush}
+                                disabled={pushLoading || pushEnabled}
+                                sx={{
+                                    ml: 0.5,
+                                    color: pushEnabled ? 'success.main' : 'text.secondary',
+                                    bgcolor: pushEnabled ? alpha(theme.palette.success.main, 0.1) : 'transparent',
+                                }}
+                            >
+                                {pushLoading ? (
+                                    <CircularProgress size={18} />
+                                ) : pushEnabled ? (
+                                    <NotificationsActive sx={{ fontSize: 20 }} />
+                                ) : (
+                                    <NotificationsOff sx={{ fontSize: 20 }} />
+                                )}
+                            </IconButton>
+                        </Tooltip>
                     )}
                 </Box>
                 <Tabs
