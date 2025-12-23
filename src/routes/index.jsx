@@ -138,7 +138,7 @@ function AppRoutes() {
                         <Route path="project-manager" element={<RequireEmailAccess pathKey="project-manager">{lazyLoad(ProjectsList)}</RequireEmailAccess>} />
                         <Route path="accounts-receivable" element={<RequireEmailAccess pathKey="accounts-receivable">{lazyLoad(AccountsReceivable)}</RequireEmailAccess>} />
                         <Route path="construction-payables" element={<RequireEmailAccess pathKey="construction-payables">{lazyLoad(ConstructionPayables)}</RequireEmailAccess>} />
-                        <Route path="construction-payables-detail" element={<RequireEmailAccess pathKey="construction-payables">{lazyLoad(ConstructionPayablesDetail)}</RequireEmailAccess>} />
+                        <Route path="construction-payables-detail" element={<RequireEmailAccess pathKey="construction-payables-detail">{lazyLoad(ConstructionPayablesDetail)}</RequireEmailAccess>} />
                         <Route path="allocations" element={<RequireEmailAccess pathKey="allocations">{lazyLoad(CostAllocation)}</RequireEmailAccess>} />
                         <Route path="balance-sheet" element={<RequireEmailAccess pathKey="balance-sheet">{lazyLoad(BalanceSheet)}</RequireEmailAccess>} />
                         <Route path="profit-change" element={<RequireEmailAccess pathKey="profit-change">{lazyLoad(ProfitChange)}</RequireEmailAccess>} />

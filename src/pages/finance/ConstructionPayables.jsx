@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
     Box,
     Typography,
@@ -45,7 +45,10 @@ import {
     ChevronRight as ChevronRightIcon,
     LockClock as CloseQuarterIcon,
     FileDownloadOutlined,
+    Print as PrintIcon,
 } from "@mui/icons-material";
+import { useReactToPrint } from "react-to-print";
+import ConstructionPayablesPrintTemplate from "../../components/finance/ConstructionPayablesPrintTemplate";
 import { exportToExcel } from "../../utils/excelUtils";
 import { NumericFormat } from "react-number-format";
 import { db } from "../../services/firebase-config";
@@ -240,7 +243,7 @@ const StatCard = ({
     );
 };
 
-const CustomToolbar = ({ onExportClick, isDataEmpty }) => (
+const CustomToolbar = ({ onExportClick, onPrintClick, isDataEmpty }) => (
     <GridToolbarContainer
         sx={{
             p: 2.5,
@@ -278,6 +281,23 @@ const CustomToolbar = ({ onExportClick, isDataEmpty }) => (
             >
                 Bảng tổng hợp công nợ
             </Typography>
+            <Button
+                variant="outlined"
+                color="primary"
+                size="small"
+                onClick={onPrintClick}
+                disabled={isDataEmpty}
+                startIcon={<PrintIcon />}
+                sx={{
+                    borderRadius: 2,
+                    textTransform: "none",
+                    fontWeight: 600,
+                    px: 2,
+                    mr: 1
+                }}
+            >
+                In Báo Cáo
+            </Button>
             <Button
                 variant="contained"
                 color="success"
@@ -571,6 +591,12 @@ const ConstructionPayables = () => {
             ),
         [processedData]
     );
+
+    const componentRef = useRef();
+    const handlePrint = useReactToPrint({
+        contentRef: componentRef,
+        documentTitle: `CongNo_Q${selectedQuarter}_${selectedYear}`,
+    });
 
     const handleExportToExcel = async () => {
         // Prepare data with summary row
@@ -1323,10 +1349,12 @@ const ConstructionPayables = () => {
                                     rowSpacingType="border"
                                     getRowSpacing={getGridRowSpacing}
                                     // -------------------------
+                                    showToolbar
                                     slots={{
                                         toolbar: () => (
                                             <CustomToolbar
                                                 onExportClick={handleExportToExcel}
+                                                onPrintClick={handlePrint}
                                                 isDataEmpty={processedData.length === 0}
                                             />
                                         ),
@@ -1617,6 +1645,16 @@ const ConstructionPayables = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
+            {/* Hidden Print Template */}
+            <div style={{ display: "none" }}>
+                <ConstructionPayablesPrintTemplate
+                    ref={componentRef}
+                    data={processedData}
+                    summary={summaryData}
+                    year={selectedYear}
+                    quarter={selectedQuarter}
+                />
+            </div>
         </Box>
     );
 };

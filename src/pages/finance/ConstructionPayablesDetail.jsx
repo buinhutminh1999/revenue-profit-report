@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
     Box,
     Typography,
@@ -35,7 +35,10 @@ import {
     FileDownloadOutlined,
     FilterList,
     Search as SearchIcon,
+    Print as PrintIcon,
 } from "@mui/icons-material";
+import { useReactToPrint } from "react-to-print";
+import ConstructionPayablesDetailPrintTemplate from "../../components/finance/ConstructionPayablesDetailPrintTemplate";
 import { exportToExcel } from "../../utils/excelUtils";
 import { NumericFormat } from "react-number-format";
 import { toNum } from "../../utils/numberUtils";
@@ -464,6 +467,13 @@ const ConstructionPayablesDetail = () => {
         return new Set(filteredTransactions.map(t => t.projectId)).size;
     }, [filteredTransactions]);
 
+    // Print handler
+    const componentRef = useRef();
+    const handlePrint = useReactToPrint({
+        contentRef: componentRef,
+        documentTitle: `ChiTietCongNo_Q${selectedQuarter}_${selectedYear}`,
+    });
+
     // Export to Excel
     const handleExportToExcel = async () => {
         const columnsForExport = [
@@ -733,6 +743,18 @@ const ConstructionPayablesDetail = () => {
                                 sx={{ width: { xs: '100%', md: 400 } }}
                             />
                             <Button
+                                variant="outlined"
+                                color="primary"
+                                size="small"
+                                onClick={handlePrint}
+                                disabled={filteredTransactions.length === 0}
+                                startIcon={<PrintIcon />}
+                                fullWidth={isMobile}
+                                sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, maxWidth: { md: 200 } }}
+                            >
+                                In Báo Cáo
+                            </Button>
+                            <Button
                                 variant="contained"
                                 color="success"
                                 size="small"
@@ -855,6 +877,17 @@ const ConstructionPayablesDetail = () => {
                     />
                 )}
             </Paper>
+
+            {/* Hidden Print Template */}
+            <div style={{ display: "none" }}>
+                <ConstructionPayablesDetailPrintTemplate
+                    ref={componentRef}
+                    data={filteredTransactions}
+                    summary={summaryData}
+                    year={selectedYear}
+                    quarter={selectedQuarter}
+                />
+            </div>
         </Box>
     );
 };

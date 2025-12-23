@@ -50,6 +50,7 @@ export const PROTECTED_ROUTES = [
     },
     { path: 'allocations', name: 'Phân Bổ Chi Phí', group: 'Modules chính' },
     { path: 'construction-payables', name: 'Công Nợ Phải Trả', group: 'Modules chính' },
+    { path: 'construction-payables-detail', name: 'Chi Tiết Công Nợ', group: 'Modules chính' },
     { path: 'accounts-receivable', name: 'Công Nợ Phải Thu', group: 'Modules chính' },
     { path: 'balance-sheet', name: 'Bảng Cân Đối Kế Toán', group: 'Modules chính' },
     { path: 'profit-change', name: 'Tăng Giảm Lợi Nhuận', group: 'Modules chính' },
