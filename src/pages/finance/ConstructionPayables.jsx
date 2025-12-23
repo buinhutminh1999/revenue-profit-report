@@ -24,6 +24,7 @@ import {
     DialogTitle,
     Fade,
     Grow,
+    useMediaQuery
 } from "@mui/material";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -55,12 +56,39 @@ import { ErrorState, EmptyState, SkeletonDataGrid } from "../../components/commo
 import { ErrorOutline as AlertCircle, Inbox } from "@mui/icons-material";
 import { useConstructionPayables } from "../../hooks/useConstructionPayables";
 import { useCategories } from "../../hooks/useCategories";
+import PayableCardMobile from "../../components/finance/PayableCardMobile";
+import { useSpring, useTransform } from "framer-motion";
 
 const SORT_CONFIG = {
     "Thi công": { key: "orderThiCong" },
     "Nhà máy": { key: "orderNhaMay" },
     "KH-ĐT": { key: "orderKhdt" },
 };
+
+const chipColorByType = {
+    "Thi công": "warning",
+    "Nhà máy": "success",
+    "KH-ĐT": "info",
+    "LDX": "secondary",
+    "Sà Lan": "primary",
+};
+
+function AnimatedCounter({ value, isCurrency = false }) {
+    const spring = useSpring(Number(value) || 0, {
+        mass: 0.8,
+        stiffness: 75,
+        damping: 15,
+    });
+    const display = useTransform(spring, (current) =>
+        isCurrency
+            ? `${toNum(current).toLocaleString('vi-VN')} ₫`
+            : toNum(current).toLocaleString('vi-VN')
+    );
+    useEffect(() => {
+        spring.set(Number(value) || 0);
+    }, [spring, value]);
+    return <motion.span>{display}</motion.span>;
+}
 
 const StyledDataGrid = styled(DataGrid)(({ theme }) => ({
     border: 0,
@@ -110,109 +138,107 @@ const StyledDataGrid = styled(DataGrid)(({ theme }) => ({
     },
 }));
 
-const SummaryCard = ({ title, amount, icon, color, loading, index = 0 }) => (
-    <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: index * 0.1 }}
-        >
-            <Paper
-                elevation={0}
-                sx={{
-                    p: 3,
-                    borderRadius: 4,
-                    background: (theme) =>
-                        theme.palette.mode === "light"
-                            ? `linear-gradient(135deg, ${alpha(color.main, 0.05)} 0%, ${alpha(color.main, 0.02)} 100%)`
-                            : `linear-gradient(135deg, ${alpha(color.main, 0.15)} 0%, ${alpha(color.main, 0.08)} 100%)`,
-                    border: "1px solid",
-                    borderColor: alpha(color.main, 0.2),
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    position: "relative",
-                    overflow: "hidden",
-                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                    "&::before": {
-                        content: '""',
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        height: "4px",
-                        background: `linear-gradient(90deg, ${color.main}, ${color.light || color.main})`,
-                        transform: "scaleX(0)",
-                        transformOrigin: "left",
-                        transition: "transform 0.3s ease",
-                    },
-                    "&:hover": {
-                        transform: "translateY(-4px)",
-                        boxShadow: (theme) =>
-                            `0 12px 40px ${alpha(color.main, 0.15)}, 0 4px 12px ${alpha(color.main, 0.1)}`,
-                        borderColor: alpha(color.main, 0.4),
-                        "&::before": {
-                            transform: "scaleX(1)",
-                        },
-                    },
-                }}
+const StatCard = ({
+    title,
+    value,
+    icon,
+    color,
+    loading,
+    index = 0,
+    isCurrency = false
+}) => {
+    const theme = useTheme();
+    const primaryColor = color.main || theme.palette[color]?.main || color; // Handle both palette object or string
+
+    return (
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: index * 0.1 }}
             >
-                {loading ? (
-                    <Stack spacing={1.5} sx={{ width: "100%" }}>
-                        <Skeleton variant="circular" width={56} height={56} />
-                        <Skeleton variant="text" sx={{ width: "70%", height: 20 }} />
-                        <Skeleton variant="text" sx={{ width: "50%", height: 32 }} />
-                    </Stack>
-                ) : (
-                    <>
-                        <Box sx={{ flex: 1 }}>
-                            <Typography
-                                variant="body2"
-                                color="text.secondary"
-                                fontWeight="600"
-                                sx={{ mb: 1, fontSize: "0.875rem" }}
-                            >
-                                {title}
-                            </Typography>
-                            <CurrencyDisplay
-                                value={amount}
-                                typographyProps={{
-                                    variant: "h5",
-                                    component: "p",
-                                    fontWeight: "700",
-                                    color: color.dark || color.main,
-                                    sx: { lineHeight: 1.2 },
+                <Paper
+                    elevation={0}
+                    sx={{
+                        p: 3,
+                        borderRadius: 4,
+                        border: `1px solid ${theme.palette.divider}`,
+                        height: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 2,
+                        transition: 'all 0.3s ease',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        '&:hover': {
+                            transform: "translateY(-4px)",
+                            boxShadow: `0 12px 24px -10px ${alpha(primaryColor, 0.3)}`,
+                            borderColor: alpha(primaryColor, 0.5),
+                        },
+                        '&::before': {
+                            content: '""',
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            width: "4px",
+                            height: "100%",
+                            background: primaryColor,
+                            opacity: 0.8
+                        }
+                    }}
+                >
+                    {loading ? (
+                        <Stack spacing={1} sx={{ width: "100%" }}>
+                            <Skeleton variant="circular" width={48} height={48} />
+                            <Skeleton variant="text" width="60%" />
+                            <Skeleton variant="text" width="40%" height={32} />
+                        </Stack>
+                    ) : (
+                        <>
+                            <Box
+                                sx={{
+                                    width: 56,
+                                    height: 56,
+                                    borderRadius: "16px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    background: alpha(primaryColor, 0.1),
+                                    color: primaryColor,
+                                    flexShrink: 0
                                 }}
-                            />
-                        </Box>
-                        <Box
-                            sx={{
-                                width: 56,
-                                height: 56,
-                                borderRadius: "16px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                background: `linear-gradient(135deg, ${alpha(color.main, 0.15)}, ${alpha(color.main, 0.08)})`,
-                                color: color.main,
-                                ml: 2,
-                                boxShadow: `0 4px 12px ${alpha(color.main, 0.2)}`,
-                                transition: "all 0.3s ease",
-                                "&:hover": {
-                                    transform: "scale(1.1) rotate(5deg)",
-                                },
-                            }}
-                        >
-                            {icon}
-                        </Box>
-                    </>
-                )}
-            </Paper>
-        </motion.div>
-    </Grid>
-);
+                            >
+                                {React.cloneElement(icon, { sx: { fontSize: 32 } })}
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                    fontWeight="600"
+                                    gutterBottom
+                                    noWrap
+                                >
+                                    {title}
+                                </Typography>
+                                <Typography
+                                    variant="h5"
+                                    fontWeight="700"
+                                    color="text.primary"
+                                    sx={{
+                                        lineHeight: 1.2,
+                                        fontSize: { xs: '1.25rem', md: '1.5rem' }
+                                    }}
+                                >
+                                    <AnimatedCounter value={value} isCurrency={isCurrency} />
+                                </Typography>
+                            </Box>
+                        </>
+                    )}
+                </Paper>
+            </motion.div>
+        </Grid>
+    );
+};
 
 const CustomToolbar = ({ onExportClick, isDataEmpty }) => (
     <GridToolbarContainer
@@ -375,6 +401,7 @@ const NoRowsOverlay = () => (
 
 const ConstructionPayables = () => {
     const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const currentYear = new Date().getFullYear();
     const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
     const quarterOptions = [
@@ -509,6 +536,8 @@ const ConstructionPayables = () => {
                     credit: 0,
                     tonCuoiKy: 0,
                     carryover: 0,
+                    type: projectType,
+                    totalAmount: projectDetails?.totalAmount || 0,
                 });
             }
 
@@ -597,6 +626,30 @@ const ConstructionPayables = () => {
             renderCell: (params) => (
                 <Typography fontWeight={500}>{params.value}</Typography>
             ),
+        },
+        {
+            field: "type",
+            headerName: "Loại CT",
+            width: 120,
+            renderCell: (params) => {
+                const colorKey = chipColorByType[params.value];
+                const theme = useTheme();
+
+                if (!params.value) return null;
+
+                return (
+                    <Chip
+                        label={params.value}
+                        size="small"
+                        sx={{
+                            fontWeight: 600,
+                            color: colorKey ? theme.palette[colorKey].dark : theme.palette.text.secondary,
+                            backgroundColor: colorKey ? alpha(theme.palette[colorKey].main, 0.15) : alpha(theme.palette.text.primary, 0.08),
+                            borderRadius: "6px",
+                        }}
+                    />
+                );
+            },
         },
         {
             field: "debt",
@@ -1162,112 +1215,136 @@ const ConstructionPayables = () => {
             </AnimatePresence>
 
             <Grid container spacing={3} sx={{ mb: 4, position: "relative", zIndex: 1 }}>
-                <SummaryCard
+                <StatCard
                     title="Tổng nợ đầu kỳ"
-                    amount={summaryData.opening}
+                    value={summaryData.opening}
                     icon={<ArchiveOutlined />}
-                    color={theme.palette.info}
+                    color="info"
                     loading={isLoading}
                     index={0}
+                    isCurrency
                 />
-                <SummaryCard
+                <StatCard
                     title="Phát sinh nợ"
-                    amount={summaryData.credit}
+                    value={summaryData.credit}
                     icon={<TrendingUp />}
-                    color={theme.palette.warning}
+                    color="warning"
                     loading={isLoading}
                     index={1}
+                    isCurrency
                 />
-                <SummaryCard
+                <StatCard
                     title="Đã thanh toán"
-                    amount={summaryData.debit}
+                    value={summaryData.debit}
                     icon={<TrendingDown />}
-                    color={theme.palette.success}
+                    color="success"
                     loading={isLoading}
                     index={2}
+                    isCurrency
                 />
-                <SummaryCard
+                <StatCard
                     title="Tổng nợ cuối kỳ"
-                    amount={summaryData.closing}
+                    value={summaryData.closing}
                     icon={<AttachMoney />}
-                    color={theme.palette.error}
+                    color="error"
                     loading={isLoading}
                     index={3}
+                    isCurrency
                 />
             </Grid>
 
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-            >
-                <Paper
-                    elevation={0}
-                    sx={{
-                        borderRadius: 4,
-                        overflow: "hidden",
-                        boxShadow: (theme) =>
-                            theme.palette.mode === "light"
-                                ? "0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)"
-                                : "0 4px 20px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2)",
-                        border: `1px solid ${alpha("#000", 0.08)}`,
-                        position: "relative",
-                        zIndex: 1,
-                        transition: "all 0.3s ease",
-                        "&:hover": {
+            {isMobile ? (
+                <Stack spacing={2} sx={{ mt: 2 }}>
+                    {isLoading && payablesData.length === 0 ? (
+                        Array.from({ length: 3 }).map((_, i) => (
+                            <Skeleton key={i} variant="rectangular" height={120} sx={{ borderRadius: 3 }} />
+                        ))
+                    ) : processedData.length === 0 ? (
+                        <NoRowsOverlay />
+                    ) : (
+                        processedData.map((project) => (
+                            <PayableCardMobile
+                                key={project.projectId}
+                                project={project}
+                                onClick={() => handleRowClick({ row: project })}
+                            />
+                        ))
+                    )}
+                </Stack>
+            ) : (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.3 }}
+                >
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            borderRadius: 4,
+                            overflow: "hidden",
                             boxShadow: (theme) =>
                                 theme.palette.mode === "light"
-                                    ? "0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08)"
-                                    : "0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3)",
-                        },
-                    }}
-                >
-                    <Box sx={{ width: "100%" }}>
-                        {isError ? (
-                            <Box sx={{ p: 3 }}>
-                                <ErrorState
-                                    error="Đã có lỗi xảy ra khi tải dữ liệu"
-                                    title="Lỗi tải dữ liệu công nợ"
-                                    onRetry={() => window.location.reload()}
-                                    retryLabel="Tải lại"
+                                    ? "0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05)"
+                                    : "0 4px 20px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2)",
+                            border: `1px solid ${alpha("#000", 0.08)}`,
+                            position: "relative",
+                            zIndex: 1,
+                            transition: "all 0.3s ease",
+                            "&:hover": {
+                                boxShadow: (theme) =>
+                                    theme.palette.mode === "light"
+                                        ? "0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08)"
+                                        : "0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3)",
+                            },
+                        }}
+                    >
+                        <Box sx={{ width: "100%" }}>
+                            {isError ? (
+                                <Box sx={{ p: 3 }}>
+                                    <ErrorState
+                                        error="Đã có lỗi xảy ra khi tải dữ liệu"
+                                        title="Lỗi tải dữ liệu công nợ"
+                                        onRetry={() => window.location.reload()}
+                                        retryLabel="Tải lại"
+                                    />
+                                </Box>
+                            ) : isLoading && payablesData.length === 0 ? (
+                                <Box sx={{ p: 3 }}>
+                                    <SkeletonDataGrid rows={8} columns={6} />
+                                </Box>
+                            ) : (
+                                <StyledDataGrid
+                                    rows={processedData}
+                                    columns={mainColumns}
+                                    getRowId={(row) => row._id}
+                                    loading={isLoading}
+                                    onRowClick={handleRowClick}
+                                    // ✨ THÊM HAI PROP NÀY ✨
+                                    rowSpacingType="border"
+                                    getRowSpacing={getGridRowSpacing}
+                                    // -------------------------
+                                    slots={{
+                                        toolbar: () => (
+                                            <CustomToolbar
+                                                onExportClick={handleExportToExcel}
+                                                isDataEmpty={processedData.length === 0}
+                                            />
+                                        ),
+                                        noRowsOverlay: NoRowsOverlay,
+                                    }}
+                                    disableRowSelectionOnClick
+                                    autoHeight
+                                    getRowClassName={(params) =>
+                                        params.id === selectedProject?._id
+                                            ? "Mui-selected"
+                                            : ""
+                                    }
                                 />
-                            </Box>
-                        ) : isLoading && payablesData.length === 0 ? (
-                            <Box sx={{ p: 3 }}>
-                                <SkeletonDataGrid rows={8} columns={6} />
-                            </Box>
-                        ) : (
-                            <StyledDataGrid
-                                rows={processedData}
-                                columns={mainColumns}
-                                getRowId={(row) => row._id}
-                                loading={isLoading}
-                                onRowClick={handleRowClick}
-                                // ✨ THÊM HAI PROP NÀY ✨
-                                rowSpacingType="border"
-                                getRowSpacing={getGridRowSpacing}
-                                // -------------------------
-                                slots={{
-                                    toolbar: () => (
-                                        <CustomToolbar
-                                            onExportClick={handleExportToExcel}
-                                            isDataEmpty={processedData.length === 0}
-                                        />
-                                    ),
-                                    noRowsOverlay: NoRowsOverlay,
-                                }}
-                                disableRowSelectionOnClick
-                                autoHeight
-                                getRowClassName={(params) =>
-                                    params.id === selectedProject?._id
-                                        ? "Mui-selected"
-                                        : ""
-                                }
-                            />
-                        )}
-                    </Box>
-                </Paper>
-            </motion.div>
+                            )}
+                        </Box>
+                    </Paper>
+                </motion.div>
+            )}
 
             <Dialog
                 open={drawerOpen}

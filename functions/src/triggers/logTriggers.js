@@ -93,11 +93,10 @@ exports.logTransferCreation = onDocumentCreated("transfers/{transferId}", async 
     const actor = transferData.createdBy || "unknown_actor";
     const actorName = actor?.name || "Ai đó";
 
-    // Send push notification to receiver department only (avoid duplicates)
+    // Send push notification to receiver department and admins
     const displayId = transferData.maPhieuHienThi || `#${transferId.slice(0, 6)}`;
     try {
-        // Only notify receiver department (they need to sign)
-        // Admins can see via in-app notification from audit log
+        // Notify receiver department (they need to sign)
         if (transferData.toDeptId) {
             await sendPushToDepartments(
                 [transferData.toDeptId],
@@ -108,8 +107,18 @@ exports.logTransferCreation = onDocumentCreated("transfers/{transferId}", async 
                 { url: "/asset-transfer", transferId }
             );
         }
+
+        // Also notify admins (HC department)
+        await sendPushToAdmins(
+            {
+                title: "📦 Phiếu luân chuyển mới",
+                body: `${displayId}: ${transferData.from} → ${transferData.to}`,
+            },
+            { url: "/asset-transfer", transferId }
+        );
     } catch (pushError) {
         console.error("Error sending push for transfer creation:", pushError);
+        // Don't fail the trigger if push fails
     }
 });
 

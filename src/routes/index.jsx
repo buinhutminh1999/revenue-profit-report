@@ -38,6 +38,7 @@ const ConstructionPlan = lazy(() => import('../components/ConstructionPlan/Const
 const ProjectsList = lazy(() => import('../pages/project/ProjectsList'));
 const AccountsReceivable = lazy(() => import('../pages/finance/AccountsReceivable'));
 const ConstructionPayables = lazy(() => import('../pages/finance/ConstructionPayables'));
+const ConstructionPayablesDetail = lazy(() => import('../pages/finance/ConstructionPayablesDetail'));
 const CostAllocation = lazy(() => import('../pages/finance/CostAllocation'));
 const BalanceSheet = lazy(() => import('../pages/finance/BalanceSheet'));
 const ChartOfAccountsPage = lazy(() => import('../pages/finance/ChartOfAccountsPage'));
@@ -137,6 +138,7 @@ function AppRoutes() {
                         <Route path="project-manager" element={<RequireEmailAccess pathKey="project-manager">{lazyLoad(ProjectsList)}</RequireEmailAccess>} />
                         <Route path="accounts-receivable" element={<RequireEmailAccess pathKey="accounts-receivable">{lazyLoad(AccountsReceivable)}</RequireEmailAccess>} />
                         <Route path="construction-payables" element={<RequireEmailAccess pathKey="construction-payables">{lazyLoad(ConstructionPayables)}</RequireEmailAccess>} />
+                        <Route path="construction-payables-detail" element={<RequireEmailAccess pathKey="construction-payables">{lazyLoad(ConstructionPayablesDetail)}</RequireEmailAccess>} />
                         <Route path="allocations" element={<RequireEmailAccess pathKey="allocations">{lazyLoad(CostAllocation)}</RequireEmailAccess>} />
                         <Route path="balance-sheet" element={<RequireEmailAccess pathKey="balance-sheet">{lazyLoad(BalanceSheet)}</RequireEmailAccess>} />
                         <Route path="profit-change" element={<RequireEmailAccess pathKey="profit-change">{lazyLoad(ProfitChange)}</RequireEmailAccess>} />

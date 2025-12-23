@@ -134,6 +134,7 @@ const navigationConfig = [
                 children: [
                     { title: "Công nợ Phải thu", path: "/accounts-receivable", icon: <FactCheck sx={{ fontSize: 18 }} /> },
                     { title: "Công nợ Phải trả", path: "/construction-payables", icon: <TableChart sx={{ fontSize: 18 }} /> },
+                    { title: "Chi tiết Giao dịch", path: "/construction-payables-detail", icon: <Assignment sx={{ fontSize: 18 }} /> },
                     { title: "Phân bổ Chi phí", path: "/allocations", icon: <LibraryAddCheck sx={{ fontSize: 18 }} /> },
                     { title: "Bảng Cân đối", path: "/balance-sheet", icon: <Equalizer sx={{ fontSize: 18 }} /> },
                     { title: "Hệ thống Tài khoản", path: "/chart-of-accounts", icon: <Assignment sx={{ fontSize: 18 }} /> },

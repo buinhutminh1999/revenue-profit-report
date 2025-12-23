@@ -15,7 +15,7 @@ import {
     AccountBalance as Landmark, Assignment as ClipboardList, ImportContacts as BookUser, PieChart, ShowChart as LineChart, TrendingUp,
     RuleFolder as FileCheck2, Assessment as FileBarChart2, SwapHoriz as ArrowRightLeft, GppBad as ShieldOff,
     HowToReg as UserCheck, Search, AssignmentTurnedIn as ClipboardCheck, Close as X, FilterList as Filter, AutoAwesome as Sparkles, Star,
-    TrendingDown, MonitorHeart as Activity, Bolt as Zap, Description, Dashboard as DashboardIcon, AccessTime as ClockIcon
+    TrendingDown, MonitorHeart as Activity, Bolt as Zap, Description, Dashboard as DashboardIcon, AccessTime as ClockIcon, FolderOpen
 } from '@mui/icons-material';
 
 // Enhanced Styled Card với glassmorphism và hover effects
@@ -24,11 +24,11 @@ const StyledCard = styled(Card)(({ theme, color }) => ({
     borderRadius: 20,
     transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
     border: `1.5px solid ${alpha(theme.palette.divider, 0.1)}`,
-    background: theme.palette.mode === 'light' 
+    background: theme.palette.mode === 'light'
         ? `linear-gradient(145deg, #ffffff 0%, ${alpha('#f8fafc', 0.8)} 100%)`
         : `linear-gradient(145deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.background.paper, 0.8)} 100%)`,
     backdropFilter: 'blur(10px)',
-    boxShadow: theme.palette.mode === 'light' 
+    boxShadow: theme.palette.mode === 'light'
         ? '0 4px 20px rgba(0,0,0,0.04)'
         : '0 4px 20px rgba(0,0,0,0.2)',
     position: 'relative',
@@ -130,13 +130,14 @@ const Home = () => {
 
     // All modules
     const allModules = [
-        { category: 'Chức Năng Chính', icon: <UserCheck sx={{ fontSize: 26 }} />, title: "Quản Lý Chấm Công", to: "/attendance", desc: "Theo dõi, quản lý và in bảng chấm công", color: '#16a34a', isNew: true },
+        { category: 'Chức Năng Chính', icon: <UserCheck sx={{ fontSize: 26 }} />, title: "Quản Lý Chấm Công", to: "/attendance", desc: "Theo dõi, quản lý và in bảng chấm công", color: '#16a34a' },
         { category: 'Chức Năng Chính', icon: <Construction sx={{ fontSize: 26 }} />, title: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ công việc", color: '#3b82f6' },
         { category: 'Chức Năng Chính', icon: <Building sx={{ fontSize: 26 }} />, title: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết thông tin các công trình", color: '#8b5cf6' },
-        { category: 'Chức Năng Chính', icon: <ArrowRightLeft sx={{ fontSize: 26 }} />, title: "QL Luân chuyển Tài sản", to: "/asset-transfer", desc: "Theo dõi và luân chuyển tài sản", color: '#0891b2', isNew: true },
-        { category: 'Chức Năng Chính', icon: <ClipboardCheck sx={{ fontSize: 26 }} />, title: "So Sánh Báo Giá Vật Tư", to: "/material-price-comparison", desc: "Tổng hợp, so sánh giá từ nhà cung cấp", color: '#f97316', isNew: true },
+        { category: 'Chức Năng Chính', icon: <ArrowRightLeft sx={{ fontSize: 26 }} />, title: "QL Luân chuyển Tài sản", to: "/asset-transfer", desc: "Theo dõi và luân chuyển tài sản", color: '#0891b2' },
+        { category: 'Chức Năng Chính', icon: <ClipboardCheck sx={{ fontSize: 26 }} />, title: "So Sánh Báo Giá Vật Tư", to: "/material-price-comparison", desc: "Tổng hợp, so sánh giá từ nhà cung cấp", color: '#f97316' },
         { category: 'Chức Năng Chính', icon: <BookCheck sx={{ fontSize: 26 }} />, title: "Phân Bổ Chi Phí", to: "/allocations", desc: "Quản lý và phân bổ chi phí dự án", color: '#10b981' },
         { category: 'Chức Năng Chính', icon: <FileSpreadsheet sx={{ fontSize: 26 }} />, title: "Công Nợ Phải Trả", to: "/construction-payables", desc: "Theo dõi và quản lý các khoản công nợ", color: '#f59e0b' },
+        { category: 'Chức Năng Chính', icon: <Description sx={{ fontSize: 26 }} />, title: "Chi Tiết Công Nợ", to: "/construction-payables-detail", desc: "Xem chi tiết giao dịch công nợ theo hạng mục", color: '#f59e0b' },
         { category: 'Chức Năng Chính', icon: <FileCheck2 sx={{ fontSize: 26 }} />, title: "Công Nợ Phải Thu", to: "/accounts-receivable", desc: "Theo dõi các khoản phải thu từ khách hàng", color: '#ec4899' },
         { category: 'Chức Năng Chính', icon: <BarChart3 sx={{ fontSize: 26 }} />, title: "Bảng Cân Đối Kế Toán", to: "/balance-sheet", desc: "Tình hình tài sản và nguồn vốn", color: '#14b8a6' },
         { category: 'Chức Năng Chính', icon: <ClipboardList sx={{ fontSize: 26 }} />, title: "Hệ Thống Tài Khoản", to: "/chart-of-accounts", desc: "Danh mục các tài khoản kế toán", color: '#64748b' },
@@ -149,7 +150,7 @@ const Home = () => {
         { category: 'Báo Cáo', icon: <FileBarChart2 sx={{ fontSize: 26 }} />, title: "Báo cáo Phân bổ Chi phí", to: "/reports/quarterly-cost-allocation", desc: "Phân bổ chi phí theo doanh thu dự án", color: '#0d9488' },
         { category: 'Báo Cáo', icon: <LineChart sx={{ fontSize: 26 }} />, title: 'Báo Cáo Lợi Nhuận Năm', to: '/reports/profit-year', desc: 'Xem báo cáo tổng kết năm', color: '#10b981' },
         { category: 'Báo Cáo', icon: <PieChart sx={{ fontSize: 26 }} />, title: 'Báo Cáo Tổng Quát', to: '/reports/overall', desc: 'Tổng hợp tình hình hoạt động', color: '#6366f1' },
-        { category: 'Báo Cáo', icon: <Description sx={{ fontSize: 26 }} />, title: 'Báo Cáo Thuế Nội Bộ', to: '/reports/internal-tax-report', desc: 'Quản lý hóa đơn và bảng kê', color: '#8b5cf6', isNew: true },
+        { category: 'Báo Cáo', icon: <Description sx={{ fontSize: 26 }} />, title: 'Báo Cáo Thuế Nội Bộ', to: '/reports/internal-tax-report', desc: 'Quản lý hóa đơn và bảng kê', color: '#8b5cf6' },
     ];
 
     useEffect(() => {
@@ -223,10 +224,10 @@ const Home = () => {
     // Stats
     const stats = useMemo(() => {
         const total = allowedModules.length;
-        const newCount = allowedModules.filter(m => m.isNew).length;
+        const categoryCount = new Set(allowedModules.map(m => m.category)).size;
         const mainFeatures = allowedModules.filter(m => m.category === 'Chức Năng Chính').length;
         const reports = allowedModules.filter(m => m.category === 'Báo Cáo').length;
-        return { total, newCount, mainFeatures, reports };
+        return { total, categoryCount, mainFeatures, reports };
     }, [allowedModules]);
 
     // Clear search
@@ -251,10 +252,10 @@ const Home = () => {
 
     if (isLoading) {
         return (
-            <Box sx={{ 
-                bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default, 
-                minHeight: '100vh', 
-                p: { xs: 2, sm: 4 } 
+            <Box sx={{
+                bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default,
+                minHeight: '100vh',
+                p: { xs: 2, sm: 4 }
             }}>
                 <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
                     <Skeleton variant="rectangular" height={280} sx={{ borderRadius: 3, mb: 4 }} />
@@ -271,7 +272,7 @@ const Home = () => {
     }
 
     return (
-        <Box sx={{ 
+        <Box sx={{
             minHeight: '100vh',
             bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default,
             pb: 4
@@ -324,11 +325,19 @@ const Home = () => {
                                     <Sparkles sx={{ fontSize: 40, color: 'white' }} />
                                 </motion.div>
                                 <Box sx={{ flex: 1 }}>
-                                    <Typography variant="h3" component="h1" sx={{ fontWeight: 800, color: 'white', mb: 0.5 }}>
-                                        Trung Tâm Điều Hành ERP
+                                    <Typography variant="h3" component="h1" sx={{ fontWeight: 800, color: 'white', mb: 0.5, fontSize: { xs: '1.8rem', md: '3rem' } }}>
+                                        {(() => {
+                                            const hour = new Date().getHours();
+                                            if (hour < 12) return `Chào buổi sáng, ${user?.displayName || 'bạn'}! ☀️`;
+                                            if (hour < 18) return `Chào buổi chiều, ${user?.displayName || 'bạn'}! 🌤️`;
+                                            return `Chào buổi tối, ${user?.displayName || 'bạn'}! 🌙`;
+                                        })()}
                                     </Typography>
-                                    <Typography sx={{ color: alpha('#fff', 0.9), fontSize: '1.1rem' }}>
-                                        Chào mừng, <strong>{user?.displayName || user?.email || 'bạn'}</strong>! Khởi động công việc của bạn.
+                                    <Typography sx={{ color: alpha('#fff', 0.9), fontSize: { xs: '0.95rem', md: '1.1rem' }, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <ClockIcon sx={{ fontSize: 18, opacity: 0.8 }} />
+                                        {new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                        <span style={{ opacity: 0.6 }}>|</span>
+                                        Trung Tâm Điều Hành ERP
                                     </Typography>
                                 </Box>
                             </Stack>
@@ -359,14 +368,14 @@ const Home = () => {
                                         <StatCard color="#ffffff" sx={{ bgcolor: alpha('#fff', 0.15), borderColor: alpha('#fff', 0.3) }}>
                                             <Stack direction="row" spacing={2} alignItems="center">
                                                 <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 48, height: 48 }}>
-                                                    <Zap sx={{ fontSize: 24 }} />
+                                                    <FolderOpen sx={{ fontSize: 24 }} />
                                                 </Avatar>
                                                 <Box>
                                                     <Typography variant="h4" sx={{ fontWeight: 800, color: 'white' }}>
-                                                        {stats.newCount}
+                                                        {stats.categoryCount}
                                                     </Typography>
                                                     <Typography variant="body2" sx={{ color: alpha('#fff', 0.9), fontWeight: 600, fontSize: '0.8rem' }}>
-                                                        Tính năng mới
+                                                        Nhóm chức năng
                                                     </Typography>
                                                 </Box>
                                             </Stack>
@@ -461,7 +470,19 @@ const Home = () => {
                                 />
 
                                 {/* Category Filter */}
-                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                <Stack
+                                    direction="row"
+                                    spacing={1.5}
+                                    sx={{
+                                        overflowX: 'auto',
+                                        pb: 1, // Add padding for scrollbar/shadow
+                                        mx: -1,
+                                        px: 1, // Negative margin hack to aligned scroll with container
+                                        '&::-webkit-scrollbar': { display: 'none' },
+                                        scrollbarWidth: 'none', // Firefox
+                                        msOverflowStyle: 'none', // IE/Edge
+                                    }}
+                                >
                                     {categories.map((cat) => (
                                         <Chip
                                             key={cat}
@@ -469,12 +490,15 @@ const Home = () => {
                                             onClick={() => setSelectedCategory(cat)}
                                             icon={cat === selectedCategory ? <Filter sx={{ fontSize: 16 }} /> : undefined}
                                             sx={{
+                                                flexShrink: 0, // Prevent shrinking
                                                 bgcolor: cat === selectedCategory
                                                     ? 'white'
                                                     : alpha('#fff', 0.15),
                                                 color: cat === selectedCategory ? theme.palette.primary.main : 'white',
                                                 fontWeight: cat === selectedCategory ? 700 : 500,
                                                 border: `1.5px solid ${cat === selectedCategory ? 'transparent' : alpha('#fff', 0.3)}`,
+                                                borderRadius: '12px',
+                                                height: 36,
                                                 '&:hover': {
                                                     bgcolor: cat === selectedCategory
                                                         ? alpha('#fff', 0.95)
