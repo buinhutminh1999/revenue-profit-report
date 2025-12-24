@@ -4,11 +4,15 @@
 <head>
     <meta charset="utf-8" />
     <link rel="icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 
     <meta name="theme-color" content="#1976d2" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Bách Khoa ERP" />
+    <meta name="mobile-web-app-capable" content="yes" />
 
-    <meta name="description" content="Ứng dụng quản lý hệ thống ERP" />
+    <meta name="description" content="Hệ thống quản lý doanh thu, tài sản và chuyển đổi tài sản - Bách Khoa ERP" />
     <link rel="apple-touch-icon" href="/logo192.png" />
     <link rel="manifest" href="/manifest.json" />
 
@@ -25,6 +29,21 @@
     <div id="root"></div>
 
     <script type="module" src="/src/index.jsx"></script>
+
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('[PWA] Service Worker registered:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.error('[PWA] SW registration failed:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 
 </html>

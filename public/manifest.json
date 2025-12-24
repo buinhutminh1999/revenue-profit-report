@@ -1,6 +1,7 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "Bách Khoa ERP",
+  "name": "Bách Khoa ERP System",
+  "description": "Hệ thống quản lý doanh thu, tài sản và chuyển đổi tài sản",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,16 +11,50 @@
     {
       "src": "logo192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "orientation": "portrait",
+  "theme_color": "#1976d2",
+  "background_color": "#ffffff",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "shortcuts": [
+    {
+      "name": "Chuyển Đổi Tài Sản",
+      "short_name": "Asset Transfer",
+      "description": "Quản lý chuyển đổi tài sản",
+      "url": "/asset-transfer",
+      "icons": [
+        {
+          "src": "logo192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Danh Sách Dự Án",
+      "short_name": "Projects",
+      "description": "Quản lý dự án xây dựng",
+      "url": "/construction-plan",
+      "icons": [
+        {
+          "src": "logo192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
 }
