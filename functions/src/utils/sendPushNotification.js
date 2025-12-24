@@ -43,23 +43,20 @@ async function sendPushToUsers(userIds, notification, data = {}) {
 
     console.log(`Sending push to ${uniqueTokens.length} tokens`);
 
-    // Send multicast message
+    // Send multicast message - DATA ONLY (no notification field)
+    // This prevents Firebase SDK from auto-showing notification
+    // Service Worker will handle displaying via onBackgroundMessage
     const message = {
-        notification: {
+        data: {
             title: notification.title,
             body: notification.body,
-        },
-        data: {
+            url: data.url || "/asset-transfer",
+            transferId: data.transferId || "",
+            tag: data.transferId || data.tag || "default",
             ...data,
-            click_action: data.url || "/asset-transfer",
         },
         tokens: uniqueTokens,
         webpush: {
-            notification: {
-                icon: "/logo192.png",
-                badge: "/logo192.png",
-                requireInteraction: true,
-            },
             fcmOptions: {
                 link: data.url || "/asset-transfer",
             },

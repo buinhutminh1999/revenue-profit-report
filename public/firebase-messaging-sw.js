@@ -101,14 +101,18 @@ self.addEventListener('fetch', (event) => {
 messaging.onBackgroundMessage((payload) => {
     console.log('[SW] Background message:', payload);
 
-    const notificationTitle = payload.notification?.title || 'Thông báo mới';
+    // Read from data payload (we send data-only messages to avoid duplicates)
+    const data = payload.data || {};
+    const notificationTitle = data.title || payload.notification?.title || 'Thông báo mới';
+    const notificationBody = data.body || payload.notification?.body || 'Bạn có thông báo mới.';
+
     const notificationOptions = {
-        body: payload.notification?.body || 'Bạn có thông báo mới.',
+        body: notificationBody,
         icon: '/logo192.png',
         badge: '/logo192.png',
-        tag: payload.data?.transferId || payload.data?.tag || 'default', // Use tag to prevent duplicates
+        tag: data.tag || data.transferId || 'default', // Use tag to prevent duplicates
         renotify: false, // Don't re-notify for same tag
-        data: payload.data || {},
+        data: data,
         vibrate: [100, 50, 100],
     };
 
