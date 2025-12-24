@@ -280,13 +280,40 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
         return () => unsubscribe();
     }, [user?.uid, user?.departmentId, user?.departmentName, user?.email, isHCOrKT]);
 
-    // Push Notification: Check status on mount
+    // Push Notification: Check status on mount AND refresh token if permission already granted
     useEffect(() => {
-        if (isPushSupported()) {
+        const initPushToken = async () => {
+            if (!isPushSupported()) return;
+
             const status = getPermissionStatus();
             setPushEnabled(status === 'granted');
-        }
-    }, []);
+
+            // If permission is already granted and user is logged in, refresh token
+            if (status === 'granted' && user?.uid) {
+                console.log('🔄 Auto-refreshing FCM token on page load...');
+                try {
+                    // Pass user info to sync departmentId for push notifications
+                    // Note: User object uses 'primaryDepartmentId' not 'departmentId'
+                    const userInfo = {
+                        departmentId: user.primaryDepartmentId || user.departmentId,
+                        role: user.role,
+                        email: user.email
+                    };
+                    console.log('📋 Saving user info:', userInfo);
+                    const result = await requestNotificationPermission(user.uid, userInfo);
+                    if (result.success) {
+                        console.log('✅ FCM token refreshed on page load');
+                    } else {
+                        console.warn('⚠️ FCM token refresh failed:', result.error);
+                    }
+                } catch (error) {
+                    console.error('❌ Error refreshing FCM token:', error);
+                }
+            }
+        };
+
+        initPushToken();
+    }, [user?.uid]);
 
     // Push Notification: Setup foreground listener
     useEffect(() => {
@@ -304,7 +331,14 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
 
         setPushLoading(true);
         try {
-            const result = await requestNotificationPermission(user.uid);
+            // Pass user info to sync departmentId for push notifications
+            // Note: User object uses 'primaryDepartmentId' not 'departmentId'
+            const userInfo = {
+                departmentId: user.primaryDepartmentId || user.departmentId,
+                role: user.role,
+                email: user.email
+            };
+            const result = await requestNotificationPermission(user.uid, userInfo);
             if (result.success) {
                 setPushEnabled(true);
                 console.log('✅ Push notifications enabled');

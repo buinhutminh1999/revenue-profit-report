@@ -83,7 +83,7 @@ exports.logAssetDeletion = onDocumentDeleted(
 const { sendPushToDepartments, sendPushToAdmins } = require("../utils/sendPushNotification");
 
 // 1. GỬI PUSH khi một phiếu luân chuyển MỚI được tạo
-// NOTE: Audit log đã được ghi bởi transferController, trigger này chỉ gửi push
+// Logic: Chỉ thông báo cho PHÒNG GỬI vì họ cần ký trước
 exports.logTransferCreation = onDocumentCreated("transfers/{transferId}", async (event) => {
     const snap = event.data;
     if (!snap) return;
@@ -93,32 +93,38 @@ exports.logTransferCreation = onDocumentCreated("transfers/{transferId}", async 
     const actor = transferData.createdBy || "unknown_actor";
     const actorName = actor?.name || "Ai đó";
 
-    // Send push notification to receiver department and admins
     const displayId = transferData.maPhieuHienThi || `#${transferId.slice(0, 6)}`;
+
+    // DEBUG: Log transfer data
+    console.log(`[logTransferCreation] Transfer created:`, {
+        transferId,
+        displayId,
+        from: transferData.from,
+        to: transferData.to,
+        fromDeptId: transferData.fromDeptId,
+        toDeptId: transferData.toDeptId,
+    });
+
     try {
-        // Notify receiver department (they need to sign)
-        if (transferData.toDeptId) {
+        // Chỉ thông báo cho phòng GỬI (họ cần ký trước)
+        // Try by deptId first, then by department name
+        const deptIdToNotify = transferData.fromDeptId;
+        const deptNameToNotify = transferData.from;
+
+        console.log(`[logTransferCreation] Notifying sender dept: ID=${deptIdToNotify}, Name=${deptNameToNotify}`);
+
+        if (deptIdToNotify) {
             await sendPushToDepartments(
-                [transferData.toDeptId],
+                [deptIdToNotify],
                 {
-                    title: "📦 Có phiếu luân chuyển mới!",
-                    body: `${actorName} gửi phiếu ${displayId} từ ${transferData.from} đến ${transferData.to}`,
+                    title: "📦 Có phiếu luân chuyển mới cần ký!",
+                    body: `${actorName} tạo phiếu ${displayId}: ${transferData.from} → ${transferData.to}`,
                 },
                 { url: "/asset-transfer", transferId }
             );
         }
-
-        // Also notify admins (HC department)
-        await sendPushToAdmins(
-            {
-                title: "📦 Phiếu luân chuyển mới",
-                body: `${displayId}: ${transferData.from} → ${transferData.to}`,
-            },
-            { url: "/asset-transfer", transferId }
-        );
     } catch (pushError) {
-        console.error("Error sending push for transfer creation:", pushError);
-        // Don't fail the trigger if push fails
+        console.error("[logTransferCreation] Error sending push:", pushError);
     }
 });
 

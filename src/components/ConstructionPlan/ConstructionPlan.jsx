@@ -60,11 +60,13 @@ import {
     Close as CloseIcon,
     Lock as LockIcon,
     ClearAll as ClearAllIcon,
+    FastForward as SkipForwardIcon,
 } from "@mui/icons-material";
 import { useBatchSettlement } from "../../hooks/useBatchSettlement";
+import { useBatchQuarterTransition } from "../../hooks/useBatchQuarterTransition";
 import LinearProgress from "@mui/material/LinearProgress";
 import { DataGrid, GridPagination } from "@mui/x-data-grid";
-import { motion, useSpring, useTransform } from "framer-motion";
+import { motion, useSpring, useTransform, AnimatePresence } from "framer-motion";
 import { useProjects } from "../../hooks/useProjects";
 import AllocationTimelineModal, {
     getCurrentYear,
@@ -131,34 +133,50 @@ const StatCard = ({
     isCurrency = false,
 }) => {
     const primaryColor = theme.palette[color].main;
+    const gradientBg = `linear-gradient(135deg, ${alpha(primaryColor, 0.15)} 0%, ${alpha(primaryColor, 0.05)} 100%)`;
+
     return (
         <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <motion.div
                 variants={itemVariants}
-                whileHover={{ y: -5, boxShadow: `0 8px 25px ${alpha(primaryColor, 0.2)}` }}
+                whileHover={{ y: -5, scale: 1.02 }}
                 transition={{ type: "spring", stiffness: 300, damping: 15 }}
             >
                 <Card
                     sx={{
                         borderRadius: 4,
-                        boxShadow: 'none',
-                        border: `1px solid ${theme.palette.divider}`,
+                        boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
+                        border: 'none',
                         height: "100%",
-                        cursor: 'default',
-                        transition: 'border 0.3s',
+                        background: '#ffffff',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        transition: 'all 0.3s ease-in-out',
                         '&:hover': {
-                            borderColor: primaryColor,
+                            boxShadow: `0 12px 28px ${alpha(primaryColor, 0.25)}`,
                         }
                     }}
                 >
-                    <CardContent sx={{ display: "flex", alignItems: "center", p: 3, gap: 2, '&:last-child': { pb: 3 } }}>
+                    <Box sx={{
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        width: '100px',
+                        height: '100px',
+                        background: `radial-gradient(circle, ${alpha(primaryColor, 0.1)} 0%, transparent 70%)`,
+                        transform: 'translate(30%, -30%)',
+                        borderRadius: '50%'
+                    }} />
+
+                    <CardContent sx={{ display: "flex", alignItems: "center", p: 3, gap: 2.5, '&:last-child': { pb: 3 } }}>
                         <Avatar
                             sx={{
-                                width: 56,
-                                height: 56,
-                                color: primaryColor,
-                                background: alpha(primaryColor, 0.12),
-                                border: `2px solid ${alpha(primaryColor, 0.3)}`
+                                width: 64,
+                                height: 64,
+                                color: '#fff',
+                                background: `linear-gradient(135deg, ${primaryColor}, ${theme.palette[color].dark})`,
+                                boxShadow: `0 4px 12px ${alpha(primaryColor, 0.4)}`,
+                                borderRadius: 3
                             }}
                         >
                             {React.cloneElement(icon, { sx: { fontSize: 32 } })}
@@ -168,13 +186,13 @@ const StatCard = ({
                                 variant="body2"
                                 fontWeight={600}
                                 color="text.secondary"
-                                gutterBottom
+                                sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.75rem', mb: 0.5 }}
                             >
                                 {title}
                             </Typography>
-                            <Typography variant="h4" fontWeight={800} color="text.primary">
+                            <Typography variant="h4" fontWeight={800} sx={{ color: 'text.primary', letterSpacing: -0.5 }}>
                                 {isLoading ? (
-                                    <Skeleton width={120} />
+                                    <Skeleton width={140} />
                                 ) : (
                                     <AnimatedCounter
                                         value={value}
@@ -364,6 +382,17 @@ export default function ConstructionPlan() {
     const [showProgressDialog, setShowProgressDialog] = useState(false);
     const { executeBatchSettlement, isProcessing, progress, results, resetResults } = useBatchSettlement();
 
+    // === BATCH QUARTER TRANSITION STATE ===
+    const [showTransitionConfirm, setShowTransitionConfirm] = useState(false);
+    const [showTransitionProgress, setShowTransitionProgress] = useState(false);
+    const {
+        executeBatchQuarterTransition,
+        isProcessing: isTransitioning,
+        progress: transitionProgress,
+        results: transitionResults,
+        resetResults: resetTransitionResults
+    } = useBatchQuarterTransition();
+
     // Combine loading states
     const isLoadingData = isProjectsLoading;
     // Sync local loading state if needed, or just use derived state
@@ -506,6 +535,39 @@ export default function ConstructionPlan() {
     const handleClearSelection = useCallback(() => {
         setRowSelectionModel({ type: 'include', ids: new Set() });
     }, []);
+
+    // === BATCH QUARTER TRANSITION HANDLERS ===
+    const handleOpenTransitionConfirm = useCallback(() => {
+        if (selectedProjectIds.length === 0) {
+            toast.error("Vui lòng chọn ít nhất một công trình để chuyển quý.");
+            return;
+        }
+        setShowTransitionConfirm(true);
+    }, [selectedProjectIds]);
+
+    const handleConfirmBatchTransition = useCallback(async () => {
+        setShowTransitionConfirm(false);
+        setShowTransitionProgress(true);
+
+        const result = await executeBatchQuarterTransition(selectedProjectIds, settlementYear, settlementQuarter);
+
+        if (result) {
+            if (result.success.length > 0) {
+                toast.success(`Chuyển quý thành công ${result.success.length} công trình!`);
+            }
+            if (result.failed.length > 0) {
+                toast.error(`${result.failed.length} công trình gặp lỗi khi chuyển quý.`);
+            }
+        }
+    }, [selectedProjectIds, settlementYear, settlementQuarter, executeBatchQuarterTransition]);
+
+    const handleCloseTransitionProgress = useCallback(() => {
+        setShowTransitionProgress(false);
+        if (!isTransitioning) {
+            setRowSelectionModel({ type: 'include', ids: new Set() });
+            resetTransitionResults();
+        }
+    }, [isTransitioning, resetTransitionResults]);
 
     // --- MEMOIZED DATA ---
     const filteredProjects = useMemo(() => {
@@ -705,14 +767,39 @@ export default function ConstructionPlan() {
         <Box
             sx={{
                 p: { xs: 2, md: 3, lg: 4 },
-                bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'background.default',
+                bgcolor: theme.palette.mode === 'light' ? '#f8f9fa' : 'background.default',
                 minHeight: "100vh",
+                position: 'relative',
+                overflow: 'hidden',
+                '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    top: -100,
+                    right: -100,
+                    width: 400,
+                    height: 400,
+                    background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.05)} 0%, transparent 70%)`,
+                    borderRadius: '50%',
+                    zIndex: 0
+                },
+                '&::after': {
+                    content: '""',
+                    position: 'absolute',
+                    bottom: -100,
+                    left: -100,
+                    width: 500,
+                    height: 500,
+                    background: `radial-gradient(circle, ${alpha(theme.palette.secondary.main, 0.05)} 0%, transparent 70%)`,
+                    borderRadius: '50%',
+                    zIndex: 0
+                }
             }}
         >
             <motion.div
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
+                style={{ position: 'relative', zIndex: 1 }}
             >
                 <motion.div variants={itemVariants}>
                     <Typography variant="h4" fontWeight={800} gutterBottom sx={{ color: 'text.primary' }}>
@@ -768,6 +855,7 @@ export default function ConstructionPlan() {
                             justifyContent="space-between"
                             alignItems="center"
                             bgcolor="background.paper"
+                            borderBottom={`1px solid ${theme.palette.divider}`}
                         >
                             <TextField
                                 variant="outlined"
@@ -781,8 +869,12 @@ export default function ConstructionPlan() {
                                             <Search color="action" />
                                         </InputAdornment>
                                     ),
+                                    sx: { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.05) }
                                 }}
-                                sx={{ width: { xs: "100%", md: 350 }, borderRadius: "8px" }}
+                                sx={{
+                                    width: { xs: "100%", md: 400 },
+                                    "& fieldset": { border: "none" },
+                                }}
                             />
                             <Button
                                 variant="contained"
@@ -790,76 +882,25 @@ export default function ConstructionPlan() {
                                 startIcon={<AddCircleOutline />}
                                 onClick={() => setOpenAddDrawer(true)}
                                 sx={{
-                                    borderRadius: "10px",
-                                    boxShadow: theme.shadows[4],
+                                    borderRadius: 3,
+                                    textTransform: 'none',
+                                    fontWeight: 700,
+                                    boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.25)}`,
+                                    paddingX: 3,
+                                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
                                     width: { xs: "100%", md: "auto" },
                                 }}
                             >
-                                THÊM CÔNG TRÌNH MỚI
+                                Thêm Công Trình Mới
                             </Button>
                         </Stack>
 
-                        {/* === BATCH SETTLEMENT TOOLBAR === */}
-                        {selectedProjectIds.length > 0 && (
-                            <Stack
-                                direction={{ xs: "column", sm: "row" }}
-                                spacing={2}
-                                p={2}
-                                alignItems="center"
-                                sx={{
-                                    backgroundColor: alpha(theme.palette.warning.main, 0.08),
-                                    borderTop: `1px solid ${theme.palette.divider}`,
-                                }}
-                            >
-                                <Typography fontWeight={600} sx={{ minWidth: 180 }}>
-                                    ✓ Đã chọn {selectedProjectIds.length} công trình
-                                </Typography>
-                                <TextField
-                                    select
-                                    size="small"
-                                    label="Quý"
-                                    value={settlementQuarter}
-                                    onChange={(e) => setSettlementQuarter(e.target.value)}
-                                    sx={{ width: 100 }}
-                                >
-                                    <MenuItem value="Q1">Q1</MenuItem>
-                                    <MenuItem value="Q2">Q2</MenuItem>
-                                    <MenuItem value="Q3">Q3</MenuItem>
-                                    <MenuItem value="Q4">Q4</MenuItem>
-                                </TextField>
-                                <TextField
-                                    size="small"
-                                    label="Năm"
-                                    type="number"
-                                    value={settlementYear}
-                                    onChange={(e) => setSettlementYear(e.target.value)}
-                                    sx={{ width: 100 }}
-                                />
-                                <Button
-                                    variant="contained"
-                                    color="error"
-                                    startIcon={<LockIcon />}
-                                    onClick={handleOpenSettlementConfirm}
-                                    sx={{ fontWeight: 600 }}
-                                >
-                                    QUYẾT TOÁN ĐÃ CHỌN
-                                </Button>
-                                <Button
-                                    variant="outlined"
-                                    startIcon={<ClearAllIcon />}
-                                    onClick={handleClearSelection}
-                                >
-                                    Bỏ chọn
-                                </Button>
-                            </Stack>
-                        )}
-
-                        <Box sx={{ height: 600, width: "100%", p: 1, pt: 0 }}>
+                        <Box sx={{ height: 650, width: "100%" }}>
                             <DataGrid
                                 rows={filteredProjects}
                                 columns={columns}
                                 loading={isLoading}
-                                rowHeight={68}
+                                rowHeight={72}
                                 paginationModel={paginationModel}
                                 onPaginationModelChange={setPaginationModel}
                                 pageSizeOptions={[10, 25, 50]}
@@ -884,50 +925,55 @@ export default function ConstructionPlan() {
                                 getRowClassName={getRowClassName}
                                 sx={{
                                     border: "none",
+                                    fontFamily: "'Inter', sans-serif",
                                     "& .MuiDataGrid-columnHeaders": {
-                                        backgroundColor: alpha(theme.palette.grey[500], 0.1),
-                                        borderBottom: `2px solid ${theme.palette.divider}`,
+                                        backgroundColor: alpha(theme.palette.background.paper, 0.8),
+                                        backdropFilter: 'blur(10px)',
+                                        borderBottom: `1px solid ${theme.palette.divider}`,
+                                        color: theme.palette.text.secondary,
+                                        fontSize: "0.75rem",
+                                        fontWeight: 700,
+                                        textTransform: "uppercase",
                                     },
                                     "& .MuiDataGrid-columnHeaderTitle": {
-                                        fontWeight: "700",
-                                        color: "text.secondary",
-                                        textTransform: "uppercase",
-                                        fontSize: "0.8rem",
+                                        letterSpacing: "0.05em",
                                     },
                                     "& .MuiDataGrid-columnHeader--filledGroup":
                                     {
-                                        backgroundColor: alpha(
-                                            theme.palette.primary.main,
-                                            0.08
-                                        ),
+                                        backgroundColor: 'transparent',
+                                        borderBottom: `1px dashed ${theme.palette.divider}`,
                                     },
                                     "& .MuiDataGrid-columnHeader--filledGroup .MuiDataGrid-columnHeaderTitle":
                                     {
-                                        color: "primary.dark",
+                                        color: theme.palette.primary.main,
                                         fontWeight: "800",
                                     },
                                     "& .MuiDataGrid-row": {
                                         cursor: "pointer",
                                         transition: 'background-color 0.2s',
                                         '&:hover': {
-                                            backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                                            backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                                        },
+                                        '&.Mui-selected': {
+                                            backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                                            '&:hover': {
+                                                backgroundColor: alpha(theme.palette.primary.main, 0.12),
+                                            }
                                         }
                                     },
                                     "& .MuiDataGrid-cell": {
-                                        borderBottom: `1px dashed ${theme.palette.grey[200]}`,
+                                        borderBottom: `1px solid ${theme.palette.divider}`,
                                         alignItems: "center",
                                         display: "flex",
                                     },
                                     "& .MuiDataGrid-cell:focus-within, & .MuiDataGrid-columnHeader:focus-within":
                                         { outline: "none !important" },
                                     "& .MuiDataGrid-footerContainer": {
-                                        borderTop: `1px solid ${theme.palette.divider}`,
+                                        borderTop: "none",
+                                        borderBottom: "none",
                                     },
                                     "& .project-row--factory": {
-                                        backgroundColor: alpha(theme.palette.success.main, 0.08),
-                                        "&:hover": {
-                                            backgroundColor: alpha(theme.palette.success.main, 0.12),
-                                        },
+                                        backgroundColor: alpha(theme.palette.success.main, 0.04), // Softer factory color
                                     },
                                 }}
                             />
@@ -935,6 +981,111 @@ export default function ConstructionPlan() {
                     </Paper>
                 </motion.div>
             </motion.div>
+
+            {/* === FLOATING BATCH ACTION BAR === */}
+            <AnimatePresence>
+                {selectedProjectIds.length > 0 && (
+                    <motion.div
+                        initial={{ y: 100, opacity: 0, x: "-50%" }}
+                        animate={{ y: 0, opacity: 1, x: "-50%" }}
+                        exit={{ y: 100, opacity: 0, x: "-50%" }}
+                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                        style={{
+                            position: "fixed",
+                            bottom: 32,
+                            left: "50%",
+                            zIndex: 1300,
+                        }}
+                    >
+                        <Paper
+                            elevation={8}
+                            sx={{
+                                p: 1.5,
+                                pl: 3,
+                                pr: 1.5,
+                                borderRadius: 50,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 2,
+                                bgcolor: alpha(theme.palette.background.paper, 0.8),
+                                backdropFilter: "blur(20px)",
+                                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                                boxShadow: `0 12px 48px ${alpha(theme.palette.common.black, 0.2)}`,
+                            }}
+                        >
+                            <Chip
+                                label={`${selectedProjectIds.length} đã chọn`}
+                                color="primary"
+                                size="small"
+                                sx={{ fontWeight: 700, borderRadius: 2 }}
+                            />
+
+                            <Stack direction="row" spacing={1} alignItems="center">
+                                <TextField
+                                    select
+                                    size="small"
+                                    value={settlementQuarter}
+                                    onChange={(e) => setSettlementQuarter(e.target.value)}
+                                    variant="standard"
+                                    InputProps={{ disableUnderline: true, sx: { fontWeight: 700, fontSize: '0.9rem' } }}
+                                    sx={{ width: 60 }}
+                                >
+                                    {["Q1", "Q2", "Q3", "Q4"].map(q => <MenuItem key={q} value={q}>{q}</MenuItem>)}
+                                </TextField>
+                                <Typography color="text.secondary">/</Typography>
+                                <TextField
+                                    size="small"
+                                    type="number"
+                                    value={settlementYear}
+                                    onChange={(e) => setSettlementYear(e.target.value)}
+                                    variant="standard"
+                                    InputProps={{ disableUnderline: true, sx: { fontWeight: 700, fontSize: '0.9rem', width: 50 } }}
+                                />
+                            </Stack>
+
+                            <Box sx={{ height: 24, width: "1px", bgcolor: "divider" }} />
+
+                            <Stack direction="row" spacing={1}>
+                                <Button
+                                    variant="outlined"
+                                    color="error"
+                                    size="small"
+                                    startIcon={<LockIcon />}
+                                    onClick={handleOpenSettlementConfirm}
+                                    sx={{ borderRadius: 4, textTransform: 'none', fontWeight: 600, px: 2 }}
+                                >
+                                    Quyết Toán
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    startIcon={<SkipForwardIcon />}
+                                    onClick={handleOpenTransitionConfirm}
+                                    sx={{
+                                        borderRadius: 4,
+                                        textTransform: 'none',
+                                        fontWeight: 600,
+                                        px: 2,
+                                        background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`
+                                    }}
+                                >
+                                    Chuyển Quý
+                                </Button>
+                                <IconButton
+                                    size="small"
+                                    onClick={handleClearSelection}
+                                    sx={{
+                                        bgcolor: alpha(theme.palette.grey[500], 0.1),
+                                        '&:hover': { bgcolor: alpha(theme.palette.grey[500], 0.2) }
+                                    }}
+                                >
+                                    <CloseIcon fontSize="small" />
+                                </IconButton>
+                            </Stack>
+                        </Paper>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Các Modal và Drawer */}
             <ProjectFormDrawer
@@ -945,16 +1096,18 @@ export default function ConstructionPlan() {
                 onSave={handleCreateProject}
                 isEdit={false}
             />
-            {projectToEdit && (
-                <ProjectFormDrawer
-                    open={openEditDrawer}
-                    onClose={() => setOpenEditDrawer(false)}
-                    project={projectToEdit}
-                    setProject={setProjectToEdit}
-                    onSave={handleUpdateProject}
-                    isEdit={true}
-                />
-            )}
+            {
+                projectToEdit && (
+                    <ProjectFormDrawer
+                        open={openEditDrawer}
+                        onClose={() => setOpenEditDrawer(false)}
+                        project={projectToEdit}
+                        setProject={setProjectToEdit}
+                        onSave={handleUpdateProject}
+                        isEdit={true}
+                    />
+                )
+            }
             <Dialog
                 open={!!projectToDelete}
                 onClose={() => setProjectToDelete(null)}
@@ -978,14 +1131,16 @@ export default function ConstructionPlan() {
                     </Button>
                 </DialogActions>
             </Dialog>
-            {projectForTimeline && (
-                <AllocationTimelineModal
-                    open={isTimelineModalOpen}
-                    onClose={() => setTimelineModalOpen(false)}
-                    project={projectForTimeline}
-                    onSave={handleSaveAllocationTimeline}
-                />
-            )}
+            {
+                projectForTimeline && (
+                    <AllocationTimelineModal
+                        open={isTimelineModalOpen}
+                        onClose={() => setTimelineModalOpen(false)}
+                        project={projectForTimeline}
+                        onSave={handleSaveAllocationTimeline}
+                    />
+                )
+            }
 
             {/* === BATCH SETTLEMENT CONFIRMATION DIALOG === */}
             <Dialog
@@ -1071,6 +1226,91 @@ export default function ConstructionPlan() {
                     </Button>
                 </DialogActions>
             </Dialog>
-        </Box>
+
+            {/* === BATCH QUARTER TRANSITION CONFIRMATION DIALOG === */}
+            <Dialog
+                open={showTransitionConfirm}
+                onClose={() => setShowTransitionConfirm(false)}
+                PaperProps={{ sx: { borderRadius: 3, maxWidth: 500 } }}
+            >
+                <DialogTitle fontWeight="700">⏭️ Xác Nhận Chuyển Quý Hàng Loạt</DialogTitle>
+                <DialogContent>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        Bạn sắp chuyển quý cho <strong>{selectedProjectIds.length} công trình</strong> từ <strong>{settlementQuarter}/{settlementYear}</strong>.
+                    </Alert>
+                    <Typography variant="body2" color="text.secondary">
+                        Hành động này sẽ:<br />
+                        • Lưu dữ liệu quý hiện tại<br />
+                        • Tự động tạo dữ liệu khởi đầu cho quý tiếp theo<br />
+                        • <strong>Không chốt sổ</strong> - bạn vẫn có thể chỉnh sửa sau
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={() => setShowTransitionConfirm(false)}>Hủy</Button>
+                    <Button
+                        onClick={handleConfirmBatchTransition}
+                        color="primary"
+                        variant="contained"
+                    >
+                        XÁC NHẬN CHUYỂN QUÝ
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* === BATCH QUARTER TRANSITION PROGRESS DIALOG === */}
+            <Dialog
+                open={showTransitionProgress}
+                onClose={isTransitioning ? undefined : handleCloseTransitionProgress}
+                PaperProps={{ sx: { borderRadius: 3, minWidth: 400 } }}
+            >
+                <DialogTitle fontWeight="700">
+                    {isTransitioning ? "⏳ Đang Chuyển Quý..." : "✅ Hoàn Thành"}
+                </DialogTitle>
+                <DialogContent>
+                    {isTransitioning ? (
+                        <Box>
+                            <Typography variant="body2" gutterBottom>
+                                Đang xử lý: <strong>{transitionProgress.currentProject}</strong>
+                            </Typography>
+                            <LinearProgress
+                                variant="determinate"
+                                value={(transitionProgress.current / transitionProgress.total) * 100}
+                                sx={{ height: 10, borderRadius: 5, my: 2 }}
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                                {transitionProgress.current} / {transitionProgress.total} công trình
+                            </Typography>
+                        </Box>
+                    ) : (
+                        <Box>
+                            {transitionResults.success.length > 0 && (
+                                <Alert severity="success" sx={{ mb: 2 }}>
+                                    <strong>{transitionResults.success.length}</strong> công trình chuyển quý thành công!
+                                </Alert>
+                            )}
+                            {transitionResults.failed.length > 0 && (
+                                <Alert severity="error">
+                                    <strong>{transitionResults.failed.length}</strong> công trình gặp lỗi:
+                                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                                        {transitionResults.failed.map((f, i) => (
+                                            <li key={i}>{f.error}</li>
+                                        ))}
+                                    </ul>
+                                </Alert>
+                            )}
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button
+                        onClick={handleCloseTransitionProgress}
+                        disabled={isTransitioning}
+                        variant="contained"
+                    >
+                        {isTransitioning ? "Đang xử lý..." : "Đóng"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </Box >
     );
 }

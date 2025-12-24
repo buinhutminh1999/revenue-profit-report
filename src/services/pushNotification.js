@@ -51,9 +51,10 @@ export const getPermissionStatus = () => {
 /**
  * Request notification permission and get FCM token
  * @param {string} userId - Current user's UID
+ * @param {object} userInfo - Optional user info to sync (departmentId, role, etc.)
  * @returns {Promise<{success: boolean, token?: string, error?: string}>}
  */
-export const requestNotificationPermission = async (userId) => {
+export const requestNotificationPermission = async (userId, userInfo = {}) => {
     if (!isPushSupported()) {
         return { success: false, error: 'Trình duyệt không hỗ trợ thông báo đẩy' };
     }
@@ -96,8 +97,8 @@ export const requestNotificationPermission = async (userId) => {
 
         console.log('✅ FCM Token:', token);
 
-        // Save token to Firestore
-        await saveTokenToFirestore(userId, token);
+        // Save token to Firestore with user info
+        await saveTokenToFirestore(userId, token, userInfo);
 
         return { success: true, token };
     } catch (error) {
@@ -108,33 +109,41 @@ export const requestNotificationPermission = async (userId) => {
 
 /**
  * Save FCM token to Firestore for the user
+ * @param {string} userId - User ID
+ * @param {string} token - FCM token
+ * @param {object} userInfo - Additional user info to sync (departmentId, role, etc.)
  */
-const saveTokenToFirestore = async (userId, token) => {
+const saveTokenToFirestore = async (userId, token, userInfo = {}) => {
     if (!userId || !token) return;
 
     const userRef = doc(db, 'users', userId);
 
     try {
-        // Check if user document exists
-        const userDoc = await getDoc(userRef);
+        // Build update data
+        const updateData = {
+            fcmTokens: arrayUnion(token),
+            pushNotificationsEnabled: true,
+            lastTokenUpdate: new Date()
+        };
 
-        if (userDoc.exists()) {
-            // Update existing document - add token to array
-            await setDoc(userRef, {
-                fcmTokens: arrayUnion(token),
-                pushNotificationsEnabled: true,
-                lastTokenUpdate: new Date()
-            }, { merge: true });
-        } else {
-            // Create new document with token
-            await setDoc(userRef, {
-                fcmTokens: [token],
-                pushNotificationsEnabled: true,
-                lastTokenUpdate: new Date()
-            }, { merge: true });
+        // Add departmentId if provided
+        if (userInfo.departmentId) {
+            updateData.departmentId = userInfo.departmentId;
         }
 
-        console.log('✅ FCM token saved to Firestore');
+        // Add role if provided  
+        if (userInfo.role) {
+            updateData.role = userInfo.role;
+        }
+
+        // Add email if provided
+        if (userInfo.email) {
+            updateData.email = userInfo.email;
+        }
+
+        await setDoc(userRef, updateData, { merge: true });
+
+        console.log('✅ FCM token saved to Firestore', { userId, departmentId: userInfo.departmentId });
     } catch (error) {
         console.error('❌ Error saving FCM token:', error);
         throw error;

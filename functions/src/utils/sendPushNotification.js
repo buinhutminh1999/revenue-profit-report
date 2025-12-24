@@ -116,8 +116,9 @@ async function sendPushToUsers(userIds, notification, data = {}) {
  * @param {string[]} departmentIds - Array of department IDs
  * @param {object} notification - Notification content
  * @param {object} data - Additional data
+ * @param {Set} notifiedUserIds - Optional Set to track notified users (for deduplication)
  */
-async function sendPushToDepartments(departmentIds, notification, data = {}) {
+async function sendPushToDepartments(departmentIds, notification, data = {}, notifiedUserIds = null) {
     if (!departmentIds || departmentIds.length === 0) {
         console.log("sendPushToDepartments: No department IDs provided");
         return { success: 0, failure: 0 };
@@ -126,9 +127,11 @@ async function sendPushToDepartments(departmentIds, notification, data = {}) {
     const db = admin.firestore();
     const userIds = new Set();
 
-    console.log(`sendPushToDepartments: Finding users in departments: ${departmentIds.join(", ")}`);
+    console.log(`sendPushToDepartments: Finding users in departments: ${JSON.stringify(departmentIds)}`);
 
-    // Find users in these departments (removed pushNotificationsEnabled filter)
+    console.log(`sendPushToDepartments: Finding users in departments: ${JSON.stringify(departmentIds)}`);
+
+    // Find users in these departments
     for (const deptId of departmentIds) {
         try {
             const usersSnapshot = await db
@@ -136,13 +139,19 @@ async function sendPushToDepartments(departmentIds, notification, data = {}) {
                 .where("departmentId", "==", deptId)
                 .get();
 
-            console.log(`Department ${deptId}: Found ${usersSnapshot.size} users`);
+            console.log(`Department "${deptId}": Found ${usersSnapshot.size} users`);
             usersSnapshot.forEach((doc) => {
                 const userData = doc.data();
-                // Only add if user has fcmTokens
+                // Only add if user has fcmTokens AND not already notified
                 if (userData.fcmTokens && userData.fcmTokens.length > 0) {
-                    userIds.add(doc.id);
-                    console.log(`  - User ${doc.id} has ${userData.fcmTokens.length} tokens`);
+                    if (notifiedUserIds && notifiedUserIds.has(doc.id)) {
+                        console.log(`  - User ${doc.id} already notified, skipping`);
+                    } else {
+                        userIds.add(doc.id);
+                        // Track this user as notified
+                        if (notifiedUserIds) notifiedUserIds.add(doc.id);
+                        console.log(`  - User ${doc.id} has ${userData.fcmTokens.length} tokens`);
+                    }
                 }
             });
         } catch (error) {
@@ -155,35 +164,61 @@ async function sendPushToDepartments(departmentIds, notification, data = {}) {
 }
 
 /**
- * Send push notification to admins and HC/KT departments
+ * Send push notification to HC approvers (configured in app_config/leadership)
+ * @param {object} notification - Notification content
+ * @param {object} data - Additional data
+ * @param {Set} notifiedUserIds - Optional Set to exclude already notified users
  */
-async function sendPushToAdmins(notification, data = {}) {
+async function sendPushToAdmins(notification, data = {}, notifiedUserIds = null) {
     const db = admin.firestore();
     const userIds = new Set();
 
-    console.log("sendPushToAdmins: Finding admin users...");
+    console.log("sendPushToAdmins: Finding HC approvers from config...");
 
     try {
-        // Get admin users (removed pushNotificationsEnabled filter)
-        const adminsSnapshot = await db
-            .collection("users")
-            .where("role", "==", "admin")
-            .get();
+        // Get approver IDs from app_config/leadership
+        const leadershipDoc = await db.doc("app_config/leadership").get();
 
-        console.log(`Found ${adminsSnapshot.size} admin users`);
-        adminsSnapshot.forEach((doc) => {
-            const userData = doc.data();
-            if (userData.fcmTokens && userData.fcmTokens.length > 0) {
-                userIds.add(doc.id);
-                console.log(`  - Admin ${doc.id} has ${userData.fcmTokens.length} tokens`);
+        if (!leadershipDoc.exists()) {
+            console.log("sendPushToAdmins: No leadership config found");
+            return { success: 0, failure: 0 };
+        }
+
+        const leadershipData = leadershipDoc.data();
+        const approvalPermissions = leadershipData.approvalPermissions || {};
+
+        // Get default HC approvers
+        const defaultApprovers = approvalPermissions.default || {};
+        const hcApproverIds = defaultApprovers.hcApproverIds || [];
+
+        console.log(`Found ${hcApproverIds.length} HC approvers in config: ${hcApproverIds.join(", ")}`);
+
+        // Collect FCM tokens for these users
+        for (const userId of hcApproverIds) {
+            // Skip if already notified
+            if (notifiedUserIds && notifiedUserIds.has(userId)) {
+                console.log(`  - User ${userId} already notified, skipping`);
+                continue;
             }
-        });
+
+            const userDoc = await db.doc(`users/${userId}`).get();
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                if (userData.fcmTokens && userData.fcmTokens.length > 0) {
+                    userIds.add(userId);
+                    if (notifiedUserIds) notifiedUserIds.add(userId);
+                    console.log(`  - Approver ${userId} has ${userData.fcmTokens.length} tokens`);
+                } else {
+                    console.log(`  - Approver ${userId} has no FCM tokens`);
+                }
+            }
+        }
 
     } catch (error) {
-        console.error("Error fetching admin users:", error);
+        console.error("Error fetching HC approvers:", error);
     }
 
-    console.log(`sendPushToAdmins: Total admins with tokens: ${userIds.size}`);
+    console.log(`sendPushToAdmins: Total approvers with tokens: ${userIds.size}`);
     return sendPushToUsers([...userIds], notification, data);
 }
 
