@@ -117,8 +117,8 @@ exports.logTransferCreation = onDocumentCreated("transfers/{transferId}", async 
             await sendPushToDepartments(
                 [deptIdToNotify],
                 {
-                    title: "📦 Có phiếu luân chuyển mới cần ký!",
-                    body: `${actorName} tạo phiếu ${displayId}: ${transferData.from} → ${transferData.to}`,
+                    title: "📦 Phiếu Luân Chuyển Mới",
+                    body: `${actorName} đã tạo phiếu luân chuyển ${displayId}: ${transferData.from} → ${transferData.to}. Vui lòng kiểm tra!`,
                 },
                 { url: "/asset-transfer", transferId }
             );
@@ -192,8 +192,8 @@ exports.logTransferSignature = onDocumentUpdated("transfers/{transferId}", async
                 await sendPushToDepartments(
                     [afterData.toDeptId],
                     {
-                        title: "✍️ Cần ký duyệt phiếu",
-                        body: `${actorName} đã ký phiếu ${displayId}. Đến lượt bạn duyệt!`,
+                        title: "✍️ Cần ký: Phiếu Luân Chuyển",
+                        body: `${actorName} đã ký phiếu luân chuyển ${displayId}. P.Nhận vui lòng kiểm tra và duyệt!`,
                     },
                     { url: "/asset-transfer", transferId }
                 );
@@ -202,8 +202,8 @@ exports.logTransferSignature = onDocumentUpdated("transfers/{transferId}", async
             // Receiver signed → Notify admins (HC department)
             await sendPushToAdmins(
                 {
-                    title: "✍️ Phiếu cần duyệt cuối",
-                    body: `${displayId} đã được phòng nhận ký. Cần P.HC duyệt!`,
+                    title: "✍️ Phê duyệt: Phiếu Luân Chuyển",
+                    body: `${displayId} đã được P.Nhận ký. P.Hành chính vui lòng phê duyệt cuối!`,
                 },
                 { url: "/asset-transfer", transferId }
             );
@@ -214,8 +214,8 @@ exports.logTransferSignature = onDocumentUpdated("transfers/{transferId}", async
                 await sendPushToDepartments(
                     deptIds,
                     {
-                        title: "✅ Phiếu đã hoàn thành!",
-                        body: `Phiếu ${displayId} đã được duyệt xong.`,
+                        title: "✅ Hoàn tất: Phiếu Luân Chuyển",
+                        body: `Phiếu luân chuyển ${displayId} đã được duyệt xong. Thiết bị đã được điều chuyển.`,
                     },
                     { url: "/asset-transfer", transferId }
                 );
@@ -238,13 +238,16 @@ exports.logReportCreation = onDocumentCreated("inventory_reports/{reportId}", as
     const { reportId } = event.params;
 
     const actor = report?.requester?.uid || "unknown_actor";
+    const actorName = report?.requester?.name || "Ai đó";
+    const reportTitle = report?.title || `Báo cáo ${reportId.slice(0, 6)}`;
     const target = {
         type: "inventory_report",
         id: reportId,
-        name: report?.title || `Report ${reportId.slice(0, 6)}`
+        name: reportTitle
     };
 
-    return writeAuditLog(
+    // Write audit log
+    await writeAuditLog(
         "REPORT_CREATED",
         actor,
         target,
@@ -255,6 +258,19 @@ exports.logReportCreation = onDocumentCreated("inventory_reports/{reportId}", as
         },
         { origin: "trigger:logReportCreation" }
     );
+
+    // Send push notification to HC department (first approvers)
+    try {
+        await sendPushToAdmins(
+            {
+                title: "📋 Báo Cáo Kiểm Kê Mới",
+                body: `${actorName} đã tạo "${reportTitle}". P.Hành chính vui lòng kiểm tra và duyệt!`,
+            },
+            { url: "/asset-transfer", reportId }
+        );
+    } catch (pushError) {
+        console.error("[logReportCreation] Error sending push:", pushError);
+    }
 });
 
 exports.logReportDeletion = onDocumentDeleted("inventory_reports/{reportId}", async (event) => {
@@ -290,35 +306,94 @@ exports.logReportSignature = onDocumentUpdated("inventory_reports/{reportId}", a
     const a = after.signatures || {};
 
     let step = null;
+    let signedKey = null;
     // Với báo cáo phòng: hc, deptLeader, director
     // Với báo cáo tổng hợp: hc, kt, director
-    if (!b.hc && a.hc) step = "P.HC";
-    else if (!b.deptLeader && a.deptLeader) step = "Lãnh đạo Phòng";
-    else if (!b.kt && a.kt) step = "P.KT";
-    else if (!b.director && a.director) step = "BTGĐ";
+    if (!b.hc && a.hc) { step = "P.HC"; signedKey = "hc"; }
+    else if (!b.deptLeader && a.deptLeader) { step = "Lãnh đạo Phòng"; signedKey = "deptLeader"; }
+    else if (!b.kt && a.kt) { step = "P.KT"; signedKey = "kt"; }
+    else if (!b.director && a.director) { step = "BTGĐ"; signedKey = "director"; }
 
     if (!step) return null; // không phải cập nhật chữ ký
 
     // Lấy actor từ chữ ký mới
-    const actor =
-        (a.hc && !b.hc && a.hc) ||
-        (a.deptLeader && !b.deptLeader && a.deptLeader) ||
-        (a.kt && !b.kt && a.kt) ||
-        (a.director && !b.director && a.director) ||
-        { uid: "unknown_actor" };
+    const actor = a[signedKey] || { uid: "unknown_actor" };
+    const actorName = actor?.name || "Ai đó";
 
     const { reportId } = event.params;
+    const reportTitle = after?.title || `Báo cáo ${reportId.slice(0, 6)}`;
     const target = {
         type: "inventory_report",
         id: reportId,
-        name: after?.title || `Report ${reportId.slice(0, 6)}`
+        name: reportTitle
     };
 
-    return writeAuditLog(
+    // Write audit log
+    await writeAuditLog(
         "REPORT_SIGNED",
         actor,
         target,
         { step, status: after?.status },
         { origin: "trigger:logReportSignature" }
     );
+
+    // Send push notifications based on which step was signed
+    try {
+        if (signedKey === "hc") {
+            // HC signed → Notify department leader (if department report) or KT (if summary report)
+            if (after?.type === "department" && after?.departmentId) {
+                // Notify department
+                await sendPushToDepartments(
+                    [after.departmentId],
+                    {
+                        title: "✍️ Ký duyệt: Báo Cáo Kiểm Kê",
+                        body: `${actorName} (P.HC) đã ký "${reportTitle}". Lãnh đạo phòng vui lòng duyệt!`,
+                    },
+                    { url: "/asset-transfer", reportId }
+                );
+            } else {
+                // Summary report - notify admins (for KT to sign)
+                await sendPushToAdmins(
+                    {
+                        title: "✍️ Ký duyệt: Báo Cáo Tổng Hợp",
+                        body: `${actorName} (P.HC) đã ký "${reportTitle}". P.Kế toán vui lòng duyệt!`,
+                    },
+                    { url: "/asset-transfer", reportId }
+                );
+            }
+        } else if (signedKey === "deptLeader" || signedKey === "kt") {
+            // Dept Leader or KT signed → Notify Director (admins)
+            await sendPushToAdmins(
+                {
+                    title: "✍️ Phê duyệt cuối: Báo Cáo Kiểm Kê",
+                    body: `${actorName} (${step}) đã ký "${reportTitle}". Ban TGĐ vui lòng phê duyệt!`,
+                },
+                { url: "/asset-transfer", reportId }
+            );
+        } else if (signedKey === "director") {
+            // Director signed (completed) → Notify all relevant parties
+            const deptIds = after?.departmentId ? [after.departmentId] : [];
+            if (deptIds.length > 0) {
+                await sendPushToDepartments(
+                    deptIds,
+                    {
+                        title: "✅ Hoàn tất: Báo Cáo Kiểm Kê",
+                        body: `"${reportTitle}" đã được Ban TGĐ phê duyệt hoàn tất!`,
+                    },
+                    { url: "/asset-transfer", reportId }
+                );
+            }
+            // Also notify HC/KT
+            await sendPushToAdmins(
+                {
+                    title: "✅ Hoàn tất: Báo Cáo Kiểm Kê",
+                    body: `"${reportTitle}" đã được Ban TGĐ phê duyệt hoàn tất!`,
+                },
+                { url: "/asset-transfer", reportId }
+            );
+        }
+    } catch (pushError) {
+        console.error("[logReportSignature] Error sending push:", pushError);
+    }
 });
+

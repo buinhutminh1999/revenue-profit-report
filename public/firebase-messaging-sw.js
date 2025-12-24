@@ -108,8 +108,8 @@ messaging.onBackgroundMessage((payload) => {
 
     const notificationOptions = {
         body: notificationBody,
-        icon: '/logo192.png',
-        badge: '/logo192.png',
+        icon: '/logo512.png',
+        badge: '/logo512.png',
         tag: data.tag || data.transferId || 'default', // Use tag to prevent duplicates
         renotify: false, // Don't re-notify for same tag
         data: data,
