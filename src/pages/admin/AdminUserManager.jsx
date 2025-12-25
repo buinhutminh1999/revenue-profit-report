@@ -20,7 +20,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { userFormSchema } from "../../schemas/adminSchema";
 import { motion, AnimatePresence } from "framer-motion";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
 
 /* ---------------- BRAND & STYLES ---------------- */
@@ -128,11 +128,13 @@ function stableSort(array, comparator) {
   return stabilized.map((el) => el[0]);
 }
 
-const formatDate = (timestamp) => {
+const formatDate = (timestamp, useDistance = false) => {
   if (!timestamp) return "—";
   try {
-    // Handle Firestore Timestamp
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    if (useDistance) {
+      return formatDistanceToNow(date, { addSuffix: true, locale: vi });
+    }
     return format(date, "dd/MM/yyyy HH:mm", { locale: vi });
   } catch (e) {
     return "—";
@@ -354,8 +356,7 @@ export default function AdminUserManager() {
 
   const [feedback, setFeedback] = useState({ open: false, message: "", severity: "info" });
   const [search, setSearch] = useState("");
-  const [filterRole, setFilterRole] = useState("");
-  const [filterVerified, setFilterVerified] = useState("all");
+  const [activeFilter, setActiveFilter] = useState("all");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [order, setOrder] = useState("desc");
@@ -363,11 +364,8 @@ export default function AdminUserManager() {
   const [selected, setSelected] = useState([]);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [editUserOpen, setEditUserOpen] = useState(false);
-  // const [confirmOpen, setConfirmOpen] = useState(false); // Unused in original code? Keeping if needed or removing if unused. Seems unused variable `confirmAction` was also there.
   const [anchorEl, setAnchorEl] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
-
-  const auth = getAuth(); // Still needed for passed user prop? or can hook provide? Hook provides logic, but UI might need auth.currentUser for some checks if any.
 
   // Error handling from hook
   useEffect(() => {
@@ -383,16 +381,16 @@ export default function AdminUserManager() {
         u.email?.toLowerCase().includes(searchLower) ||
         u.displayName?.toLowerCase().includes(searchLower) ||
         u.departmentName?.toLowerCase().includes(searchLower);
-      const matchesRole = filterRole ? u.role === filterRole : true;
 
-      // Verification filter
-      let matchesVerified = true;
-      if (filterVerified === "verified") matchesVerified = u.emailVerified;
-      if (filterVerified === "unverified") matchesVerified = !u.emailVerified;
+      let matchesFilter = true;
+      if (activeFilter === 'admin') matchesFilter = u.role === 'admin';
+      if (activeFilter === 'locked') matchesFilter = u.locked;
+      if (activeFilter === 'unverified') matchesFilter = !u.emailVerified;
+      if (activeFilter === 'online') matchesFilter = u.lastLogin && (new Date() - new Date(u.lastLogin.toDate ? u.lastLogin.toDate() : u.lastLogin)) < 24 * 60 * 60 * 1000; // Online in 24h
 
-      return matchesSearch && matchesRole && matchesVerified;
+      return matchesSearch && matchesFilter;
     }),
-    [users, search, filterRole, filterVerified]
+    [users, search, activeFilter]
   );
 
   const stats = useMemo(() => {
@@ -509,64 +507,58 @@ export default function AdminUserManager() {
       <GlassCard>
         {/* Toolbar */}
         <Stack
-          direction={{ xs: "column", md: "row" }}
-          alignItems="center"
+          direction={{ xs: "column", md: "column" }} // Stack vertically on md too to have search top and filters below
           justifyContent="space-between"
           sx={{ p: 3, borderBottom: "1px solid rgba(0,0,0,0.05)" }}
           spacing={2}
         >
-          {selected.length > 0 ? (
-            <Stack direction="row" alignItems="center" spacing={2} sx={{ width: '100%', bgcolor: alpha(BRAND.primary, 0.05), p: 2, borderRadius: 3 }}>
-              <Typography variant="subtitle1" fontWeight={600} color="primary">
-                Đã chọn {selected.length} người dùng
-              </Typography>
-              <Box flexGrow={1} />
-              <Tooltip title="Mở khóa"><IconButton onClick={() => handleBulkAction("unlock")} color="success"><LockOpen /></IconButton></Tooltip>
-              <Tooltip title="Khóa"><IconButton onClick={() => handleBulkAction("lock")} color="warning"><Lock /></IconButton></Tooltip>
-              <Tooltip title="Xóa"><IconButton onClick={() => handleBulkAction("delete")} color="error"><Delete /></IconButton></Tooltip>
-            </Stack>
-          ) : (
-            <>
-              <TextField
-                placeholder="Tìm kiếm theo tên, email..."
-                size="small"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                InputProps={{
-                  startAdornment: <Search sx={{ color: 'text.disabled', mr: 1 }} />,
-                  sx: { borderRadius: 3, bgcolor: "#F4F6F8", border: 'none', '& fieldset': { border: 'none' } }
-                }}
-                sx={{ width: { xs: '100%', md: 300 } }}
-              />
-              <Stack direction="row" spacing={2} alignItems="center">
-                <FormControl size="small" sx={{ minWidth: 160 }}>
-                  <Select
-                    value={filterVerified}
-                    onChange={(e) => setFilterVerified(e.target.value)}
-                    displayEmpty
-                    sx={{ borderRadius: 3, bgcolor: "#F4F6F8", '& fieldset': { border: 'none' } }}
-                  >
-                    <MenuItem value="all">Tất cả trạng thái</MenuItem>
-                    <MenuItem value="verified">Đã xác thực</MenuItem>
-                    <MenuItem value="unverified">Chưa xác thực</MenuItem>
-                  </Select>
-                </FormControl>
-                <FormControl size="small" sx={{ minWidth: 160 }}>
-                  <Select
-                    value={filterRole}
-                    onChange={(e) => setFilterRole(e.target.value)}
-                    displayEmpty
-                    sx={{ borderRadius: 3, bgcolor: "#F4F6F8", '& fieldset': { border: 'none' } }}
-                  >
-                    <MenuItem value="">Tất cả vai trò</MenuItem>
-                    {ROLE_OPTIONS.map((r) => (
-                      <MenuItem key={r.id} value={r.id}>{r.label}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+          <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center" width="100%">
+            {/* SEARCH BOX */}
+            <TextField
+              placeholder="Tìm kiếm theo tên, email..."
+              size="small"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{
+                startAdornment: <Search sx={{ color: 'text.disabled', mr: 1 }} />,
+                sx: { borderRadius: 3, bgcolor: "#F4F6F8", border: 'none', '& fieldset': { border: 'none' } }
+              }}
+              sx={{ width: { xs: '100%', md: 400 } }}
+            />
+
+            {selected.length > 0 && (
+              <Stack direction="row" alignItems="center" spacing={2} sx={{ bgcolor: alpha(BRAND.primary, 0.05), p: 1, px: 2, borderRadius: 3 }}>
+                <Typography variant="body2" fontWeight={600} color="primary">
+                  Đã chọn {selected.length}
+                </Typography>
+                <Tooltip title="Mở khóa"><IconButton size="small" onClick={() => handleBulkAction("unlock")} color="success"><LockOpen /></IconButton></Tooltip>
+                <Tooltip title="Khóa"><IconButton size="small" onClick={() => handleBulkAction("lock")} color="warning"><Lock /></IconButton></Tooltip>
+                <Tooltip title="Xóa"><IconButton size="small" onClick={() => handleBulkAction("delete")} color="error"><Delete /></IconButton></Tooltip>
               </Stack>
-            </>
-          )}
+            )}
+          </Stack>
+
+          {/* FILTER CHIPS */}
+          <Stack direction="row" spacing={1} overflow="auto" pb={1}>
+            {[
+              { id: 'all', label: 'Tất cả' },
+              { id: 'admin', label: 'Quản trị viên', icon: <AdminPanelSettings fontSize="small" /> },
+              { id: 'locked', label: 'Đã khóa', icon: <Lock fontSize="small" /> },
+              { id: 'unverified', label: 'Chưa xác thực', icon: <GppBad fontSize="small" /> },
+              { id: 'online', label: 'Hoạt động gần đây', icon: <History fontSize="small" /> },
+            ].map((f) => (
+              <Chip
+                key={f.id}
+                label={f.label}
+                icon={f.icon}
+                onClick={() => setActiveFilter(f.id)}
+                color={activeFilter === f.id ? "primary" : "default"}
+                variant={activeFilter === f.id ? "filled" : "outlined"}
+                sx={{ fontWeight: 500, border: activeFilter !== f.id ? '1px solid #e0e0e0' : 'none' }}
+                clickable
+              />
+            ))}
+          </Stack>
         </Stack>
 
         {/* Table */}
@@ -689,7 +681,7 @@ export default function AdminUserManager() {
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" color="text.secondary">
-                            {formatDate(user.lastLogin)}
+                            {formatDate(user.lastLogin, true)}
                           </Typography>
                         </TableCell>
                         <TableCell align="center">

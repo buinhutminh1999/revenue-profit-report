@@ -24,6 +24,7 @@ exports.onTransferCompleted = require("./src/triggers/updateTriggers").onTransfe
 exports.setUserRole = require("./src/controllers/userController").setUserRole;
 exports.deleteUserByUid = require("./src/controllers/userController").deleteUserByUid;
 exports.inviteUser = require("./src/controllers/userController").inviteUser;
+exports.sendPasswordResetEmail = require("./src/controllers/userController").sendPasswordResetEmail;
 
 exports.manualCloseQuarter = require("./src/controllers/assetController").manualCloseQuarter;
 exports.createAssetRequest = require("./src/controllers/assetController").createAssetRequest;

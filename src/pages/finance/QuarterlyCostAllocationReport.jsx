@@ -29,7 +29,9 @@ import {
     Divider,
 } from '@mui/material';
 import { useTheme } from "@mui/material/styles";
-import { Save as SaveIcon, Check as CheckIcon } from '@mui/icons-material';
+import { Save as SaveIcon, Check as CheckIcon, Print as PrintIcon } from '@mui/icons-material';
+import { useReactToPrint } from 'react-to-print';
+import { NumericFormat } from 'react-number-format';
 
 import {
     collection,
@@ -558,6 +560,13 @@ export default function QuarterlyCostAllocationReport() {
     // [SỬA] State riêng cho chi tiết quý HIỆN TẠI (để tránh bị onSnapshot ghi đè)
     const [tempCalcDetails, setTempCalcDetails] = useState({});
     const calculationLock = useRef(false);
+
+    // Print functionality
+    const printRef = useRef();
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `PhanBoChiPhi_Q${quarter}_${year}_${projectType}`,
+    });
     const typeFilter = useMemo(() => (projectType === 'kh_dt' ? 'KH-ĐT' : 'Thi công'), [projectType]);
     const { pctKey } = useMemo(() => valueFieldMap[typeFilter] || { pctKey: 'percentThiCong' }, [typeFilter]);
     const { valKey } = useMemo(() => valueFieldMap[typeFilter] || { valKey: 'thiCongValue' }, [typeFilter]);
@@ -1472,6 +1481,7 @@ export default function QuarterlyCostAllocationReport() {
                     <FormControl sx={{ minWidth: 120 }} size="small"> <InputLabel id="year-select-label">Năm</InputLabel> <Select labelId="year-select-label" value={year} label="Năm" onChange={(e) => setYear(e.target.value)}> {years.map((y) => (<MenuItem key={y} value={y}>{y}</MenuItem>))} </Select> </FormControl>
                     <FormControl sx={{ minWidth: 120 }} size="small"> <InputLabel id="quarter-select-label">Quý</InputLabel> <Select labelId="quarter-select-label" value={quarter} label="Quý" onChange={(e) => setQuarter(e.target.value)}> <MenuItem value={1}>Quý 1</MenuItem> <MenuItem value={2}>Quý 2</MenuItem> <MenuItem value={3}>Quý 3</MenuItem> <MenuItem value={4}>Quý 4</MenuItem> </Select> </FormControl>
                     <FormControl sx={{ minWidth: 150 }} size="small"> <InputLabel id="project-type-label">Loại dự án</InputLabel> <Select labelId="project-type-label" value={projectType} label="Loại dự án" onChange={(e) => setProjectType(e.target.value)}> <MenuItem value="thi_cong">Thi công</MenuItem> <MenuItem value="kh_dt">KH-ĐT</MenuItem> </Select> </FormControl>
+                    <Button variant="outlined" startIcon={<PrintIcon />} onClick={handlePrint} sx={{ height: "40px" }}>In Báo Cáo</Button>
                     <Button variant="contained" color="primary" startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />} onClick={handleSave} disabled={saving} sx={{ height: "40px", ml: 'auto' }} > {saving ? "Đang lưu..." : "Lưu thay đổi"} </Button>
                 </Stack>
             </Paper>
@@ -1534,6 +1544,11 @@ export default function QuarterlyCostAllocationReport() {
                                                 let cellValue = null;
                                                 const cellType = col.type || 'number';
                                                 const isProjectCol = visibleProjects.some(p => p.id === col.field);
+
+                                                // [SỬA] Xử lý sớm: Hàng DOANH_THU và TONG_CHI_PHI không có %DT
+                                                if (isSummaryRow && col.field === 'percentDT') {
+                                                    return <TableCell key={col.field} align="right" sx={{ whiteSpace: 'nowrap', padding: '6px 16px' }}></TableCell>;
+                                                }
 
                                                 if (isDoanhThuRow) {
                                                     if (isProjectCol) {
@@ -1602,6 +1617,10 @@ export default function QuarterlyCostAllocationReport() {
                                                             />
                                                         );
                                                     } else if (col.field === 'percentDT') {
+                                                        // [SỬA] Hàng DOANH_THU và TONG_CHI_PHI không có %DT
+                                                        if (isSummaryRow) {
+                                                            return <TableCell key={col.field} align="right" sx={{ whiteSpace: 'nowrap', padding: '6px 16px' }}></TableCell>;
+                                                        }
                                                         cellValue = typeData[pctKey];
                                                         return renderCell(cellValue, cellType, itemRow.id, pctKey, handlePercentChange, isSummaryRow)
                                                     } else {
@@ -1641,6 +1660,171 @@ export default function QuarterlyCostAllocationReport() {
             <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} >
                 <Alert severity={snack.sev} sx={{ width: "100%" }} onClose={() => setSnack((s) => ({ ...s, open: false }))}> {snack.msg} </Alert>
             </Snackbar>
+
+            {/* Hidden Print Template */}
+            <Box sx={{ display: 'none' }}>
+                <Box ref={printRef} sx={{
+                    p: 3,
+                    bgcolor: 'white',
+                    color: 'black',
+                    fontFamily: '"Times New Roman", Times, serif',
+                    fontSize: '10pt',
+                    '@media print': {
+                        p: 2,
+                        '@page': {
+                            size: 'A4 landscape',
+                            margin: '10mm'
+                        }
+                    }
+                }}>
+                    {/* Header */}
+                    <Box sx={{ mb: 2 }}>
+                        <Typography sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 0.5, fontSize: '12pt', fontFamily: 'inherit' }}>
+                            CÔNG TY CỔ PHẦN XÂY DỰNG BÁCH KHOA
+                        </Typography>
+                        <Typography sx={{ fontSize: '10pt', fontFamily: 'inherit' }}>
+                            Địa chỉ: Số 39 Trần Hưng Đạo, Phường Long Xuyên, An Giang
+                        </Typography>
+                    </Box>
+
+                    {/* Title */}
+                    <Box sx={{ textAlign: 'center', mb: 2 }}>
+                        <Typography sx={{ fontWeight: 800, textTransform: 'uppercase', mb: 0.5, fontSize: '14pt', fontFamily: 'inherit' }}>
+                            BÁO CÁO PHÂN BỔ CHI PHÍ
+                        </Typography>
+                        <Typography sx={{ fontSize: '11pt', fontStyle: 'italic', fontFamily: 'inherit' }}>
+                            Quý {quarter} Năm {year} - {typeFilter}
+                        </Typography>
+                    </Box>
+
+                    {/* Table */}
+                    <TableContainer sx={{ mb: 2 }}>
+                        <Table size="small" sx={{
+                            tableLayout: 'auto',
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            '& th, & td': {
+                                border: '1px solid black',
+                                padding: '4px 6px',
+                                fontFamily: '"Times New Roman", Times, serif',
+                                fontSize: '9pt',
+                                verticalAlign: 'middle'
+                            }
+                        }}>
+                            <TableHead>
+                                <TableRow>
+                                    {columns.map(col => (
+                                        <TableCell key={col.field} sx={{
+                                            fontWeight: 700,
+                                            bgcolor: '#f5f5f5',
+                                            textAlign: col.sticky ? 'left' : 'center',
+                                            whiteSpace: 'nowrap'
+                                        }}>
+                                            {col.headerName}
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {items.map((itemRow) => {
+                                    const rowDataFromState = mainRowsData.find(r => r.id === itemRow.id);
+                                    const rowDataOriginal = originalMainRowsMap.get(itemRow.id);
+                                    const typeData = rowDataFromState?.byType?.[typeFilter] || {};
+                                    const isSummaryRow = itemRow.id === 'DOANH_THU' || itemRow.id === 'TONG_CHI_PHI';
+                                    const isDoanhThuRow = itemRow.id === 'DOANH_THU';
+                                    const originalAllocated = rowDataOriginal ? toNum(rowDataOriginal[valKey]) : 0;
+                                    let carryOverValue = typeData['carryOver'];
+                                    if (typeof carryOverValue !== 'number') {
+                                        carryOverValue = rowDataOriginal ? toNum(rowDataOriginal.byType?.[typeFilter]?.carryOver || 0) : 0;
+                                    }
+                                    const rowStyle = isSummaryRow ? { bgcolor: '#e3f2fd', fontWeight: 700 } : {};
+
+                                    return (
+                                        <TableRow key={itemRow.id} sx={rowStyle}>
+                                            {columns.map(col => {
+                                                let cellValue = null;
+                                                const isProjectCol = visibleProjects.some(p => p.id === col.field);
+
+                                                if (col.field === 'item') {
+                                                    return <TableCell key={col.field} sx={{ ...rowStyle, whiteSpace: 'nowrap' }}>{itemRow.item}</TableCell>;
+                                                }
+
+                                                if (col.field === 'percentDT') {
+                                                    if (isSummaryRow) return <TableCell key={col.field} sx={{ ...rowStyle }}></TableCell>;
+                                                    const pctVal = typeData[pctKey];
+                                                    return <TableCell key={col.field} sx={{ textAlign: 'right' }}>{typeof pctVal === 'number' ? `${pctVal}%` : ''}</TableCell>;
+                                                }
+
+                                                if (isDoanhThuRow) {
+                                                    if (isProjectCol) cellValue = projData[col.field]?.overallRevenue;
+                                                } else if (itemRow.id === 'TONG_CHI_PHI') {
+                                                    cellValue = summaryTotals[col.field];
+                                                } else {
+                                                    if (isProjectCol) cellValue = rowDataFromState?.[col.field];
+                                                    else if (col.field === 'allocated') cellValue = originalAllocated - carryOverValue;
+                                                    else if (col.field === 'allocatedOriginal') cellValue = originalAllocated;
+                                                    else if (col.field === 'carryOver') cellValue = carryOverValue;
+                                                    else cellValue = typeData[col.field];
+                                                }
+
+                                                return (
+                                                    <TableCell key={col.field} sx={{
+                                                        textAlign: 'right',
+                                                        ...rowStyle,
+                                                        color: typeof cellValue === 'number' && cellValue < 0 ? 'red' : 'inherit'
+                                                    }}>
+                                                        {typeof cellValue === 'number' ? (
+                                                            <NumericFormat value={cellValue} displayType="text" thousandSeparator="." decimalSeparator="," decimalScale={0} />
+                                                        ) : ''}
+                                                    </TableCell>
+                                                );
+                                            })}
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+
+                    {/* Date and Signatures - Keep together on same page */}
+                    <Box sx={{
+                        pageBreakInside: 'avoid',
+                        breakInside: 'avoid',
+                        '@media print': { pageBreakInside: 'avoid' }
+                    }}>
+                        {/* Date */}
+                        <Box sx={{ textAlign: 'right', mb: 1, pr: 4 }}>
+                            <Typography sx={{ fontSize: '10pt', fontStyle: 'italic', fontFamily: 'inherit' }}>
+                                ……….., ngày …… tháng …… năm 20……
+                            </Typography>
+                        </Box>
+
+                        {/* Signatures */}
+                        <Stack direction="row" sx={{ justifyContent: 'space-between', px: 2, textAlign: 'center' }}>
+                            <Box sx={{ width: '23%' }}>
+                                <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>NGƯỜI LẬP BIỂU</Typography>
+                                <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
+                                <Box sx={{ height: '50px' }}></Box>
+                            </Box>
+                            <Box sx={{ width: '23%' }}>
+                                <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>TP. KẾ TOÁN</Typography>
+                                <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
+                                <Box sx={{ height: '50px' }}></Box>
+                            </Box>
+                            <Box sx={{ width: '23%' }}>
+                                <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>QL. TÀI CHÍNH</Typography>
+                                <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
+                                <Box sx={{ height: '50px' }}></Box>
+                            </Box>
+                            <Box sx={{ width: '23%' }}>
+                                <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>TỔNG GIÁM ĐỐC</Typography>
+                                <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên, đóng dấu)</Typography>
+                                <Box sx={{ height: '50px' }}></Box>
+                            </Box>
+                        </Stack>
+                    </Box>
+                </Box>
+            </Box>
         </Box>
     );
 }

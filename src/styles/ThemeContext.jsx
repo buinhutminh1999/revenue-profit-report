@@ -68,6 +68,10 @@ const createTypography = () => ({
   fontWeightRegular: 400,
   fontWeightMedium: 500,
   fontWeightBold: 700,
+  // Enable tabular figures for tabular data (crucial for financial apps)
+  allVariants: {
+    fontFeatureSettings: '"cv05", "cv08", "ss01"', // Inter special features: simplified headers, alternative digits
+  },
   h1: { fontWeight: 800, lineHeight: 1.2, fontSize: '2rem', '@media (min-width:600px)': { fontSize: '2.5rem' }, '@media (min-width:900px)': { fontSize: '3rem' } },
   h2: { fontWeight: 800, lineHeight: 1.3, fontSize: '1.75rem', '@media (min-width:600px)': { fontSize: '2rem' } },
   h3: { fontWeight: 700, lineHeight: 1.375, fontSize: '1.5rem' },
@@ -134,27 +138,21 @@ const createComponents = (theme) => {
             boxShadow: 'none !important',
             textShadow: 'none !important',
           },
-          'a, a:visited': {
-            textDecoration: 'underline',
-          },
+          'a, a:visited': { textDecoration: 'underline' },
           'pre, blockquote': {
             border: '1px solid #999',
             pageBreakInside: 'avoid',
           },
-          'thead': {
-            display: 'table-header-group',
-          },
-          'tr, img': {
-            pageBreakInside: 'avoid',
-          },
+          'thead': { display: 'table-header-group' },
+          'tr, img': { pageBreakInside: 'avoid' },
         },
       },
     },
     MuiButton: {
-      defaultProps: { disableElevation: true, size: 'small' }, // Default to small
+      defaultProps: { disableElevation: true, size: 'small' },
       styleOverrides: {
         root: {
-          borderRadius: 6, // Sharper corners
+          borderRadius: 6,
           fontWeight: 600,
           textTransform: 'none',
           padding: '6px 16px',
@@ -199,10 +197,10 @@ const createComponents = (theme) => {
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 8, // Standard ERP radius
+          borderRadius: 12,
           position: 'relative',
           border: `1px solid ${palette.divider}`,
-          boxShadow: 'none', // Remove heavy shadows
+          boxShadow: 'none',
           backgroundImage: 'none',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         },
@@ -211,32 +209,27 @@ const createComponents = (theme) => {
     MuiCardContent: {
       styleOverrides: {
         root: {
-          padding: theme.spacing(2), // Reduce default padding
+          padding: theme.spacing(2),
           '&:last-child': { paddingBottom: theme.spacing(2) },
         },
       },
     },
     MuiCardHeader: {
       styleOverrides: {
-        root: {
-          padding: theme.spacing(1.5, 2),
-        },
-        title: {
-          fontSize: '1rem',
-          fontWeight: 700,
-        },
-        action: {
-          marginTop: 0,
-          marginRight: 0,
-        },
+        root: { padding: theme.spacing(1.5, 2) },
+        title: { fontSize: '1rem', fontWeight: 700 },
+        action: { marginTop: 0, marginRight: 0 },
       },
     },
     MuiTableCell: {
       styleOverrides: {
         root: ({ ownerState, theme }) => ({
-          padding: theme.spacing(ownerState.size === 'small' ? 0.5 : 1, 1.5), // Very dense
+          padding: theme.spacing(ownerState.size === 'small' ? 0.5 : 1, 1.5),
           fontSize: '0.875rem',
           borderColor: palette.divider,
+          // Tabular figures for better alignment of numbers
+          fontFeatureSettings: '"tnum"',
+          fontVariantNumeric: 'tabular-nums',
         }),
         head: {
           color: palette.text.secondary,
@@ -248,10 +241,27 @@ const createComponents = (theme) => {
         },
       },
     },
+    MuiTooltip: {
+      styleOverrides: {
+        tooltip: {
+          backdropFilter: 'blur(8px)',
+          backgroundColor: alpha(palette.grey[800], 0.9),
+          color: palette.common.white,
+          borderRadius: 8,
+          fontSize: '0.75rem',
+          fontWeight: 500,
+          padding: '8px 12px',
+          boxShadow: theme.shadows[8],
+        },
+        arrow: {
+          color: alpha(palette.grey[800], 0.9),
+        },
+      },
+    },
     MuiDialog: {
       styleOverrides: {
         paper: {
-          borderRadius: 12,
+          borderRadius: 16,
           boxShadow: theme.shadows[24],
           border: `1px solid ${palette.divider}`,
         },
@@ -260,77 +270,61 @@ const createComponents = (theme) => {
     MuiDialogTitle: {
       styleOverrides: {
         root: {
-          padding: theme.spacing(2, 3),
-          fontSize: '1.125rem',
+          padding: theme.spacing(2.5, 3),
+          fontSize: '1.25rem',
           fontWeight: 700,
         },
       },
     },
     MuiDialogContent: {
       styleOverrides: {
-        root: {
-          padding: theme.spacing(2, 3),
-        },
+        root: { padding: theme.spacing(2.5, 3) },
       },
     },
     MuiDialogActions: {
       styleOverrides: {
-        root: {
-          padding: theme.spacing(1.5, 3),
-          borderTop: `1px solid ${palette.divider}`,
-        },
+        root: { padding: theme.spacing(2, 3), borderTop: `1px solid ${palette.divider}` },
       },
     },
     MuiOutlinedInput: {
       defaultProps: { size: 'small' },
       styleOverrides: {
         root: {
-          borderRadius: 6,
+          borderRadius: 8,
           transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-          '& .MuiOutlinedInput-notchedOutline': {
-            borderColor: alpha(palette.grey[500], 0.32),
-          },
-          '&:hover .MuiOutlinedInput-notchedOutline': {
-            borderColor: palette.text.primary,
-          },
+          '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(palette.grey[500], 0.32) },
+          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: palette.text.primary },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
             borderColor: palette.primary.main,
-            borderWidth: '1px', // Keep it thin
-            boxShadow: `0 0 0 2px ${alpha(palette.primary.main, 0.2)}`,
+            borderWidth: '1px',
+            boxShadow: `0 0 0 3px ${alpha(palette.primary.main, 0.2)}`, // Thicker focus ring
           },
         },
-        input: {
-          padding: '8px 12px', // Dense padding
-        },
+        input: { padding: '8px 12px' },
       },
     },
-    MuiInputLabel: {
-      defaultProps: { size: 'small' },
-    },
-    MuiFormControl: {
-      defaultProps: { size: 'small', margin: 'dense' },
-    },
-    MuiFormHelperText: {
-      defaultProps: { margin: 'dense' },
-    },
+    MuiInputLabel: { defaultProps: { size: 'small' } },
+    MuiFormControl: { defaultProps: { size: 'small', margin: 'dense' } },
+    MuiFormHelperText: { defaultProps: { margin: 'dense' } },
     MuiDataGrid: {
       styleOverrides: {
         root: {
           borderRadius: 8,
           border: `1px solid ${palette.divider}`,
           '--DataGrid-rowBorderColor': palette.divider,
-          '--DataGrid-cellPaddingInline': theme.spacing(1.5),
-          '--DataGrid-cellPaddingBlock': theme.spacing(0.5),
         },
         columnHeaders: {
           backgroundColor: palette.background.neutral,
-          borderBottom: `1px solid ${palette.divider}`,
-          fontSize: '0.75rem',
-          textTransform: 'uppercase',
           color: palette.text.secondary,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          fontSize: '0.75rem',
         },
-        toolbarContainer: { borderBottom: `1px solid ${palette.divider}`, padding: theme.spacing(0.5, 1) },
-        footerContainer: { borderTop: `1px solid ${palette.divider}` },
+        cell: {
+          // Tabular figures for DataGrid cells as well
+          fontFeatureSettings: '"tnum"',
+          fontVariantNumeric: 'tabular-nums',
+        }
       },
     },
   };

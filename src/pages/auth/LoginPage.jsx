@@ -21,6 +21,8 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
 } from "firebase/auth";
 
 import logo from "../../assets/logo.webp";
@@ -122,11 +124,12 @@ export default function LoginPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
-  
+
   // ====== State ======
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [capsOn, setCapsOn] = useState(false);
   const [prefersReduced, setPrefersReduced] = useState(false);
 
@@ -196,11 +199,12 @@ export default function LoginPage() {
 
   // ====== Redirect if already signed in ======
   useEffect(() => {
+    if (success) return; // Don't redirect if showing success animation manually
     const unsub = onAuthStateChanged(auth, (u) => {
       if (u) navigate(safeRedirect, { replace: true });
     });
     return () => unsub();
-  }, [auth, navigate, safeRedirect]);
+  }, [auth, navigate, safeRedirect, success]);
 
   // ====== Submit handler ======
   const onSubmit = async (data) => {
@@ -219,14 +223,39 @@ export default function LoginPage() {
         localStorage.removeItem("remember");
       }
 
-      navigate(safeRedirect, { replace: true });
+      setSuccess(true);
+      setTimeout(() => {
+        navigate(safeRedirect, { replace: true });
+      }, 1500);
     } catch (err) {
       setError(mapAuthError(err?.code));
+      setLoading(false);
       // Auto focus password on wrong password
       if (err?.code === "auth/wrong-password" || err?.code === "auth/user-not-found") {
         setTimeout(() => passwordInputRef.current?.focus(), 100);
       }
-    } finally {
+    }
+  };
+
+  // ====== Google Login Handler ======
+  const handleGoogleLogin = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      // Google Sign In thường không persit session tốt nếu dùng browserSessionPersistence
+      // nên ta switch sang local tạm thời hoặc giữ default
+      await setPersistence(auth, browserLocalPersistence);
+
+      await signInWithPopup(auth, provider);
+
+      setSuccess(true);
+      setTimeout(() => {
+        navigate(safeRedirect, { replace: true });
+      }, 1500);
+    } catch (err) {
+      console.error("Google Login Error:", err);
+      setError("Đăng nhập Google thất bại. Vui lòng thử lại.");
       setLoading(false);
     }
   };
@@ -552,7 +581,7 @@ export default function LoginPage() {
                           variant={isMobile ? "h5" : "h4"}
                           fontWeight={800}
                           color="#fff"
-                          sx={{ 
+                          sx={{
                             mb: 0.5,
                             background: "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.9) 100%)",
                             WebkitBackgroundClip: "text",
@@ -571,9 +600,38 @@ export default function LoginPage() {
                       </Stack>
                     </motion.div>
 
+                    {/* Success Alert */}
+                    <AnimatePresence>
+                      {success && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                        >
+                          <Alert
+                            icon={<CheckCircleOutline fontSize="inherit" />}
+                            severity="success"
+                            variant="filled"
+                            sx={{
+                              mb: 3,
+                              borderRadius: 3,
+                              bgcolor: BRAND.success,
+                              color: "#fff",
+                              fontWeight: 600,
+                              boxShadow: `0 8px 16px ${alpha(BRAND.success, 0.4)}`,
+                              "& .MuiAlert-icon": { color: "#fff" }
+                            }}
+                          >
+                            Đăng nhập thành công! Đang chuyển hướng...
+                          </Alert>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
                     {/* Error Alert */}
                     <AnimatePresence>
-                      {error && (
+                      {error && !success && (
                         <motion.div
                           initial={{ opacity: 0, y: -10, height: 0 }}
                           animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -805,11 +863,8 @@ export default function LoginPage() {
                           fullWidth
                           variant="outlined"
                           startIcon={<GoogleIcon />}
-                          onClick={() => {
-                            // TODO: Implement Google SSO
-                            console.log("Google SSO clicked");
-                          }}
-                          disabled={loading}
+                          onClick={handleGoogleLogin}
+                          disabled={loading || success}
                           sx={{
                             mt: 1.5,
                             py: 1.5,

@@ -57,12 +57,13 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - Network first, fallback to cache
 self.addEventListener('fetch', (event) => {
-    // Skip non-GET requests and Firebase/external URLs
+    // Skip non-GET requests, Firebase/external URLs, and chrome-extension URLs
     if (
         event.request.method !== 'GET' ||
         event.request.url.includes('firestore.googleapis.com') ||
         event.request.url.includes('firebase') ||
-        event.request.url.includes('googleapis.com')
+        event.request.url.includes('googleapis.com') ||
+        event.request.url.startsWith('chrome-extension://')
     ) {
         return;
     }

@@ -78,8 +78,25 @@ export const useAdminUsers = () => {
 
     const createUser = async (data) => {
         try {
-            await inviteUserFn({ ...data, createdAt: serverTimestamp() });
-            await fetchData();
+            const result = await inviteUserFn({ ...data, createdAt: serverTimestamp() });
+
+            // Optimistic update: Thêm user mới vào danh sách ngay lập tức
+            const newUser = {
+                uid: result.data?.uid || `temp-${Date.now()}`,
+                email: data.email,
+                displayName: data.displayName,
+                role: data.role || "nhan-vien",
+                primaryDepartmentId: data.primaryDepartmentId || null,
+                managedDepartmentIds: data.managedDepartmentIds || [],
+                departmentName: departments.find(d => d.id === data.primaryDepartmentId)?.name || "Chưa gán",
+                managedCount: (data.managedDepartmentIds || []).length,
+                createdAt: new Date(),
+                lastLogin: null,
+                emailVerified: false,
+                locked: false,
+            };
+            setUsers(prev => [newUser, ...prev]);
+
             return { success: true, message: `Đã gửi lời mời tới ${data.email}` };
         } catch (err) {
             throw new Error(err.message || "Lỗi khi tạo người dùng");
@@ -105,11 +122,18 @@ export const useAdminUsers = () => {
     const deleteUsers = async (uids) => {
         const adminUser = auth.currentUser;
         try {
+            // Optimistic update: Xóa khỏi UI trước
+            setUsers(prev => prev.filter(u => !uids.includes(u.uid)));
+
+            // Gọi API xóa song song
             await Promise.all(uids.map(uid => deleteUserByUid({ uid })));
             await logActivity("BULK_DELETE", adminUser, null, { count: uids.length, uids });
-            await fetchData();
+
+            // Không cần fetchData() - đã cập nhật optimistic ở trên
             return { success: true, message: "Xóa người dùng thành công!" };
         } catch (err) {
+            // Nếu lỗi, fetch lại để đồng bộ
+            await fetchData();
             throw new Error(err.message || "Lỗi xóa người dùng");
         }
     };

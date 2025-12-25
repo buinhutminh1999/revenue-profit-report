@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
     Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead,
     TableRow, Stack, Chip, FormControl, InputLabel, Select, MenuItem, LinearProgress,
@@ -13,9 +13,11 @@ import { db } from "../../services/firebase-config";
 import {
     ExpandMore as ExpandMoreIcon, ChevronRight as ChevronRightIcon, Print as PrintIcon,
     Description as DescriptionIcon, UnfoldMore as UnfoldMoreIcon, UnfoldLess as UnfoldLessIcon,
-    Search as SearchIcon
+    Search as SearchIcon, Edit as EditIcon
 } from '@mui/icons-material';
 import { ErrorState, SkeletonTable } from '../../components/common';
+import { useReactToPrint } from 'react-to-print';
+import BrokerDebtPrintTemplate from '../../components/finance/BrokerDebtPrintTemplate';
 
 
 // ===== PHẦN CẤU HÌNH & LẤY DỮ LIỆU =====
@@ -547,6 +549,7 @@ const calculateAllTotals = (structure, data) => {
 const EditableCell = ({ rowId, fieldName, editableData, handleInputChange, editingCell, setEditingCell }) => {
     const cellId = `${rowId}-${fieldName}`;
     const isEditing = editingCell === cellId;
+    const [isHovered, setIsHovered] = useState(false);
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' || e.key === 'Escape') {
@@ -561,11 +564,14 @@ const EditableCell = ({ rowId, fieldName, editableData, handleInputChange, editi
                 variant="standard"
                 fullWidth
                 autoFocus
+                multiline
+                maxRows={4}
                 value={editableData[rowId]?.[fieldName] || ""}
                 onChange={(e) => handleInputChange(rowId, fieldName, e.target.value)}
                 onBlur={() => setEditingCell(null)}
                 onKeyDown={handleKeyDown}
-                inputProps={{ style: { textAlign: "right" } }}
+                inputProps={{ style: { textAlign: "right", fontSize: '0.875rem' } }}
+                sx={{ '& .MuiInputBase-root': { p: 0.5 } }}
             />
         );
     }
@@ -573,16 +579,40 @@ const EditableCell = ({ rowId, fieldName, editableData, handleInputChange, editi
     return (
         <Box
             onClick={() => setEditingCell(cellId)}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
             sx={{
-                textAlign: 'right', width: '100%', minHeight: '23px', cursor: 'pointer',
-                whiteSpace: 'pre-wrap', wordBreak: 'break-word', p: '4px 0',
-                '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' }
+                textAlign: 'right',
+                width: '100%',
+                minHeight: '32px',
+                cursor: 'pointer',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                p: 1,
+                borderRadius: 1,
+                transition: 'all 0.2s',
+                backgroundColor: isHovered ? 'rgba(0, 0, 0, 0.04)' : 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                position: 'relative'
             }}
         >
+            {isHovered && (
+                <EditIcon sx={{
+                    fontSize: 14,
+                    color: 'text.secondary',
+                    position: 'absolute',
+                    left: 8,
+                    opacity: 0.7
+                }} />
+            )}
             {editableData[rowId]?.[fieldName] ? (
                 <Typography variant="body2" sx={{ textAlign: 'right' }}>{editableData[rowId][fieldName]}</Typography>
             ) : (
-                <Typography variant="body2" sx={{ color: '#bdbdbd', textAlign: 'right', fontStyle: 'italic' }}>Nhập...</Typography>
+                <Typography variant="body2" sx={{ color: '#bdbdbd', textAlign: 'right', fontStyle: 'italic', fontSize: '0.8rem' }}>
+                    {isHovered ? "Nhập nội dung..." : "..."}
+                </Typography>
             )}
         </Box>
     );
@@ -597,17 +627,29 @@ const ReportRow = ({
     const data = reportData[row.id] || {};
 
     const getRowStyle = (rowItem) => {
-        const style = { "& > td": { verticalAlign: "top", borderBottom: '1px solid rgba(224, 224, 224, 1)' } };
+        const baseStyle = {
+            "& > td": {
+                verticalAlign: "top",
+                borderBottom: '1px solid rgba(224, 224, 224, 0.5)',
+                py: 1.5 // Tăng padding
+            },
+            transition: 'background-color 0.2s',
+            '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.02) !important' }
+        };
+
         if (rowItem.type === "header") {
-            style.backgroundColor = "rgba(227, 242, 253, 0.5)";
-            style["& > td"] = { ...style["& > td"], fontWeight: "bold", fontSize: "0.9rem" };
+            baseStyle.backgroundColor = "#e3f2fd"; // Xanh dương nhạt rõ hơn
+            baseStyle["& > td"] = { ...baseStyle["& > td"], fontWeight: 700, fontSize: "0.95rem", color: '#1565c0' };
         } else if (rowItem.type === "subheader") {
-            style.backgroundColor = "rgba(0, 0, 0, 0.02)";
-            style["& > td"] = { ...style["& > td"], fontWeight: 600 };
+            baseStyle.backgroundColor = "#f8f9fa"; // Xám rất nhạt
+            baseStyle["& > td"] = { ...baseStyle["& > td"], fontWeight: 600, color: '#424242' };
         } else if (rowItem.type === "subitem") {
-            style["& > td"] = { ...style["& > td"], fontStyle: "italic" };
+            baseStyle["& > td"] = { ...baseStyle["& > td"], fontStyle: "italic", color: '#616161' };
+        } else if (rowItem.type === "item-final") { // Cho các mục tổng kết cuối
+            baseStyle.backgroundColor = "#fff8e1"; // Vàng nhạt
+            baseStyle["& > td"] = { ...baseStyle["& > td"], fontWeight: 600, color: '#f57c00' };
         }
-        return style;
+        return baseStyle;
     };
 
     return (
@@ -629,7 +671,7 @@ const ReportRow = ({
                 <TableCell align="right" sx={{ color: (data.phatSinh || 0) < 0 ? "error.main" : "inherit" }}>
                     {formatCurrency(data.phatSinh)}
                 </TableCell>
-                <TableCell align="right" sx={{ backgroundColor: "#fffde7", fontWeight: 500 }}>
+                <TableCell align="right" sx={{ backgroundColor: "#fffde7", fontWeight: 600, color: '#f57f17' }}>
                     {formatCurrency(data.cuoiKy)}
                 </TableCell>
                 <TableCell sx={{ minWidth: 200 }}>
@@ -675,6 +717,13 @@ const FinancialReport = () => {
     const [editingCell, setEditingCell] = useState(null);
     const [expanded, setExpanded] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
+
+    // Print functionality
+    const printRef = useRef();
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `BaoCaoTaiChinh_Q${quarter}_${year}`,
+    });
 
     // Data Fetching
     const { data: accountsData, isLoading: isLoadingAccounts, isError: isAccountsError } = useAccounts();
@@ -848,52 +897,70 @@ const FinancialReport = () => {
 
     return (
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
-            <Card elevation={2}>
-                <CardHeader
-                    title="Báo Cáo Tài Chính Tổng Hợp"
-                    subheader={`Dữ liệu cho Quý ${quarter}, Năm ${year}`}
-                />
-                <Divider />
-                <CardContent>
-                    <Grid container spacing={2} alignItems="center" justifyContent="space-between">
-                        <Grid container spacing={2} size={{ xs: 12, lg: 7 }}>
-                            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                                <FormControl fullWidth size="small">
-                                    <InputLabel>Quý</InputLabel>
-                                    <Select value={quarter} label="Quý" onChange={(e) => setQuarter(e.target.value)}>
-                                        {availableQuarters.map((q) => <MenuItem key={q} value={q}>Quý {q}</MenuItem>)}
-                                    </Select>
-                                </FormControl>
-                            </Grid>
-                            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                                <FormControl fullWidth size="small">
-                                    <InputLabel>Năm</InputLabel>
-                                    <Select value={year} label="Năm" onChange={(e) => setYear(e.target.value)}>
-                                        {availableYears.map((y) => <MenuItem key={y} value={y}>{y}</MenuItem>)}
-                                    </Select>
-                                </FormControl>
-                            </Grid>
-                            <Grid size={{ xs: 12, md: 4 }}>
-                                <TextField
-                                    fullWidth
-                                    size="small"
-                                    placeholder="Tìm theo mã hoặc tên..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    InputProps={{
-                                        startAdornment: (
-                                            <InputAdornment position="start"><SearchIcon /></InputAdornment>
-                                        ),
-                                    }}
-                                />
-                            </Grid>
+            <Card elevation={3} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                <Box sx={{
+                    background: 'linear-gradient(45deg, #1565c0 30%, #42a5f5 90%)',
+                    color: 'white',
+                    p: 2
+                }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" spacing={2}>
+                        <Box>
+                            <Typography variant="h6" fontWeight="bold">Báo Cáo Tài Chính Tổng Hợp</Typography>
+                            <Typography variant="body2" sx={{ opacity: 0.9 }}>Dữ liệu cho Quý {quarter}, Năm {year}</Typography>
+                        </Box>
+                        <Stack direction="row" spacing={1}>
+                            <Button
+                                variant="contained"
+                                color="secondary"
+                                startIcon={<PrintIcon />}
+                                onClick={handlePrint}
+                                size="small"
+                                sx={{ bgcolor: 'white', color: 'primary.main', '&:hover': { bgcolor: '#f5f5f5' } }}
+                            >
+                                In Báo Cáo
+                            </Button>
+                        </Stack>
+                    </Stack>
+                </Box>
+
+                <CardContent sx={{ bgcolor: '#f5f5f5', p: 2 }}>
+                    <Grid container spacing={2} alignItems="center">
+                        <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                            <FormControl fullWidth size="small" sx={{ bgcolor: 'white', borderRadius: 1 }}>
+                                <InputLabel>Quý</InputLabel>
+                                <Select value={quarter} label="Quý" onChange={(e) => setQuarter(e.target.value)}>
+                                    {availableQuarters.map((q) => <MenuItem key={q} value={q}>Quý {q}</MenuItem>)}
+                                </Select>
+                            </FormControl>
                         </Grid>
-                        <Grid size={{ xs: 12, lg: 5 }}>
+                        <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                            <FormControl fullWidth size="small" sx={{ bgcolor: 'white', borderRadius: 1 }}>
+                                <InputLabel>Năm</InputLabel>
+                                <Select value={year} label="Năm" onChange={(e) => setYear(e.target.value)}>
+                                    {availableYears.map((y) => <MenuItem key={y} value={y}>{y}</MenuItem>)}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            <TextField
+                                fullWidth
+                                size="small"
+                                placeholder="Tìm kiếm tài khoản..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>
+                                    ),
+                                }}
+                                sx={{ bgcolor: 'white', borderRadius: 1 }}
+                            />
+                        </Grid>
+                        <Grid size={{ xs: 12, lg: 4 }}>
                             <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', lg: 'flex-end' }}>
-                                <Tooltip title="Mở rộng tất cả"><IconButton onClick={handleExpandAll}><UnfoldMoreIcon /></IconButton></Tooltip>
-                                <Tooltip title="Thu gọn tất cả"><IconButton onClick={handleCollapseAll}><UnfoldLessIcon /></IconButton></Tooltip>
-                                <Button variant="outlined" startIcon={<DescriptionIcon />}>Xuất Excel</Button>
-                                <Button variant="outlined" startIcon={<PrintIcon />}>In Báo Cáo</Button>
+                                <Tooltip title="Mở rộng tất cả"><IconButton onClick={handleExpandAll} size="small" sx={{ bgcolor: 'white' }}><UnfoldMoreIcon /></IconButton></Tooltip>
+                                <Tooltip title="Thu gọn tất cả"><IconButton onClick={handleCollapseAll} size="small" sx={{ bgcolor: 'white' }}><UnfoldLessIcon /></IconButton></Tooltip>
+                                <Button variant="outlined" startIcon={<DescriptionIcon />} size="small" sx={{ bgcolor: 'white' }}>Xuất Excel</Button>
                             </Stack>
                         </Grid>
                     </Grid>
@@ -933,6 +1000,18 @@ const FinancialReport = () => {
                     </Table>
                 </TableContainer>
             </Card>
+
+            {/* Hidden Print Template */}
+            <Box sx={{ display: 'none' }}>
+                <BrokerDebtPrintTemplate
+                    ref={printRef}
+                    data={dynamicReportStructure}
+                    reportData={reportData}
+                    editableData={editableData}
+                    year={year}
+                    quarter={quarter}
+                />
+            </Box>
         </Box>
     );
 };

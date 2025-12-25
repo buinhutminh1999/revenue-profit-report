@@ -7,6 +7,9 @@ const logger = require("firebase-functions/logger");
 const gmailUser = process.env.GMAIL_SMTP_USER; // ví dụ: yourname@gmail.com
 const gmailPass = process.env.GMAIL_SMTP_APP_PASSWORD; // app password 16 ký tự
 
+// ENV secret (Resend)
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
 // URL frontend cho ActionCodeSettings (điền bằng biến môi trường nếu có)
 const FRONTEND_URL =
     process.env.FRONTEND_URL || "https://revenue-profit-report.vercel.app";
@@ -147,6 +150,92 @@ function createModernInviteEmailHtml(displayName, actionLink) {
 }
 
 /**
+ * Tạo template email đặt lại mật khẩu
+ * @param {string} email Email người dùng
+ * @param {string} actionLink URL để đặt lại mật khẩu
+ * @returns {string} Chuỗi HTML của email
+ */
+function createPasswordResetEmailHtml(email, actionLink) {
+    const companyName = "Công ty Cổ phần Xây dựng Bách Khoa";
+    const logoUrl = "https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png";
+    const primaryColor = "#1a73e8";
+    const year = new Date().getFullYear();
+
+    return `
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Đặt lại mật khẩu - ${companyName}</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f4f7f6; font-family: Arial, sans-serif;">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td style="padding: 20px 0;">
+                    <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; padding: 30px;">
+                        
+                        <tr>
+                            <td align="center" style="padding-bottom: 20px; border-bottom: 1px solid #dddddd;">
+                                <img src="${logoUrl}" alt="${companyName} Logo" width="120" style="max-width: 120px; height: auto;" />
+                                <div style="font-size: 16px; font-weight: bold; color: #333; margin-top: 10px;">${companyName}</div>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td style="padding: 30px 0;">
+                                <h1 style="font-size: 22px; color: #333; margin: 0 0 20px 0;">Yêu cầu đặt lại mật khẩu</h1>
+                                <p style="font-size: 15px; color: #555; line-height: 1.6;">Xin chào,</p>
+                                <p style="font-size: 15px; color: #555; line-height: 1.6;">
+                                    Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản <strong>${email}</strong>.
+                                </p>
+                                <p style="font-size: 15px; color: #555; line-height: 1.6;">
+                                    Nếu bạn không yêu cầu điều này, vui lòng bỏ qua email này. Mật khẩu của bạn sẽ không thay đổi.
+                                </p>
+                                <p style="font-size: 15px; color: #555; line-height: 1.6;">
+                                    Nhấn vào nút bên dưới để đặt lại mật khẩu:
+                                </p>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td align="center">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                    <tr>
+                                        <td align="center" style="background-color: ${primaryColor}; border-radius: 8px;">
+                                            <a href="${actionLink}" target="_blank" style="font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; display: inline-block;">
+                                                Đặt lại mật khẩu
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td style="padding-top: 30px; border-top: 1px solid #dddddd; margin-top: 30px;">
+                                <p style="font-size: 12px; text-align: center; color: #888888;">
+                                    Link này sẽ hết hạn sau 1 giờ.<br/>
+                                    Nếu nút không hoạt động, sao chép link sau vào trình duyệt:<br/>
+                                    <a href="${actionLink}" style="color: #888888; word-break: break-all;">${actionLink.substring(0, 60)}...</a>
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <td align="center" style="padding-top: 20px;">
+                                 <p style="font-size: 12px; color: #888888;">&copy; ${year} ${companyName}. All Rights Reserved.</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>`;
+}
+
+/**
  * Tạo link verify/reset bằng Admin SDK
  */
 async function createActionLink(type, email, acs = DEFAULT_ACS) {
@@ -204,25 +293,23 @@ async function sendWithGmail({ to, subject, html, fromName = "Bách Khoa", plain
         returnPath: returnPath,
         encoding: "UTF-8",
         headers: {
-            // Headers chuẩn RFC 5322
+            // Headers chuẩn RFC 5322 (không set Content-Type/Transfer-Encoding vì nodemailer tự xử lý)
             "Message-ID": messageId,
             "Date": new Date().toUTCString(),
-            "MIME-Version": "1.0",
-            "Content-Type": "text/html; charset=UTF-8",
-            "Content-Transfer-Encoding": "quoted-printable",
 
             // Headers để cải thiện deliverability
-            "X-Mailer": "Bach Khoa System",
+            "X-Mailer": "Bach Khoa ERP System",
             "X-Priority": "3", // Normal priority (1=Highest, 3=Normal, 5=Lowest)
             "Importance": "Normal",
-            "Return-Path": returnPath,
 
             // Headers để tránh spam filters (transactional email)
             "X-Auto-Response-Suppress": "All", // Tránh auto-reply
             "X-Entity-Ref-ID": messageId, // Tracking ID
+            "Precedence": "bulk", // Đánh dấu email giao dịch
 
-            // Headers để cải thiện reputation (transactional email)
-            "X-Google-Original-From": from,
+            // List-Unsubscribe - Gmail thích email có header này
+            "List-Unsubscribe": `<mailto:${gmailUser}?subject=Unsubscribe>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         },
         // Cấu hình bổ sung cho nodemailer
         priority: "normal",
@@ -251,10 +338,63 @@ async function sendWithGmail({ to, subject, html, fromName = "Bách Khoa", plain
     throw lastError;
 }
 
+/**
+ * Gửi mail qua Resend API (deliverability tốt hơn Gmail)
+ * @param {Object} options - Email options
+ * @param {string} options.to - Email người nhận
+ * @param {string} options.subject - Tiêu đề email
+ * @param {string} options.html - Nội dung HTML
+ * @param {string} [options.fromName] - Tên người gửi
+ * @param {string} [options.plainText] - Nội dung text thuần
+ */
+async function sendWithResend({ to, subject, html, fromName = "Bách Khoa System", plainText = null }) {
+    if (!RESEND_API_KEY) {
+        logger.warn("RESEND_API_KEY chưa được cấu hình, fallback về Gmail");
+        // Fallback về Gmail nếu không có Resend key
+        return sendWithGmail({ to, subject, html, fromName, plainText });
+    }
+
+    const textContent = plainText || htmlToPlainText(html);
+
+    try {
+        const response = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${RESEND_API_KEY}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                from: `${fromName} <onboarding@resend.dev>`, // Resend default domain
+                to: [to],
+                subject,
+                html,
+                text: textContent,
+            }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            logger.error("Resend API error:", data);
+            throw new Error(data.message || "Resend API failed");
+        }
+
+        logger.info(`Email sent successfully via Resend to ${to}`, { id: data.id });
+        return data;
+    } catch (error) {
+        logger.error("Lỗi khi gửi email qua Resend:", error);
+        // Fallback về Gmail nếu Resend thất bại
+        logger.warn("Fallback về Gmail...");
+        return sendWithGmail({ to, subject, html, fromName, plainText });
+    }
+}
+
 module.exports = {
     createModernInviteEmailHtml,
+    createPasswordResetEmailHtml,
     createActionLink,
     htmlToPlainText,
     sendWithGmail,
+    sendWithResend,
     DEFAULT_ACS
 };

@@ -1,4 +1,5 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const { db, admin, FieldValue } = require("../config/firebase");
 const { ensureAdmin } = require("../utils/auth");
 const { writeAuditLog } = require("../utils/audit");
@@ -9,6 +10,9 @@ const {
     DEFAULT_ACS
 } = require("../utils/email");
 const logger = require("firebase-functions/logger");
+
+// Khai báo secret để Firebase biết cần inject vào runtime
+const resendApiKey = defineSecret("RESEND_API_KEY");
 
 exports.setUserRole = onCall(async (request) => {
     await ensureAdmin(request.auth);
@@ -141,8 +145,7 @@ Trân trọng,
 Đội ngũ ${companyName}
 Hệ thống Quản lý`.trim();
 
-        // 6) Gửi mail bằng transporter với cấu hình tối ưu
-        // Subject line không dùng dấu ngoặc vuông để tránh spam filter
+        // 6) Gửi mail bằng Gmail
         await sendWithGmail({
             to: email,
             subject: `Bách Khoa - Lời mời tham gia hệ thống và tạo mật khẩu`,
@@ -167,5 +170,74 @@ Hệ thống Quản lý`.trim();
             throw new HttpsError("already-exists", "Email này đã được sử dụng.");
         }
         throw new HttpsError("internal", error.message || "Đã xảy ra lỗi khi tạo lời mời.");
+    }
+});
+
+/**
+ * Gửi email đặt lại mật khẩu qua Gmail với template đẹp
+ */
+exports.sendPasswordResetEmail = onCall(async (request) => {
+    const { email } = request.data || {};
+
+    if (!email || typeof email !== "string") {
+        throw new HttpsError("invalid-argument", "Vui lòng cung cấp email.");
+    }
+
+    try {
+        // Kiểm tra user tồn tại
+        const userRecord = await admin.auth().getUserByEmail(email);
+        if (!userRecord) {
+            throw new HttpsError("not-found", "Email này không tồn tại trong hệ thống.");
+        }
+
+        // Tạo link reset password từ Firebase
+        const { createPasswordResetEmailHtml, DEFAULT_ACS } = require("../utils/email");
+        const firebaseLink = await admin.auth().generatePasswordResetLink(email, DEFAULT_ACS);
+
+        // Lấy oobCode từ firebaseLink
+        const urlObj = new URL(firebaseLink);
+        const oobCode = urlObj.searchParams.get("oobCode");
+
+        // Tạo Custom Link trỏ về trang frontend của mình
+        const FRONTEND_URL = "https://revenue-profit-report.vercel.app"; // Hoặc lấy từ process.env
+        const actionLink = `${FRONTEND_URL}/reset-password?oobCode=${oobCode}`;
+
+        // Tạo email HTML
+        const emailHtml = createPasswordResetEmailHtml(email, actionLink);
+
+        // Tạo plain text version
+        const plainTextContent = `Yêu cầu đặt lại mật khẩu
+
+Xin chào,
+
+Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản ${email}.
+
+Nếu bạn không yêu cầu điều này, vui lòng bỏ qua email này.
+
+Nhấn vào link sau để đặt lại mật khẩu:
+${actionLink}
+
+Link này sẽ hết hạn sau 1 giờ.
+
+Trân trọng,
+Công ty Cổ phần Xây dựng Bách Khoa`.trim();
+
+        // Gửi email
+        await sendWithGmail({
+            to: email,
+            subject: "Bách Khoa - Đặt lại mật khẩu",
+            html: emailHtml,
+            plainText: plainTextContent,
+            fromName: "Bách Khoa - Hệ thống Quản lý",
+        });
+
+        logger.info(`Password reset email sent to ${email}`);
+        return { success: true, message: `Đã gửi email đặt lại mật khẩu đến ${email}.` };
+    } catch (error) {
+        logger.error("Lỗi khi gửi email reset password:", error);
+        if (error.code === "auth/user-not-found") {
+            throw new HttpsError("not-found", "Email này không tồn tại trong hệ thống.");
+        }
+        throw new HttpsError("internal", error.message || "Có lỗi xảy ra khi gửi email.");
     }
 });

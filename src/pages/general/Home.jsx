@@ -121,7 +121,7 @@ const cardVariants = {
 
 const Home = () => {
     const theme = useTheme();
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [allowedModules, setAllowedModules] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -155,7 +155,12 @@ const Home = () => {
 
     useEffect(() => {
         const fetchPermissionsAndFilterModules = async () => {
-            if (!user) return;
+            // Chờ AuthContext load xong trước khi kiểm tra quyền
+            if (authLoading) return;
+            if (!user) {
+                setIsLoading(false);
+                return;
+            }
             if (user.role === 'admin') {
                 setAllowedModules(allModules);
                 setIsLoading(false);
@@ -179,7 +184,7 @@ const Home = () => {
         };
 
         fetchPermissionsAndFilterModules();
-    }, [user]);
+    }, [user, authLoading]);
 
     // Get unique categories
     const categories = useMemo(() => {

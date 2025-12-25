@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../services/firebase-config';
 
 // Tạo Context
@@ -17,9 +17,19 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let unsubscribeUser = null;
 
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
+
+        // Cập nhật lastLogin vào Firestore
+        try {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          await updateDoc(userDocRef, {
+            lastLogin: serverTimestamp(),
+          });
+        } catch (err) {
+          console.warn('Could not update lastLogin:', err.message);
+        }
 
         // Lấy thông tin user từ Firestore
         const userDocRef = doc(db, 'users', firebaseUser.uid);

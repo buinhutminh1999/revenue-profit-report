@@ -1036,24 +1036,26 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                     {/* Push Notification Toggle */}
                     {isPushSupported() && (
                         <Tooltip title={pushEnabled ? "Đã bật thông báo đẩy" : "Bật thông báo đẩy"} arrow>
-                            <IconButton
-                                size="small"
-                                onClick={handleTogglePush}
-                                disabled={pushLoading || pushEnabled}
-                                sx={{
-                                    ml: 0.5,
-                                    color: pushEnabled ? 'success.main' : 'text.secondary',
-                                    bgcolor: pushEnabled ? alpha(theme.palette.success.main, 0.1) : 'transparent',
-                                }}
-                            >
-                                {pushLoading ? (
-                                    <CircularProgress size={18} />
-                                ) : pushEnabled ? (
-                                    <NotificationsActive sx={{ fontSize: 20 }} />
-                                ) : (
-                                    <NotificationsOff sx={{ fontSize: 20 }} />
-                                )}
-                            </IconButton>
+                            <span>
+                                <IconButton
+                                    size="small"
+                                    onClick={handleTogglePush}
+                                    disabled={pushLoading || pushEnabled}
+                                    sx={{
+                                        ml: 0.5,
+                                        color: pushEnabled ? 'success.main' : 'text.secondary',
+                                        bgcolor: pushEnabled ? alpha(theme.palette.success.main, 0.1) : 'transparent',
+                                    }}
+                                >
+                                    {pushLoading ? (
+                                        <CircularProgress size={18} />
+                                    ) : pushEnabled ? (
+                                        <NotificationsActive sx={{ fontSize: 20 }} />
+                                    ) : (
+                                        <NotificationsOff sx={{ fontSize: 20 }} />
+                                    )}
+                                </IconButton>
+                            </span>
                         </Tooltip>
                     )}
                 </Box>

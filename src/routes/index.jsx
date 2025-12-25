@@ -27,6 +27,8 @@ const lazyLoad = (Component) => (
 // --- LAZY-LOAD CÁC TRANG ---
 const Home = lazy(() => import('../pages/general/Home'));
 const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
+const ForgotPassword = lazy(() => import('../pages/auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('../pages/auth/ResetPassword'));
 const NotFound = lazy(() => import('../pages/general/NotFound'));
 const UserProfile = lazy(() => import('../pages/general/UserProfile'));
 const EventSlideshow = lazy(() => import('../pages/events/EventSlideshow'));
@@ -117,6 +119,8 @@ function AppRoutes() {
                                 : lazyLoad(LoginPage))
                     }
                 />
+                <Route path="/forgot-password" element={lazyLoad(ForgotPassword)} />
+                <Route path="/reset-password" element={lazyLoad(ResetPassword)} />
                 <Route path="/please-verify" element={lazyLoad(PleaseVerifyEmail)} />
                 <Route path="/finish-setup" element={lazyLoad(FinishSetupPage)} />
                 <Route path="/event" element={lazyLoad(EventSlideshow)} />
