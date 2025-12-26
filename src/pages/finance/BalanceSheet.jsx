@@ -156,7 +156,7 @@ const CalculationDetailDialog = ({ open, onClose, data }) => {
             return;
         }
 
-        const { workbook, worksheet } = createWorkbook("ChiTietTinhToan");
+        const { workbook, worksheet } = await createWorkbook("ChiTietTinhToan");
 
         let columns = [];
         if (data.type === 'constructionPayablesSummary') {

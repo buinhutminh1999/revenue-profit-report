@@ -40,7 +40,7 @@ export default defineConfig({
           'mui-lab': ['@mui/lab'],
           'firebase-vendor': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
           'date-fns': ['date-fns'],
-          'exceljs': ['exceljs'],
+          // exceljs removed - now lazy-loaded via dynamic import for ~900KB savings
         },
       },
     },
@@ -52,7 +52,6 @@ export default defineConfig({
       '@mui/material/styles',
       '@emotion/react',
       '@emotion/styled',
-      'react-window',
     ],
   },
 });

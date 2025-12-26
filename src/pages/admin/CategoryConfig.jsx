@@ -336,7 +336,7 @@ export default function CategoryConfig() {
         }
         toast.success("Đang chuẩn bị file Excel...");
 
-        const { workbook, worksheet } = createWorkbook("Danh mục khoản mục");
+        const { workbook, worksheet } = await createWorkbook("Danh mục khoản mục");
 
         worksheet.columns = [
             { header: 'STT', key: 'STT', width: 5 },

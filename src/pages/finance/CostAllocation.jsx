@@ -21,6 +21,7 @@ import {
     Breadcrumbs,
     Link as MuiLink,
     alpha,
+    Skeleton,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import {
@@ -83,7 +84,7 @@ const getQuarterValue = (r) => {
         return (parseValue(r.thueVP) + parseValue(r.thueNhaCongVu)) * 3;
     }
     const qMonthly = sumQuarter(r.monthly);
-    return qMonthly > 0 ? qMonthly : parseValue(r.quarterManual);
+    return qMonthly !== 0 ? qMonthly : parseValue(r.quarterManual);
 };
 
 // <<< THAY ĐỔI 1: Thêm các trường order vào hàm normalize
@@ -119,9 +120,16 @@ function EditableCell({
 }) {
     const theme = useTheme();
     const [edit, setEdit] = useState(false);
-    const handleDoubleClick = () => {
+    const handleClick = () => {
         if (!disabled) setEdit(true);
     };
+
+    const handleKeyDown = (e) => {
+        if (e.key === "Enter") {
+            setEdit(false);
+        }
+    };
+
     return edit ? (
         <TextField
             autoFocus
@@ -131,11 +139,13 @@ function EditableCell({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onBlur={() => setEdit(false)}
+            onKeyDown={handleKeyDown}
             sx={{ "& .MuiInputBase-input": { textAlign: "center" } }}
+            onFocus={(e) => e.target.select()}
         />
     ) : (
         <Box
-            onDoubleClick={handleDoubleClick}
+            onClick={handleClick}
             sx={{
                 width: "100%",
                 minHeight: 40,
@@ -205,6 +215,8 @@ export default function CostAllocation() {
         () => quarterMap[quarter]?.label || "Quý",
         [quarter]
     );
+
+    const [isLoading, setIsLoading] = useState(true);
 
     const showSnack = useCallback((msg, sev = "success") => {
         setSnack({ open: true, msg, sev });
@@ -314,8 +326,12 @@ export default function CostAllocation() {
 
                 // 5. Cập nhật state để giao diện hiển thị lại
                 setGroupedRows(groups);
+                setIsLoading(false);
             },
-            (e) => showSnack(`Lỗi tải dữ liệu phân bổ: ${e.message}`, "error")
+            (e) => {
+                showSnack(`Lỗi tải dữ liệu phân bổ: ${e.message}`, "error");
+                setIsLoading(false);
+            }
         );
 
         return () => unsub();
@@ -415,7 +431,7 @@ export default function CostAllocation() {
     };
 
     const handleExport = async () => {
-        const { workbook, worksheet } = createWorkbook("PhanBoChiPhi");
+        const { workbook, worksheet } = await createWorkbook("PhanBoChiPhi");
 
         // Header
         const excelHeader = [
@@ -866,7 +882,26 @@ export default function CostAllocation() {
                             "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px",
                     }}
                 >
-                    <TableContainer sx={{ maxHeight: "calc(100vh - 220px)" }}>
+                    <TableContainer
+                        sx={{
+                            maxHeight: "calc(100vh - 220px)",
+                            "&::-webkit-scrollbar": {
+                                width: "8px",
+                                height: "8px",
+                            },
+                            "&::-webkit-scrollbar-track": {
+                                backgroundColor: "#f1f1f1",
+                                borderRadius: "4px",
+                            },
+                            "&::-webkit-scrollbar-thumb": {
+                                backgroundColor: "#c1c1c1",
+                                borderRadius: "4px",
+                            },
+                            "&::-webkit-scrollbar-thumb:hover": {
+                                backgroundColor: "#a8a8a8",
+                            },
+                        }}
+                    >
                         <Table
                             size="small"
                             stickyHeader
@@ -962,104 +997,121 @@ export default function CostAllocation() {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {rows.map(renderRow)}
-                                <TableRow
-                                    sx={{
-                                        "& .MuiTableCell-root": {
-                                            fontWeight: "700",
-                                            bgcolor: "#F4F6F8",
-                                            color: "text.primary",
-                                        },
-                                    }}
-                                >
-                                    <TableCell
-                                        sx={{
-                                            position: "sticky",
-                                            left: 0,
-                                            zIndex: 2,
-                                            borderRight: `1px solid ${theme.palette.divider}`,
-                                        }}
-                                    >
-                                        Tổng chi phí lương
-                                    </TableCell>
-                                    {["T1", "T2", "T3"].map((sf) => (
-                                        <TableCell key={sf} align="center">
-                                            {fixedSum[sf].toLocaleString()}
-                                        </TableCell>
-                                    ))}
-                                    <TableCell align="center">
-                                        {fixedSum.Q.toLocaleString()}
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            display: isXs
-                                                ? "none"
-                                                : "table-cell",
-                                        }}
-                                    />
-                                    <TableCell align="center">
-                                        {fixedSum.factory.toLocaleString()}
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            display: isXs
-                                                ? "none"
-                                                : "table-cell",
-                                        }}
-                                    />
-                                    <TableCell align="center">
-                                        {fixedSum.thiCong.toLocaleString()}
-                                    </TableCell>
-                                    <TableCell
-                                        sx={{
-                                            display: isXs
-                                                ? "none"
-                                                : "table-cell",
-                                        }}
-                                    />
-                                    <TableCell align="center">
-                                        {fixedSum.khdt.toLocaleString()}
-                                    </TableCell>
-                                </TableRow>
-                                {Object.entries(groupedRows).map(
-                                    ([groupKey, groupItems]) => {
-                                        if (groupItems.length === 0)
-                                            return null;
-                                        const { label, icon } =
-                                            groupConfig[groupKey];
-                                        return (
-                                            <React.Fragment key={groupKey}>
-                                                <TableRow>
-                                                    <TableCell
-                                                        colSpan={11}
-                                                        sx={{
-                                                            py: 1,
-                                                            bgcolor: alpha(
-                                                                theme.palette
-                                                                    .primary
-                                                                    .light,
-                                                                0.16
-                                                            ),
-                                                        }}
-                                                    >
-                                                        <Stack
-                                                            direction="row"
-                                                            alignItems="center"
-                                                        >
-                                                            <Typography
-                                                                variant="subtitle2"
-                                                                fontWeight={600}
+                                {isLoading ? (
+                                    Array.from(new Array(10)).map((_, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell>
+                                                <Skeleton variant="text" width={200} />
+                                            </TableCell>
+                                            {Array.from(new Array(10)).map((__, i) => (
+                                                <TableCell key={i}>
+                                                    <Skeleton variant="text" />
+                                                </TableCell>
+                                            ))}
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <>
+                                        {rows.map(renderRow)}
+                                        <TableRow
+                                            sx={{
+                                                "& .MuiTableCell-root": {
+                                                    fontWeight: "700",
+                                                    bgcolor: "#F4F6F8",
+                                                    color: "text.primary",
+                                                },
+                                            }}
+                                        >
+                                            <TableCell
+                                                sx={{
+                                                    position: "sticky",
+                                                    left: 0,
+                                                    zIndex: 2,
+                                                    borderRight: `1px solid ${theme.palette.divider}`,
+                                                }}
+                                            >
+                                                Tổng chi phí lương
+                                            </TableCell>
+                                            {["T1", "T2", "T3"].map((sf) => (
+                                                <TableCell key={sf} align="center">
+                                                    {fixedSum[sf].toLocaleString()}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell align="center">
+                                                {fixedSum.Q.toLocaleString()}
+                                            </TableCell>
+                                            <TableCell
+                                                sx={{
+                                                    display: isXs
+                                                        ? "none"
+                                                        : "table-cell",
+                                                }}
+                                            />
+                                            <TableCell align="center">
+                                                {fixedSum.factory.toLocaleString()}
+                                            </TableCell>
+                                            <TableCell
+                                                sx={{
+                                                    display: isXs
+                                                        ? "none"
+                                                        : "table-cell",
+                                                }}
+                                            />
+                                            <TableCell align="center">
+                                                {fixedSum.thiCong.toLocaleString()}
+                                            </TableCell>
+                                            <TableCell
+                                                sx={{
+                                                    display: isXs
+                                                        ? "none"
+                                                        : "table-cell",
+                                                }}
+                                            />
+                                            <TableCell align="center">
+                                                {fixedSum.khdt.toLocaleString()}
+                                            </TableCell>
+                                        </TableRow>
+                                        {Object.entries(groupedRows).map(
+                                            ([groupKey, groupItems]) => {
+                                                if (groupItems.length === 0)
+                                                    return null;
+                                                const { label, icon } =
+                                                    groupConfig[groupKey];
+                                                return (
+                                                    <React.Fragment key={groupKey}>
+                                                        <TableRow>
+                                                            <TableCell
+                                                                colSpan={11}
+                                                                sx={{
+                                                                    py: 1,
+                                                                    bgcolor: alpha(
+                                                                        theme.palette
+                                                                            .primary
+                                                                            .light,
+                                                                        0.16
+                                                                    ),
+                                                                }}
                                                             >
-                                                                {icon}
-                                                                {label}
-                                                            </Typography>
-                                                        </Stack>
-                                                    </TableCell>
-                                                </TableRow>
-                                                {groupItems.map(renderRow)}
-                                            </React.Fragment>
-                                        );
-                                    }
+                                                                <Stack
+                                                                    direction="row"
+                                                                    alignItems="center"
+                                                                >
+                                                                    <Typography
+                                                                        variant="subtitle2"
+                                                                        fontWeight={600}
+                                                                    >
+                                                                        {icon}
+                                                                        {label}
+                                                                    </Typography>
+                                                                </Stack>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        {groupItems.map(renderRow)}
+                                                    </React.Fragment>
+                                                );
+                                            }
+                                        )}
+                                    </>
                                 )}
                             </TableBody>
                         </Table>
