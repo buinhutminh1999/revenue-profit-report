@@ -34,7 +34,7 @@ import {
 import { db } from '../../services/firebase-config';
 import { format, addDays } from 'date-fns';
 import { ErrorOutline as AlertCircle, Delete as Trash2, Check, AccessTime as Clock, EventAvailable as CalendarPlus } from '@mui/icons-material';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast'; // Toaster is in App.jsx
 
 // --- HẰNG SỐ PHÒNG BAN MỤC TIÊU ---
 const TARGET_DEPT_NAME = 'PHÒNG CUNG ỨNG - LẦU 1';
@@ -606,7 +606,7 @@ const MaterialPriceComparisonDetail = () => {
             <Helmet>
                 <title>{projectInfo?.projectName || 'Bảng So Sánh Giá'} | Bách Khoa</title>
             </Helmet>
-            <Toaster position="top-right" reverseOrder={false} />
+            {/* Toaster is rendered at App level */}
             <Box sx={{ bgcolor: theme.palette.background.default, minHeight: '100vh', p: { xs: 1, sm: 2, md: 4 } }}>
                 <Container maxWidth={false} sx={{ maxWidth: 2000, px: { xs: 1, sm: 2 } }}>
 

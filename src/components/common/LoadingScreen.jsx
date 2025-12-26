@@ -7,9 +7,11 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const loadingMessages = [
   "Đang khởi tạo modules…",
-  "Kết nối cơ sở dữ liệu…",
-  "Xác thực thông tin người dùng…",
-  "Chuẩn bị giao diện làm việc…",
+  "Mẹo: Nhấn Ctrl + K để tìm kiếm nhanh mọi thứ",
+  "Mẹo: Nhấn Ctrl + P để in báo cáo sạch đẹp",
+  "Mẹo: Nhấn Ctrl + B để ẩn/hiện menu trái",
+  "Đang kết nối cơ sở dữ liệu…",
+  "Mẹo: Bạn có thể đổi màu Sáng/Tối ở góc trên",
   "Sắp xong rồi, chờ một chút nhé!",
 ];
 
@@ -66,17 +68,17 @@ const BouncingDots = ({ theme }) => (
             boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.4)}`,
           }}
           initial={{ y: 0, opacity: 0.6, scale: 0.8 }}
-          animate={{ 
+          animate={{
             y: [-8, -12, -8],
             opacity: [0.6, 1, 0.6],
             scale: [0.8, 1, 0.8],
           }}
-          transition={{ 
-            duration: 0.6, 
-            repeat: Infinity, 
-            repeatType: "reverse", 
-            delay: i * 0.15, 
-            ease: "easeInOut" 
+          transition={{
+            duration: 0.6,
+            repeat: Infinity,
+            repeatType: "reverse",
+            delay: i * 0.15,
+            ease: "easeInOut"
           }}
         />
       ))}
@@ -126,33 +128,46 @@ export default function LoadingScreen({ isSuspense = false, logoSrc, appName = "
   // Suspense variant (return sớm NHƯNG KHÔNG còn hook nào phía dưới)
   if (isSuspense) {
     return (
-      <Box 
-        role="status" 
+      <Box
+        role="status"
         aria-busy="true"
-        sx={{ 
-          display: "flex", 
-          alignItems: "center", 
-          justifyContent: "center", 
-          height: { xs: "40vh", md: "calc(100vh - 240px)" }, 
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: { xs: "40vh", md: "calc(100vh - 240px)" },
           color: "text.secondary",
+          gap: 2,
           background: bg,
         }}
       >
+        <Box
+          component="img"
+          src={logoSrc || "https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png"}
+          alt="Logo"
+          sx={{
+            width: 48,
+            height: "auto",
+            opacity: 0.8,
+            filter: "grayscale(20%)"
+          }}
+        />
         <BouncingDots theme={theme} />
       </Box>
     );
   }
 
   return (
-    <Box 
-      role="status" 
+    <Box
+      role="status"
       aria-busy="true"
-      sx={{ 
-        display: "flex", 
-        alignItems: "center", 
-        justifyContent: "center", 
-        minHeight: "100vh", 
-        p: 3, 
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "100vh",
+        p: 3,
         background: bg,
         position: 'relative',
         overflow: 'hidden',
@@ -179,12 +194,12 @@ export default function LoadingScreen({ isSuspense = false, logoSrc, appName = "
         transition={{ duration: 0.5, ease: "easeOut" }}
         style={{ width: '100%', maxWidth: 480, position: 'relative', zIndex: 1 }}
       >
-        <Paper 
+        <Paper
           elevation={0}
           sx={{
-            width: "100%", 
-            maxWidth: 480, 
-            p: 4, 
+            width: "100%",
+            maxWidth: 480,
+            p: 4,
             borderRadius: 4,
             border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
             background: theme.palette.mode === 'light'
@@ -214,57 +229,57 @@ export default function LoadingScreen({ isSuspense = false, logoSrc, appName = "
             <Stack alignItems="center" spacing={1.5}>
               <Box sx={{ position: 'relative', width: 100, height: 100 }}>
                 {!logoLoaded && (
-                  <Skeleton 
-                    variant="circular" 
-                    width={100} 
-                    height={100} 
-                    sx={{ 
+                  <Skeleton
+                    variant="circular"
+                    width={100}
+                    height={100}
+                    sx={{
                       position: 'absolute',
                       bgcolor: alpha(theme.palette.primary.main, 0.1),
-                    }} 
+                    }}
                   />
                 )}
                 <motion.div
-                  animate={prefersReduce ? {} : { 
+                  animate={prefersReduce ? {} : {
                     scale: [1, 1.08, 1],
                     rotate: [0, 2, -2, 0],
                   }}
-                  transition={prefersReduce ? {} : { 
-                    duration: 3, 
-                    repeat: Infinity, 
-                    ease: "easeInOut" 
+                  transition={prefersReduce ? {} : {
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "easeInOut"
                   }}
-                  style={{ 
+                  style={{
                     opacity: logoLoaded ? 1 : 0,
                     transition: 'opacity 0.3s ease',
                   }}
                   aria-hidden
                 >
-                  <Box 
+                  <Box
                     component="img"
                     src={logoSrc || "https://bachkhoaangiang.com/images/logo-bach-khoa-an-giang.png"}
-                    alt="Logo" 
+                    alt="Logo"
                     onLoad={() => setLogoLoaded(true)}
-                    sx={{ 
-                      width: 100, 
-                      height: "auto", 
+                    sx={{
+                      width: 100,
+                      height: "auto",
                       objectFit: "contain",
                       filter: logoLoaded ? 'none' : 'blur(10px)',
                       transition: 'filter 0.3s ease',
-                    }} 
+                    }}
                   />
                 </motion.div>
               </Box>
-              
+
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2, duration: 0.4 }}
               >
-                <Typography 
-                  variant="h5" 
-                  fontWeight={800} 
-                  sx={{ 
+                <Typography
+                  variant="h5"
+                  fontWeight={800}
+                  sx={{
                     letterSpacing: "-0.3px",
                     background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                     backgroundClip: 'text',
@@ -275,16 +290,16 @@ export default function LoadingScreen({ isSuspense = false, logoSrc, appName = "
                   {appName}
                 </Typography>
               </motion.div>
-              
+
               {appVersion && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.3, duration: 0.3 }}
                 >
-                  <Chip 
-                    size="small" 
-                    label={`v${appVersion}`} 
+                  <Chip
+                    size="small"
+                    label={`v${appVersion}`}
                     variant="outlined"
                     sx={{
                       borderColor: alpha(theme.palette.primary.main, 0.3),
@@ -304,13 +319,13 @@ export default function LoadingScreen({ isSuspense = false, logoSrc, appName = "
                 aria-label="Tiến trình tải ứng dụng"
               />
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.5 }}>
-                <Typography 
-                  variant="caption" 
-                  color="text.secondary" 
-                  sx={{ 
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{
                     fontWeight: 500,
                     fontSize: '0.75rem',
-                  }} 
+                  }}
                   aria-live="polite"
                 >
                   {Math.round(progress)}%
@@ -323,10 +338,10 @@ export default function LoadingScreen({ isSuspense = false, logoSrc, appName = "
                     exit={prefersReduce ? {} : { opacity: 0, x: 10 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <Typography 
-                      variant="caption" 
-                      color="text.secondary" 
-                      sx={{ 
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{
                         fontWeight: 500,
                         fontSize: '0.75rem',
                       }}

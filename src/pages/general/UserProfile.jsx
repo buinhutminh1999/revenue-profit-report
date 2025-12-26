@@ -140,7 +140,7 @@ export default function UserProfile() {
                                 </Typography>
                                 {user.emailVerified && (
                                     <Chip
-                                        icon={<CheckCircleIcon sx={{ color: '#4caf50 !important' }} />}
+                                        icon={<CheckCircleIcon sx={{ color: 'success.main' }} />}
                                         label="Verified"
                                         size="small"
                                         sx={{

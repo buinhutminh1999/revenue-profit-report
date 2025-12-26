@@ -245,7 +245,6 @@ export const TransferPrintTemplate = React.forwardRef(({ transfer, company }, re
         <div ref={ref} style={styles.page}>
             <header style={styles.header}>
                 <div>
-                {console.log('styles',styles)}
                     <h3 style={styles.companyName}>{company?.name || 'TÊN CÔNG TY'}</h3>
                     <p style={styles.companyInfo}>
                         Địa chỉ: {company?.address || '................................'}<br />

@@ -20,9 +20,13 @@ import {
   Stack,
   IconButton,
   InputAdornment,
+  Avatar, // [NEW]
 } from "@mui/material";
+import { alpha } from "@mui/material/styles"; // [NEW]
 import DeleteIcon from "@mui/icons-material/Delete";
 import SearchIcon from "@mui/icons-material/Search";
+import { TrendingUp, TrendingDown, AttachMoney, AccountBalanceWallet } from "@mui/icons-material"; // [NEW] Icons
+import { EmptyState } from "../../components/common"; // [NEW]
 import { readExcelFileAsArray } from "../../utils/excelUtils";
 import { db } from "../../services/firebase-config";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -158,9 +162,46 @@ export default function ProfitChange() {
 
   return (
     <Box p={3}>
-      <Typography variant="h5" fontWeight={600} mb={2}>
+      <Typography variant="h5" fontWeight={600} mb={3}>
         📊 PHÁT SINH TĂNG GIẢM LỢI NHUẬN
       </Typography>
+
+      {/* [NEW] SUMMARY CARDS */}
+      <Grid container spacing={2} mb={3}>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, borderLeft: '4px solid', borderColor: 'error.main', bgcolor: 'background.paper', boxShadow: 1 }}>
+            <Avatar variant="rounded" sx={{ bgcolor: alpha('#ef4444', 0.1), color: '#ef4444' }}>
+              <TrendingDown />
+            </Avatar>
+            <Box>
+              <Typography variant="body2" color="text.secondary">Tổng Giảm Lợi Nhuận</Typography>
+              <Typography variant="h6" fontWeight="bold" color="error.main">{formatNumber(sumColumn("decrease"))}</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, borderLeft: '4px solid', borderColor: 'success.main', bgcolor: 'background.paper', boxShadow: 1 }}>
+            <Avatar variant="rounded" sx={{ bgcolor: alpha('#22c55e', 0.1), color: '#22c55e' }}>
+              <TrendingUp />
+            </Avatar>
+            <Box>
+              <Typography variant="body2" color="text.secondary">Tổng Tăng Lợi Nhuận</Typography>
+              <Typography variant="h6" fontWeight="bold" color="success.main">{formatNumber(sumColumn("increase"))}</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, borderLeft: '4px solid', borderColor: 'info.main', bgcolor: 'background.paper', boxShadow: 1 }}>
+            <Avatar variant="rounded" sx={{ bgcolor: alpha('#3b82f6', 0.1), color: '#3b82f6' }}>
+              <AccountBalanceWallet />
+            </Avatar>
+            <Box>
+              <Typography variant="body2" color="text.secondary">Tổng Đã Chi</Typography>
+              <Typography variant="h6" fontWeight="bold" color="info.main">{formatNumber(sumColumn("paid"))}</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
 
       <Grid container justifyContent="space-between" alignItems="center" spacing={2} mb={2}>
         <Grid item>
@@ -253,8 +294,12 @@ export default function ProfitChange() {
                 </TableRow>
               ) : filteredRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    Không có dữ liệu.
+                  <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                    <EmptyState
+                      title="Chưa có dữ liệu phát sinh"
+                      description={`Chưa có ghi nhận tăng/giảm lợi nhuận cho ${quarter}/${year}.`}
+                      icon={<AttachMoney sx={{ fontSize: 60, color: 'text.secondary', opacity: 0.5 }} />}
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -285,7 +330,17 @@ export default function ProfitChange() {
                             inputProps={{ style: { textAlign: "right" } }}
                           />
                         ) : (
-                          formatNumber(r[field] || 0)
+                          <Typography
+                            variant="body2"
+                            fontWeight={500}
+                            color={
+                              field === 'decrease' ? 'error.main' :
+                                field === 'increase' ? 'success.main' :
+                                  'text.primary'
+                            }
+                          >
+                            {formatNumber(r[field] || 0)}
+                          </Typography>
                         )}
                       </TableCell>
                     ))}

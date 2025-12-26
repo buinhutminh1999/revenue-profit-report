@@ -140,19 +140,7 @@ export const useActualCosts = (projectId, year, quarter) => {
                     return r;
                 });
 
-                // 🔍 DEBUG: Log khoản mục "Chi phí văn phòng phẩm..." cho Q3/2025
-                const debugRows = recalculated.filter(r =>
-                    r.description && r.description.includes("Chi phí văn phòng phẩm")
-                );
-                if (debugRows.length > 0) {
-                    console.log(`🔍 DEBUG [${year}/${quarter}]: Tìm thấy ${debugRows.length} row(s) với description 'Chi phí văn phòng phẩm':`);
-                    debugRows.forEach((row, idx) => {
-                        console.log(`  [${idx + 1}] project:`, row.project);
-                        console.log(`      allocated (Phân Bổ):`, row.allocated, "| parsed:", Number(parseNumber(row.allocated || "0")));
-                        console.log(`      carryover (Chuyển Tiếp ĐK):`, row.carryover);
-                        console.log(`      carryoverEnd (Cuối Kỳ):`, row.carryoverEnd);
-                    });
-                }
+                // [REMOVED] Debug console.logs were causing performance issues
 
                 setCostItems(recalculated);
                 setInitialDbLoadComplete(true);

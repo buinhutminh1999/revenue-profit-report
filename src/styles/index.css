@@ -7,7 +7,7 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    
+
     /* --- Bảng màu "Blue" hiện đại --- */
     --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
@@ -19,12 +19,14 @@
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    
+
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%; /* Cho focus ring màu primary */
-    
-    --radius: 0.5rem; /* Bạn có thể chỉnh 0.5rem, 0.75rem, 1.0rem */
+    --ring: 221.2 83.2% 53.3%;
+    /* Cho focus ring màu primary */
+
+    --radius: 0.5rem;
+    /* Bạn có thể chỉnh 0.5rem, 0.75rem, 1.0rem */
   }
 
   .dark {
@@ -35,7 +37,7 @@
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    
+
     --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96.1%;
@@ -46,7 +48,7 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    
+
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 221.2 83.2% 53.3%;
@@ -57,15 +59,19 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
 }
+
 /* --- Kết thúc khối code của shadcn --- */
 
 
 /* --- Các style tùy chỉnh của bạn (Đã tối ưu) --- */
-html, body, #root {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   height: 100%;
@@ -74,22 +80,77 @@ html, body, #root {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* * Tối ưu #nprogress: 
+/* Global Screen Transitions */
+body,
+body * {
+  transition: background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease !important;
+}
+
+/* Print Styles */
+@media print {
+  @page {
+    margin: 10mm;
+    size: auto;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Hide UI elements */
+  header,
+  nav,
+  .MuiDrawer-root,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset layout for print */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Ensure text readability */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Break pages properly */
+  .page-break {
+    page-break-before: always;
+  }
+}
+
+/* * Tối ưu #nprogress:
  * Sử dụng var(--primary) thay vì màu hex cố định.
- * Giờ đây, thanh loading sẽ tự động có màu primary 
+ * Giờ nay, thanh loading sẽ tự động có màu primary
  * và hoạt động hoàn hảo ở cả light/dark mode.
 */
 #nprogress .bar {
   /* background: #1976d2; -- Cũ */
-  background: var(--primary); /* Mới */
+  background: var(--primary);
+  /* Mới */
   height: 3px;
   border-radius: 2px;
   z-index: 99999;
 }
+
 #nprogress .peg {
   /* box-shadow: 0 0 10px #1976d2, 0 0 5px #1976d2; -- Cũ */
-  box-shadow: 0 0 10px var(--primary), 0 0 5px var(--primary); /* Mới */
+  box-shadow: 0 0 10px var(--primary), 0 0 5px var(--primary);
+  /* Mới */
 }
+
 #nprogress .spinner {
   display: none;
 }

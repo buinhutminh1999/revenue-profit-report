@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../services/firebase-config';
 import { doc, onSnapshot, setDoc, arrayUnion, arrayRemove, collection, getDocs } from 'firebase/firestore';
 import { PROTECTED_ROUTES, groupRoutes } from '../../config/protectedRoutes';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast'; // Toaster is in App.jsx
 import { motion } from 'framer-motion';
 
 // Import các component từ Material-UI
@@ -136,7 +136,7 @@ const WhitelistManager = () => {
 
     return (
         <>
-            <Toaster position="top-right" reverseOrder={false} />
+            {/* Toaster is rendered at App level */}
             <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
                 <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
                     <Stack direction="row" alignItems="center" spacing={2} mb={1}>

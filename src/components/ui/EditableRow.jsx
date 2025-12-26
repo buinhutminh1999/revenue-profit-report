@@ -1,7 +1,7 @@
 // src/components/ui/EditableRow.jsx - Modern, Optimized Version
 import React, { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import {
-    TableRow, TableCell, TextField, Typography, IconButton, Tooltip,
+    TableRow, TableCell, TextField, Typography, IconButton, Tooltip, useTheme, alpha,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { formatNumber, parseNumber } from "../../utils/numberUtils";
@@ -41,7 +41,7 @@ const EditableCell = React.memo(({
         const val = row[col.key] ?? "";
         return isNumeric ? parseNumber(val) : val;
     });
-    
+
     // Sync với row value khi không editing
     useEffect(() => {
         if (!isEditing) {
@@ -80,7 +80,7 @@ const EditableCell = React.memo(({
             onStartEdit(null, null);
             return;
         }
-        
+
         if (e.key === "Enter") {
             e.preventDefault();
             if (isNumeric) {
@@ -96,7 +96,7 @@ const EditableCell = React.memo(({
             }
             return;
         }
-        
+
         if (e.key === "Tab") {
             e.preventDefault();
             if (isNumeric) {
@@ -116,12 +116,12 @@ const EditableCell = React.memo(({
 
     if (isEditing) {
         return (
-            <TableCell 
-                align={alignment} 
+            <TableCell
+                align={alignment}
                 sx={{
                     ...cellSx,
-                    border: "2px solid #1976d2",
-                    backgroundColor: "#e3f2fd",
+                    border: (theme) => `2px solid ${theme.palette.primary.main}`,
+                    backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
                     padding: "4px 8px",
                     transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
@@ -141,7 +141,7 @@ const EditableCell = React.memo(({
                     onBlur={handleBlur}
                     inputProps={{
                         inputMode: isNumeric ? "decimal" : "text",
-                        style: { 
+                        style: {
                             textAlign: alignment === "right" ? "right" : "left",
                             fontSize: "0.875rem",
                             padding: "4px 0",
@@ -152,8 +152,8 @@ const EditableCell = React.memo(({
                     sx={{
                         "& .MuiInput-underline:before": { borderBottom: "none" },
                         "& .MuiInput-underline:hover:before": { borderBottom: "none" },
-                        "& .MuiInput-underline:after": { 
-                            borderBottom: "2px solid #1976d2",
+                        "& .MuiInput-underline:after": {
+                            borderBottom: (theme) => `2px solid ${theme.palette.primary.main}`,
                             transition: "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                         },
                     }}
@@ -162,24 +162,24 @@ const EditableCell = React.memo(({
         );
     }
 
-    const displayValue = isNumeric 
+    const displayValue = isNumeric
         ? (row[col.key] ? formatNumber(row[col.key]) : "0")
         : (row[col.key] || "");
-    
+
     const vNum = isNumeric ? Number(row[col.key] ?? 0) : 0;
     const warn = (col.key === "cpVuot" && vNum > 0) || (col.key === "carryoverEnd" && vNum < 0);
 
     return (
-        <TableCell 
-            align={alignment} 
+        <TableCell
+            align={alignment}
             sx={{
                 ...cellSx,
                 padding: "8px 12px",
                 border: "1px solid transparent",
                 transition: "all 0.15s ease",
                 '&:hover': {
-                    backgroundColor: '#f8f9fa',
-                    border: "1px solid #e0e0e0",
+                    backgroundColor: (theme) => theme.palette.action.hover,
+                    border: (theme) => `1px solid ${theme.palette.divider}`,
                 },
             }}
         >
@@ -195,11 +195,11 @@ const EditableCell = React.memo(({
                     justifyContent: alignment === "right" ? "flex-end" : "flex-start",
                     padding: '6px 8px',
                     borderRadius: '6px',
-                    color: warn ? (vNum > 0 ? "#d32f2f" : "#2e7d32") : "inherit",
+                    color: (theme) => warn ? (vNum > 0 ? theme.palette.error.main : theme.palette.success.main) : "inherit",
                     fontWeight: warn ? 600 : 400,
                     transition: "all 0.15s ease",
                     '&:hover': {
-                        backgroundColor: '#e8f4fd',
+                        backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
                         transform: 'translateY(-1px)',
                     },
                 }}
@@ -275,15 +275,15 @@ const EditableRow = ({
     return (
         <TableRow
             sx={{
-                backgroundColor: isRowEditing ? "#f0f7ff" : "inherit",
-                "&:nth-of-type(odd)": { 
-                    backgroundColor: isRowEditing ? "#f0f7ff" : "#fafafa",
+                backgroundColor: (theme) => isRowEditing ? alpha(theme.palette.primary.main, 0.04) : "inherit",
+                "&:nth-of-type(odd)": {
+                    backgroundColor: (theme) => isRowEditing ? alpha(theme.palette.primary.main, 0.04) : theme.palette.action.hover,
                 },
                 "&:hover": {
-                    backgroundColor: isRowEditing ? "#f0f7ff" : "#f8f9fa",
+                    backgroundColor: (theme) => isRowEditing ? alpha(theme.palette.primary.main, 0.04) : theme.palette.action.hover,
                     transition: "background-color 0.2s ease",
                 },
-                borderLeft: isRowEditing ? "3px solid #1976d2" : "none",
+                borderLeft: (theme) => isRowEditing ? `3px solid ${theme.palette.primary.main}` : "none",
                 transition: "all 0.2s ease",
             }}
         >
@@ -299,7 +299,7 @@ const EditableRow = ({
                 if (index < 2) {
                     Object.assign(cellSx, {
                         position: "sticky",
-                        backgroundColor: isRowEditing ? "#f0f7ff" : "white",
+                        backgroundColor: (theme) => isRowEditing ? alpha(theme.palette.primary.main, 0.04) : theme.palette.background.paper,
                         zIndex: 1,
                         left: index === 0 ? 0 : W_LEFT1,
                         boxShadow: index === 1 ? "2px 0 5px -2px rgba(0,0,0,0.08)" : undefined,
@@ -364,15 +364,15 @@ const EditableRow = ({
                     right: 0,
                     zIndex: 1,
                     minWidth: W_RIGHT,
-                    backgroundColor: isRowEditing ? "#f0f7ff" : "white",
+                    backgroundColor: (theme) => isRowEditing ? alpha(theme.palette.primary.main, 0.04) : theme.palette.background.paper,
                     boxShadow: "-2px 0 5px -2px rgba(0,0,0,0.08)",
                     border: "1px solid transparent",
                     transition: "all 0.2s ease",
                 }}
             >
-                <IconButton 
-                    color="error" 
-                    onClick={() => handleRemoveRow(row.id)} 
+                <IconButton
+                    color="error"
+                    onClick={() => handleRemoveRow(row.id)}
                     size="small"
                     sx={{
                         transition: "all 0.2s ease",

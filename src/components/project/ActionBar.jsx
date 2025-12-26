@@ -251,7 +251,7 @@ export default function EnhancedActionBar({
 
                         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
                         {(() => {
-                            console.log('🎯 ActionBar render - isProjectFinalized:', isProjectFinalized);
+                            // ActionBar render - isProjectFinalized controlled by hook
                             return isProjectFinalized ? (
                                 <ActionButton
                                     icon={<RestartAlt />}

@@ -12,6 +12,8 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { KeyboardArrowUp } from "@mui/icons-material";
+import { Fab, Zoom, useScrollTrigger } from "@mui/material";
 
 import Header from "./Header";
 import Sidebar from "./Sidebar";
@@ -53,7 +55,42 @@ const DrawerHeader = styled("div")(({ theme }) => ({
   ...theme.mixins.toolbar,
 }));
 
-export default function ModernLayout() {
+
+
+function ScrollTop(props) {
+  const { children, window } = props;
+  const trigger = useScrollTrigger({
+    target: window ? window() : undefined,
+    disableHysteresis: true,
+    threshold: 100,
+  });
+
+  const handleClick = (event) => {
+    const anchor = (event.target.ownerDocument || document).querySelector(
+      "#app-main"
+    );
+    if (anchor) {
+      anchor.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  return (
+    <Zoom in={trigger}>
+      <Box
+        onClick={handleClick}
+        role="presentation"
+        sx={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, "@media print": { display: "none" } }} // Hide on print
+      >
+        {children}
+      </Box>
+    </Zoom>
+  );
+}
+
+export default function ModernLayout(props) {
   const location = useLocation();
   const theme = useTheme();
   const isLgUp = useMediaQuery(theme.breakpoints.up("lg"));
@@ -119,6 +156,13 @@ export default function ModernLayout() {
     [isLgUp, isSidebarOpen]
   );
 
+  // Custom scroll trigger for main element
+  const trigger = useScrollTrigger({
+    target: scrollRef.current || undefined,
+    disableHysteresis: true,
+    threshold: 300,
+  });
+
   return (
     <Box sx={{ display: "flex", height: "100vh", ...rootVars }}>
       <CssBaseline />
@@ -129,17 +173,20 @@ export default function ModernLayout() {
         sx={{
           // đổ bóng khi content cuộn
           boxShadow: elevated ? `0 6px 16px ${alpha(theme.palette.common.black, 0.08)}` : "none",
+          "@media print": { display: "none" }, // Hide on print
         }}
       >
         <Header onSidebarToggle={handleSidebarToggle} isSidebarOpen={isSidebarOpen} />
       </AppBar>
 
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        widthExpanded={SIDEBAR_WIDTH_EXPANDED}
-        widthCollapsed={SIDEBAR_WIDTH_COLLAPSED}
-      />
+      <Box component="nav" sx={{ "@media print": { display: "none" } }}>
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          widthExpanded={SIDEBAR_WIDTH_EXPANDED}
+          widthCollapsed={SIDEBAR_WIDTH_COLLAPSED}
+        />
+      </Box>
 
       <Box
         component="main"
@@ -151,6 +198,10 @@ export default function ModernLayout() {
           width: { lg: `calc(100% - var(--sidebar-w))` },
           transition: reduce ? "none" : "width 200ms ease-in-out",
           overflow: "hidden",
+          "@media print": {
+            width: "100% !important",
+            marginLeft: "0 !important"
+          }
         }}
       >
         {/* Spacer cho AppBar */}
@@ -169,11 +220,9 @@ export default function ModernLayout() {
             overflowX: "hidden",
             scrollBehavior: "smooth",
             overscrollBehavior: "contain",
-            // Edge-fade gợi ý còn nội dung khi cuộn ngang (nếu có)
-            WebkitMaskImage:
-              "linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%)",
-            maskImage:
-              "linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%)",
+            // Edge-fade chỉ mờ ở ĐỈNH (top), ĐÁY (bottom) giữ nguyên để rõ nội dung
+            WebkitMaskImage: "linear-gradient(to bottom, transparent 0, black 24px, black 100%)",
+            maskImage: "linear-gradient(to bottom, transparent 0, black 24px, black 100%)",
           }}
         >
           <AnimatePresence mode="wait">
@@ -188,6 +237,19 @@ export default function ModernLayout() {
               <Outlet />
             </motion.div>
           </AnimatePresence>
+
+          {/* Back to Top Fab */}
+          <Zoom in={trigger}>
+            <Box
+              onClick={() => scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' })}
+              role="presentation"
+              sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000, "@media print": { display: "none" } }}
+            >
+              <Fab color="primary" size="small" aria-label="scroll back to top" sx={{ opacity: 0.8, '&:hover': { opacity: 1 } }}>
+                <KeyboardArrowUp />
+              </Fab>
+            </Box>
+          </Zoom>
         </Box>
       </Box>
       <WhatsNewDialog />

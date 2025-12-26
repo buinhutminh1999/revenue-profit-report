@@ -1,45 +1,51 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { forwardRef } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 
-// Định nghĩa các trạng thái animation bằng variants để code sạch sẽ hơn
-const pageVariants = {
-  // Trạng thái ban đầu khi trang bắt đầu vào
-  initial: {
-    opacity: 0,
-    y: 20,       // Bắt đầu từ vị trí thấp hơn một chút
-    scale: 0.98, // Và hơi thu nhỏ lại
-  },
-  // Trạng thái khi trang đã hiển thị hoàn toàn
-  in: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-  },
-  // Trạng thái khi trang thoát ra
-  out: {
-    opacity: 0,
-    y: -20,      // Trượt nhẹ lên trên khi thoát
-    scale: 0.98, // Và hơi thu nhỏ lại
-  },
-};
+// Component được bọc forwardRef để tương thích tốt hơn với các thư viện khác nếu cần
+const PageTransition = forwardRef(({ children, style, ...props }, ref) => {
+  const shouldReduceMotion = useReducedMotion();
 
-// Định nghĩa các thuộc tính của hiệu ứng chuyển động
-const pageTransition = {
-  type: 'tween',        // Kiểu chuyển động mượt
-  ease: 'circOut',      // Đường cong chuyển động tự nhiên
-  duration: 0.3,        // Thời gian diễn ra hiệu ứng
-};
+  // Nếu người dùng bật "Giảm chuyển động", chỉ dùng opacity đơn giản
+  const variants = {
+    initial: shouldReduceMotion
+      ? { opacity: 0 }
+      : { opacity: 0, y: 20, scale: 0.98 },
+    animate: shouldReduceMotion
+      ? { opacity: 1 }
+      : { opacity: 1, y: 0, scale: 1 },
+    exit: shouldReduceMotion
+      ? { opacity: 0 }
+      : { opacity: 0, y: -20, scale: 0.98 },
+  };
 
-export default function PageTransition({ children }) {
+  const transition = {
+    type: 'tween',
+    ease: 'circOut',
+    duration: shouldReduceMotion ? 0.2 : 0.3, // Nhanh hơn nếu giảm chuyển động
+  };
+
   return (
     <motion.div
+      ref={ref}
       initial="initial"
-      animate="in"
-      exit="out"
-      variants={pageVariants}
-      transition={pageTransition}
+      animate="animate"
+      exit="exit"
+      variants={variants}
+      transition={transition}
+      style={{
+        width: '100%',
+        minHeight: '100%', // Đảm bảo không bị co lại
+        display: 'flex',     // Layout linh hoạt
+        flexDirection: 'column',
+        ...style // Cho phép override style nếu cần
+      }}
+      {...props}
     >
       {children}
     </motion.div>
   );
-}
+});
+
+PageTransition.displayName = 'PageTransition';
+
+export default PageTransition;

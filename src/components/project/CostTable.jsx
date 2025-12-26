@@ -1,7 +1,7 @@
 import React from "react";
 import {
   TableContainer, Paper, Table, TableHead, TableRow, TableCell,
-  TableBody, Skeleton, Box
+  TableBody, Skeleton, Box, useTheme
 } from "@mui/material";
 import { TableChart } from "@mui/icons-material";
 import EditableRow from "../ui/EditableRow";
@@ -15,7 +15,8 @@ const LEFT1_WIDTH = 150;
 const LEFT2_WIDTH = 220;
 const RIGHT_DELETE_WIDTH = 72;
 
-export default function CostTable({
+// [OPTIMIZED] Wrapped in React.memo to prevent unnecessary re-renders
+const CostTable = React.memo(function CostTable({
   columnsAll,
   columnsVisibility,
   loading,
@@ -24,15 +25,17 @@ export default function CostTable({
   editingCell,
   setEditingCell,
   handleChangeField,
-  handleCommitTextField, // Thêm prop mới
+  handleCommitTextField,
   handleRemoveRow,
   onToggleRevenueMode,
   overallRevenue,
   projectTotalAmount,
   categories,
   projectData,
-  search = "", // Thêm prop search để hiển thị message phù hợp
+  search = "",
 }) {
+  const theme = useTheme();
+
   // Chỉ lấy cột đang hiển thị (header)
   const visibleCols = React.useMemo(
     () => columnsAll.filter((c) => columnsVisibility[c.key]),
@@ -55,18 +58,18 @@ export default function CostTable({
           border: "none",
           maxHeight: "calc(100vh - 300px)",
           bgcolor: "transparent",
-          "&::-webkit-scrollbar": { 
-            height: 10, 
+          "&::-webkit-scrollbar": {
+            height: 10,
             width: 10,
           },
-          "&::-webkit-scrollbar-thumb": { 
-            backgroundColor: "rgba(0, 0, 0, 0.2)", 
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: "rgba(0, 0, 0, 0.2)",
             borderRadius: 5,
             "&:hover": {
               backgroundColor: "rgba(0, 0, 0, 0.3)",
             },
           },
-          "&::-webkit-scrollbar-track": { 
+          "&::-webkit-scrollbar-track": {
             backgroundColor: "rgba(0, 0, 0, 0.05)",
             borderRadius: 5,
           },
@@ -98,14 +101,14 @@ export default function CostTable({
               left: 0,
               zIndex: 1,
               minWidth: LEFT1_WIDTH,
-              backgroundColor: "#fff",
+              backgroundColor: theme.palette.background.paper,
             },
             "& .bk-sticky-l2": {
               position: "sticky",
               left: LEFT1_WIDTH,
               zIndex: 1,
               minWidth: LEFT2_WIDTH,
-              backgroundColor: "#fff",
+              backgroundColor: theme.palette.background.paper,
               boxShadow: "2px 0 5px -2px rgba(0,0,0,0.08)",
             },
             "& .bk-sticky-right": {
@@ -113,12 +116,12 @@ export default function CostTable({
               right: 0,
               zIndex: 1,
               minWidth: RIGHT_DELETE_WIDTH,
-              backgroundColor: "#fff",
+              backgroundColor: theme.palette.background.paper,
               boxShadow: "-2px 0 5px -2px rgba(0,0,0,0.08)",
             },
             // header cần nền xám nhạt
             "& thead .bk-sticky-l1, & thead .bk-sticky-l2, & thead .bk-sticky-right": {
-              backgroundColor: "#f5f5f5",
+              backgroundColor: theme.palette.grey[100],
             },
           }}
         >
@@ -130,8 +133,8 @@ export default function CostTable({
                   col.key === LEFT1_KEY
                     ? "bk-sticky-l1"
                     : col.key === LEFT2_KEY
-                    ? "bk-sticky-l2"
-                    : undefined;
+                      ? "bk-sticky-l2"
+                      : undefined;
 
                 return (
                   <TableCell
@@ -172,8 +175,8 @@ export default function CostTable({
                         col.key === LEFT1_KEY
                           ? "bk-sticky-l1"
                           : col.key === LEFT2_KEY
-                          ? "bk-sticky-l2"
-                          : undefined
+                            ? "bk-sticky-l2"
+                            : undefined
                       }
                       sx={{
                         minWidth: idx < 2
@@ -240,7 +243,7 @@ export default function CostTable({
                   ))}
 
                   {/* Hàng tổng group */}
-                  <TableRow sx={{ bgcolor: "#f0f0f0", "& td": { fontWeight: 600 } }}>
+                  <TableRow sx={{ bgcolor: theme.palette.grey[100], "& td": { fontWeight: 600 } }}>
                     {/* cột 1: trống nhưng vẫn sticky để không lệch khi cuộn */}
                     <TableCell className="bk-sticky-l1" sx={{ minWidth: LEFT1_WIDTH }} />
                     {/* cột 2: nhãn tổng */}
@@ -276,4 +279,7 @@ export default function CostTable({
       </TableContainer>
     </Box>
   );
-}
+});
+
+CostTable.displayName = 'CostTable';
+export default CostTable;

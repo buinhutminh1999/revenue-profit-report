@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { 
-    Box, Tabs, Tab, Paper, Typography, Skeleton, Chip, 
-    useTheme, alpha, Fade, IconButton, Tooltip
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
+import {
+    Box, Tabs, Tab, Paper, Typography, Skeleton, Chip,
+    useTheme, alpha, Fade, IconButton, Tooltip, Breadcrumbs, Link
 } from '@mui/material';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase-config';
-import { Toaster } from 'react-hot-toast';
-import { 
-    AccountTree, 
-    Receipt, 
+// Toaster is already in App.jsx, no need to import here
+import {
+    AccountTree,
+    Receipt,
     Timeline,
     ArrowBack,
-    Info as InfoIcon
+    Info as InfoIcon,
+    Home as HomeIcon,
+    NavigateNext as NavigateNextIcon
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Import 2 tab con
@@ -24,8 +25,8 @@ import PlanningTab from '../../components/tabs/PlanningTab';
 // Modern TabPanel với smooth transitions
 function TabPanel(props) {
     const { children, value, index, ...other } = props;
-    const theme = useTheme();
-    
+    // Removed unused 'theme' variable for cleaner code
+
     return (
         <div
             role="tabpanel"
@@ -89,6 +90,13 @@ export default function ProjectDetailsLayout() {
     const [projectInfo, setProjectInfo] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // [NEW] Extracted common glassmorphism styles
+    const glassStyle = {
+        background: 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255, 255, 255, 0.18)',
+    };
+
     useEffect(() => {
         const fetchProjectInfo = async () => {
             if (!projectId) return;
@@ -111,9 +119,10 @@ export default function ProjectDetailsLayout() {
         fetchProjectInfo();
     }, [projectId]);
 
-    const handleTabChange = (event, newValue) => {
+    // [OPTIMIZED] Memoized handler to prevent unnecessary re-renders
+    const handleTabChange = useCallback((event, newValue) => {
         setActiveTab(newValue);
-    };
+    }, []);
 
     return (
         <Box
@@ -125,22 +134,7 @@ export default function ProjectDetailsLayout() {
                 width: '100%',
             }}
         >
-            {/* Modern Toaster */}
-            <Toaster
-                position="top-center"
-                reverseOrder={false}
-                toastOptions={{
-                    duration: 3500,
-                    style: {
-                        borderRadius: '12px',
-                        background: 'rgba(255, 255, 255, 0.95)',
-                        backdropFilter: 'blur(12px)',
-                        color: '#333',
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-                        border: '1px solid rgba(255, 255, 255, 0.18)',
-                    },
-                }}
-            />
+            {/* Toaster is rendered at App level - removed duplicate here */}
 
             <Box
                 sx={{
@@ -157,10 +151,8 @@ export default function ProjectDetailsLayout() {
                             mb: 4,
                             p: 3,
                             borderRadius: 3,
-                            background: 'rgba(255, 255, 255, 0.95)',
-                            backdropFilter: 'blur(10px)',
+                            ...glassStyle, // [OPTIMIZED] Reusing common style
                             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-                            border: '1px solid rgba(255, 255, 255, 0.18)',
                             display: 'flex',
                             alignItems: 'center',
                             gap: 2,
@@ -191,6 +183,36 @@ export default function ProjectDetailsLayout() {
 
                         {/* Project Title */}
                         <Box sx={{ flex: 1, minWidth: 0 }}>
+                            {/* [NEW] Breadcrumbs */}
+                            <Breadcrumbs
+                                separator={<NavigateNextIcon fontSize="small" />}
+                                aria-label="breadcrumb"
+                                sx={{ mb: 1, ml: 0.5 }}
+                            >
+                                <Link
+                                    component={RouterLink}
+                                    underline="hover"
+                                    color="inherit"
+                                    to="/"
+                                    sx={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem' }}
+                                >
+                                    <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
+                                    Trang chủ
+                                </Link>
+                                <Link
+                                    component={RouterLink}
+                                    underline="hover"
+                                    color="inherit"
+                                    to="/construction-plan"
+                                    sx={{ fontSize: '0.875rem' }}
+                                >
+                                    Quản lý công trình
+                                </Link>
+                                <Typography color="text.primary" sx={{ fontSize: '0.875rem', fontWeight: 500 }}>
+                                    {loading ? <Skeleton width={100} /> : (projectInfo?.name || 'Chi tiết')}
+                                </Typography>
+                            </Breadcrumbs>
+
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
                                 <Box
                                     sx={{
@@ -202,11 +224,11 @@ export default function ProjectDetailsLayout() {
                                         border: '1px solid rgba(0, 0, 0, 0.08)',
                                     }}
                                 >
-                                    <AccountTree 
-                                        sx={{ 
-                                            fontSize: 28, 
+                                    <AccountTree
+                                        sx={{
+                                            fontSize: 28,
                                             color: theme.palette.primary.main,
-                                        }} 
+                                        }}
                                     />
                                 </Box>
                                 <Typography
@@ -218,19 +240,19 @@ export default function ProjectDetailsLayout() {
                                     }}
                                 >
                                     {loading ? (
-                                        <Skeleton 
-                                            width="60%" 
-                                            sx={{ 
+                                        <Skeleton
+                                            width="60%"
+                                            sx={{
                                                 bgcolor: 'rgba(0, 0, 0, 0.1)',
                                                 borderRadius: 2,
-                                            }} 
+                                            }}
                                         />
                                     ) : (
                                         projectInfo?.name || 'Chi tiết Công trình'
                                     )}
                                 </Typography>
                             </Box>
-                            
+
                             {/* Project Info Chip */}
                             {projectInfo && !loading && (
                                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
@@ -275,10 +297,9 @@ export default function ProjectDetailsLayout() {
                         sx={{
                             borderRadius: 4,
                             overflow: 'hidden',
-                            background: 'rgba(255, 255, 255, 0.95)',
-                            backdropFilter: 'blur(20px)',
+                            ...glassStyle, // [OPTIMIZED] Reusing common style
+                            backdropFilter: 'blur(20px)', // Override for stronger blur
                             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-                            border: '1px solid rgba(255, 255, 255, 0.18)',
                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                             '&:hover': {
                                 boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)',

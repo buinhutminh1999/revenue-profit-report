@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
     Box, Typography, Grid, Paper, Stack, Chip, useTheme, Avatar,
-    Card, CardContent, IconButton, Button, Divider, LinearProgress
+    Card, CardContent, IconButton, Button, Divider, LinearProgress,
+    Skeleton, TextField, InputAdornment // [NEW] Added components
 } from '@mui/material';
 import { styled, alpha } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
@@ -15,7 +16,8 @@ import { vi } from 'date-fns/locale';
 import {
     People, Settings, BarChart, Storage, Assignment,
     ChevronRight, Description, AccountBalance, VerifiedUser,
-    TrendingUp, NotificationsActive, History, ArrowForward
+    TrendingUp, NotificationsActive, History, ArrowForward,
+    Search // [NEW] Icon Search
 } from '@mui/icons-material';
 
 // --- CONFIGURATION DATA ---
@@ -150,7 +152,7 @@ const FeedItem = styled(Box)(({ theme }) => ({
 }));
 
 // --- SUB-COMPONENTS ---
-const StatWidget = ({ title, count, icon, color, trend }) => {
+const StatWidget = ({ title, count, icon, color, trend, loading }) => {
     const theme = useTheme();
     return (
         <StatCard color={color}>
@@ -160,7 +162,11 @@ const StatWidget = ({ title, count, icon, color, trend }) => {
                         {title}
                     </Typography>
                     <Typography variant="h3" fontWeight={800} sx={{ color: theme.palette[color].main }}>
-                        {count !== null ? count : <LinearProgress sx={{ width: 40, mt: 2 }} color={color} />}
+                        {loading ? (
+                            <Skeleton variant="text" width={80} height={60} animation="wave" />
+                        ) : (
+                            count !== null ? count : 0
+                        )}
                     </Typography>
                 </Box>
                 <Avatar
@@ -190,7 +196,7 @@ const StatWidget = ({ title, count, icon, color, trend }) => {
     );
 };
 
-const ActivityFeed = ({ logs, navigate }) => {
+const ActivityFeed = ({ logs, navigate, loading }) => {
     return (
         <Paper
             sx={{
@@ -214,7 +220,18 @@ const ActivityFeed = ({ logs, navigate }) => {
             </Stack>
 
             <Stack spacing={0.5}>
-                {logs.length === 0 ? (
+                {loading ? (
+                    // [NEW] Skeleton Loading for Feed
+                    Array.from(new Array(5)).map((_, i) => (
+                        <Box key={i} sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+                            <Skeleton variant="circular" width={36} height={36} animation="wave" />
+                            <Box sx={{ flex: 1 }}>
+                                <Skeleton variant="text" width="90%" animation="wave" />
+                                <Skeleton variant="text" width="60%" animation="wave" />
+                            </Box>
+                        </Box>
+                    ))
+                ) : logs.length === 0 ? (
                     <Typography variant="body2" color="text.secondary" align="center" py={4}>
                         Chưa có hoạt động nào
                     </Typography>
@@ -254,6 +271,8 @@ export default function AdminDashboard() {
     const theme = useTheme();
     const [stats, setStats] = useState({ userCount: null, reportCount: null, departmentCount: null });
     const [auditLogs, setAuditLogs] = useState([]);
+    const [loading, setLoading] = useState(true); // [NEW]
+    const [searchTerm, setSearchTerm] = useState(""); // [NEW]
 
     // Data Fetching
     useEffect(() => {
@@ -282,9 +301,18 @@ export default function AdminDashboard() {
 
             setStats({ userCount: u, reportCount: r, departmentCount: d });
             setAuditLogs(logs);
+            setLoading(false); // [NEW] Done loading
         };
         fetchData();
     }, []);
+
+    // [NEW] Search Filter
+    const filteredItems = useMemo(() => {
+        return adminItems.filter(item =>
+            item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.description.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [searchTerm]);
 
     // Animations
     const containerVariants = {
@@ -335,6 +363,7 @@ export default function AdminDashboard() {
                             icon={<People />}
                             color="primary"
                             trend="+5%"
+                            loading={loading} // [NEW]
                         />
                     </Grid>
                     <Grid item xs={12} sm={6} md={3}>
@@ -343,6 +372,7 @@ export default function AdminDashboard() {
                             count={stats.departmentCount}
                             icon={<AccountBalance />}
                             color="secondary"
+                            loading={loading} // [NEW]
                         />
                     </Grid>
                     <Grid item xs={12} sm={6} md={3}>
@@ -352,6 +382,7 @@ export default function AdminDashboard() {
                             icon={<Description />}
                             color="info"
                             trend="+12%"
+                            loading={loading} // [NEW]
                         />
                     </Grid>
                     <Grid item xs={12} sm={6} md={3}>
@@ -360,6 +391,7 @@ export default function AdminDashboard() {
                             count={0}
                             icon={<Settings />}
                             color="warning"
+                            loading={loading} // [NEW]
                         />
                     </Grid>
                 </Grid>
@@ -369,11 +401,30 @@ export default function AdminDashboard() {
                     {/* Left: Functions Grid */}
                     <Grid item xs={12} md={8} lg={9}>
                         <motion.div variants={containerVariants} initial="hidden" animate="visible">
-                            <Typography variant="h6" fontWeight={700} gutterBottom sx={{ mt: 1, mb: 2 }}>
-                                Chức năng quản lý
-                            </Typography>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center" mt={2} mb={2}>
+                                <Typography variant="h6" fontWeight={700}>
+                                    Chức năng quản lý
+                                </Typography>
+                                {/* [NEW] Search Input */}
+                                <TextField
+                                    placeholder="Tìm chức năng..."
+                                    size="small"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <Search fontSize="small" color="action" />
+                                            </InputAdornment>
+                                        ),
+                                        sx: { bgcolor: 'background.paper', borderRadius: 2 }
+                                    }}
+                                    sx={{ width: 250 }}
+                                />
+                            </Stack>
+
                             <Grid container spacing={2}>
-                                {adminItems.map((item, index) => (
+                                {filteredItems.map((item, index) => (
                                     <Grid item xs={12} sm={6} lg={4} key={index}>
                                         <motion.div variants={itemVariants}>
                                             <FunctionCard
@@ -422,7 +473,7 @@ export default function AdminDashboard() {
 
                     {/* Right: Activity Feed */}
                     <Grid item xs={12} md={4} lg={3}>
-                        <ActivityFeed logs={auditLogs} navigate={navigate} />
+                        <ActivityFeed logs={auditLogs} navigate={navigate} loading={loading} />
                     </Grid>
                 </Grid>
             </Stack>

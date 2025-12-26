@@ -28,7 +28,7 @@ import PendingIcon from '@mui/icons-material/Pending';
 import SearchIcon from '@mui/icons-material/Search';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase-config';
-import { useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch, Controller } from "react-hook-form";
 import { useProjects } from '../../hooks/useProjects';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { projectSearchSchema } from "../../schemas/searchSchema";
@@ -123,18 +123,23 @@ export default function ProjectsList() {
           sx={{ width: { xs: '100%', sm: 300 } }}
           {...register("searchText")}
         />
-        <TextField
-          size="small"
-          select
-          label="Lọc trạng thái"
-          defaultValue="all"
-          inputProps={register("filterStatus")}
-          sx={{ width: { xs: '100%', sm: 180 } }}
-        >
-          <MenuItem value="all">Tất cả</MenuItem>
-          <MenuItem value="active">Đang hoạt động</MenuItem>
-          <MenuItem value="closed">Đã đóng</MenuItem>
-        </TextField>
+        <Controller
+          name="filterStatus"
+          control={control}
+          render={({ field }) => (
+            <TextField
+              {...field}
+              size="small"
+              select
+              label="Lọc trạng thái"
+              sx={{ width: { xs: '100%', sm: 180 } }}
+            >
+              <MenuItem value="all">Tất cả</MenuItem>
+              <MenuItem value="active">Đang hoạt động</MenuItem>
+              <MenuItem value="closed">Đã đóng</MenuItem>
+            </TextField>
+          )}
+        />
       </Stack>
 
       {/* Danh sách */}

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-    Box, Typography, Paper, TextField, InputAdornment,
+    Box, Typography, Paper, TextField, InputAdornment, useTheme, alpha,
     ToggleButtonGroup, ToggleButton, Grid, Skeleton, Stack, IconButton,
     Collapse, LinearProgress, Chip, Tooltip, keyframes,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel
@@ -358,6 +358,7 @@ const MachineTable = ({ data }) => {
 
 /* ===================== Main Dashboard Component ===================== */
 export default function DeviceMonitoringDashboard() {
+    const theme = useTheme();
     const [machines, setMachines] = useState([]);
     const [loadingMachines, setLoadingMachines] = useState(true);
     const [workingHours] = useState(8);
@@ -494,13 +495,13 @@ export default function DeviceMonitoringDashboard() {
     }, [filteredMachines, eventsByMachine, onlineStatusMap, selectedDate]);
 
     return (
-        <Box sx={{ p: { xs: 2, md: 4 }, backgroundColor: '#f9fafb', minHeight: '100vh' }}>
+        <Box sx={{ p: { xs: 2, md: 4 }, backgroundColor: theme.palette.background.default, minHeight: '100vh' }}>
             <Box sx={{ mb: 4 }}>
                 <Typography variant="h4" fontWeight={700} gutterBottom>Bảng điều khiển Giám sát</Typography>
                 <Typography color="text.secondary">Tổng quan trạng thái và hiệu suất hoạt động của các thiết bị.</Typography>
             </Box>
 
-            <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '12px', position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(8px)', backgroundColor: 'rgba(255,255,255,0.8)' }}>
+            <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '12px', position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(8px)', backgroundColor: alpha(theme.palette.background.paper, 0.8) }}>
                 <Grid container spacing={2} alignItems="center">
                     <Grid size={{ xs: 12, md: 4 }}>
                         <TextField

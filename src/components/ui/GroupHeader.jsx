@@ -1,7 +1,7 @@
 // src/components/GroupHeader.jsx
 import React, { memo } from "react";
-import { TableRow, TableCell, useTheme } from "@mui/material";
-import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined'; // ✨ Dùng icon để tăng tính trực quan
+import { TableRow, TableCell, useTheme, alpha } from "@mui/material";
+import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined';
 
 /**
  * Header nhóm trong bảng - Phiên bản tối ưu
@@ -15,10 +15,9 @@ const GroupHeader = ({ projectName, colSpan = 2, sticky = false }) => {
   return (
     <TableRow
       sx={{
-        // ✨ Dùng border để tạo ranh giới rõ ràng
-        borderTop: '2px solid #e0e0e0', 
-        borderBottom: '1px solid #e0e0e0',
-        backgroundColor: '#f8f9fa', // ✨ Một màu nền xám rất nhẹ, chuyên nghiệp hơn
+        borderTop: `2px solid ${theme.palette.divider}`,
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        backgroundColor: theme.palette.background.neutral || theme.palette.grey[100],
         ...(sticky && {
           position: "sticky",
           top: 0,
@@ -26,24 +25,21 @@ const GroupHeader = ({ projectName, colSpan = 2, sticky = false }) => {
         }),
       }}
     >
-      {/* ✨ Gộp lại thành 1 TableCell duy nhất cho đơn giản */}
       <TableCell
         colSpan={colSpan}
-        // ✨ Căn trái để nhất quán với các dòng dữ liệu
-        align="left" 
+        align="left"
         sx={{
-          padding: '8px 16px !important', // ✨ Tăng padding cho thoáng
-          fontWeight: '600 !important', // ✨ Tăng độ đậm
-          fontSize: '0.9rem !important', // ✨ Tăng kích thước chữ
-          color: '#343a40', // ✨ Màu chữ tối, không đen hẳn
-          borderBottom: 'none', // ✨ Bỏ border của cell để tạo thành một dải liền mạch
-          // ✨ Dùng flex để căn icon và chữ
+          padding: '8px 16px !important',
+          fontWeight: '600 !important',
+          fontSize: '0.9rem !important',
+          color: theme.palette.text.primary,
+          borderBottom: 'none',
           display: 'flex',
-          alignItems: 'center', 
-          gap: 1, 
+          alignItems: 'center',
+          gap: 1,
         }}
       >
-        <FolderOpenOutlinedIcon sx={{ fontSize: '1.1rem', color: '#495057' }} />
+        <FolderOpenOutlinedIcon sx={{ fontSize: '1.1rem', color: theme.palette.text.secondary }} />
         {projectName}
       </TableCell>
     </TableRow>

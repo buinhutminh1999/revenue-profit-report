@@ -80,7 +80,7 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
 
     useEffect(() => {
         const processData = async () => {
-            console.log('Realtime update triggered! Reprocessing data...');
+            // Realtime update triggered
             setIsLoading(true);
 
             const getCostOverQuarter = async (fieldName) => {
@@ -260,14 +260,7 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                 (p.name || '').toUpperCase().includes('THOAI SON')
             );
             if (thoaiSonProject) {
-                console.log(`🔍 DEBUG [${selectedYear}/${selectedQuarter}]: Tìm thấy project THOẠI SƠN:`);
-                console.log(`    name: ${thoaiSonProject.name}`);
-                console.log(`    type: "${thoaiSonProject.type}"`);
-                console.log(`    revenue: ${thoaiSonProject.revenue}`);
-                console.log(`    cost: ${thoaiSonProject.cost}`);
-                console.log(`    profit: ${thoaiSonProject.profit}`);
-            } else {
-                console.log(`🔍 DEBUG [${selectedYear}/${selectedQuarter}]: KHÔNG tìm thấy project THOẠI SƠN trong danh sách!`);
+                // DEBUG: Debug logs removed for production
             }
 
             const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;

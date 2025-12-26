@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import {
     Toolbar, Box, IconButton, Tooltip, Menu, MenuItem, Divider,
     useTheme, Avatar, Badge, Stack, Typography, Paper,
@@ -734,15 +735,61 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
 
                 {/* Right: actions */}
                 <Stack direction="row" alignItems="center" spacing={{ xs: 0.5, sm: 1 }}>
-                    <Tooltip title="Tìm kiếm nhanh (⌘K)" arrow>
-                        <StyledIconButton
+                    {/* Enhanced Search Button (Desktop) */}
+                    <Box sx={{ display: { xs: "none", md: "block" }, mr: 1 }}>
+                        <Button
+                            variant="outlined"
                             color="inherit"
                             onClick={() => setSearchOpen(true)}
-                            aria-label="Mở bảng lệnh nhanh"
+                            startIcon={<Search sx={{ opacity: 0.6 }} />}
+                            sx={{
+                                color: 'text.secondary',
+                                borderColor: (t) => alpha(t.palette.divider, 0.4),
+                                borderRadius: '10px',
+                                px: 1.5,
+                                py: 0.5,
+                                height: 40,
+                                textTransform: 'none',
+                                justifyContent: 'space-between',
+                                minWidth: 200,
+                                bgcolor: (t) => alpha(t.palette.background.paper, 0.5),
+                                '&:hover': {
+                                    bgcolor: (t) => alpha(t.palette.action.hover, 0.1),
+                                    borderColor: 'text.primary',
+                                    color: 'text.primary'
+                                }
+                            }}
                         >
-                            <Search sx={{ fontSize: 22 }} />
-                        </StyledIconButton>
-                    </Tooltip>
+                            <Typography variant="body2" sx={{ mr: 2, opacity: 0.6 }}>Tìm kiếm...</Typography>
+                            <Chip
+                                label="Ctrl K"
+                                size="small"
+                                sx={{
+                                    height: 20,
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    bgcolor: (t) => alpha(t.palette.divider, 0.2),
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    color: 'text.secondary'
+                                }}
+                            />
+                        </Button>
+                    </Box>
+
+                    {/* Search Icon (Mobile) */}
+                    <Box sx={{ display: { xs: "block", md: "none" } }}>
+                        <Tooltip title="Tìm kiếm nhanh (⌘K)" arrow>
+                            <StyledIconButton
+                                color="inherit"
+                                onClick={() => setSearchOpen(true)}
+                                aria-label="Mở bảng lệnh nhanh"
+                            >
+                                <Search sx={{ fontSize: 22 }} />
+                            </StyledIconButton>
+                        </Tooltip>
+                    </Box>
 
                     <Tooltip title="Chế độ Sáng/Tối" arrow>
                         <StyledIconButton

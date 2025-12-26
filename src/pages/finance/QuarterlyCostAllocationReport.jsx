@@ -17,6 +17,7 @@ import {
     CircularProgress,
     TextField,
     alpha,
+    useTheme,
     Button,
     Snackbar,
     Alert,
@@ -28,7 +29,6 @@ import {
     FormHelperText,
     Divider,
 } from '@mui/material';
-import { useTheme } from "@mui/material/styles";
 import { Save as SaveIcon, Check as CheckIcon, Print as PrintIcon } from '@mui/icons-material';
 import { useReactToPrint } from 'react-to-print';
 import { NumericFormat } from 'react-number-format';
@@ -505,10 +505,11 @@ function EditableNumberCell({ value, rowId, fieldKey, onChange, disabled = false
     );
 }
 
-const renderCell = (value, type = 'number', rowId, pctKey, onChange, disabled) => {
+const renderCell = (value, type = 'number', rowId, pctKey, onChange, disabled, key) => {
     if (type === 'percent') {
         return (
             <EditablePercentCell
+                key={key}
                 value={value} rowId={rowId} pctKey={pctKey}
                 onChange={(rowId, pctKey, finalValue) => {
                     onChange(rowId, pctKey, finalValue, undefined, undefined, undefined);
@@ -1491,7 +1492,7 @@ export default function QuarterlyCostAllocationReport() {
                 <TableContainer sx={{ maxHeight: 'calc(100vh - 220px)' }}>
                     <Table stickyHeader size="small">
                         <TableHead>
-                            <TableRow>{columns.map((column) => (<TableCell key={column.field} align={column.sticky ? 'left' : 'right'} sx={{ textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 600, color: (theme) => theme.palette.text.secondary, backgroundColor: (theme) => theme.palette.grey[100], minWidth: column.minWidth, whiteSpace: 'nowrap', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, ...(column.sticky && { position: 'sticky', left: 0, top: 0, zIndex: 20 }), ...(!column.sticky && { position: 'sticky', top: 0, zIndex: 10 }), }}> {column.headerName} </TableCell>))} </TableRow>
+                            <TableRow>{columns.map((column) => (<TableCell key={column.field} align={column.sticky ? 'left' : 'right'} sx={{ textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 600, color: (theme) => theme.palette.text.secondary, backgroundColor: (theme) => theme.palette.grey[100], minWidth: column.minWidth, whiteSpace: 'nowrap', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, ...(column.sticky && { position: 'sticky', left: 0, top: 0, zIndex: 20 }), ...(!column.sticky && { position: 'sticky', top: 0, zIndex: 10 }), }}>{column.headerName}</TableCell>))}</TableRow>
                         </TableHead>
                         <TableBody>
                             {isLoading ? (
@@ -1609,6 +1610,7 @@ export default function QuarterlyCostAllocationReport() {
                                                         // Trả về component có thể chỉnh sửa
                                                         return (
                                                             <EditableNumberCell
+                                                                key={col.field}
                                                                 value={cellValue}
                                                                 rowId={itemRow.id}
                                                                 fieldKey={col.field}
@@ -1622,13 +1624,13 @@ export default function QuarterlyCostAllocationReport() {
                                                             return <TableCell key={col.field} align="right" sx={{ whiteSpace: 'nowrap', padding: '6px 16px' }}></TableCell>;
                                                         }
                                                         cellValue = typeData[pctKey];
-                                                        return renderCell(cellValue, cellType, itemRow.id, pctKey, handlePercentChange, isSummaryRow)
+                                                        return renderCell(cellValue, cellType, itemRow.id, pctKey, handlePercentChange, isSummaryRow, col.field)
                                                     } else {
                                                         cellValue = typeData[col.field]
                                                     }
                                                 }
 
-                                                return <TableCell align="right" sx={{ whiteSpace: 'nowrap', padding: '6px 16px', color: typeof cellValue === 'number' && cellValue < 0 ? 'red' : undefined }}>{renderCell(cellValue, cellType)}</TableCell>
+                                                return <TableCell key={col.field} align="right" sx={{ whiteSpace: 'nowrap', padding: '6px 16px', color: typeof cellValue === 'number' && cellValue < 0 ? 'red' : undefined }}>{renderCell(cellValue, cellType)}</TableCell>
                                             })}
                                         </TableRow>
                                     );

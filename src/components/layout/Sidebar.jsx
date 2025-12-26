@@ -10,8 +10,9 @@ import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 
 // --- CÁC HOOK VÀ CẤU HÌNH ---
 import { useAuth } from "../../contexts/AuthContext";
-import { db } from "../../services/firebase-config";
+import { db, auth } from "../../services/firebase-config";
 import { doc, getDoc } from "firebase/firestore";
+import { signOut } from "firebase/auth";
 
 // --- CÁC ICON ---
 import {
@@ -23,7 +24,9 @@ import {
     History,
     Tune,
     Person,
+    Logout, // [NEW] Icon Logout
 } from "@mui/icons-material";
+import { Menu, MenuItem } from "@mui/material"; // Ensure Menu/MenuItem are imported
 
 // --- STYLED COMPONENTS ---
 const openedMixin = (theme, width) => ({
@@ -184,6 +187,11 @@ function SidebarNavItem({ item, isOpen, persistKey, level = 0 }) {
         localStorage.setItem(storageKey, JSON.stringify(isSubMenuOpen));
     }, [isSubMenuOpen, storageKey]);
 
+    // [FIX] Moved useState to top level to avoid React Hooks violation
+    const [anchorEl, setAnchorEl] = React.useState(null);
+    const handleMenuOpen = (event) => setAnchorEl(event.currentTarget);
+    const handleMenuClose = () => setAnchorEl(null);
+
     const isChild = level > 0;
     const paddingLeft = isChild ? (isOpen ? 4 + level * 2 : 2) : (isOpen ? 2.5 : 2);
 
@@ -226,15 +234,80 @@ function SidebarNavItem({ item, isOpen, persistKey, level = 0 }) {
         color: theme.palette.primary.main,
         fontWeight: 600,
         backgroundColor: (t) => alpha(t.palette.primary.main, isChild ? 0.1 : 0.12),
+        // [NEW] Glow Effect
+        boxShadow: (t) => `0 0 0 1px ${alpha(t.palette.primary.main, 0.1)}`,
         "&::before": {
             height: isChild ? "70%" : "60%",
+            boxShadow: (t) => `0 0 6px ${t.palette.primary.main}`, // Glow bar
         },
         "& .MuiListItemIcon-root": {
             color: theme.palette.primary.main,
+            filter: "drop-shadow(0 0 2px currentColor)", // Glow icon
         },
     };
 
     if (hasChildren) {
+        // [NEW] Handle Collapsed Mode: Popover Menu
+        if (!isOpen) {
+            return (
+                <>
+                    <Tooltip title={!isOpen ? title : ""} placement="right" arrow>
+                        <ListItemButton
+                            onClick={handleMenuOpen}
+                            sx={{ ...itemStyle, ...(isActive && activeStyle) }}
+                        >
+                            <ListItemIcon sx={{ color: "inherit" }}>{icon}</ListItemIcon>
+                        </ListItemButton>
+                    </Tooltip>
+                    <Menu
+                        anchorEl={anchorEl}
+                        open={Boolean(anchorEl)}
+                        onClose={handleMenuClose}
+                        anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
+                        transformOrigin={{ vertical: 'center', horizontal: 'left' }}
+                        PaperProps={{
+                            sx: {
+                                ml: 1,
+                                borderRadius: 3,
+                                boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.5)' : '0 10px 40px -10px rgba(0,0,0,0.2)',
+                                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                                minWidth: 200
+                            }
+                        }}
+                    >
+                        <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                            <Typography variant="subtitle2" color="primary.main" fontWeight={700}>
+                                {title}
+                            </Typography>
+                        </Box>
+                        {children.map(child => (
+                            <MenuItem
+                                key={child.title}
+                                component={RouterLink}
+                                to={child.path}
+                                onClick={handleMenuClose}
+                                selected={location.pathname === child.path || location.pathname.startsWith(child.path)}
+                                sx={{
+                                    my: 0.5,
+                                    mx: 1,
+                                    borderRadius: 1,
+                                    '&.Mui-selected': {
+                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                        color: theme.palette.primary.main,
+                                        fontWeight: 600
+                                    }
+                                }}
+                            >
+                                <ListItemIcon sx={{ minWidth: 28, color: 'inherit' }}>{child.icon}</ListItemIcon>
+                                <ListItemText primary={child.title} primaryTypographyProps={{ fontSize: '0.875rem' }} />
+                            </MenuItem>
+                        ))}
+                    </Menu>
+                </>
+            )
+        }
+
+        /* [OLD] Expanded Mode Logic */
         const parentActive = children.some((c) => location.pathname.startsWith(c.path));
         const collapseId = `submenu-${title.replace(/\s+/g, "-").toLowerCase()}`;
 
@@ -569,6 +642,26 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
                                                 )}
                                             </Stack>
                                         </Box>
+                                    )}
+                                    {isOpen && (
+                                        <Tooltip title="Đăng xuất">
+                                            <Box
+                                                component="button"
+                                                onClick={() => signOut(auth)}
+                                                sx={{
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    color: 'text.secondary',
+                                                    p: 0.5,
+                                                    borderRadius: 1,
+                                                    display: 'flex',
+                                                    '&:hover': { color: 'error.main', bgcolor: alpha(theme.palette.error.main, 0.1) }
+                                                }}
+                                            >
+                                                <Logout fontSize="small" />
+                                            </Box>
+                                        </Tooltip>
                                     )}
                                 </Stack>
                             </Box>

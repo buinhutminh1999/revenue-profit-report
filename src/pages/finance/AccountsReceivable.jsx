@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast'; // Toaster is in App.jsx
 import {
     Box, Typography, Paper, FormControl, InputLabel, Select, MenuItem, Stack, Grid, Skeleton,
     Chip, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
@@ -616,7 +616,7 @@ export default function AccountsReceivable() {
                 }}
             />
 
-            <Toaster position="bottom-right" toastOptions={{ duration: 4000 }} />
+            {/* Toaster is rendered at App level */}
 
             <motion.div
                 initial={{ opacity: 0, y: 20 }}

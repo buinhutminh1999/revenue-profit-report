@@ -17,10 +17,12 @@ import {
   TableHead,
   TableRow,
   Paper,
+  useTheme,
 } from "@mui/material";
 
 function AllocationDetails() {
   const navigate = useNavigate();
+  const theme = useTheme();
   const [searchParams] = useSearchParams();
   // Lấy năm và quý từ query params (hoặc mặc định)
   const year = searchParams.get("year") || String(new Date().getFullYear());
@@ -113,7 +115,7 @@ function AllocationDetails() {
               </Typography>
               <Table>
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: "#f1f1f1" }}>
+                  <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
                     <TableCell style={{ fontWeight: "bold" }}>Khoản Mục</TableCell>
                     <TableCell style={{ fontWeight: "bold" }}>T1</TableCell>
                     <TableCell style={{ fontWeight: "bold" }}>T2</TableCell>

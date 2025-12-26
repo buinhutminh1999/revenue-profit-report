@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { Box, Snackbar, Alert } from "@mui/material";
+import { Box } from "@mui/material";
+import toast from "react-hot-toast"; // [NEW]
 
 import { readExcelFile } from "../../utils/excelUtils";
 import {
@@ -306,8 +307,8 @@ export default function ActualCostsTab({ projectId }) {
 
     const [search, setSearch] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
-    const [snackOpen, setSnackOpen] = useState(false);
-    const [error, setError] = useState(null);
+    // const [snackOpen, setSnackOpen] = useState(false); // [REMOVED]
+    // const [error, setError] = useState(null); // [REMOVED] - Use hookError and toast directly
     const [editingCell, setEditingCell] = useState({ id: null, colKey: null });
     const [overallRevenueEditing, setOverallRevenueEditing] = useState(false);
     const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
@@ -315,10 +316,10 @@ export default function ActualCostsTab({ projectId }) {
     const [isProcessing, setIsProcessing] = useState(false);
     const setLoading = setIsProcessing;
 
-    const setIsProjectFinalized = (val) => { console.log("State is managed by hook/DB", val); };
+    const setIsProjectFinalized = (val) => { /* State is managed by hook/DB */ };
 
     useEffect(() => {
-        if (hookError) setError(hookError);
+        if (hookError) toast.error(hookError); // [UPDATED]
     }, [hookError]);
     // V State mới để quản lý dialog xác nhận (ĐÃ CÓ)
     const [confirmState, setConfirmState] = useState({
@@ -740,9 +741,9 @@ export default function ActualCostsTab({ projectId }) {
                 },
                 { merge: true }
             );
-            setSnackOpen(true);
+            toast.success("Đã hủy quyết toán thành công!"); // [UPDATED]
         } catch (err) {
-            setError("Lỗi khi hủy quyết toán: " + err.message);
+            toast.error("Lỗi khi hủy quyết toán: " + err.message); // [UPDATED]
         } finally {
             setLoading(false);
         }
@@ -765,12 +766,12 @@ export default function ActualCostsTab({ projectId }) {
 
     const handleSave = async () => {
         if (!validateData(costItems)) {
-            setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
+            toast.error("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!"); // [UPDATED]
             return;
         }
         const success = await saveItems(costItems, overallRevenue);
         if (success) {
-            setSnackOpen(true);
+            toast.success("Lưu dữ liệu thành công!"); // [UPDATED]
         }
     };
 
@@ -783,7 +784,7 @@ export default function ActualCostsTab({ projectId }) {
         successMessage
     ) => {
         if (!validateData(itemsToSave)) {
-            setError("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!");
+            toast.error("Vui lòng kiểm tra lại số liệu, có giá trị không hợp lệ!"); // [UPDATED]
             return;
         }
         setLoading(true);
@@ -794,17 +795,10 @@ export default function ActualCostsTab({ projectId }) {
             const nextQuarter = isLastQuarter ? "Q1" : quarters[currIndex + 1];
             const nextYear = isLastQuarter ? String(Number(year) + 1) : year;
 
-            // Kiểm tra xem có phải quyết toán không (có items với isFinalized = true)
+            // Kiểm tra xem có phải quyết toán không
             const isFinalizedQuarter = itemsToSave.some(item =>
                 item && (item.isFinalized === true || item.isFinalized === "true")
             );
-
-            console.log(`💾 Saving quarter ${year}/${quarter} - isFinalizedQuarter:`, isFinalizedQuarter, 'items count:', itemsToSave.length);
-            console.log(`📋 Sample items isFinalized:`, itemsToSave.slice(0, 3).map(i => ({
-                project: i.project,
-                description: i.description,
-                isFinalized: i.isFinalized
-            })));
 
             const docData = {
                 items: itemsToSave,
@@ -816,24 +810,13 @@ export default function ActualCostsTab({ projectId }) {
             if (isFinalizedQuarter) {
                 docData.isFinalized = true;
                 docData.finalizedAt = new Date().toISOString();
-                console.log(`✅ Đang lưu quyết toán cho ${year}/${quarter} với isFinalized = true`);
-            } else {
-                console.log(`⚠️ WARNING: isFinalizedQuarter = false, không lưu isFinalized vào document!`);
             }
-
-            console.log(`📤 Saving docData:`, {
-                itemsCount: docData.items.length,
-                isFinalized: docData.isFinalized,
-                overallRevenue: docData.overallRevenue
-            });
 
             await setDoc(
                 doc(db, "projects", id, "years", year, "quarters", quarter),
                 docData,
                 { merge: false }
             );
-
-            console.log(`✅ Document saved successfully with isFinalized = ${docData.isFinalized}`);
 
             const nextQuarterDocRef = doc(
                 db,
@@ -940,7 +923,6 @@ export default function ActualCostsTab({ projectId }) {
 
     // Phần 2: Logic thực thi (đổi tên từ handleFinalizeProject -> executeFinalizeProject)
     const executeFinalizeProject = useCallback(async () => {
-        console.log('🎬 executeFinalizeProject STARTED');
         // --- BƯỚC 1: TÍNH TOÁN "GIÁ TRỊ GỐC" ĐỂ LƯU SANG QUÝ SAU ---
         const baseValueMap = new Map();
         costItems.forEach((row) => {
@@ -1019,16 +1001,13 @@ export default function ActualCostsTab({ projectId }) {
         // Đặt flag để tránh onSnapshot override state
         setIsFinalizing(true);
         // Cập nhật state ngay để ẩn nút quyết toán
-        console.log('🔒 Setting isProjectFinalized to true');
         setIsProjectFinalized(true);
         try {
             await performSaveAndCarryOver(
                 finalizedItems,
-                baseValueMap, // Truyền map giá trị gốc sang
+                baseValueMap,
                 `Đã quyết toán và chuyển dữ liệu sang quý tiếp theo thành công!`
             );
-            // Đảm bảo state được cập nhật sau khi lưu thành công
-            console.log('✅ Finalize completed, ensuring isProjectFinalized = true');
             setIsProjectFinalized(true);
             // Đợi một chút để Firestore sync, sau đó cho phép onSnapshot cập nhật lại
             setTimeout(() => {
@@ -1045,18 +1024,16 @@ export default function ActualCostsTab({ projectId }) {
 
     // Phần 1: Hàm mở Dialog
     const handleOpenFinalizeDialog = () => {
-        console.log('🚀 handleOpenFinalizeDialog called');
         setConfirmState({
             open: true,
             title: "Xác nhận Quyết toán",
             content:
                 "BẠN CÓ CHẮC MUỐN QUYẾT TOÁN? Hành động này sẽ chốt số liệu quý này và tự động chuyển các số dư sang quý tiếp theo.",
             onConfirm: () => {
-                console.log('✅ Confirm dialog - calling executeFinalizeProject');
                 executeFinalizeProject();
             },
             confirmText: "Quyết toán",
-            confirmColor: "error", // Dùng màu đỏ cho hành động nguy hiểm
+            confirmColor: "error",
         });
     };
 
@@ -1070,6 +1047,43 @@ export default function ActualCostsTab({ projectId }) {
                 ...prev,
                 { ...defaultRow, id: generateUniqueId() },
             ]),
+        []
+    );
+
+    // [NEW] Memoized callbacks for ActionBar to prevent unnecessary re-renders
+    const handleFileUploadCallback = useCallback(
+        (e, mode) =>
+            handleFileUpload(
+                e,
+                costItems,
+                setCostItems,
+                setLoading,
+                overallRevenue,
+                projectTotalAmount,
+                mode
+            ),
+        [costItems, overallRevenue, projectTotalAmount]
+    );
+
+    const handleExportCallback = useCallback(
+        () =>
+            exportToExcel(
+                costItems,
+                displayedColumns,
+                projectData,
+                year,
+                quarter
+            ),
+        [costItems, displayedColumns, projectData, year, quarter]
+    );
+
+    const handleBackCallback = useCallback(
+        () => navigate("/construction-plan"),
+        [navigate]
+    );
+
+    const handleShowFormulasCallback = useCallback(
+        () => setFormulaDialogOpen(true),
         []
     );
 
@@ -1087,18 +1101,8 @@ export default function ActualCostsTab({ projectId }) {
     }, [sortedCostItems, debouncedSearch]);
 
     const groupedData = useMemo(() => groupByProject(filtered), [filtered]);
-    // Dòng code để debug
-    // --- BẮT ĐẦU ĐOẠN CODE GỠ LỖI ---
-    const itemsWithoutId = sortedCostItems.filter((item) => !item.id);
-    if (itemsWithoutId.length > 0) {
-        console.error(
-            "!!! LỖI DỮ LIỆU: CÁC DÒNG SAU ĐANG BỊ THIẾU ID:",
-            itemsWithoutId
-        );
-    } else {
-        console.log("OK: Tất cả các dòng trong 'sortedCostItems' đều có ID.");
-    }
-    // --- KẾT THÚC ĐOẠN CODE GỠ LỖI ---
+
+    // [REMOVED] Debug console.log was causing performance issues in render loop
     return (
         <Box
             sx={{
@@ -1120,40 +1124,18 @@ export default function ActualCostsTab({ projectId }) {
             >
                 <ActionBar
                     onAddRow={handleAddRow}
-                    onFileUpload={(e, mode) =>
-                        handleFileUpload(
-                            e,
-                            costItems,
-                            setCostItems,
-                            setLoading,
-                            overallRevenue,
-                            projectTotalAmount,
-                            mode
-                        )
-                    }
-                    onExport={() =>
-                        exportToExcel(
-                            costItems,
-                            displayedColumns,
-                            projectData,
-                            year,
-                            quarter
-                        )
-                    }
+                    onFileUpload={handleFileUploadCallback}
+                    onExport={handleExportCallback}
                     onSave={handleSave}
                     onSaveNextQuarter={handleSaveNextQuarter}
-
-                    // === THAY ĐỔI 3 DÒNG NÀY ===
                     onUndoFinalize={handleOpenUndoDialog}
                     onFinalizeProject={handleOpenFinalizeDialog}
                     onResetAllRevenue={handleOpenResetRevenueDialog}
-                    // === KẾT THÚC THAY ĐỔI ===
-
                     onToggleColumns={handleOpenColumnsDialog}
-                    onBack={() => navigate("/construction-plan")}
+                    onBack={handleBackCallback}
                     costItems={costItems}
                     sx={{ mb: 0, px: 3, py: 2 }}
-                    onShowFormulas={() => setFormulaDialogOpen(true)}
+                    onShowFormulas={handleShowFormulasCallback}
                     isProjectFinalized={isProjectFinalized}
                 />
             </Box>
@@ -1274,91 +1256,14 @@ export default function ActualCostsTab({ projectId }) {
                 onClose={handleCloseColumnsDialog}
                 onToggleColumn={handleToggleColumn}
             />
-            {/* Modern Snackbar with Smooth Animation */}
-            <Snackbar
-                open={snackOpen}
-                autoHideDuration={4000}
-                onClose={() => setSnackOpen(false)}
-                anchorOrigin={{ vertical: "top", horizontal: "center" }}
-                sx={{
-                    top: "80px !important",
-                }}
-            >
-                <Alert
-                    severity="success"
-                    onClose={() => setSnackOpen(false)}
-                    sx={{
-                        borderRadius: 3,
-                        boxShadow: "0 8px 32px rgba(76, 175, 80, 0.25)",
-                        backdropFilter: "blur(12px)",
-                        backgroundColor: "rgba(255, 255, 255, 0.98)",
-                        border: "1px solid rgba(76, 175, 80, 0.2)",
-                        "& .MuiAlert-icon": {
-                            fontSize: 28,
-                        },
-                        animation: "slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                        "@keyframes slideDown": {
-                            from: {
-                                transform: "translateY(-100%)",
-                                opacity: 0,
-                            },
-                            to: {
-                                transform: "translateY(0)",
-                                opacity: 1,
-                            },
-                        },
-                    }}
-                >
-                    <Box sx={{ fontWeight: 600, fontSize: "0.95rem" }}>
-                        ✅ Lưu dữ liệu thành công!
-                    </Box>
-                </Alert>
-            </Snackbar>
-            <Snackbar
-                open={Boolean(error)}
-                autoHideDuration={5000}
-                onClose={() => setError(null)}
-                anchorOrigin={{ vertical: "top", horizontal: "center" }}
-                sx={{
-                    top: "80px !important",
-                }}
-            >
-                <Alert
-                    severity="error"
-                    onClose={() => setError(null)}
-                    sx={{
-                        borderRadius: 3,
-                        boxShadow: "0 8px 32px rgba(211, 47, 47, 0.25)",
-                        backdropFilter: "blur(12px)",
-                        backgroundColor: "rgba(255, 255, 255, 0.98)",
-                        border: "1px solid rgba(211, 47, 47, 0.2)",
-                        "& .MuiAlert-icon": {
-                            fontSize: 28,
-                        },
-                        animation: "slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                        "@keyframes slideDown": {
-                            from: {
-                                transform: "translateY(-100%)",
-                                opacity: 0,
-                            },
-                            to: {
-                                transform: "translateY(0)",
-                                opacity: 1,
-                            },
-                        },
-                    }}
-                >
-                    <Box sx={{ fontWeight: 600, fontSize: "0.95rem" }}>
-                        ❌ {error}
-                    </Box>
-                </Alert>
-            </Snackbar>
+
+            {/* Snackbar removed - using react-hot-toast instead */}
+
             <FormulaGuide
                 open={formulaDialogOpen}
                 onClose={() => setFormulaDialogOpen(false)}
             />
 
-            {/* === THÊM COMPONENT NÀY VÀO CUỐI === */}
             <ConfirmDialog
                 open={confirmState.open}
                 onClose={handleCloseConfirm}
