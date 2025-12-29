@@ -546,7 +546,8 @@ export default function ActualCostsTab({ projectId }) {
                 if (field === "noPhaiTraCK") {
                     newVal = String(val);
                 } else {
-                    newVal = parseNumber(val.trim() === "" ? "0" : val);
+                    const strVal = String(val ?? "");
+                    newVal = parseNumber(strVal.trim() === "" ? "0" : strVal);
                 }
 
                 // Chỉ update giá trị, tính toán sẽ được thực hiện khi blur hoặc debounce
