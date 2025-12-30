@@ -1,4 +1,3 @@
-// src/components/admin/AttendanceTable.jsx
 import React, { useState, useEffect, useCallback, forwardRef } from "react";
 import {
   Table,
@@ -13,51 +12,63 @@ import {
   useTheme,
   useMediaQuery,
   Box,
+  tooltipClasses,
+  Tooltip,
+  Chip,
+  alpha
 } from "@mui/material";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
 import toast from "react-hot-toast";
 import { isTimeString, isLate, isEarly } from "../../utils/timeUtils";
+import { Edit, AccessTime, Warning, CheckCircle } from "@mui/icons-material";
 
 const LATE_COLLECTION = "lateReasons";
 const WEEKDAY = ["Chủ Nhật", "Hai", "Ba", "Tư", "Năm", "Sáu", "Bảy"];
 const parseDate = (s) => { const [dd, mm, yyyy] = s.split("/").map(Number); return new Date(yyyy, mm - 1, dd); };
 const toMinutes = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 
-// --- THAY ĐỔI 1: Định nghĩa các mốc thời gian ---
-// Chúng ta định nghĩa các mốc thời gian (tính bằng phút) cho từng công ty
 const TIME_THRESHOLDS = {
-  // Logic của Xây Dựng Bách Khoa (Mặc định)
-  BKXD: {
-    S1_LATE: 7 * 60 + 15,  // 07:15
-    S2_EARLY: 11 * 60 + 15, // 11:15
-    C1_LATE: 13 * 60,       // 13:00
-    C2_EARLY: 17 * 60,      // 17:00
-  },
-  // Logic của Bách Khoa Châu Thành (Mới)
-  BKCT: {
-    S1_LATE: 7 * 60,        // 07:00
-    S2_EARLY: 11 * 60,      // 11:00
-    C1_LATE: 13 * 60,       // 13:00 (Như cũ)
-    C2_EARLY: 17 * 60,      // 17:00 (Như cũ)
-  }
+  BKXD: { S1_LATE: 7 * 60 + 15, S2_EARLY: 11 * 60 + 15, C1_LATE: 13 * 60, C2_EARLY: 17 * 60 },
+  BKCT: { S1_LATE: 7 * 60, S2_EARLY: 11 * 60, C1_LATE: 13 * 60, C2_EARLY: 17 * 60 }
 };
 
-// --- THAY ĐỔI 2: Cập nhật hàm AttendanceRow ---
+const StatusChip = ({ label, isError, type }) => {
+  if (!label || label === "❌" || label === "—") {
+    return <Box sx={{ color: 'text.disabled', fontStyle: 'italic' }}>{label || "—"}</Box>;
+  }
+
+  if (isError) {
+    return (
+      <Chip
+        label={label}
+        size="small"
+        icon={<Warning sx={{ fontSize: '14px !important' }} />}
+        sx={{
+          bgcolor: '#fef2f2',
+          color: '#ef4444',
+          fontWeight: 600,
+          border: '1px solid #fee2e2',
+          '& .MuiChip-icon': { color: '#ef4444' }
+        }}
+      />
+    );
+  }
+
+  return (
+    <Box sx={{ fontWeight: 500, color: 'text.primary' }}>{label}</Box>
+  );
+};
+
 function AttendanceRow({ idx, row, includeSaturday, reason, editing, onStartEdit, onSave, company }) {
+  const theme = useTheme();
   const dateObj = parseDate(row.Ngày);
   const weekday = WEEKDAY[dateObj.getDay()];
   const isSaturday = dateObj.getDay() === 6;
-
-  // --- LOGIC MỚI: Từ 18/11/2025, Thứ 7 làm cả ngày (cho cả 2 công ty) ---
-  const effectiveDateSat = new Date(2025, 10, 18); // 18/11/2025
+  const effectiveDateSat = new Date(2025, 10, 18);
   const isNewRegulationSat = dateObj >= effectiveDateSat;
-
-  // Nếu là quy định mới thì luôn hiện chiều T7 (hideSat = false).
-  // Ngược lại thì phụ thuộc vào checkbox includeSaturday.
   const hideSat = isSaturday && !includeSaturday && !isNewRegulationSat;
 
-  const allTimes = [row.S1, row.S2, row.C1, row.C2].filter(isTimeString).sort((a, b) => toMinutes(a) - toMinutes(b));
   const S2calc = row.S2 || "❌";
   let C1calc, C2calc;
   if (hideSat) {
@@ -67,34 +78,30 @@ function AttendanceRow({ idx, row, includeSaturday, reason, editing, onStartEdit
     C2calc = row.C2 || "❌";
   }
 
-  // Lấy bộ logic thời gian dựa trên prop 'company', nếu không có thì mặc định là 'BKXD'
   let logic = TIME_THRESHOLDS[company] || TIME_THRESHOLDS.BKXD;
-
-  // --- LOGIC ĐẶC BIỆT CHO BKXD TỪ NGÀY 18/11/2025 ---
-  // Từ ngày này trở đi, chiều làm việc từ 13:15 đến 17:15
   if (company === 'BKXD') {
-    const effectiveDate = new Date(2025, 10, 18); // Tháng 10 là tháng 11 (0-indexed)
+    const effectiveDate = new Date(2025, 10, 18);
     if (dateObj >= effectiveDate) {
-      logic = {
-        ...logic,
-        C1_LATE: 13 * 60 + 15, // 13:15
-        C2_EARLY: 17 * 60 + 15 // 17:15
-      };
+      logic = { ...logic, C1_LATE: 13 * 60 + 15, C2_EARLY: 17 * 60 + 15 };
     }
   }
 
   const renderReasonCell = (field) => {
-    if (field === "afternoon" && hideSat) return <TableCell sx={{ backgroundColor: "#f9f9f9" }}>—</TableCell>;
+    if (field === "afternoon" && hideSat) return <TableCell sx={{ bgcolor: "#f9fafb" }}>—</TableCell>;
     const isActive = editing?.rowId === row.id && editing.field === field;
+    const currentReason = field === "afternoon" ? reason.afternoon : reason.morning;
+    const hasReason = !!currentReason;
+
     return (
       <TableCell
+        onClick={() => !isActive && onStartEdit(row.id, field, currentReason || "")}
         sx={{
           cursor: "pointer",
-          backgroundColor: isActive ? "#e3f2fd" : "inherit",
-          transition: "background-color 0.2s",
-          "&:hover": { backgroundColor: isActive ? "#e3f2fd" : "#f5f5f5" }
+          transition: "all 0.2s",
+          position: 'relative',
+          '&:hover .edit-icon': { opacity: 1, transform: 'scale(1)' },
+          bgcolor: isActive ? alpha(theme.palette.primary.main, 0.05) : 'inherit'
         }}
-        onDoubleClick={() => onStartEdit(row.id, field, reason[field] || "")}
       >
         {isActive ? (
           <TextField
@@ -102,53 +109,74 @@ function AttendanceRow({ idx, row, includeSaturday, reason, editing, onStartEdit
             autoFocus
             fullWidth
             variant="standard"
-            defaultValue={editing.value}
+            value={editing.value}
+            onChange={(e) => onStartEdit(row.id, field, e.target.value)} // Update local state if needed, but here we just pass value
             onBlur={(e) => onSave(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
             sx={{ "& .MuiInputBase-input": { fontSize: "0.875rem" } }}
           />
         ) : (
-          <Box component="span" sx={{ color: "text.secondary", fontStyle: (field === "afternoon" ? (hideSat ? "—" : reason.afternoon) : reason.morning) ? "normal" : "italic", fontSize: "0.875rem" }}>
-            {field === "afternoon" ? (hideSat ? "—" : reason.afternoon || "Nhập lý do...") : reason.morning || "Nhập lý do..."}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, minHeight: 24 }}>
+            <Box component="span" sx={{
+              color: hasReason ? "text.primary" : "text.secondary",
+              fontStyle: hasReason ? "normal" : "italic",
+              fontSize: "0.875rem",
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: 150
+            }}>
+              {currentReason || "Nhập lý do..."}
+            </Box>
+            <Edit className="edit-icon" sx={{
+              fontSize: 14,
+              color: 'primary.main',
+              opacity: 0,
+              transition: 'all 0.2s',
+              transform: 'scale(0.8)'
+            }} />
           </Box>
         )}
       </TableCell>
     );
   };
 
-  const cellSx = (timeStr, checkFn, threshold) => {
-    const isError = isTimeString(timeStr) && checkFn(timeStr, threshold);
-    return {
-      backgroundColor: isError ? "#ffebee" : "inherit", // Red 50
-      color: isError ? "#c62828" : "inherit", // Red 800
-      fontWeight: isError ? "600" : "normal",
-      transition: "all 0.2s"
-    };
-  };
+  const checkTime = (timeStr, checkFn, threshold) => isTimeString(timeStr) && checkFn(timeStr, threshold);
 
   return (
-    <TableRow hover sx={{ "&:hover": { backgroundColor: "#fcfcfc !important" } }}>
-      <TableCell sx={{ color: "text.secondary" }}>{idx + 1}</TableCell>
-      <TableCell sx={{ fontWeight: 500 }}>{row["Tên nhân viên"]}</TableCell>
-      <TableCell sx={{ color: "text.secondary" }}>{row["Tên bộ phận"]}</TableCell>
-      <TableCell>{row.Ngày}</TableCell>
-      <TableCell sx={{ color: weekday === "Chủ Nhật" ? "error.main" : "text.primary" }}>{weekday}</TableCell>
+    <TableRow hover sx={{ "&:hover": { bgcolor: "#f8fafc !important" }, transition: 'background-color 0.2s' }}>
+      <TableCell sx={{ color: "text.secondary", fontWeight: 500 }}>{idx + 1}</TableCell>
+      <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>{row["Tên nhân viên"]}</TableCell>
+      <TableCell sx={{ color: "text.secondary" }}>
+        <Chip label={row["Tên bộ phận"]} size="small" sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1), color: theme.palette.secondary.main, fontWeight: 500, borderRadius: 1 }} />
+      </TableCell>
+      <TableCell sx={{ fontWeight: 500 }}>{row.Ngày}</TableCell>
+      <TableCell>
+        <Box sx={{
+          color: weekday === "Chủ Nhật" ? "error.main" : "text.primary",
+          fontWeight: weekday === "Chủ Nhật" ? 700 : 400,
+          display: 'inline-block'
+        }}>
+          {weekday}
+        </Box>
+      </TableCell>
 
-      <TableCell sx={cellSx(row.S1, isLate, logic.S1_LATE)}>{row.S1 || "❌"}</TableCell>
-      <TableCell sx={cellSx(S2calc, isEarly, logic.S2_EARLY)}>{S2calc}</TableCell>
+      <TableCell><StatusChip label={row.S1} isError={checkTime(row.S1, isLate, logic.S1_LATE)} /></TableCell>
+      <TableCell><StatusChip label={S2calc} isError={checkTime(S2calc, isEarly, logic.S2_EARLY)} /></TableCell>
       {renderReasonCell("morning")}
 
-      <TableCell sx={hideSat ? { backgroundColor: "#f9f9f9", color: "#bdbdbd" } : cellSx(C1calc, isLate, logic.C1_LATE)}>{C1calc}</TableCell>
-      <TableCell sx={hideSat ? { backgroundColor: "#f9f9f9", color: "#bdbdbd" } : cellSx(C2calc, isEarly, logic.C2_EARLY)}>{C2calc}</TableCell>
+      <TableCell sx={hideSat ? { bgcolor: "#f9fafb" } : {}}>
+        {hideSat ? "—" : <StatusChip label={C1calc} isError={checkTime(C1calc, isLate, logic.C1_LATE)} />}
+      </TableCell>
+      <TableCell sx={hideSat ? { bgcolor: "#f9fafb" } : {}}>
+        {hideSat ? "—" : <StatusChip label={C2calc} isError={checkTime(C2calc, isEarly, logic.C2_EARLY)} />}
+      </TableCell>
       {renderReasonCell("afternoon")}
     </TableRow>
   );
 }
 
-export default forwardRef(function AttendanceTable(
-  { rows = [], includeSaturday = false, onReasonSave, isMobile, company = "BKXD" },
-  ref
-) {
+export default forwardRef(function AttendanceTable({ rows = [], includeSaturday = false, onReasonSave, isMobile, company = "BKXD" }, ref) {
   const [reasons, setReasons] = useState({});
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState({ rowId: null, field: null, value: "" });
@@ -168,41 +196,37 @@ export default forwardRef(function AttendanceTable(
     })();
   }, [rows]);
 
-  const saveReason = useCallback(
-    async (newVal) => {
-      const { rowId, field } = editing;
-      if (!rowId || !field) return;
-      setReasons((prev) => ({
-        ...prev,
-        [rowId]: { ...prev[rowId], [field]: newVal },
-      }));
-      onReasonSave?.(rowId, field, newVal);
-      setEditing({ rowId: null, field: null, value: "" });
-      try {
-        await setDoc(doc(db, LATE_COLLECTION, rowId), { [field]: newVal }, { merge: true });
-        toast.success("Lưu lý do thành công");
-      } catch {
-        toast.error("Lỗi khi lưu lý do");
-      }
-    },
-    [editing, onReasonSave]
-  );
+  const saveReason = useCallback(async (newVal) => {
+    const { rowId, field } = editing;
+    if (!rowId || !field) return;
+    setReasons((prev) => ({ ...prev, [rowId]: { ...prev[rowId], [field]: newVal } }));
+    onReasonSave?.(rowId, field, newVal);
+    setEditing({ rowId: null, field: null, value: "" });
+    try {
+      await setDoc(doc(db, LATE_COLLECTION, rowId), { [field]: newVal }, { merge: true });
+      toast.success("Đã lưu lý do");
+    } catch {
+      toast.error("Lỗi khi lưu lý do");
+    }
+  }, [editing, onReasonSave]);
 
-  if (loading) {
-    return (
-      <Box sx={{ textAlign: "center", my: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  if (loading) return <Box sx={{ textAlign: "center", my: 4 }}><CircularProgress /></Box>;
 
   return (
-    <TableContainer component={Paper} sx={{ overflowX: "auto", maxHeight: "70vh", boxShadow: "none" }}>
-      <Table stickyHeader size={isMobile ? "small" : "medium"} sx={{ "& td, & th": { py: 1.5, px: 2, whiteSpace: "nowrap" } }}>
+    <TableContainer component={Paper} elevation={0} sx={{ overflowX: "auto", maxHeight: "70vh", bgcolor: 'transparent' }}>
+      <Table stickyHeader size={isMobile ? "small" : "medium"} sx={{ "& td": { py: 1.5, px: 2, whiteSpace: "nowrap" } }}>
         <TableHead>
           <TableRow>
             {["STT", "Tên nhân viên", "Bộ phận", "Ngày", "Thứ", "S1", "S2", "Lý do trễ (Sáng)", "C1", "C2", "Lý do trễ (Chiều)"].map((head) => (
-              <TableCell key={head} sx={{ backgroundColor: "#f4f6f8", fontWeight: "bold", color: "#455a64", borderBottom: "2px solid #e0e0e0" }}>
+              <TableCell key={head} sx={{
+                bgcolor: "#f1f5f9",
+                fontWeight: "700",
+                color: "#475569",
+                borderBottom: "2px solid #e2e8f0",
+                textTransform: 'uppercase',
+                fontSize: '0.75rem',
+                letterSpacing: '0.05em'
+              }}>
                 {head}
               </TableCell>
             ))}

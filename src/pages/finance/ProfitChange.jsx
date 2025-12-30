@@ -324,8 +324,7 @@ export default function ProfitChange() {
                         {isEditMode ? (
                           <TextField
                             variant="standard"
-                            type="number"
-                            value={r[field] || ""}
+                            value={formatNumber(r[field] || 0)}
                             onChange={(e) => handleRowChange(r.id, field, e.target.value)}
                             inputProps={{ style: { textAlign: "right" } }}
                           />

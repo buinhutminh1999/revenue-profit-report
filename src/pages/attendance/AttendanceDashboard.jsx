@@ -32,8 +32,8 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { vi } from 'date-fns/locale';
 
 import { startOfDay, endOfDay } from "date-fns";
-import { 
-    Print, Search, Clear, CloudUpload, 
+import {
+    Print, Search, Clear, CloudUpload,
     AccessTime, People, TrendingUp, CalendarToday,
     FilterList, Refresh
 } from "@mui/icons-material";
@@ -326,7 +326,7 @@ export default function AttendanceDashboard() {
     };
 
     if (isLoading) return (
-        <Box sx={{ 
+        <Box sx={{
             minHeight: '100vh',
             bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default,
             display: 'flex',
@@ -341,45 +341,40 @@ export default function AttendanceDashboard() {
     );
 
     return (
-        <Box sx={{ 
+        <Box sx={{
             minHeight: '100vh',
             bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default,
             pb: 4
         }}>
-            {/* Header với Gradient */}
+            {/* Header với Gradient & Glassmorphism */}
             <Box
                 sx={{
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
                     color: 'white',
-                    py: 4,
+                    py: { xs: 4, md: 5 },
                     mb: 4,
                     position: 'relative',
                     overflow: 'hidden',
-                    '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        top: -50,
-                        right: -50,
-                        width: 200,
-                        height: 200,
-                        borderRadius: '50%',
-                        background: alpha('#fff', 0.1),
-                    }
+                    boxShadow: '0 4px 20px 0 rgba(0,0,0,0.1)',
                 }}
             >
+                {/* Decorative Circles */}
+                <Box sx={{ position: 'absolute', top: -50, right: -50, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)' }} />
+                <Box sx={{ position: 'absolute', bottom: -30, left: 100, width: 150, height: 150, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 70%)' }} />
+
                 <Box sx={{ maxWidth: 1600, mx: 'auto', px: { xs: 2, sm: 3, md: 4 }, position: 'relative', zIndex: 1 }}>
                     <motion.div
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
                     >
-                        <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" spacing={2}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'start', sm: 'center' }} justifyContent="space-between" spacing={2}>
                             <Box>
-                                <Typography variant="h4" component="h1" fontWeight={800} sx={{ color: 'white', mb: 0.5 }}>
+                                <Typography variant="h3" component="h1" fontWeight={800} sx={{ letterSpacing: '-0.02em', mb: 1, textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                                     Quản Lý Chấm Công
                                 </Typography>
-                                <Typography sx={{ color: alpha('#fff', 0.9), fontSize: '1.1rem' }}>
-                                    Hệ thống báo cáo & theo dõi nhân sự
+                                <Typography variant="subtitle1" sx={{ color: alpha('#fff', 0.85), fontWeight: 500, maxWidth: 600 }}>
+                                    Theo dõi hiệu suất nhân sự và báo cáo chấm công chi tiết
                                 </Typography>
                             </Box>
                             <Button
@@ -389,17 +384,19 @@ export default function AttendanceDashboard() {
                                 sx={{
                                     bgcolor: 'white',
                                     color: theme.palette.primary.main,
-                                    fontWeight: 600,
-                                    px: 3,
+                                    fontWeight: 700,
+                                    px: 4,
                                     py: 1.5,
-                                    borderRadius: 2,
-                                    boxShadow: theme.shadows[4],
+                                    borderRadius: 3,
+                                    boxShadow: '0 4px 14px 0 rgba(0,0,0,0.15)',
+                                    textTransform: 'none',
+                                    fontSize: '1rem',
                                     '&:hover': {
-                                        bgcolor: alpha('#fff', 0.9),
+                                        bgcolor: '#f8fafc',
                                         transform: 'translateY(-2px)',
-                                        boxShadow: theme.shadows[6],
+                                        boxShadow: '0 6px 20px 0 rgba(0,0,0,0.2)',
                                     },
-                                    transition: 'all 0.2s ease'
+                                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                                 }}
                             >
                                 In Bảng Chấm Công
@@ -410,128 +407,57 @@ export default function AttendanceDashboard() {
             </Box>
 
             <Box sx={{ maxWidth: 1600, mx: 'auto', px: { xs: 2, sm: 3, md: 4 } }}>
-                {/* Stats Cards */}
+                {/* Stats Cards - Modern Look */}
                 <Grid container spacing={3} sx={{ mb: 4 }}>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.1 }}
-                        >
-                            <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3], border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
-                                <CardContent>
-                                    <Stack direction="row" spacing={2} alignItems="center">
-                                        <Box sx={{
-                                            p: 1.5,
-                                            borderRadius: 2,
-                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                            color: theme.palette.primary.main
-                                        }}>
-                                            <People sx={{ fontSize: 28 }} />
-                                        </Box>
-                                        <Box>
-                                            <Typography variant="h4" fontWeight={800} color="primary">
-                                                {stats.totalEmployees}
-                                            </Typography>
-                                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                                                Nhân viên
-                                            </Typography>
-                                        </Box>
-                                    </Stack>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                        >
-                            <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3], border: `1px solid ${alpha('#10b981', 0.1)}` }}>
-                                <CardContent>
-                                    <Stack direction="row" spacing={2} alignItems="center">
-                                        <Box sx={{
-                                            p: 1.5,
-                                            borderRadius: 2,
-                                            bgcolor: alpha('#10b981', 0.1),
-                                            color: '#10b981'
-                                        }}>
-                                            <AccessTime sx={{ fontSize: 28 }} />
-                                        </Box>
-                                        <Box>
-                                            <Typography variant="h4" fontWeight={800} sx={{ color: '#10b981' }}>
-                                                {stats.totalRecords}
-                                            </Typography>
-                                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                                                Bản ghi
-                                            </Typography>
-                                        </Box>
-                                    </Stack>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                        >
-                            <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3], border: `1px solid ${alpha('#f97316', 0.1)}` }}>
-                                <CardContent>
-                                    <Stack direction="row" spacing={2} alignItems="center">
-                                        <Box sx={{
-                                            p: 1.5,
-                                            borderRadius: 2,
-                                            bgcolor: alpha('#f97316', 0.1),
-                                            color: '#f97316'
-                                        }}>
-                                            <CalendarToday sx={{ fontSize: 28 }} />
-                                        </Box>
-                                        <Box>
-                                            <Typography variant="h4" fontWeight={800} sx={{ color: '#f97316' }}>
-                                                {stats.uniqueDates}
-                                            </Typography>
-                                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                                                Ngày làm việc
-                                            </Typography>
-                                        </Box>
-                                    </Stack>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.4 }}
-                        >
-                            <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3], border: `1px solid ${alpha('#8b5cf6', 0.1)}` }}>
-                                <CardContent>
-                                    <Stack direction="row" spacing={2} alignItems="center">
-                                        <Box sx={{
-                                            p: 1.5,
-                                            borderRadius: 2,
-                                            bgcolor: alpha('#8b5cf6', 0.1),
-                                            color: '#8b5cf6'
-                                        }}>
-                                            <TrendingUp sx={{ fontSize: 28 }} />
-                                        </Box>
-                                        <Box>
-                                            <Typography variant="h4" fontWeight={800} sx={{ color: '#8b5cf6' }}>
-                                                {stats.departments}
-                                            </Typography>
-                                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                                                Bộ phận
-                                            </Typography>
-                                        </Box>
-                                    </Stack>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-                    </Grid>
+                    {[
+                        { icon: People, label: "Tổng Nhân Sự", value: stats.totalEmployees, color: theme.palette.primary.main, delay: 0.1 },
+                        { icon: AccessTime, label: "Tổng Bản Ghi", value: stats.totalRecords, color: '#10b981', delay: 0.2 },
+                        { icon: CalendarToday, label: "Ngày Làm Việc", value: stats.uniqueDates, color: '#f97316', delay: 0.3 },
+                        { icon: TrendingUp, label: "Phòng Ban", value: stats.departments, color: '#8b5cf6', delay: 0.4 },
+                    ].map((item, index) => (
+                        <Grid size={{ xs: 6, sm: 3 }} key={index}>
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: item.delay }}
+                            >
+                                <Card sx={{
+                                    borderRadius: 4,
+                                    boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+                                    border: 'none',
+                                    transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                                    '&:hover': {
+                                        transform: 'translateY(-4px)',
+                                        boxShadow: '0 8px 25px rgba(0,0,0,0.1)',
+                                    }
+                                }}>
+                                    <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
+                                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                                            <Box>
+                                                <Typography variant="h4" fontWeight={800} sx={{ color: item.color, mb: 0.5, letterSpacing: '-0.02em' }}>
+                                                    {item.value}
+                                                </Typography>
+                                                <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                                                    {item.label}
+                                                </Typography>
+                                            </Box>
+                                            <Box sx={{
+                                                p: 1.5,
+                                                borderRadius: 3,
+                                                bgcolor: alpha(item.color, 0.1),
+                                                color: item.color,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}>
+                                                <item.icon sx={{ fontSize: 24 }} />
+                                            </Box>
+                                        </Stack>
+                                    </CardContent>
+                                </Card>
+                            </motion.div>
+                        </Grid>
+                    ))}
                 </Grid>
 
                 {/* Upload Section */}
@@ -583,8 +509,8 @@ export default function AttendanceDashboard() {
                                     </Typography>
                                     <FormControlLabel
                                         control={
-                                            <Checkbox 
-                                                checked={includeSaturday} 
+                                            <Checkbox
+                                                checked={includeSaturday}
                                                 onChange={(e) => setIncludeSaturday(e.target.checked)}
                                                 sx={{ '& .MuiSvgIcon-root': { fontSize: 24 } }}
                                             />
@@ -606,12 +532,12 @@ export default function AttendanceDashboard() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.7 }}
                 >
-                    <Paper 
+                    <Paper
                         elevation={0}
-                        sx={{ 
-                            p: 3, 
-                            mb: 3, 
-                            borderRadius: 3, 
+                        sx={{
+                            p: 3,
+                            mb: 3,
+                            borderRadius: 3,
                             border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                             bgcolor: theme.palette.background.paper,
                             boxShadow: theme.shadows[2]
@@ -638,20 +564,26 @@ export default function AttendanceDashboard() {
                                             </InputAdornment>
                                         ),
                                     }}
-                                    sx={{ 
-                                        "& .MuiOutlinedInput-root": { 
-                                            borderRadius: 2,
-                                            bgcolor: alpha(theme.palette.primary.main, 0.02)
-                                        } 
+                                    sx={{
+                                        "& .MuiOutlinedInput-root": {
+                                            borderRadius: 3,
+                                            bgcolor: '#f8fafc',
+                                            transition: 'all 0.2s',
+                                            '&:hover': { bgcolor: '#f1f5f9' },
+                                            '&.Mui-focused': {
+                                                bgcolor: '#fff',
+                                                boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`
+                                            }
+                                        }
                                     }}
                                 />
                             </Grid>
                             <Grid size={{ xs: 12, md: 3 }}>
-                                <DepartmentFilter 
-                                    depts={depts} 
-                                    value={dept} 
-                                    onChange={setDept} 
-                                    labels={{ all: "Tất cả bộ phận" }} 
+                                <DepartmentFilter
+                                    depts={depts}
+                                    value={dept}
+                                    onChange={setDept}
+                                    labels={{ all: "Tất cả bộ phận" }}
                                 />
                             </Grid>
                             <Grid size={{ xs: 12, md: 2 }}>
@@ -661,11 +593,17 @@ export default function AttendanceDashboard() {
                                     size="small"
                                     value={selectedCompany}
                                     onChange={(e) => setSelectedCompany(e.target.value)}
-                                    sx={{ 
-                                        "& .MuiOutlinedInput-root": { 
-                                            borderRadius: 2,
-                                            bgcolor: alpha(theme.palette.primary.main, 0.02)
-                                        } 
+                                    sx={{
+                                        "& .MuiOutlinedInput-root": {
+                                            borderRadius: 3,
+                                            bgcolor: '#f8fafc',
+                                            transition: 'all 0.2s',
+                                            '&:hover': { bgcolor: '#f1f5f9' },
+                                            '&.Mui-focused': {
+                                                bgcolor: '#fff',
+                                                boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`
+                                            }
+                                        }
                                     }}
                                 >
                                     {companyOptions.map((option) => (
@@ -688,9 +626,15 @@ export default function AttendanceDashboard() {
                                                 placeholder: "Từ ngày",
                                                 helperText: null,
                                                 sx: {
-                                                    "& .MuiOutlinedInput-root": { 
-                                                        borderRadius: 2,
-                                                        bgcolor: alpha(theme.palette.primary.main, 0.02)
+                                                    "& .MuiOutlinedInput-root": {
+                                                        borderRadius: 3,
+                                                        bgcolor: '#f8fafc',
+                                                        transition: 'all 0.2s',
+                                                        '&:hover': { bgcolor: '#f1f5f9' },
+                                                        '&.Mui-focused': {
+                                                            bgcolor: '#fff',
+                                                            boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`
+                                                        }
                                                     }
                                                 }
                                             }
@@ -711,9 +655,15 @@ export default function AttendanceDashboard() {
                                                 placeholder: "Đến ngày",
                                                 helperText: null,
                                                 sx: {
-                                                    "& .MuiOutlinedInput-root": { 
-                                                        borderRadius: 2,
-                                                        bgcolor: alpha(theme.palette.primary.main, 0.02)
+                                                    "& .MuiOutlinedInput-root": {
+                                                        borderRadius: 3,
+                                                        bgcolor: '#f8fafc',
+                                                        transition: 'all 0.2s',
+                                                        '&:hover': { bgcolor: '#f1f5f9' },
+                                                        '&.Mui-focused': {
+                                                            bgcolor: '#fff',
+                                                            boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`
+                                                        }
                                                     }
                                                 }
                                             }
@@ -725,11 +675,11 @@ export default function AttendanceDashboard() {
 
                         {(dept !== 'all' || searchTerm || fromDate || toDate) && (
                             <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                <Button 
-                                    size="small" 
-                                    onClick={handleClearFilters} 
-                                    startIcon={<Clear />} 
-                                    sx={{ 
+                                <Button
+                                    size="small"
+                                    onClick={handleClearFilters}
+                                    startIcon={<Clear />}
+                                    sx={{
                                         textTransform: 'none',
                                         borderRadius: 2,
                                         px: 2
@@ -754,13 +704,13 @@ export default function AttendanceDashboard() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.8 }}
                 >
-                    <Paper 
+                    <Paper
                         elevation={0}
-                        sx={{ 
-                            borderRadius: 3, 
-                            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                        sx={{
+                            borderRadius: 3,
+                            border: 'none',
                             overflow: "hidden",
-                            boxShadow: theme.shadows[3],
+                            boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
                             minHeight: 400
                         }}
                     >
@@ -781,18 +731,18 @@ export default function AttendanceDashboard() {
                                 <Typography variant="body2" sx={{ mb: 3 }}>
                                     Vui lòng tải file Excel bằng nút bên trên hoặc điều chỉnh bộ lọc.
                                 </Typography>
-                                <Button 
-                                    variant="contained" 
-                                    startIcon={<CloudUpload />} 
+                                <Button
+                                    variant="contained"
+                                    startIcon={<CloudUpload />}
                                     component="label"
                                     sx={{ borderRadius: 2, px: 3 }}
                                 >
                                     Tải File Excel
-                                    <input 
-                                        type="file" 
-                                        hidden 
-                                        accept=".xlsx,.xls" 
-                                        onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} 
+                                    <input
+                                        type="file"
+                                        hidden
+                                        accept=".xlsx,.xls"
+                                        onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
                                     />
                                 </Button>
                             </Box>
