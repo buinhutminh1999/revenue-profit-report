@@ -19,6 +19,8 @@ export const useActualCosts = (projectId, year, quarter) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [overallRevenue, setOverallRevenue] = useState("");
+    const [actualRevenue, setActualRevenue] = useState("");
+    const [useActualRevenueForCalc, setUseActualRevenueForCalc] = useState(false);
     const [projectTotalAmount, setProjectTotalAmount] = useState("");
     const [projectData, setProjectData] = useState(null);
     const [costAllocations, setCostAllocations] = useState(null);
@@ -90,6 +92,13 @@ export const useActualCosts = (projectId, year, quarter) => {
                 const orv = parseNumber(data.overallRevenue ?? 0);
                 setOverallRevenue(orv);
 
+                // Load actual revenue for Nhà máy projects
+                const arv = parseNumber(data.actualRevenue ?? 0);
+                setActualRevenue(arv);
+
+                // Load user preference for which revenue to use in calculations
+                setUseActualRevenueForCalc(data.useActualRevenueForCalc === true);
+
                 const isFinalized = data.isFinalized === true || data.isFinalized === "true" || (data.items || []).some(i => i.isFinalized === true || i.isFinalized === "true");
                 setIsProjectFinalized(isFinalized);
 
@@ -110,13 +119,17 @@ export const useActualCosts = (projectId, year, quarter) => {
                     // ✅ LƯU GIÁ TRỊ TỪ FIRESTORE TRƯỚC KHI calcAllFields
                     // VT/NC: Lưu noPhaiTraCK
                     const savedNoPhaiTraCK = isVtNcProject ? r.noPhaiTraCK : null;
-                    // -CP đã quyết toán: Lưu carryoverEnd và noPhaiTraCK
+                    // -CP đã quyết toán: Lưu carryoverEnd, carryoverMinus và noPhaiTraCK
                     const isFinalized = r.isFinalized === true || r.isFinalized === "true";
                     const savedCarryoverEnd = (isCpProject && isFinalized) ? r.carryoverEnd : null;
+                    const savedCarryoverMinus = (isCpProject && isFinalized) ? r.carryoverMinus : null;
                     const savedCpNoPhaiTraCK = (isCpProject && isFinalized) ? r.noPhaiTraCK : null;
 
+                    // Chọn nguồn doanh thu dựa trên user preference (lấy từ snapshot)
+                    const revenueForCalc = (data.useActualRevenueForCalc === true) ? arv : orv;
+
                     calcAllFields(r, {
-                        overallRevenue: orv,
+                        overallRevenue: revenueForCalc,
                         projectTotalAmount,
                         projectType: projectData?.type,
                         isUserEditingNoPhaiTraCK: false
@@ -127,10 +140,13 @@ export const useActualCosts = (projectId, year, quarter) => {
                     if (isVtNcProject && savedNoPhaiTraCK !== null && savedNoPhaiTraCK !== undefined) {
                         r.noPhaiTraCK = savedNoPhaiTraCK;
                     }
-                    // -CP đã quyết toán: Khôi phục carryoverEnd và noPhaiTraCK
+                    // -CP đã quyết toán: Khôi phục carryoverEnd, carryoverMinus và noPhaiTraCK
                     if (isCpProject && isFinalized) {
                         if (savedCarryoverEnd !== null && savedCarryoverEnd !== undefined) {
                             r.carryoverEnd = savedCarryoverEnd;
+                        }
+                        if (savedCarryoverMinus !== null && savedCarryoverMinus !== undefined) {
+                            r.carryoverMinus = savedCarryoverMinus;
                         }
                         if (savedCpNoPhaiTraCK !== null && savedCpNoPhaiTraCK !== undefined) {
                             r.noPhaiTraCK = savedCpNoPhaiTraCK;
@@ -157,7 +173,53 @@ export const useActualCosts = (projectId, year, quarter) => {
         return () => unsubscribe();
     }, [projectId, year, quarter, projectData, projectTotalAmount]);
 
-    // 4. Synchronization Logic
+    // 4. Recalculate when revenue source toggle changes
+    useEffect(() => {
+        if (!initialDbLoadComplete || costItems.length === 0 || !projectData) return;
+
+        // Only for Nhà máy projects
+        if (projectData.type !== "Nhà máy") return;
+
+        const revenueForCalc = useActualRevenueForCalc ? actualRevenue : overallRevenue;
+
+        const recalculated = costItems.map(row => {
+            const r = { ...row };
+
+            // Xác định loại công trình
+            const isCpProject = (r.project || "").includes("-CP");
+            const isVtNcProject = !isCpProject;
+            const isFinalized = r.isFinalized === true || r.isFinalized === "true";
+
+            // Lưu giá trị cần giữ nguyên
+            const savedNoPhaiTraCK = isVtNcProject ? r.noPhaiTraCK : null;
+            const savedCarryoverEnd = (isCpProject && isFinalized) ? r.carryoverEnd : null;
+            const savedCarryoverMinus = (isCpProject && isFinalized) ? r.carryoverMinus : null;
+            const savedCpNoPhaiTraCK = (isCpProject && isFinalized) ? r.noPhaiTraCK : null;
+
+            calcAllFields(r, {
+                overallRevenue: revenueForCalc,
+                projectTotalAmount,
+                projectType: projectData?.type,
+                isUserEditingNoPhaiTraCK: false
+            });
+
+            // Khôi phục giá trị
+            if (isVtNcProject && savedNoPhaiTraCK !== null) {
+                r.noPhaiTraCK = savedNoPhaiTraCK;
+            }
+            if (isCpProject && isFinalized) {
+                if (savedCarryoverEnd !== null) r.carryoverEnd = savedCarryoverEnd;
+                if (savedCarryoverMinus !== null) r.carryoverMinus = savedCarryoverMinus;
+                if (savedCpNoPhaiTraCK !== null) r.noPhaiTraCK = savedCpNoPhaiTraCK;
+            }
+
+            return r;
+        });
+
+        setCostItems(recalculated);
+    }, [useActualRevenueForCalc, actualRevenue, overallRevenue, initialDbLoadComplete, projectData, projectTotalAmount]);
+
+    // 5. Synchronization Logic
     useEffect(() => {
         if (!initialDbLoadComplete || !projectData || !costAllocations || categories.length === 0) return;
 
@@ -223,12 +285,14 @@ export const useActualCosts = (projectId, year, quarter) => {
 
     }, [initialDbLoadComplete, costItems, costAllocations, categories, projectData, overallRevenue, projectTotalAmount]);
 
-    const saveItems = async (itemsToSave = costItems, revenueToSave = overallRevenue) => {
+    const saveItems = async (itemsToSave = costItems, revenueToSave = overallRevenue, actualRevenueToSave = actualRevenue, useActualForCalc = useActualRevenueForCalc) => {
         try {
             setLoading(true);
             await setDoc(doc(db, "projects", projectId, "years", year, "quarters", quarter), {
                 items: itemsToSave,
                 overallRevenue: Number(revenueToSave),
+                actualRevenue: Number(actualRevenueToSave),
+                useActualRevenueForCalc: useActualForCalc,
                 updated_at: new Date().toISOString(),
             }, { merge: true }); // Merge true to safe? Or false? Original hook had merge: undefined (overwrite?)
             // Original hook code (lines 198-202) had NO merge option (so overwrite?).
@@ -263,6 +327,10 @@ export const useActualCosts = (projectId, year, quarter) => {
         projectTotalAmount,
         overallRevenue,
         setOverallRevenue,
+        actualRevenue,
+        setActualRevenue,
+        useActualRevenueForCalc,
+        setUseActualRevenueForCalc,
         isProjectFinalized,
         categories,
         saveItems,

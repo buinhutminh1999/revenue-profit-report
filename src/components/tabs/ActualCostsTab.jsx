@@ -300,6 +300,10 @@ export default function ActualCostsTab({ projectId }) {
         projectTotalAmount,
         overallRevenue,
         setOverallRevenue,
+        actualRevenue,
+        setActualRevenue,
+        useActualRevenueForCalc,
+        setUseActualRevenueForCalc,
         isProjectFinalized,
         categories,
         saveItems
@@ -311,6 +315,7 @@ export default function ActualCostsTab({ projectId }) {
     // const [error, setError] = useState(null); // [REMOVED] - Use hookError and toast directly
     const [editingCell, setEditingCell] = useState({ id: null, colKey: null });
     const [overallRevenueEditing, setOverallRevenueEditing] = useState(false);
+    const [actualRevenueEditing, setActualRevenueEditing] = useState(false);
     const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
     const [isFinalizing, setIsFinalizing] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -981,16 +986,19 @@ export default function ActualCostsTab({ projectId }) {
                     isFinalized: true,
                 };
             } else {
-                const currentNoPhaiTraCK = parseNumber(row.noPhaiTraCK || "0");
-                const currentCarryoverEnd = parseNumber(
-                    row.carryoverEnd || "0"
-                );
-                const newNoPhaiTraCK = currentNoPhaiTraCK - currentCarryoverEnd;
+                // -CP projects: recalculate noPhaiTraCK = debt - carryover + carryoverMinus
+                // Then reset carryoverMinus and carryoverEnd to 0
+                const debt = parseNumber(row.debt || "0");
+                const carryover = parseNumber(row.carryover || "0");
+                const carryoverMinus = parseNumber(row.carryoverMinus || "0");
+                const newNoPhaiTraCK = debt - carryover + carryoverMinus;
+
                 return {
                     ...row,
                     // ✅ SỬ DỤNG GIÁ TRỊ ĐÃ LƯU TRƯỚC (đảm bảo consistency)
                     originalNoPhaiTraCK: originalNoPhaiTraCK,
                     noPhaiTraCK: String(newNoPhaiTraCK),
+                    carryoverMinus: "0",
                     carryoverEnd: "0",
                     isFinalized: true,
                 };
@@ -1201,6 +1209,12 @@ export default function ActualCostsTab({ projectId }) {
                         overallRevenueEditing={overallRevenueEditing}
                         setOverallRevenue={setOverallRevenue}
                         setOverallRevenueEditing={setOverallRevenueEditing}
+                        actualRevenue={actualRevenue}
+                        actualRevenueEditing={actualRevenueEditing}
+                        setActualRevenue={setActualRevenue}
+                        setActualRevenueEditing={setActualRevenueEditing}
+                        useActualRevenueForCalc={useActualRevenueForCalc}
+                        setUseActualRevenueForCalc={setUseActualRevenueForCalc}
                         projectTotalAmount={projectTotalAmount}
                         summarySumKeys={summarySumKeys}
                         columnsAll={displayedColumns}

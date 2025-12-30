@@ -106,12 +106,17 @@ export function useBatchSettlement() {
                     isFinalized: true,
                 };
             } else {
-                const currentNoPhaiTraCK = parseNumber(row.noPhaiTraCK || '0');
-                const currentCarryoverEnd = parseNumber(row.carryoverEnd || '0');
-                const newNoPhaiTraCK = currentNoPhaiTraCK - currentCarryoverEnd;
+                // -CP projects: recalculate noPhaiTraCK = debt - carryover + carryoverMinus
+                // Then reset carryoverMinus and carryoverEnd to 0
+                const debt = parseNumber(row.debt || '0');
+                const carryover = parseNumber(row.carryover || '0');
+                const carryoverMinus = parseNumber(row.carryoverMinus || '0');
+                const newNoPhaiTraCK = debt - carryover + carryoverMinus;
+
                 return {
                     ...row,
                     noPhaiTraCK: String(newNoPhaiTraCK),
+                    carryoverMinus: '0',
                     carryoverEnd: '0',
                     isFinalized: true,
                 };

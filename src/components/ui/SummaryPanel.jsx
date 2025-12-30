@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Typography, Grid, Box, TextField, Tooltip, Skeleton, Stack, Divider,
-  Card, Paper, Chip, IconButton, LinearProgress, Avatar, useMediaQuery, Fade
+  Card, Paper, Chip, IconButton, LinearProgress, Avatar, useMediaQuery, Fade,
+  ToggleButtonGroup, ToggleButton
 } from "@mui/material";
 import { useTheme, alpha, styled } from "@mui/material/styles";
 import { formatNumber, parseNumber } from "../../utils/numberUtils";
@@ -218,6 +219,12 @@ export default function SummaryPanel({
   overallRevenueEditing,
   setOverallRevenue,
   setOverallRevenueEditing,
+  actualRevenue,
+  actualRevenueEditing,
+  setActualRevenue,
+  setActualRevenueEditing,
+  useActualRevenueForCalc,
+  setUseActualRevenueForCalc,
   projectTotalAmount,
   summarySumKeys,
   columnsAll,
@@ -232,12 +239,23 @@ export default function SummaryPanel({
   const [draftRevenue, setDraftRevenue] = useState(String(overallRevenue ?? ""));
   const [editMode, setEditMode] = useState(false);
 
+  // Actual revenue state for Nhà máy projects
+  const [draftActualRevenue, setDraftActualRevenue] = useState(String(actualRevenue ?? ""));
+  const [editActualMode, setEditActualMode] = useState(false);
+
   useEffect(() => {
     if (!overallRevenueEditing) {
       setDraftRevenue(String(overallRevenue ?? ""));
       setEditMode(false);
     }
   }, [overallRevenue, overallRevenueEditing]);
+
+  useEffect(() => {
+    if (!actualRevenueEditing) {
+      setDraftActualRevenue(String(actualRevenue ?? ""));
+      setEditActualMode(false);
+    }
+  }, [actualRevenue, actualRevenueEditing]);
 
   const commitRevenue = useCallback(() => {
     const raw = String(draftRevenue).replace(/[^\d.-]/g, "");
@@ -253,6 +271,22 @@ export default function SummaryPanel({
     setOverallRevenueEditing(false);
     setEditMode(false);
   }, [overallRevenue, setOverallRevenueEditing]);
+
+  // Commit/Cancel for Actual Revenue
+  const commitActualRevenue = useCallback(() => {
+    const raw = String(draftActualRevenue).replace(/[^\d.-]/g, "");
+    if (raw === "" || isNaN(Number(raw))) return;
+    const clean = Number(raw);
+    if (clean !== Number(actualRevenue ?? 0)) setActualRevenue(clean);
+    setActualRevenueEditing(false);
+    setEditActualMode(false);
+  }, [draftActualRevenue, actualRevenue, setActualRevenue, setActualRevenueEditing]);
+
+  const cancelActualEdit = useCallback(() => {
+    setDraftActualRevenue(String(actualRevenue ?? ""));
+    setActualRevenueEditing(false);
+    setEditActualMode(false);
+  }, [actualRevenue, setActualRevenueEditing]);
 
   const sums = useMemo(() => {
     if (!groupedData) return {};
@@ -273,39 +307,68 @@ export default function SummaryPanel({
 
   const revenueNum = Number(parseNumber(overallRevenue));
   const totalCost = sums.totalCost ?? 0;
-  const profit = revenueNum - totalCost;
-  const margin = revenueNum > 0 ? (profit / revenueNum) * 100 : 0;
-  const costUtil = revenueNum > 0 ? (totalCost / revenueNum) * 100 : 0;
+  const actualRevenueNum = Number(parseNumber(actualRevenue));
 
-  const main = useMemo(() => ([
-    {
-      key: "revenue",
-      label: "Doanh Thu Quý",
-      value: revenueNum,
-      icon: <AttachMoney />,
-      accent: theme.palette.info.main,
-      editable: true,
-      subtitle: `Quý ${quarter}/${year}`
-    },
-    {
-      key: "cost",
-      label: "Tổng Chi Phí",
-      value: totalCost,
-      icon: <Receipt />,
-      accent: theme.palette.warning.main,
-      editable: false,
-      subtitle: "Toàn bộ chi phí phát sinh"
-    },
-    {
-      key: "profit",
-      label: "Lợi Nhuận",
-      value: profit,
-      icon: <Insights />,
-      accent: (profit >= 0 ? theme.palette.success.main : theme.palette.error.main),
-      editable: false,
-      subtitle: `Biên lợi nhuận: ${margin.toFixed(1)}%`
-    },
-  ]), [revenueNum, totalCost, profit, margin, quarter, year, theme.palette]);
+  // Calculate profit based on selected revenue source for consistency
+  const revenueForProfit = (projectData?.type === "Nhà máy" && useActualRevenueForCalc)
+    ? actualRevenueNum
+    : revenueNum;
+
+  const profit = revenueForProfit - totalCost;
+  const margin = revenueForProfit > 0 ? (profit / revenueForProfit) * 100 : 0;
+  const costUtil = revenueForProfit > 0 ? (totalCost / revenueForProfit) * 100 : 0;
+
+  const main = useMemo(() => {
+    const items = [
+      {
+        key: "revenue",
+        label: "Doanh Thu Quý",
+        value: revenueNum,
+        icon: <AttachMoney />,
+        accent: theme.palette.info.main,
+        editable: true,
+        editType: "overall",
+        subtitle: `Quý ${quarter}/${year}`
+      },
+    ];
+
+    // Add Actual Revenue card for Nhà máy projects
+    if (projectData?.type === "Nhà máy") {
+      items.push({
+        key: "actualRevenue",
+        label: "Doanh Thu Thực Tế",
+        value: actualRevenueNum,
+        icon: <AttachMoney />,
+        accent: theme.palette.secondary.main,
+        editable: true,
+        editType: "actual",
+        subtitle: `Quý ${quarter}/${year}`
+      });
+    }
+
+    items.push(
+      {
+        key: "cost",
+        label: "Tổng Chi Phí",
+        value: totalCost,
+        icon: <Receipt />,
+        accent: theme.palette.warning.main,
+        editable: false,
+        subtitle: "Toàn bộ chi phí phát sinh"
+      },
+      {
+        key: "profit",
+        label: "Lợi Nhuận",
+        value: profit,
+        icon: <Insights />,
+        accent: (profit >= 0 ? theme.palette.success.main : theme.palette.error.main),
+        editable: false,
+        subtitle: `Biên lợi nhuận: ${margin.toFixed(1)}%`
+      }
+    );
+
+    return items;
+  }, [revenueNum, actualRevenueNum, totalCost, profit, margin, quarter, year, theme.palette, projectData]);
 
   const getIconForKey = (key) => {
     const m = {
@@ -349,32 +412,104 @@ export default function SummaryPanel({
             </Box>
           </SectionHeader>
 
-          {/* Main KPIs */}
-          <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 4 }}>
-            {main.map((m) => (
-              <Grid size={{ xs: 12, md: 4 }} key={m.key}>
-                <PrimaryMetric
-                  label={m.label}
-                  value={m.value}
-                  icon={m.icon}
-                  accent={m.accent}
-                  subtitle={m.subtitle}
-                  loading={groupedData == null}
-                  editable={m.editable}
-                  draftValue={draftRevenue}
-                  setDraftValue={setDraftRevenue}
-                  onCommit={commitRevenue}
-                  onCancel={cancelEdit}
-                  editMode={editMode && m.editable}
-                  setEditMode={(v) => {
-                    if (m.editable) {
-                      setOverallRevenueEditing(Boolean(v));
-                      setEditMode(Boolean(v));
+          {/* Revenue Source Toggle for Nhà máy projects */}
+          {projectData?.type === "Nhà máy" && (
+            <Box sx={{ mb: 3, display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                Nguồn doanh thu tính toán:
+              </Typography>
+              <Paper
+                elevation={0}
+                sx={{
+                  border: `1px solid ${alpha(theme.palette.divider, 0.6)}`,
+                  borderRadius: 2,
+                  overflow: "hidden"
+                }}
+              >
+                <ToggleButtonGroup
+                  value={useActualRevenueForCalc ? "actual" : "overall"}
+                  exclusive
+                  onChange={(e, newValue) => {
+                    if (newValue !== null) {
+                      setUseActualRevenueForCalc(newValue === "actual");
                     }
                   }}
-                />
-              </Grid>
-            ))}
+                  size="small"
+                  sx={{
+                    "& .MuiToggleButton-root": {
+                      px: 2,
+                      py: 0.8,
+                      fontWeight: 600,
+                      textTransform: "none",
+                      border: "none",
+                      borderRadius: 0,
+                      color: "text.secondary",
+                      transition: "all 0.2s ease",
+                      "&.Mui-selected": {
+                        color: "#fff",
+                        "&.toggle-overall": {
+                          bgcolor: theme.palette.info.main,
+                          "&:hover": { bgcolor: theme.palette.info.dark },
+                        },
+                        "&.toggle-actual": {
+                          bgcolor: theme.palette.secondary.main,
+                          "&:hover": { bgcolor: theme.palette.secondary.dark },
+                        }
+                      }
+                    }
+                  }}
+                >
+                  <ToggleButton value="overall" className="toggle-overall">
+                    <AttachMoney sx={{ fontSize: 16, mr: 0.5 }} />
+                    Doanh Thu Quý
+                  </ToggleButton>
+                  <ToggleButton value="actual" className="toggle-actual">
+                    <ShowChart sx={{ fontSize: 16, mr: 0.5 }} />
+                    Doanh Thu Thực Tế
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Paper>
+            </Box>
+          )}
+
+          {/* Main KPIs */}
+          <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 4 }}>
+            {main.map((m) => {
+              // Determine which draft/handlers to use based on editType
+              const isActual = m.editType === "actual";
+              const currentDraft = isActual ? draftActualRevenue : draftRevenue;
+              const setCurrentDraft = isActual ? setDraftActualRevenue : setDraftRevenue;
+              const currentCommit = isActual ? commitActualRevenue : commitRevenue;
+              const currentCancel = isActual ? cancelActualEdit : cancelEdit;
+              const currentEditMode = isActual ? editActualMode : editMode;
+              const setCurrentEditMode = isActual ? setEditActualMode : setEditMode;
+              const setEditing = isActual ? setActualRevenueEditing : setOverallRevenueEditing;
+
+              return (
+                <Grid size={{ xs: 12, md: projectData?.type === "Nhà máy" ? 3 : 4 }} key={m.key}>
+                  <PrimaryMetric
+                    label={m.label}
+                    value={m.value}
+                    icon={m.icon}
+                    accent={m.accent}
+                    subtitle={m.subtitle}
+                    loading={groupedData == null}
+                    editable={m.editable}
+                    draftValue={currentDraft}
+                    setDraftValue={setCurrentDraft}
+                    onCommit={currentCommit}
+                    onCancel={currentCancel}
+                    editMode={currentEditMode && m.editable}
+                    setEditMode={(v) => {
+                      if (m.editable) {
+                        setEditing(Boolean(v));
+                        setCurrentEditMode(Boolean(v));
+                      }
+                    }}
+                  />
+                </Grid>
+              );
+            })}
           </Grid>
 
           {/* Divider */}

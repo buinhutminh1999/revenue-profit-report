@@ -25,7 +25,8 @@ import {
     Close as CloseIcon,
     FilterList as FilterListIcon,
     Refresh as RefreshIcon,
-    Search as SearchIcon
+    Search as SearchIcon,
+    AddCircleOutline as AddIcon
 } from '@mui/icons-material';
 
 import PasteDataDialog from '../../components/ui/PasteDataDialog';
@@ -36,6 +37,7 @@ import { useConstructionPayables } from '../../hooks/useConstructionPayables';
 import { toNum } from '../../utils/numberUtils';
 import { useReactToPrint } from 'react-to-print';
 import BalanceSheetPrintTemplate from '../../components/finance/BalanceSheetPrintTemplate';
+import AddAccountDialog from '../../components/finance/AddAccountDialog';
 
 // Khởi tạo Firestore và các hằng số
 const db = getFirestore();
@@ -774,6 +776,7 @@ const BalanceSheet = () => {
     const [detailData, setDetailData] = useState(null);
     const [actionsMenuAnchor, setActionsMenuAnchor] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [isAddAccountDialogOpen, setIsAddAccountDialogOpen] = useState(false);
 
     // Print functionality
     const printRef = useRef();
@@ -1616,6 +1619,7 @@ const BalanceSheet = () => {
         <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
             <CalculationDetailDialog open={detailDialogOpen} onClose={() => setDetailDialogOpen(false)} data={detailData} />
             <PasteDataDialog open={isPasteDialogOpen} onClose={() => setIsPasteDialogOpen(false)} onSave={handlePasteAndSave} />
+            <AddAccountDialog open={isAddAccountDialogOpen} onClose={() => setIsAddAccountDialogOpen(false)} />
 
             <GlassContainer
                 initial={{ opacity: 0, y: 20 }}
@@ -1674,6 +1678,9 @@ const BalanceSheet = () => {
                             </Button>
                             <Button variant="contained" startIcon={<FileUploadIcon />} onClick={() => setIsPasteDialogOpen(true)} sx={{ borderRadius: 2, textTransform: 'none' }}>
                                 Cập nhật
+                            </Button>
+                            <Button variant="outlined" color="success" startIcon={<AddIcon />} onClick={() => setIsAddAccountDialogOpen(true)} sx={{ borderRadius: 2, textTransform: 'none' }}>
+                                Thêm TK
                             </Button>
                             <IconButton onClick={(e) => setActionsMenuAnchor(e.currentTarget)}><MoreVertIcon /></IconButton>
                         </Box>

@@ -146,7 +146,11 @@ const FormulaGuide = ({ open, onClose }) => {
                         <FormulaItem
                             title="Nợ Phải Trả CK"
                             projectType="Thi Công & KH-ĐT"
-                            formula={`MAX(0, Doanh Thu - CP Trực Tiếp - Phân Bổ - Được Trừ QN) + Nợ Phải Trả ĐK`}
+                            formula={`* Trước Quyết Toán:
+MAX(0, Doanh Thu - CP Trực Tiếp - Phân Bổ - Được Trừ QN) + Nợ Phải Trả ĐK
+
+* Sau Quyết Toán (-CP):
+Nợ Phải Trả ĐK - Chuyển Tiếp ĐK + Được Trừ QN`}
                         />
                     </Grid>
                     <Grid size={{ xs: 12, md: 6, lg: 4 }}>
