@@ -259,6 +259,91 @@ const MaterialPriceComparison = () => {
         );
     }
 
+    // --- Định nghĩa Cột cho DataGrid ---
+    const columns = useMemo(() => [
+        {
+            field: 'projectName',
+            headerName: 'Tên Công Trình',
+            flex: 1,
+            minWidth: 250,
+            renderCell: (params) => (
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {params.row.projectName}
+                </Typography>
+            )
+        },
+        {
+            field: 'createdAt',
+            headerName: 'Ngày Tạo',
+            width: 150,
+            valueGetter: (value, row) => {
+                if (!row.createdAt) return null;
+                // Handle Firestore Timestamp or Date string
+                return row.createdAt.toDate ? row.createdAt.toDate() : new Date(row.createdAt);
+            },
+            renderCell: (params) => {
+                return params.value ? format(params.value, 'dd/MM/yyyy') : '-';
+            }
+        },
+        {
+            field: 'deadline',
+            headerName: 'Thời Hạn',
+            width: 220,
+            renderCell: (params) => {
+                if (!params.row.deadline) return '-';
+                const deadline = params.row.deadline.toDate ? params.row.deadline.toDate() : new Date(params.row.deadline);
+                return <CountdownTimer deadline={deadline} />;
+            }
+        },
+        {
+            field: 'approvalStatus',
+            headerName: 'Trạng Thái',
+            width: 150,
+            renderCell: (params) => {
+                const status = params.row.approvalStatus || 'DRAFT';
+                let color = 'default';
+                let label = 'Bản Nháp';
+
+                if (status === 'APPROVED') {
+                    color = 'success';
+                    label = 'Đã Duyệt';
+                } else if (status === 'COMPLETED') {
+                    color = 'info';
+                    label = 'Hoàn Thành';
+                }
+
+                return <Chip label={label} color={color} size="small" variant="outlined" />;
+            }
+        },
+        {
+            field: 'actions',
+            headerName: 'Hành Động',
+            width: 100,
+            align: 'right',
+            headerAlign: 'right',
+            sortable: false,
+            renderCell: (params) => (
+                <IconButton
+                    size="small"
+                    color="error"
+                    title="Xóa bảng này"
+                    onClick={(e) => {
+                        e.stopPropagation(); // Chặn sự kiện click row
+                        if (!canCreate) {
+                            toast.error('Bạn không có quyền xóa.');
+                            return;
+                        }
+                        setDeleteTarget({ id: params.row.id, name: params.row.projectName });
+                        setOpenDeleteConfirm(true);
+                    }}
+                    disabled={!canCreate || isDeleting}
+                >
+                    <Trash2 fontSize="small" />
+                </IconButton>
+            )
+        }
+    ], [canCreate, isDeleting]);
+
     // --- Bắt đầu Render UI chính ---
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>

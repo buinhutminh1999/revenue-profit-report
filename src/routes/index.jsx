@@ -65,6 +65,7 @@ const AdminDepartmentManager = lazy(() => import('../pages/admin/AdminDepartment
 const AdminAuditLog = lazy(() => import('../pages/admin/AdminAuditLog'));
 const CloseQuarterPage = lazy(() => import('../pages/admin/CloseQuarterPage'));
 const WhitelistManager = lazy(() => import('../pages/admin/WhitelistManager'));
+const RepairProposalRoleConfig = lazy(() => import('../pages/admin/RepairProposalRoleConfig'));
 const DocumentPublisher = lazy(() => import('../pages/admin/DocumentPublisher'));
 const DocumentList = lazy(() => import('../pages/documents/DocumentList'));
 const DocumentDetail = lazy(() => import('../pages/documents/DocumentDetail'));
@@ -79,6 +80,7 @@ const AttendanceDashboard = lazy(() => import('../pages/attendance/AttendanceDas
 
 // --- LAZY-LOAD CÁC TRANG CỦA MODULE GIÁM SÁT THIẾT BỊ ---
 const DeviceMonitoringDashboard = lazy(() => import('../pages/monitoring/DeviceMonitoringDashboard'));
+const RepairProposalPage = lazy(() => import('../pages/operations/RepairProposalPage'));
 // --- COMPONENT ĐỊNH TUYẾN CHÍNH ---
 export default function Router() {
     return (
@@ -140,6 +142,8 @@ function AppRoutes() {
                         <Route path="event-editor" element={lazyLoad(EventEditor)} />
                         <Route path="construction-plan" element={<RequireEmailAccess pathKey="construction-plan">{lazyLoad(ConstructionPlan)}</RequireEmailAccess>} />
                         <Route path="project-manager" element={<RequireEmailAccess pathKey="project-manager">{lazyLoad(ProjectsList)}</RequireEmailAccess>} />
+                        {/* Operations Routes */}
+                        <Route path="operations/repair-proposals" element={<RequireEmailAccess pathKey="operations/repair-proposals">{lazyLoad(RepairProposalPage)}</RequireEmailAccess>} />
                         <Route path="accounts-receivable" element={<RequireEmailAccess pathKey="accounts-receivable">{lazyLoad(AccountsReceivable)}</RequireEmailAccess>} />
                         <Route path="construction-payables" element={<RequireEmailAccess pathKey="construction-payables">{lazyLoad(ConstructionPayables)}</RequireEmailAccess>} />
                         <Route path="construction-payables-detail" element={<RequireEmailAccess pathKey="construction-payables-detail">{lazyLoad(ConstructionPayablesDetail)}</RequireEmailAccess>} />
@@ -186,6 +190,7 @@ function AppRoutes() {
                             <Route path="audit-log" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(AdminAuditLog)}</RequireRole>} />
                             <Route path="close-quarter" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(CloseQuarterPage)}</RequireRole>} />
                             <Route path="whitelist" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(WhitelistManager)}</RequireRole>} />
+                            <Route path="repair-proposal-roles" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(RepairProposalRoleConfig)}</RequireRole>} />
                             <Route path="publish-document" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(DocumentPublisher)}</RequireRole>} />
                             <Route path="document-list" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(DocumentList)}</RequireRole>} />
                             <Route path="document/:documentId" element={<RequireRole allowedRoles={["admin"]}>{lazyLoad(DocumentDetail)}</RequireRole>} />

@@ -10,6 +10,7 @@ export const PROTECTED_ROUTES = [
     { path: 'construction-plan', name: 'Kế Hoạch Thi Công', group: 'Modules chính' },
     { path: 'project-manager', name: 'Quản Lý Công Trình', group: 'Modules chính' },
     { path: 'asset-transfer', name: 'QL Luân chuyển Tài sản', group: 'Modules chính' },
+    { path: 'operations/repair-proposals', name: 'Đề Xuất Sửa Chữa', group: 'Modules chính' },
 
     // === ROUTE MỚI ĐƯỢC THÊM VÀO (QUYỀN TRUY CẬP CHUNG) ===
     { path: 'material-price-comparison', name: 'So Sánh Giá Vật Tư', group: 'Modules chính' },

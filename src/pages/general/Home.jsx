@@ -134,6 +134,7 @@ const Home = () => {
         { category: 'Chức Năng Chính', icon: <Construction sx={{ fontSize: 26 }} />, title: "Kế Hoạch Thi Công", to: "/construction-plan", desc: "Lập và theo dõi tiến độ công việc", color: '#3b82f6' },
         { category: 'Chức Năng Chính', icon: <Building sx={{ fontSize: 26 }} />, title: "Quản Lý Công Trình", to: "/project-manager", desc: "Xem chi tiết thông tin các công trình", color: '#8b5cf6' },
         { category: 'Chức Năng Chính', icon: <ArrowRightLeft sx={{ fontSize: 26 }} />, title: "QL Luân chuyển Tài sản", to: "/asset-transfer", desc: "Theo dõi và luân chuyển tài sản", color: '#0891b2' },
+        { category: 'Chức Năng Chính', icon: <Construction sx={{ fontSize: 26 }} />, title: "Đề Xuất Sửa Chữa", to: "/operations/repair-proposals", desc: "Quản lý đề xuất sửa chữa, bảo trì", color: '#ea580c' },
         { category: 'Chức Năng Chính', icon: <ClipboardCheck sx={{ fontSize: 26 }} />, title: "So Sánh Báo Giá Vật Tư", to: "/material-price-comparison", desc: "Tổng hợp, so sánh giá từ nhà cung cấp", color: '#f97316' },
         { category: 'Chức Năng Chính', icon: <BookCheck sx={{ fontSize: 26 }} />, title: "Phân Bổ Chi Phí", to: "/allocations", desc: "Quản lý và phân bổ chi phí dự án", color: '#10b981' },
         { category: 'Chức Năng Chính', icon: <FileSpreadsheet sx={{ fontSize: 26 }} />, title: "Công Nợ Phải Trả", to: "/construction-payables", desc: "Theo dõi và quản lý các khoản công nợ", color: '#f59e0b' },

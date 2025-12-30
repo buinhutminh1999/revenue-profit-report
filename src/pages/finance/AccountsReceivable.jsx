@@ -347,11 +347,19 @@ export default function AccountsReceivable() {
     const confirmPaste = async () => {
         if (!pasteContext) return;
         setPasteDialogOpen(false);
+        setEditingCell(null); // CRITICAL: Stop editing immediately to prevent blur-overwrite race condition
+
         const { text, category, startField } = pasteContext;
+        console.log("DEBUG PASTE TEXT:", JSON.stringify(text)); // Log raw text
+
         const parsedRows = text.split('\n').filter(row => row.trim() !== '').map(row => row.split('\t'));
+        console.log("DEBUG PARSED ROWS:", parsedRows); // Log parsed array
+
         if (parsedRows.length === 0) return;
 
         const startColumnIndex = tableColumns.findIndex(col => col.field === startField);
+        console.log("DEBUG START COL:", startField, startColumnIndex);
+
         if (startColumnIndex === -1) return toast.error("Vui lòng chọn một ô dữ liệu hợp lệ để dán.");
 
         // Helper to find prev data
@@ -364,22 +372,61 @@ export default function AccountsReceivable() {
 
         const promise = new Promise(async (resolve, reject) => {
             try {
-
-
                 // 1. Map parsed text to objects based on columns
-                const tempObjects = parsedRows.map(rowData => {
-                    const obj = {};
+                const tempObjects = parsedRows.map(rawRowData => {
+                    // Pre-processing: Handle different separators
+                    // If row is a single string with tabs, split by tab (already done if text.split was simple, but let's be robust)
+                    let rowData = rawRowData; // parsedRows is already split by \t in current code? No wait, line 353 did it.
+
+                    // If the original row.split('\t') resulted in single element but has spaces, re-split.
+                    if (rowData.length === 1 && typeof rowData[0] === 'string' && rowData[0].trim().includes('  ')) {
+                        rowData = rowData[0].trim().split(/\s{2,}/);
+                    }
+
+                    const obj = { category }; // CRITICAL: Must include category for hook to match rows
                     let hasProject = false;
-                    rowData.forEach((cellValue, cellIndex) => {
-                        const targetColumnIndex = startColumnIndex + cellIndex;
-                        if (targetColumnIndex < tableColumns.length) {
-                            const col = tableColumns[targetColumnIndex];
-                            obj[col.field] = col.type === 'number' ? toNum(cellValue) : cellValue;
-                            if (col.field === 'project') hasProject = true;
-                        }
-                    });
+
+                    // SMART PASTE DETECTION
+                    // If we are pasting into a numeric column (index > 0), but the first cell is text,
+                    // assume user is pasting [Project Name, Value, Value...] pattern.
+                    const firstCell = rowData[0];
+                    const startCol = tableColumns[startColumnIndex];
+                    // Check if first cell contains characters that are NOT digits, dots, commas, spaces, dashes, or parens
+                    const isFirstCellText = firstCell && /[^0-9.,\-\s()]/.test(firstCell);
+
+                    if (startColumnIndex > 0 && startCol.type === 'number' && isFirstCellText) {
+                        // Apply Smart Mapping
+                        obj['project'] = firstCell.trim();
+                        hasProject = true;
+
+                        // EXTRACT VALUES: Filter out empty cells (tabs/gaps) to find the actual values
+                        const valueCells = rowData.slice(1).filter(cell => cell && cell.trim() !== '');
+
+                        // Map subsequent cells to the target columns starting from startColumnIndex
+                        valueCells.forEach((cellValue, subIndex) => {
+                            const targetColumnIndex = startColumnIndex + subIndex;
+                            if (targetColumnIndex < tableColumns.length) {
+                                const col = tableColumns[targetColumnIndex];
+                                if (col.field !== 'project') {
+                                    obj[col.field] = col.type === 'number' ? toNum(cellValue) : cellValue;
+                                }
+                            }
+                        });
+                    } else {
+                        // STANDARD MAPPING
+                        rowData.forEach((cellValue, cellIndex) => {
+                            const targetColumnIndex = startColumnIndex + cellIndex;
+                            if (targetColumnIndex < tableColumns.length) {
+                                const col = tableColumns[targetColumnIndex];
+                                obj[col.field] = col.type === 'number' ? toNum(cellValue) : cellValue;
+                                if (col.field === 'project') hasProject = true;
+                            }
+                        });
+                    }
                     return { data: obj, hasProject };
                 });
+
+                console.log("DEBUG FINAL OBJECTS:", tempObjects.map(t => t.data));
 
                 // 2. Aggregate Duplicates in Paste Data
                 const aggregatedMap = new Map();
@@ -409,6 +456,8 @@ export default function AccountsReceivable() {
                     }
                 });
 
+                console.log("DEBUG UNIQUE ROWS TO PROCESS:", uniqueRowsToProcess);
+
                 // 3. Process to DB using hook
                 const { addedCount, updatedCount } = await importRows(uniqueRowsToProcess);
 
@@ -418,8 +467,8 @@ export default function AccountsReceivable() {
                 if (messages.length === 0) messages.push("Không có thay đổi nào.");
                 resolve(messages.join('. '));
             } catch (error) {
-                console.error(error);
-                reject("Đã xảy ra lỗi khi dán dữ liệu.");
+                console.error("DIAGNOSTIC ERROR:", error);
+                reject("Đã xảy ra lỗi khi dán dữ liệu. Kiểm tra Console.");
             }
         });
         toast.promise(promise, { loading: 'Đang xử lý dữ liệu dán...', success: msg => msg, error: err => err });

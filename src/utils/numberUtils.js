@@ -13,6 +13,10 @@ export function toNum(v) {
   let s = String(v).replace(/\u00A0/g, " ").trim();
   if (s === "" || s === "-" || /^[-.,\s]+$/.test(s)) return 0;
 
+  // Pre-sanitize: If the string has a mix of digits and other stuff, 
+  // try to keep only numeric-related characters.
+  // But be careful not to remove dots/commas yet.
+
   let sign = 1;
   if (s.startsWith("-")) {
     sign = -1;
@@ -22,6 +26,14 @@ export function toNum(v) {
   if (/^\(.*\)$/.test(s)) {
     sign = -1;
     s = s.slice(1, -1).trim();
+  }
+
+  // Remove potential currency symbols or suffixes (e.g. "1.000.000 đ" or "$1,000")
+  s = s.replace(/[^0-9., ]/g, "").trim();
+
+  // Handle space as thousands separator: "1 000 000" -> "1000000"
+  if (s.includes(" ") && /[0-9] [0-9]/.test(s)) {
+    s = s.replace(/\s/g, "");
   }
 
   // Handle Vietnamese format explicitly: 520.000 -> 520000
@@ -40,8 +52,6 @@ export function toNum(v) {
     // Heuristic: If there are multiple dots, it MUST be thousands separators.
     if (dotCount > 1) {
       s = s.replace(/\./g, "");
-      const n = parseFloat(s);
-      return Number.isFinite(n) ? Math.round(sign * n) : 0;
     }
 
     // If there is only ONE dot (e.g. 520.000 or 520.5)
@@ -49,17 +59,14 @@ export function toNum(v) {
     // But 520.5 is 520.5.
     // We check the part after the dot.
     const parts = s.split('.');
-    if (parts[1].length === 3) {
+    if (parts[1] && parts[1].length === 3) { // Ensure parts[1] exists before checking length
       // Ambiguous case: could be thousands separator or decimal
       // Vietnamese format: 1.234 or 10.108.321 (would have multiple dots)
       // Since there's only ONE dot, check if it looks like Vietnamese format:
       // - Vietnamese thousands: the part BEFORE dot should be 1-3 digits (e.g., "1.234", "12.345")
       // - If integer part before dot has MORE than 3 digits (e.g., "10108321.255"),
       //   it's NOT Vietnamese thousands format, so treat as DECIMAL
-      if (parts[0].length > 3) {
-        // Decimal number like 10108321.255 → keep the dot
-        // parseFloat will handle it correctly
-      } else {
+      if (parts[0].length <= 3) {
         // Short integer part (1-3 digits) → assume Vietnamese thousands separator
         s = s.replace(/\./g, "");
       }

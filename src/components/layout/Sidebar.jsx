@@ -24,7 +24,10 @@ import {
     History,
     Tune,
     Person,
-    Logout, // [NEW] Icon Logout
+    Logout,
+    Build as BuildIcon,
+    Settings as SettingsIcon,
+    AdminPanelSettings
 } from "@mui/icons-material";
 import { Menu, MenuItem } from "@mui/material"; // Ensure Menu/MenuItem are imported
 
@@ -124,6 +127,7 @@ const navigationConfig = [
                 children: [
                     { title: "Kế hoạch Thi công", path: "/construction-plan", icon: <Construction sx={{ fontSize: 18 }} /> },
                     { title: "Quản lý Công trình", path: "/project-manager", icon: <Business sx={{ fontSize: 18 }} /> },
+                    { title: "Đề xuất Sửa chữa", path: "/operations/repair-proposals", icon: <BuildIcon sx={{ fontSize: 18 }} /> },
                 ],
             },
         ],
@@ -156,6 +160,18 @@ const navigationConfig = [
                     { title: "Lợi nhuận theo Năm", path: "/reports/profit-year", icon: <ShowChart sx={{ fontSize: 18 }} /> },
                     { title: "Báo cáo Nợ Có", path: "/reports/broker-debt", icon: <ContactPage sx={{ fontSize: 18 }} /> },
                     { title: "Báo cáo Tổng quát", path: "/reports/overall", icon: <PieChart sx={{ fontSize: 18 }} /> },
+                ],
+            },
+        ],
+    },
+    {
+        subheader: "Quản trị",
+        items: [
+            {
+                title: "Cài đặt hệ thống",
+                icon: <AdminPanelSettings sx={{ fontSize: 20 }} />,
+                children: [
+                    { title: "Phân quyền Đề xuất SC", path: "/admin/repair-proposal-roles", icon: <SettingsIcon sx={{ fontSize: 18 }} /> },
                 ],
             },
         ],

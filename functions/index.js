@@ -19,6 +19,7 @@ exports.logReportCreation = require("./src/triggers/logTriggers").logReportCreat
 exports.logReportDeletion = require("./src/triggers/logTriggers").logReportDeletion;
 exports.logReportSignature = require("./src/triggers/logTriggers").logReportSignature;
 exports.onTransferCompleted = require("./src/triggers/updateTriggers").onTransferCompleted;
+exports.onRepairProposalWrite = require("./src/triggers/repairProposalTriggers").onRepairProposalWrite;
 
 // Export Controllers
 exports.setUserRole = require("./src/controllers/userController").setUserRole;
