@@ -67,6 +67,7 @@ export const PROTECTED_ROUTES = [
     { path: 'reports/profit-year', name: 'Báo Cáo Lợi Nhuận Năm', group: 'Báo cáo' },
     { path: 'reports/overall', name: 'Báo Cáo Tổng Quát', group: 'Báo cáo' },
     { path: 'reports/internal-tax-report', name: 'Báo Cáo Thuế Nội Bộ', group: 'Báo cáo' },
+    { path: 'reports/interest-expenses', name: 'Chi Phí Lãi Vay', group: 'Báo cáo' },
 ];
 
 // Helper để nhóm các routes lại thành object, tiện cho việc render trong UI

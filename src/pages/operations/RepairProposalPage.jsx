@@ -2,11 +2,11 @@ import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
     Box, Typography, Button, Paper, Stack, Tabs, Tab, Switch, FormControlLabel,
     TextField, InputAdornment, CircularProgress, useMediaQuery, useTheme, Collapse,
-    IconButton, Fab, Snackbar, Alert
+    IconButton, Fab, Snackbar, Alert, Zoom, useScrollTrigger, Chip
 } from '@mui/material';
 import {
     Add as AddIcon, Build as BuildIcon, History as HistoryIcon,
-    Search as SearchIcon, Loop as LoopIcon
+    Search as SearchIcon, Loop as LoopIcon, CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -300,9 +300,10 @@ const RepairProposalPage = () => {
                         direction={isMobile ? "column" : "row"}
                         justifyContent="space-between"
                         alignItems={isMobile ? "stretch" : "center"}
-                        spacing={isMobile ? 1 : 0}
+                        spacing={isMobile ? 2 : 0}
                         sx={{ px: 2, py: 1 }}
                     >
+                        {/* Tabs: Processing vs History */}
                         <Tabs
                             value={tabIndex}
                             onChange={(e, v) => setTabIndex(v)}
@@ -314,55 +315,88 @@ const RepairProposalPage = () => {
                             <Tab label="Lịch Sử" icon={<HistoryIcon fontSize="small" />} iconPosition="start" />
                         </Tabs>
 
-                        <Stack direction="row" spacing={1} alignItems="center" justifyContent={isMobile ? "space-between" : "flex-end"}>
-                            <FormControlLabel
-                                control={
-                                    <Switch
+                        {/* Filters Row */}
+                        <Stack
+                            direction={isMobile ? "column" : "row"}
+                            spacing={isMobile ? 2 : 2}
+                            alignItems={isMobile ? "stretch" : "center"}
+                        >
+                            {/* Mobile: Filter Chips */}
+                            {isMobile && (
+                                <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5 }}>
+                                    <Chip
+                                        label="Tất cả"
+                                        onClick={() => setMyActionOnly(false)}
+                                        color={!myActionOnly ? "primary" : "default"}
+                                        variant={!myActionOnly ? "filled" : "outlined"}
                                         size="small"
-                                        checked={myActionOnly}
-                                        onChange={(e) => setMyActionOnly(e.target.checked)}
-                                        color="primary"
                                     />
-                                }
-                                label={
-                                    <Typography variant="body2" fontWeight="bold" color={myActionOnly ? 'primary' : 'textSecondary'}>
-                                        Việc của tôi
-                                    </Typography>
-                                }
-                            />
+                                    <Chip
+                                        label="Cần xử lý"
+                                        icon={<CheckCircleIcon />}
+                                        onClick={() => setMyActionOnly(true)}
+                                        color={myActionOnly ? "warning" : "default"}
+                                        variant={myActionOnly ? "filled" : "outlined"}
+                                        size="small"
+                                    />
+                                </Stack>
+                            )}
 
-                            {isMobile ? (
-                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                    <Collapse in={!!searchTerm || document.activeElement === document.getElementById('mobile-search')} orientation="horizontal" collapsedSize={30}>
-                                        <TextField
-                                            id="mobile-search"
+                            {/* Desktop: Switch Filter */}
+                            {!isMobile && (
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            checked={myActionOnly}
+                                            onChange={(e) => setMyActionOnly(e.target.checked)}
+                                            color="warning"
                                             size="small"
-                                            placeholder="Tìm..."
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                            variant="standard"
-                                            InputProps={{ disableUnderline: true, startAdornment: <SearchIcon fontSize="small" color="action" /> }}
-                                            sx={{ bgcolor: '#f5f5f5', borderRadius: 4, px: 1, width: 120, transition: 'width 0.3s' }}
                                         />
-                                    </Collapse>
-                                    {!searchTerm && (
-                                        <IconButton size="small" onClick={() => document.getElementById('mobile-search').focus()}>
-                                            <SearchIcon fontSize="small" />
-                                        </IconButton>
-                                    )}
-                                </Box>
-                            ) : (
-                                <TextField
-                                    size="small"
-                                    placeholder="Tìm kiếm..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    InputProps={{
-                                        startAdornment: <InputAdornment position="start">🔍</InputAdornment>,
-                                    }}
-                                    sx={{ width: 200 }}
+                                    }
+                                    label={
+                                        <Typography variant="body2" fontWeight="bold">
+                                            Cần xử lý ({proposals.filter(p => {
+                                                const step = getActiveStep(p);
+                                                if (isMaintenance && (step === 1 || step === 3)) return true;
+                                                if (isViceDirector && (step === 2 || step === 5)) return true;
+                                                if (p.proposerEmail === userEmail) return step === 4 || step === 1;
+                                                return false;
+                                            }).length})
+                                        </Typography>
+                                    }
                                 />
                             )}
+
+                            {/* Search Box */}
+                            <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
+                                {isMobile ? (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: '#f5f5f5', borderRadius: 2, px: 2, py: 1, width: '100%' }}>
+                                        <SearchIcon color="action" fontSize="small" sx={{ mr: 1 }} />
+                                        <input
+                                            style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem' }}
+                                            placeholder="Tìm tên, mã, nội dung..."
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                        {searchTerm && (
+                                            <IconButton size="small" onClick={() => setSearchTerm('')} sx={{ p: 0.5 }}>
+                                                <SearchIcon fontSize="small" sx={{ transform: 'rotate(45deg)' }} />
+                                            </IconButton>
+                                        )}
+                                    </Box>
+                                ) : (
+                                    <TextField
+                                        size="small"
+                                        placeholder="Tìm kiếm..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        InputProps={{
+                                            startAdornment: <InputAdornment position="start">🔍</InputAdornment>,
+                                        }}
+                                        sx={{ width: 220 }}
+                                    />
+                                )}
+                            </Stack>
                         </Stack>
                     </Stack>
                 </Paper>
@@ -466,22 +500,24 @@ const RepairProposalPage = () => {
                     onClose={handleClosePreview}
                 />
 
-                {/* FAB for Mobile */}
+                {/* FAB for Mobile - Auto hide on scroll */}
                 {isMobile && (
-                    <Fab
-                        color="primary"
-                        aria-label="add"
-                        sx={{
-                            position: 'fixed',
-                            bottom: 24,
-                            right: 24,
-                            zIndex: 1000,
-                            boxShadow: 4
-                        }}
-                        onClick={handleOpenAdd}
-                    >
-                        <AddIcon />
-                    </Fab>
+                    <Zoom in={!useScrollTrigger({ threshold: 100 })}>
+                        <Fab
+                            color="primary"
+                            aria-label="add"
+                            sx={{
+                                position: 'fixed',
+                                bottom: 24,
+                                right: 24,
+                                zIndex: 1000,
+                                boxShadow: 4
+                            }}
+                            onClick={handleOpenAdd}
+                        >
+                            <AddIcon />
+                        </Fab>
+                    </Zoom>
                 )}
 
                 <Snackbar

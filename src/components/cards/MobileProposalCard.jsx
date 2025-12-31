@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import {
     Box, Card, Typography, Chip,
@@ -9,7 +8,8 @@ import {
     Edit as EditIcon, Delete as DeleteIcon,
     Build as BuildIcon, AccessTime as AccessTimeIcon,
     Person as PersonIcon, History as HistoryIcon,
-    Error as ErrorIcon, Loop as LoopIcon
+    Error as ErrorIcon, Loop as LoopIcon,
+    KeyboardArrowDown as KeyboardArrowDownIcon
 } from '@mui/icons-material';
 import { motion, useMotionValue } from 'framer-motion';
 import ProposalActions from './ProposalActions';
@@ -97,73 +97,64 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                         pr: 3,
                     }}
                 >
-                    <Stack direction="row" spacing={2}>
+                    <Stack direction="row" spacing={3}>
                         {canResubmit && (
-                            <Box
-                                sx={{
-                                    bgcolor: 'warning.main',
-                                    color: 'white',
-                                    width: 40, height: 40,
-                                    borderRadius: '50%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    pointerEvents: 'auto',
-                                    cursor: 'pointer',
-                                    boxShadow: 2,
-                                    zIndex: 10
-                                }}
+                            <Stack alignItems="center" spacing={0.5}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     vibrate(50);
                                     setActionDialog({ open: true, type: 'resubmit', item, title: 'Xin duyệt lại' });
                                 }}
+                                sx={{ cursor: 'pointer', zIndex: 10 }}
                             >
-                                <LoopIcon fontSize="small" />
-                            </Box>
+                                <Box sx={{
+                                    bgcolor: 'warning.main', color: 'white',
+                                    width: 40, height: 40, borderRadius: '50%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 2
+                                }}>
+                                    <LoopIcon fontSize="small" />
+                                </Box>
+                                <Typography variant="caption" fontWeight="bold" color="warning.dark">Gửi lại</Typography>
+                            </Stack>
                         )}
                         {canEdit && (
-                            <Box
-                                sx={{
-                                    bgcolor: 'primary.main',
-                                    color: 'white',
-                                    width: 40, height: 40,
-                                    borderRadius: '50%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    pointerEvents: 'auto',
-                                    cursor: 'pointer',
-                                    boxShadow: 2,
-                                    zIndex: 10
-                                }}
+                            <Stack alignItems="center" spacing={0.5}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     vibrate(50);
                                     setEditData(item);
                                     setDialogOpen(true);
                                 }}
+                                sx={{ cursor: 'pointer', zIndex: 10 }}
                             >
-                                <EditIcon fontSize="small" />
-                            </Box>
+                                <Box sx={{
+                                    bgcolor: 'primary.main', color: 'white',
+                                    width: 40, height: 40, borderRadius: '50%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 2
+                                }}>
+                                    <EditIcon fontSize="small" />
+                                </Box>
+                                <Typography variant="caption" fontWeight="bold" color="primary.dark">Sửa</Typography>
+                            </Stack>
                         )}
                         {canDelete && (
-                            <Box
-                                sx={{
-                                    bgcolor: 'error.main',
-                                    color: 'white',
-                                    width: 40, height: 40,
-                                    borderRadius: '50%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    pointerEvents: 'auto',
-                                    cursor: 'pointer',
-                                    boxShadow: 2,
-                                    zIndex: 10
-                                }}
+                            <Stack alignItems="center" spacing={0.5}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     vibrate(50);
                                     setActionDialog({ open: true, type: 'delete', item, title: 'Xác nhận xóa' });
                                 }}
+                                sx={{ cursor: 'pointer', zIndex: 10 }}
                             >
-                                <DeleteIcon fontSize="small" />
-                            </Box>
+                                <Box sx={{
+                                    bgcolor: 'error.main', color: 'white',
+                                    width: 40, height: 40, borderRadius: '50%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 2
+                                }}>
+                                    <DeleteIcon fontSize="small" />
+                                </Box>
+                                <Typography variant="caption" fontWeight="bold" color="error.dark">Xóa</Typography>
+                            </Stack>
                         )}
                     </Stack>
                 </Box>
@@ -173,7 +164,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
             <motion.div
                 style={{ x, position: 'relative', touchAction: 'pan-y' }} // Allow vertical scroll, handle horizontal pan
                 drag="x"
-                dragConstraints={{ left: (canEdit || canDelete) ? -120 : 0, right: 0 }}
+                dragConstraints={{ left: (canEdit || canDelete) ? -150 : 0, right: 0 }}
                 dragElastic={0.1}
                 onDragEnd={handleDragEnd}
             >
@@ -205,9 +196,17 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
 
                     <Box sx={{ p: 2, cursor: 'pointer' }} onClick={() => setExpanded(!expanded)}>
                         {/* Content */}
-                        <Typography variant="body1" sx={{ fontWeight: 600, mb: 1.5, fontSize: '1.05rem' }}>
-                            {item.content}
-                        </Typography>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                            <Typography variant="body1" sx={{ fontWeight: 600, mb: 1.5, fontSize: '1.05rem', flex: 1 }}>
+                                {item.content}
+                            </Typography>
+                            <motion.div
+                                animate={{ rotate: expanded ? 180 : 0 }}
+                                transition={{ duration: 0.3 }}
+                            >
+                                <KeyboardArrowDownIcon color="action" />
+                            </motion.div>
+                        </Stack>
 
                         <Grid container spacing={2}>
                             {/* Info Column */}
@@ -280,12 +279,12 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                         sx={{
                                             width: '100%',
                                             aspectRatio: '1/1',
-                                            borderRadius: 3,
+                                            borderRadius: 2,
                                             overflow: 'hidden',
-                                            border: '1px solid #eee',
-                                            position: 'relative'
-                                        }}
-                                    >
+                                            border: '1px solid #f0f0f0',
+                                            position: 'relative',
+                                            boxShadow: 1
+                                        }}>
                                         {isVideo(item.images[0]) ? (
                                             <video src={item.images[0]} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                         ) : (
@@ -325,7 +324,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                         <Divider sx={{ mb: 0 }} />
                         <Box sx={{ p: 2, bgcolor: '#fafafa' }}>
                             <Typography variant="caption" color="textSecondary" fontWeight="bold" gutterBottom display="block">TIẾN ĐỘ CHI TIẾT</Typography>
-                            <Stepper activeStep={step} orientation="vertical" sx={{ '& .MuiStepConnector-line': { minHeight: 10 } }}>
+                            <Stepper activeStep={step - 1} orientation="vertical" sx={{ '& .MuiStepConnector-line': { minHeight: 10 } }}>
                                 {STEPS.map((s, idx) => (
                                     <Step key={idx} completed={step > idx + 1}>
                                         <StepLabel>
@@ -336,9 +335,9 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                             </Stepper>
                         </Box>
                     </Collapse>
-                </Card>
-            </motion.div>
-        </Box>
+                </Card >
+            </motion.div >
+        </Box >
     );
 }, (prevProps, nextProps) => {
     // Custom comparison - chỉ re-render khi item hoặc permissions thay đổi

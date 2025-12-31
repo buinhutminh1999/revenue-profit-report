@@ -2,12 +2,12 @@ import { format, isValid } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
 export const STEPS = [
-    { label: 'Mới tạo', value: 'new', role: '' },
-    { label: 'Chờ BT nhập', value: 'pending_maintenance', role: 'Tổ BT' },
+    { label: 'Chờ BT nhập', value: 'new', role: 'Tổ BT' },
     { label: 'Chờ duyệt', value: 'pending_approval', role: 'P.GĐ' },
-    { label: 'Bảo trì xong', value: 'maintenance_done', role: 'Tổ BT' },
-    { label: 'Nghiệm thu', value: 'proposer_done', role: 'Người ĐX' },
-    { label: 'Hoàn tất', value: 'completed', role: 'P.GĐ' }
+    { label: 'Bảo trì đang làm', value: 'maintenance_doing', role: 'Tổ BT' },
+    { label: 'Chờ nghiệm thu', value: 'pending_proposer', role: 'Người ĐX' },
+    { label: 'Chờ xác nhận cuối', value: 'pending_final', role: 'P.GĐ' },
+    { label: 'Hoàn tất', value: 'completed', role: '' }
 ];
 
 export const getActiveStep = (item) => {
@@ -16,9 +16,9 @@ export const getActiveStep = (item) => {
     if (item.confirmations?.proposer) return 5; // Waiting for Final Confirm
     if (item.confirmations?.maintenance) return 4; // Waiting for Proposer
     if (item.approval?.status === 'approved') return 3; // Approved, Waiting for Maintenance to confirm done
-    // Must have BOTH maintenanceOpinion AND estimatedCompletion to proceed
-    if (item.maintenanceOpinion && item.estimatedCompletion) return 2; // Ready for approval
-    return 1; // New, waiting for maintenance to enter BOTH fields
+    // Only maintenanceOpinion is required to proceed to approval step
+    if (item.maintenanceOpinion) return 2; // Ready for approval
+    return 1; // New, waiting for maintenance to enter opinion
 };
 
 export const formatDateSafe = (dateVal) => {

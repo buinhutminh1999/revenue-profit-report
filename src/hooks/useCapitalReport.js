@@ -84,6 +84,12 @@ export const useCapitalReport = (year, quarter) => {
                         dbData.construction.revenue
                     );
                 }
+                // Merge top-level totals saved in database
+                mergedData.constructionGrandTotalActual = dbData.constructionGrandTotalActual;
+                mergedData.constructionGrandTotalPlan = dbData.constructionGrandTotalPlan;
+                mergedData.productionTotalActual = dbData.productionTotalActual;
+                mergedData.productionTotalPlan = dbData.productionTotalPlan;
+                mergedData.investmentTotalRemaining = dbData.investmentTotalRemaining;
                 return mergedData;
             }
             return initialReportData;

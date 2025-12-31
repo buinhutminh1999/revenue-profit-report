@@ -195,7 +195,7 @@ const ProposalTableRow = React.memo(({
                         )}
 
                         {/* Compact Stepper */}
-                        <Stepper alternativeLabel activeStep={step} connector={<QontoConnector />} sx={{ width: '100%' }}>
+                        <Stepper alternativeLabel activeStep={step - 1} connector={<QontoConnector />} sx={{ width: '100%' }}>
                             {STEPS.map((stepItem, idx) => {
                                 let tooltipContent = stepItem.role ? `${stepItem.label} - Bởi: ${stepItem.role}` : stepItem.label;
                                 let info = null;

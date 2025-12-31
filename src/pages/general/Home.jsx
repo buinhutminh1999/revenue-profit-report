@@ -152,6 +152,7 @@ const Home = () => {
         { category: 'Báo Cáo', icon: <LineChart sx={{ fontSize: 26 }} />, title: 'Báo Cáo Lợi Nhuận Năm', to: '/reports/profit-year', desc: 'Xem báo cáo tổng kết năm', color: '#10b981' },
         { category: 'Báo Cáo', icon: <PieChart sx={{ fontSize: 26 }} />, title: 'Báo Cáo Tổng Quát', to: '/reports/overall', desc: 'Tổng hợp tình hình hoạt động', color: '#6366f1' },
         { category: 'Báo Cáo', icon: <Description sx={{ fontSize: 26 }} />, title: 'Báo Cáo Thuế Nội Bộ', to: '/reports/internal-tax-report', desc: 'Quản lý hóa đơn và bảng kê', color: '#8b5cf6' },
+        { category: 'Báo Cáo', icon: <Landmark sx={{ fontSize: 26 }} />, title: 'Chi Phí Lãi Vay', to: '/reports/interest-expenses', desc: 'Theo dõi chi phí lãi vay và phân bổ', color: '#ef4444' },
     ];
 
     useEffect(() => {
