@@ -199,10 +199,15 @@ const ProposalTableRow = React.memo(({
                             {STEPS.map((stepItem, idx) => {
                                 let tooltipContent = stepItem.role ? `${stepItem.label} - Bởi: ${stepItem.role}` : stepItem.label;
                                 let info = null;
-                                if (idx === 2 && item.approval?.status === 'approved') info = item.approval;
-                                else if (idx === 3 && item.confirmations?.maintenance?.confirmed) info = item.confirmations.maintenance;
-                                else if (idx === 4 && item.confirmations?.proposer?.confirmed) info = item.confirmations.proposer;
-                                else if (idx === 5 && item.confirmations?.viceDirector?.confirmed) info = item.confirmations.viceDirector;
+                                // idx 0 = Step 1 (Chờ BT nhập) - maintenanceOpinion
+                                // idx 1 = Step 2 (Chờ duyệt P.GĐ) - approval
+                                // idx 2 = Step 3 (Bảo trì đang làm) - confirmations.maintenance
+                                // idx 3 = Step 4 (Chờ nghiệm thu) - confirmations.proposer
+                                // idx 4 = Step 5 (Chờ xác nhận cuối) - confirmations.viceDirector
+                                if (idx === 1 && item.approval?.status === 'approved') info = item.approval;
+                                else if (idx === 2 && item.confirmations?.maintenance?.confirmed) info = item.confirmations.maintenance;
+                                else if (idx === 3 && item.confirmations?.proposer?.confirmed) info = item.confirmations.proposer;
+                                else if (idx === 4 && item.confirmations?.viceDirector?.confirmed) info = item.confirmations.viceDirector;
 
                                 if (info) {
                                     tooltipContent = (

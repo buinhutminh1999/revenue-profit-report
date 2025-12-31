@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions,
-    Button, TextField, Box, Stack, Typography, CircularProgress
+    Button, TextField, Box, Stack, Typography, CircularProgress, LinearProgress
 } from '@mui/material';
 import { Image as ImageIcon, Print as PrintIcon } from '@mui/icons-material';
 import { useForm, Controller } from "react-hook-form";
@@ -10,6 +10,8 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { renderTimeViewClock } from '@mui/x-date-pickers/timeViewRenderers';
 import { useTheme, useMediaQuery } from '@mui/material';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
+import { compressImage } from '../../utils/imageCompression';
+import { compressVideo } from '../../utils/videoCompression';
 import { isVideo } from '../../utils/proposalUtils';
 
 const ProposalDialog = ({ open, onClose, onSubmit, initialData }) => {
@@ -25,6 +27,8 @@ const ProposalDialog = ({ open, onClose, onSubmit, initialData }) => {
     const [imageFile, setImageFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [compressProgress, setCompressProgress] = useState(0);
+    const [statusMessage, setStatusMessage] = useState('');
 
     React.useEffect(() => {
         if (open) {
@@ -88,7 +92,29 @@ const ProposalDialog = ({ open, onClose, onSubmit, initialData }) => {
                     // alert("Vui lòng cấu hình Cloudinary trong .env");
                     // Proceeding anyway (might work if service uses defaults or user configured globally)
                 }
-                const uploadedUrl = await uploadToCloudinary(imageFile);
+
+                // Compress before upload
+                let fileToUpload = imageFile;
+
+                if (imageFile.type.startsWith('image/')) {
+                    setStatusMessage('Nén ảnh...');
+                    fileToUpload = await compressImage(imageFile);
+                } else if (imageFile.type.startsWith('video/')) {
+                    setStatusMessage('Nén video...');
+                    setCompressProgress(0);
+                    try {
+                        fileToUpload = await compressVideo(imageFile, {}, (progress) => {
+                            setCompressProgress(progress);
+                        });
+                    } catch (err) {
+                        console.log('🎬 Video compression failed, uploading original:', err.message);
+                        // Fall back to original file if compression fails
+                    }
+                }
+
+                setStatusMessage('Đang tải lên...');
+                setCompressProgress(0);
+                const uploadedUrl = await uploadToCloudinary(fileToUpload);
                 if (uploadedUrl) imageUrl = uploadedUrl;
             }
 
@@ -252,6 +278,20 @@ const ProposalDialog = ({ open, onClose, onSubmit, initialData }) => {
                                     </Box>
                                 )}
                             </Stack>
+
+                            {/* Progress Indicator */}
+                            {uploading && statusMessage && (
+                                <Box sx={{ mt: 1.5 }}>
+                                    <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                                        {statusMessage} {compressProgress > 0 && `${compressProgress}%`}
+                                    </Typography>
+                                    <LinearProgress
+                                        variant={compressProgress > 0 ? "determinate" : "indeterminate"}
+                                        value={compressProgress}
+                                        sx={{ borderRadius: 1 }}
+                                    />
+                                </Box>
+                            )}
                         </Box>
                     </Stack>
                 </DialogContent>

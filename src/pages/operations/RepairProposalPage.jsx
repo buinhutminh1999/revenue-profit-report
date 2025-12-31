@@ -1,13 +1,15 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
     Box, Typography, Button, Paper, Stack, Tabs, Tab, Switch, FormControlLabel,
     TextField, InputAdornment, CircularProgress, useMediaQuery, useTheme, Collapse,
-    IconButton, Fab, Snackbar, Alert, Zoom, useScrollTrigger, Chip
+    IconButton, Fab, Zoom, useScrollTrigger, Chip
 } from '@mui/material';
 import {
     Add as AddIcon, Build as BuildIcon, History as HistoryIcon,
-    Search as SearchIcon, Loop as LoopIcon, CheckCircle as CheckCircleIcon
+    Search as SearchIcon, Loop as LoopIcon, CheckCircle as CheckCircleIcon,
+    WifiOff as WifiOffIcon
 } from '@mui/icons-material';
+import toast from 'react-hot-toast';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { vi } from 'date-fns/locale';
@@ -69,7 +71,18 @@ const RepairProposalPage = () => {
     // Pull to Refresh State
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [pullY, setPullY] = useState(0);
-    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    useEffect(() => {
+        const handleOnline = () => { setIsOnline(true); toast.success('Đã khôi phục kết nối'); };
+        const handleOffline = () => { setIsOnline(false); toast.error('Mất kết nối mạng'); };
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
 
     // Action Dialog State
     const [actionDialog, setActionDialog] = useState({ open: false, type: null, item: null, initialData: null });
@@ -96,11 +109,18 @@ const RepairProposalPage = () => {
 
     // Memoized handlers
     const handleRefresh = useCallback(async () => {
+        if (!navigator.onLine) {
+            toast.error('Không có mạng để đồng bộ');
+            setPullY(0);
+            return;
+        }
         setIsRefreshing(true);
         vibrate(50);
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // Simulate sync check or just visual feedback since we have realtime listener
+        await new Promise(resolve => setTimeout(resolve, 1200));
         setIsRefreshing(false);
         setPullY(0);
+        toast.success('Đã đồng bộ dữ liệu');
     }, []);
 
     const onTouchStart = useCallback((e) => {
@@ -162,6 +182,20 @@ const RepairProposalPage = () => {
             return true;
         });
     }, [proposals, tabIndex, searchTerm, myActionOnly, isMaintenance, isViceDirector, userEmail, user?.displayName]);
+
+    // Calculate count of "My Actions" for badges
+    const myActionCount = useMemo(() => {
+        return proposals.filter(p => {
+            const step = getActiveStep(p);
+            if (isMaintenance && (step === 1 || step === 3)) return true;
+            if (isViceDirector && (step === 2 || step === 5)) return true;
+            if (p.proposerEmail === userEmail || p.proposer?.toLowerCase() === user?.displayName?.toLowerCase()) {
+                if (step === 4) return true;
+                if (step === 1 || p.approval?.status === 'rejected') return true;
+            }
+            return false;
+        }).length;
+    }, [proposals, isMaintenance, isViceDirector, userEmail, user?.displayName]);
 
     const handleSaveProposal = useCallback((data) => {
         if (editData?.id) {
@@ -246,9 +280,7 @@ const RepairProposalPage = () => {
         setActionDialog({ open: false, type: null, item: null, initialData: null });
     }, [actionDialog.item, actionDialog.type, deleteProposal, updateProposal, user?.email]);
 
-    const handleCloseSnackbar = useCallback(() => {
-        setSnackbar(prev => ({ ...prev, open: false }));
-    }, []);
+
 
     const handleOpenAdd = useCallback(() => {
         setEditData({
@@ -267,6 +299,21 @@ const RepairProposalPage = () => {
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
             <Box sx={{ p: 3 }}>
+                {/* Offline Indicator */}
+                {!isOnline && (
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            bgcolor: 'error.main', color: 'white',
+                            p: 1, mb: 2, borderRadius: 2,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1
+                        }}
+                    >
+                        <WifiOffIcon fontSize="small" />
+                        <Typography variant="caption" fontWeight="bold">Bạn đang offline. Dữ liệu có thể không cập nhật.</Typography>
+                    </Paper>
+                )}
+
                 {/* Dashboard Stats */}
                 <StatsPanel proposals={proposals} />
 
@@ -332,7 +379,7 @@ const RepairProposalPage = () => {
                                         size="small"
                                     />
                                     <Chip
-                                        label="Cần xử lý"
+                                        label={`Cần xử lý (${myActionCount})`}
                                         icon={<CheckCircleIcon />}
                                         onClick={() => setMyActionOnly(true)}
                                         color={myActionOnly ? "warning" : "default"}
@@ -355,13 +402,7 @@ const RepairProposalPage = () => {
                                     }
                                     label={
                                         <Typography variant="body2" fontWeight="bold">
-                                            Cần xử lý ({proposals.filter(p => {
-                                                const step = getActiveStep(p);
-                                                if (isMaintenance && (step === 1 || step === 3)) return true;
-                                                if (isViceDirector && (step === 2 || step === 5)) return true;
-                                                if (p.proposerEmail === userEmail) return step === 4 || step === 1;
-                                                return false;
-                                            }).length})
+                                            Cần xử lý ({myActionCount})
                                         </Typography>
                                     }
                                 />
@@ -422,7 +463,7 @@ const RepairProposalPage = () => {
                             {isRefreshing ? (
                                 <Stack direction="row" spacing={1} alignItems="center">
                                     <CircularProgress size={20} thickness={4} />
-                                    <Typography variant="caption" color="text.secondary">Đang tải...</Typography>
+                                    <Typography variant="caption" color="text.secondary">Đang đồng bộ...</Typography>
                                 </Stack>
                             ) : (
                                 <Box sx={{
@@ -520,16 +561,7 @@ const RepairProposalPage = () => {
                     </Zoom>
                 )}
 
-                <Snackbar
-                    open={snackbar.open}
-                    autoHideDuration={4000}
-                    onClose={handleCloseSnackbar}
-                    anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-                >
-                    <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%', boxShadow: 3 }}>
-                        {snackbar.message}
-                    </Alert>
-                </Snackbar>
+
             </Box>
         </LocalizationProvider>
     );

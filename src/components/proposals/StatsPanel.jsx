@@ -1,12 +1,15 @@
 import React from 'react';
-import { Box, Stack, Paper, Typography } from '@mui/material';
+import { Box, Stack, Paper, Typography, useTheme } from '@mui/material';
 
 /**
  * StatsPanel - Hiển thị thống kê tổng quan về proposals
  * Được memo hóa để tránh re-render không cần thiết
  */
 const StatsPanel = React.memo(({ proposals }) => {
+    const theme = useTheme(); // Need useTheme
     const total = proposals.length;
+    // ... imports need useTheme if not present. It is not present in Step 467.
+    // Need to add useTheme to imports first.
     const pending = proposals.filter(p => !p.maintenanceOpinion || !p.estimatedCompletion).length;
     const approving = proposals.filter(p => p.maintenanceOpinion && p.estimatedCompletion && p.approval?.status !== 'approved').length;
     const working = proposals.filter(p => p.approval?.status === 'approved' && !p.confirmations?.maintenance).length;
@@ -17,24 +20,24 @@ const StatsPanel = React.memo(({ proposals }) => {
             spacing={2}
             mb={3}
             sx={{
-                overflowX: 'auto',
+                overflowX: { xs: 'auto', md: 'visible' },
                 pb: 1,
-                scrollSnapType: 'x mandatory',
+                scrollSnapType: { xs: 'x mandatory', md: 'none' },
                 '&::-webkit-scrollbar': { display: 'none' },
-                px: 1,
-                mx: -1
+                px: { xs: 1, md: 0 },
+                mx: { xs: -1, md: 0 }
             }}
         >
             <Paper
                 elevation={0}
                 sx={{
-                    p: 2, flex: '0 0 80%',
-                    minWidth: 150,
-                    maxWidth: 200,
-                    bgcolor: '#e3f2fd',
+                    p: 2,
+                    flex: { xs: '0 0 80%', md: 1 },
+                    minWidth: { xs: 150, md: 0 },
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(32, 129, 237, 0.12)' : '#e3f2fd',
                     scrollSnapAlign: 'start',
                     borderRadius: 3,
-                    border: '1px solid #bbdefb'
+                    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(32, 129, 237, 0.3)' : '#bbdefb'}`
                 }}
             >
                 <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
@@ -46,13 +49,13 @@ const StatsPanel = React.memo(({ proposals }) => {
             <Paper
                 elevation={0}
                 sx={{
-                    p: 2, flex: '0 0 80%',
-                    minWidth: 150,
-                    maxWidth: 200,
-                    bgcolor: '#fff3e0',
+                    p: 2,
+                    flex: { xs: '0 0 80%', md: 1 },
+                    minWidth: { xs: 150, md: 0 },
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(237, 108, 2, 0.12)' : '#fff3e0',
                     scrollSnapAlign: 'start',
                     borderRadius: 3,
-                    border: '1px solid #ffe0b2'
+                    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(237, 108, 2, 0.3)' : '#ffe0b2'}`
                 }}
             >
                 <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
@@ -64,13 +67,13 @@ const StatsPanel = React.memo(({ proposals }) => {
             <Paper
                 elevation={0}
                 sx={{
-                    p: 2, flex: '0 0 80%',
-                    minWidth: 150,
-                    maxWidth: 200,
-                    bgcolor: '#f3e5f5',
+                    p: 2,
+                    flex: { xs: '0 0 80%', md: 1 },
+                    minWidth: { xs: 150, md: 0 },
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.12)' : '#f3e5f5',
                     scrollSnapAlign: 'start',
                     borderRadius: 3,
-                    border: '1px solid #e1bee7'
+                    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.3)' : '#e1bee7'}`
                 }}
             >
                 <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
@@ -82,13 +85,13 @@ const StatsPanel = React.memo(({ proposals }) => {
             <Paper
                 elevation={0}
                 sx={{
-                    p: 2, flex: '0 0 80%',
-                    minWidth: 150,
-                    maxWidth: 200,
-                    bgcolor: '#e8f5e9',
+                    p: 2,
+                    flex: { xs: '0 0 80%', md: 1 },
+                    minWidth: { xs: 150, md: 0 },
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(46, 125, 50, 0.12)' : '#e8f5e9',
                     scrollSnapAlign: 'start',
                     borderRadius: 3,
-                    border: '1px solid #c8e6c9'
+                    border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(46, 125, 50, 0.3)' : '#c8e6c9'}`
                 }}
             >
                 <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>

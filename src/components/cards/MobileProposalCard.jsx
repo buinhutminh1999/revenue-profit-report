@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
     Box, Card, Typography, Chip,
     Grid, Avatar, Stack, Divider, Collapse, Stepper, Step, StepLabel,
-    useTheme
+    useTheme, AvatarGroup, LinearProgress, Tooltip
 } from '@mui/material';
 import {
     Edit as EditIcon, Delete as DeleteIcon,
@@ -30,42 +30,54 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
     let statusBg = theme.palette.grey[100];
     let statusTextColor = theme.palette.text.secondary;
 
-    // Enhanced Status Logic for Visuals
-    if (step === 1) { // New / Pending Maintenance Opinion
+    // Enhanced Status Logic for Visuals (Dark Mode Compatible)
+    const alphaBg = (color) => `rgba(${theme.palette[color].main}, 0.12)`; // Fallback if simple alpha helper not available, but let's use theme palette direct if possible, or just assume MUI alpha works if imported, but safely we can use standard MUI alpha function or just hardcode rgba. 
+    // Actually, use theme.palette.action.hover or similar is safer, but we want color.
+    // Let's use `theme.palette.mode === 'dark' ? ... : ...` or better `alpha` from @mui/material.
+
+    // We need to import alpha from @mui/material first
+    // Since we didn't import alpha in this file yet (it's in ThemeContext), let's use a helper or conditional.
+    // Simplest: use `theme.palette.color.light` for background in light mode, and `theme.palette.color.dark` with opacity in dark mode.
+    // Or just use `alpha(theme.palette[color].main, 0.1)`
+
+    // Re-importing alpha might be risky without full file rewrite. 
+    // Let's use `theme.palette[color].light` which is usually soft.
+
+    if (step === 1) { // New
         statusColor = 'info';
-        statusBg = '#e3f2fd'; // Light blue
-        statusTextColor = '#1976d2';
+        statusBg = theme.palette.mode === 'dark' ? theme.palette.info.dark : theme.palette.info.lighter || '#e3f2fd';
+        statusTextColor = theme.palette.info.main;
     }
     if (step === 2) { // Pending Approval
         statusColor = 'warning';
-        statusBg = '#fff3e0'; // Light orange
-        statusTextColor = '#ed6c02';
+        statusBg = theme.palette.mode === 'dark' ? theme.palette.warning.dark : theme.palette.warning.lighter || '#fff3e0';
+        statusTextColor = theme.palette.warning.main;
     }
     if (step === 3) { // Maintenance Doing
         statusColor = 'secondary';
-        statusBg = '#f3e5f5'; // Light purple
-        statusTextColor = '#9c27b0';
+        statusBg = theme.palette.mode === 'dark' ? theme.palette.secondary.dark : theme.palette.secondary.lighter || '#f3e5f5';
+        statusTextColor = theme.palette.secondary.main;
     }
-    if (step === 4) { // Pending Proposer Confirm
+    if (step === 4) { // Pending Proposer
         statusColor = 'primary';
-        statusBg = '#e3f2fd';
-        statusTextColor = '#1565c0';
+        statusBg = theme.palette.mode === 'dark' ? theme.palette.primary.dark : theme.palette.primary.lighter || '#e3f2fd';
+        statusTextColor = theme.palette.primary.main;
     }
-    if (step === 5) { // Pending Final Confirm
+    if (step === 5) { // Pending Final
         statusColor = 'info';
-        statusBg = '#e0f7fa';
-        statusTextColor = '#006064';
+        statusBg = theme.palette.mode === 'dark' ? theme.palette.info.dark : theme.palette.info.lighter || '#e0f7fa';
+        statusTextColor = theme.palette.info.main;
     }
     if (step === 6) { // Completed
         statusColor = 'success';
-        statusBg = '#e8f5e9'; // Light green
-        statusTextColor = '#2e7d32';
+        statusBg = theme.palette.mode === 'dark' ? theme.palette.success.dark : theme.palette.success.lighter || '#e8f5e9';
+        statusTextColor = theme.palette.success.main;
     }
     if (item.approval?.status === 'rejected') {
         statusColor = 'error';
         statusText = 'Đã từ chối';
-        statusBg = '#ffebee';
-        statusTextColor = '#d32f2f';
+        statusBg = theme.palette.mode === 'dark' ? theme.palette.error.dark : theme.palette.error.lighter || '#ffebee';
+        statusTextColor = theme.palette.error.main;
     }
 
     const canEdit = canDoAction('edit_proposal', item) && (canDoAction('configure_roles') || (!item.maintenanceOpinion && step < 5));
@@ -166,6 +178,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                 drag="x"
                 dragConstraints={{ left: (canEdit || canDelete) ? -150 : 0, right: 0 }}
                 dragElastic={0.1}
+                whileTap={{ scale: 0.98 }}
                 onDragEnd={handleDragEnd}
             >
                 <Card elevation={canEdit || canDelete ? 2 : 0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 4, overflow: 'hidden', bgcolor: 'background.paper' }}>
@@ -194,7 +207,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                         )}
                     </Box>
 
-                    <Box sx={{ p: 2, cursor: 'pointer' }} onClick={() => setExpanded(!expanded)}>
+                    <Box sx={{ p: 2, cursor: 'pointer' }} onClick={() => { setExpanded(!expanded); vibrate(40); }}>
                         {/* Content */}
                         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
                             <Typography variant="body1" sx={{ fontWeight: 600, mb: 1.5, fontSize: '1.05rem', flex: 1 }}>
@@ -213,9 +226,26 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                             <Grid item xs={item.images?.[0] ? 8 : 12}>
                                 <Stack spacing={1}>
                                     <Stack direction="row" spacing={1} alignItems="center">
-                                        <Avatar sx={{ width: 20, height: 20, bgcolor: theme.palette.primary.light }}>
-                                            <PersonIcon sx={{ fontSize: 14 }} />
-                                        </Avatar>
+                                        <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 24, height: 24, fontSize: 12, border: '1px solid white' } }}>
+                                            {/* Proposer Avatar */}
+                                            <Tooltip title={`Người đề xuất: ${item.proposer}`}>
+                                                <Avatar sx={{ bgcolor: theme.palette.primary.light }}>
+                                                    {item.proposer?.charAt(0)}
+                                                </Avatar>
+                                            </Tooltip>
+
+                                            {/* Responsibility Avatar (Ball Holder) */}
+                                            {step < 6 && (
+                                                <Tooltip title="Đang chờ xử lý tại bước này">
+                                                    <Avatar sx={{
+                                                        bgcolor: step === 1 || step === 3 ? theme.palette.warning.light : theme.palette.info.light,
+                                                        color: 'white'
+                                                    }}>
+                                                        {step === 1 || step === 3 ? <BuildIcon sx={{ fontSize: 14 }} /> : <PersonIcon sx={{ fontSize: 14 }} />}
+                                                    </Avatar>
+                                                </Tooltip>
+                                            )}
+                                        </AvatarGroup>
                                         <Typography variant="caption" color="text.secondary" noWrap>
                                             {item.proposer} ({item.department})
                                         </Typography>
@@ -229,8 +259,8 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
 
                                     {/* Maintenance Opinion Highlight if exists */}
                                     {item.maintenanceOpinion && (
-                                        <Box sx={{ mt: 1, p: 1, bgcolor: '#f5f5f5', borderRadius: 2, borderLeft: `3px solid ${theme.palette.warning.main}` }}>
-                                            <Typography variant="caption" fontWeight="bold" display="block" color="warning.dark">
+                                        <Box sx={{ mt: 1, p: 1, bgcolor: theme.palette.mode === 'dark' ? 'rgba(237, 108, 2, 0.1)' : '#fff3e0', borderRadius: 2, borderLeft: `3px solid ${theme.palette.warning.main}` }}>
+                                            <Typography variant="caption" fontWeight="bold" display="block" color="warning.main">
                                                 <BuildIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'text-top' }} />
                                                 Ý kiến bảo trì:
                                             </Typography>
@@ -242,8 +272,8 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
 
                                     {/* Rejected Reason Highlight */}
                                     {item.approval?.status === 'rejected' && (
-                                        <Box sx={{ mt: 1, p: 1, bgcolor: '#ffebee', borderRadius: 2, borderLeft: `3px solid ${theme.palette.error.main}` }}>
-                                            <Typography variant="caption" fontWeight="bold" display="block" color="error.dark">
+                                        <Box sx={{ mt: 1, p: 1, bgcolor: theme.palette.mode === 'dark' ? 'rgba(211, 47, 47, 0.1)' : '#ffebee', borderRadius: 2, borderLeft: `3px solid ${theme.palette.error.main}` }}>
+                                            <Typography variant="caption" fontWeight="bold" display="block" color="error.main">
                                                 <ErrorIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'text-top' }} />
                                                 Lý do từ chối:
                                             </Typography>
@@ -304,7 +334,33 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                 </Grid>
                             )}
                         </Grid>
+                        {/* Main Content End */}
                     </Box>
+
+                    {/* Mini Progress Bar (Visible when collapsed) */}
+                    {!expanded && (
+                        <Box sx={{ px: 2, pb: 2 }}>
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                                <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ fontSize: '0.65rem' }}>
+                                    {Math.round((step / 6) * 100)}%
+                                </Typography>
+                                <LinearProgress
+                                    variant="determinate"
+                                    value={(step / 6) * 100}
+                                    sx={{
+                                        flex: 1,
+                                        height: 4,
+                                        borderRadius: 2,
+                                        bgcolor: theme.palette.grey[200],
+                                        '& .MuiLinearProgress-bar': {
+                                            borderRadius: 2,
+                                            bgcolor: statusColor === 'default' ? 'primary.main' : `${statusColor}.main`
+                                        }
+                                    }}
+                                />
+                            </Stack>
+                        </Box>
+                    )}
 
                     {/* Action Bar - Always visible based on status */}
                     <Box sx={{ px: 2, pb: 2 }}>
@@ -322,16 +378,62 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                     {/* Expand Content (Stepper & Details) */}
                     <Collapse in={expanded} timeout="auto" unmountOnExit>
                         <Divider sx={{ mb: 0 }} />
-                        <Box sx={{ p: 2, bgcolor: '#fafafa' }}>
+                        <Box sx={{ p: 2, bgcolor: theme.palette.background.neutral }}>
                             <Typography variant="caption" color="textSecondary" fontWeight="bold" gutterBottom display="block">TIẾN ĐỘ CHI TIẾT</Typography>
                             <Stepper activeStep={step - 1} orientation="vertical" sx={{ '& .MuiStepConnector-line': { minHeight: 10 } }}>
-                                {STEPS.map((s, idx) => (
-                                    <Step key={idx} completed={step > idx + 1}>
-                                        <StepLabel>
-                                            <Typography variant="caption" sx={{ lineHeight: 1 }}>{s.label} {s.role ? `(${s.role})` : ''}</Typography>
-                                        </StepLabel>
-                                    </Step>
-                                ))}
+                                {STEPS.map((s, idx) => {
+                                    // Determine comment to show for each step
+                                    let stepComment = null;
+                                    let stepTime = null;
+
+                                    if (idx === 0 && item.maintenanceOpinion) {
+                                        // Step 1: Ý kiến bảo trì
+                                        stepComment = item.maintenanceOpinion;
+                                    } else if (idx === 1 && item.approval?.comment) {
+                                        // Step 2: Phê duyệt P.GĐ - Comment ở đây
+                                        stepComment = item.approval.comment;
+                                        stepTime = item.approval.time;
+                                    } else if (idx === 2 && item.confirmations?.maintenance?.comment) {
+                                        // Step 3: Bảo trì xác nhận làm xong
+                                        stepComment = item.confirmations.maintenance.comment;
+                                        stepTime = item.confirmations.maintenance.time;
+                                    } else if (idx === 3 && item.confirmations?.proposer?.comment) {
+                                        // Step 4: Người đề xuất nghiệm thu
+                                        stepComment = item.confirmations.proposer.comment;
+                                        stepTime = item.confirmations.proposer.time;
+                                    } else if (idx === 4 && item.confirmations?.viceDirector?.comment) {
+                                        // Step 5: P.GĐ xác nhận cuối
+                                        stepComment = item.confirmations.viceDirector.comment;
+                                        stepTime = item.confirmations.viceDirector.time;
+                                    }
+
+                                    return (
+                                        <Step key={idx} completed={step > idx + 1}>
+                                            <StepLabel>
+                                                <Typography variant="caption" sx={{ lineHeight: 1.2 }}>
+                                                    {s.label} {s.role ? `(${s.role})` : ''}
+                                                </Typography>
+                                                {stepComment && (
+                                                    <Typography
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        sx={{
+                                                            display: 'block',
+                                                            mt: 0.5,
+                                                            fontStyle: 'italic',
+                                                            bgcolor: theme.palette.action.hover,
+                                                            p: 0.5,
+                                                            borderRadius: 1,
+                                                            fontSize: '0.7rem'
+                                                        }}
+                                                    >
+                                                        💬 {stepComment}
+                                                    </Typography>
+                                                )}
+                                            </StepLabel>
+                                        </Step>
+                                    );
+                                })}
                             </Stepper>
                         </Box>
                     </Collapse>
