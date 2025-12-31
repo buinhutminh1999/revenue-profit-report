@@ -92,7 +92,13 @@ export function useRepairProposalRoles() {
                 return true; // Anyone can create
 
             case 'edit_proposal': // Sửa đề xuất
+                return isProposer(item) || isAdmin;
+
             case 'delete_proposal': // Xóa đề xuất
+                // Cannot delete if already approved (unless admin)
+                if (item?.approval?.status === 'approved' && !isAdmin) {
+                    return false;
+                }
                 return isProposer(item) || isAdmin;
 
             case 'configure_roles': // Cấu hình vai trò

@@ -66,7 +66,7 @@ exports.onRepairProposalWrite = functions.firestore
                     userIds,
                     title: "Đề xuất sửa chữa mới",
                     body: `${after.code || "Mới"} - ${after.proposer}: ${after.content}`,
-                    data: { url: "/operations/repair-proposal" }
+                    data: { url: `/operations/repair-proposal?id=${context.params.proposalId}` }
                 });
             }
         }
@@ -90,7 +90,7 @@ exports.onRepairProposalWrite = functions.firestore
                             userIds,
                             title: "Đề xuất đã được duyệt",
                             body: `P.GĐ đã duyệt đề xuất ${after.code}. Vui lòng tiến hành.`,
-                            data: { url: "/operations/repair-proposal" }
+                            data: { url: `/operations/repair-proposal?id=${context.params.proposalId}` }
                         });
                     }
                 } else if (newStatus === 'rejected') {
@@ -101,7 +101,7 @@ exports.onRepairProposalWrite = functions.firestore
                             userIds,
                             title: "Đề xuất bị từ chối",
                             body: `P.GĐ từ chối đề xuất ${after.code}: ${after.approval?.comment}`,
-                            data: { url: "/operations/repair-proposal" }
+                            data: { url: `/operations/repair-proposal?id=${context.params.proposalId}` }
                         });
                     }
                 }
@@ -116,7 +116,7 @@ exports.onRepairProposalWrite = functions.firestore
                         userIds,
                         title: "Cần phê duyệt đề xuất",
                         body: `Tổ bảo trì đã cập nhật ý kiến cho ${after.code}. Vui lòng phê duyệt.`,
-                        data: { url: "/operations/repair-proposal" }
+                        data: { url: `/operations/repair-proposal?id=${context.params.proposalId}` }
                     });
                 }
             }
@@ -137,7 +137,7 @@ exports.onRepairProposalWrite = functions.firestore
                         userIds,
                         title: "Bảo trì hoàn tất",
                         body: `Tổ bảo trì đã xử lý xong ${after.code}. Vui lòng nghiệm thu.`,
-                        data: { url: "/operations/repair-proposal" }
+                        data: { url: `/operations/repair-proposal?id=${context.params.proposalId}` }
                     });
                 }
             }
@@ -160,7 +160,7 @@ exports.onRepairProposalWrite = functions.firestore
                         userIds,
                         title: "Yêu cầu làm lại",
                         body: `Người đề xuất yêu cầu làm lại ${after.code}: ${after.lastReworkRequest.comment}`,
-                        data: { url: "/operations/repair-proposal" }
+                        data: { url: `/operations/repair-proposal?id=${context.params.proposalId}` }
                     });
                 }
             }
@@ -176,7 +176,7 @@ exports.onRepairProposalWrite = functions.firestore
                         userIds,
                         title: "Chờ hoàn tất phiếu",
                         body: `Đề xuất ${after.code} đã được nghiệm thu. Vui lòng xác nhận hoàn tất.`,
-                        data: { url: "/operations/repair-proposal" }
+                        data: { url: `/operations/repair-proposal?id=${context.params.proposalId}` }
                     });
                 }
             }
