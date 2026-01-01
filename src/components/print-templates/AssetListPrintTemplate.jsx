@@ -419,10 +419,33 @@ export const AssetListPrintTemplate = React.forwardRef(({ report, company, depar
 
             <style>{`
                 @media print {
-                    html, body { margin:0 !important; padding:0 !important; }
+                    @page {
+                        size: A4 portrait;
+                        margin: 10mm;
+                    }
+                    html, body {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        width: 210mm !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
+                    * {
+                        -webkit-text-size-adjust: 100% !important;
+                        text-size-adjust: 100% !important;
+                    }
                     .no-break {
-                        break-inside: avoid;
-                        page-break-inside: avoid;
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                    }
+                    table { break-inside: auto !important; }
+                    tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+                    thead { display: table-header-group !important; }
+                }
+                @supports (-webkit-touch-callout: none) {
+                    @media print {
+                        body { zoom: 1 !important; }
                     }
                 }
             `}</style>

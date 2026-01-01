@@ -337,10 +337,61 @@ export const TransferPrintTemplate = React.forwardRef(({ transfer, company }, re
 
             <style>{`
                 @media print {
-                    html, body { margin:0 !important; padding:0 !important; }
+                    /* Reset mobile viewport scaling */
+                    @page {
+                        size: A4 portrait;
+                        margin: 10mm;
+                    }
+                    
+                    html, body {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        width: 210mm !important;
+                        height: 297mm !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
+                    
+                    /* Force consistent font rendering */
+                    * {
+                        -webkit-text-size-adjust: 100% !important;
+                        text-size-adjust: 100% !important;
+                    }
+                    
+                    /* Prevent page breaks inside important elements */
                     .no-break {
-                        break-inside: avoid;
-                        page-break-inside: avoid;
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                    }
+                    
+                    /* Ensure tables don't break oddly */
+                    table {
+                        break-inside: auto !important;
+                    }
+                    tr {
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                    }
+                    thead {
+                        display: table-header-group !important;
+                    }
+                    
+                    /* Force colors to print */
+                    [style*="background"] {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                }
+                
+                /* iOS Safari specific fixes */
+                @supports (-webkit-touch-callout: none) {
+                    @media print {
+                        body {
+                            zoom: 1 !important;
+                            -webkit-transform: scale(1) !important;
+                            transform: scale(1) !important;
+                        }
                     }
                 }
             `}</style>

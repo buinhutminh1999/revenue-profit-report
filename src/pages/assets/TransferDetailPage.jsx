@@ -504,8 +504,9 @@ export default function TransferDetailPage() {
             </Container>
 
 
-            {/* Host for printing */}
-            <div style={{ position: "absolute", top: "-10000px", left: 0, width: "210mm" }}>
+
+            {/* Host for printing - uses display:none for mobile compatibility */}
+            <div style={{ display: "none" }}>
                 {transfer && (
                     <TransferPrintTemplate ref={printRef} transfer={transfer} company={companyInfo} />
                 )}
