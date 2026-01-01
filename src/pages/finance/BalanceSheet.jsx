@@ -10,8 +10,6 @@ import { getFirestore, collection, getDocs, query, orderBy, where, writeBatch, d
 import toast from 'react-hot-toast';
 import { createWorkbook, saveWorkbook } from "../../utils/excelUtils";
 import {
-    ExpandMore as ExpandMoreIcon,
-    ChevronRight as ChevronRightIcon,
     FileUpload as FileUploadIcon,
     Print as PrintIcon,
     Description as DescriptionIcon,
@@ -27,12 +25,11 @@ import {
     Refresh as RefreshIcon,
     Search as SearchIcon,
     AddCircleOutline as AddIcon,
-    Check as CheckIcon
 } from '@mui/icons-material';
 
 import PasteDataDialog from '../../components/ui/PasteDataDialog';
 import { ErrorState } from '../../components/common';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { styled } from '@mui/material/styles';
 import { useConstructionPayables } from '../../hooks/useConstructionPayables';
 import { toNum } from '../../utils/numberUtils';
@@ -47,17 +44,6 @@ import useAddAccounts from '../../hooks/useAddAccounts';
 const db = getFirestore();
 const ACCOUNTS_COLLECTION = 'chartOfAccounts';
 const BALANCES_COLLECTION = 'accountBalances';
-
-const syncedCellsConfig = {
-    '152': ['cuoiKyNo'],
-    '155': ['cuoiKyNo'],
-    '131': ['cuoiKyCo'], '132': ['cuoiKyNo'], '133': ['cuoiKyNo'], '134': ['cuoiKyNo'], '142': ['cuoiKyNo'],
-    '135': ['cuoiKyNo'], '339': ['cuoiKyCo'], '338': ['cuoiKyCo'],
-    '139': ['cuoiKyCo'], '140': ['cuoiKyNo'], '332': ['cuoiKyCo'], '333': ['cuoiKyCo'],
-    '33101': ['cuoiKyCo'], '33102': ['cuoiKyCo'],
-    '337': ['cuoiKyCo'], // Đồng bộ từ công trình "CHI PHÍ PHẢI TRẢ KHÁC"
-    '335': ['cuoiKyCo'], // Tổng nợ cuối kỳ - TK332 - TK333 - TK339 - TK338 - TK337
-};
 
 // --- STYLED COMPONENTS (GLASSMORPHISM) ---
 const GlassContainer = styled(motion.div)(({ theme }) => ({
@@ -101,30 +87,7 @@ const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
     },
 }));
 
-const StyledTableRow = styled(motion.tr, {
-    shouldForwardProp: (prop) => prop !== 'isParent' && prop !== 'isExpanded',
-})(({ theme, isParent, isExpanded }) => ({
-    backgroundColor: isParent ? alpha(theme.palette.primary.main, 0.03) : 'transparent',
-    '&:hover': {
-        backgroundColor: alpha(theme.palette.primary.main, 0.08),
-    },
-    transition: 'background-color 0.2s ease',
-    cursor: isParent ? 'pointer' : 'default',
-}));
 
-const StickyCell = styled(TableCell, {
-    shouldForwardProp: (prop) => prop !== 'isParent' && prop !== 'left',
-})(({ theme, left, isParent }) => ({
-    position: 'sticky',
-    left: left,
-    zIndex: 10,
-    backgroundColor: theme.palette.mode === 'dark' ? '#1e1e1e' : '#fff', // Fallback solid color for sticky
-    borderRight: `1px solid ${theme.palette.divider}`,
-    ...(isParent && {
-        fontWeight: 700,
-        color: theme.palette.primary.main,
-    }),
-}));
 
 
 // Dán và thay thế toàn bộ component này trong file BalanceSheet.js
@@ -599,275 +562,6 @@ const ProcessReportToast = ({ t, successes, errors, warnings }) => (
         </CardContent>
     </Card>
 );
-
-const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation, onShowDetails }) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [value, setValue] = useState('');
-    const theme = useTheme();
-
-    const isCarriedOverLocked = (fieldName === 'dauKyNo' || fieldName === 'dauKyCo') && account.isCarriedOver === true;
-    const isSyncedLocked =
-        syncedCellsConfig[account.accountId]?.includes(fieldName) &&
-        !(year === 2025 && quarter === 1);
-
-    const isLocked = isCarriedOverLocked || isSyncedLocked;
-
-    const getNumberColor = () => {
-        if (fieldName.endsWith('No')) return theme.palette.info.main;
-        if (fieldName.endsWith('Co')) return theme.palette.warning.dark;
-        return 'inherit';
-    };
-    const getLockReason = () => {
-        if (isCarriedOverLocked) return "Số dư này được tự động chuyển từ kỳ trước.";
-        if (isSyncedLocked) return "Số dư này được đồng bộ tự động. Click để xem chi tiết.";
-        return "";
-    };
-
-    const formatNumber = (num) => (num || 0).toLocaleString('vi-VN');
-    const displayValue = formatNumber(account[fieldName]);
-
-    const handleStartEditing = () => {
-        if (isLocked) {
-            if (isSyncedLocked && onShowDetails) onShowDetails(account.accountId);
-            return;
-        }
-        setValue(account[fieldName] ? String(account[fieldName]) : '');
-        setIsEditing(true);
-    };
-
-    const handleSave = () => {
-        if (isLocked) return;
-        setIsEditing(false);
-        const originalValue = account[fieldName] || 0;
-        const newValue = parseFloat(String(value).replace(/\./g, '').replace(/,/g, '')) || 0;
-        if (originalValue !== newValue) {
-            updateMutation.mutate({ accountId: account.accountId, year, quarter, field: fieldName, value: newValue });
-        }
-    };
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') handleSave();
-        if (e.key === 'Escape') setIsEditing(false);
-    };
-
-    if (isLocked) {
-        return (
-            <Box onClick={handleStartEditing} sx={{
-                display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%',
-                backgroundColor: isSyncedLocked ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.grey[500], 0.1),
-                padding: '4px 8px', borderRadius: 1, cursor: isSyncedLocked ? 'pointer' : 'not-allowed',
-                transition: 'all 0.2s',
-                '&:hover': { backgroundColor: isSyncedLocked ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.grey[500], 0.2) }
-            }}>
-                <Tooltip title={getLockReason()}>
-                    <LockIcon sx={{ fontSize: 14, mr: 0.5, color: theme.palette.text.secondary }} />
-                </Tooltip>
-                <Typography variant="body2" sx={{ color: theme.palette.text.primary, fontWeight: 500 }}>
-                    {displayValue === '0' ? '-' : displayValue}
-                </Typography>
-            </Box>
-        );
-    }
-    if (isEditing) {
-        return (<TextField value={value} onChange={(e) => setValue(e.target.value)} onBlur={handleSave} onKeyDown={handleKeyDown} autoFocus variant="standard" fullWidth size="small" sx={{ "& input": { textAlign: "right", padding: '4px 0', fontWeight: 600 } }} />);
-    }
-    return (
-        <Typography variant="body2" onClick={handleStartEditing}
-            sx={{
-                color: getNumberColor(), textAlign: 'right', width: '100%', cursor: 'pointer', minHeight: '24px', padding: '4px 8px', borderRadius: 1,
-                transition: 'all 0.2s',
-                '&:hover': { backgroundColor: alpha(theme.palette.action.hover, 0.1), transform: 'scale(1.02)' }
-            }}>
-            {displayValue === '0' ? '-' : displayValue}
-        </Typography>
-    );
-};
-
-const useAddAccounts = () => {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: async (newAccounts) => {
-            const batch = writeBatch(db);
-            newAccounts.forEach(acc => {
-                const docRef = doc(db, ACCOUNTS_COLLECTION, acc.accountId);
-                batch.set(docRef, acc);
-            });
-            await batch.commit();
-        },
-        onSuccess: () => {
-            toast.success('Thêm tài khoản thành công!');
-            queryClient.invalidateQueries({ queryKey: ['accountsStructure'] });
-        },
-        onError: (error) => toast.error(`Lỗi: ${error.message}`),
-    });
-};
-
-const InlineAccountCreator = ({ parentId, nextId, onSave, onCancel }) => {
-    const [accountId, setAccountId] = useState(nextId);
-    const [accountName, setAccountName] = useState("");
-    const theme = useTheme();
-
-    const handleSave = () => {
-        if (!accountId || !accountName) {
-            toast.error("Vui lòng nhập đầy đủ mã và tên tài khoản.");
-            return;
-        }
-        onSave({ accountId: accountId.trim(), accountName: accountName.trim(), parentId });
-    };
-
-    return (
-        <TableRow>
-            <TableCell colSpan={6} sx={{ p: 0 }}>
-                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                    <Box sx={{
-                        p: 1, pl: 4, display: 'flex', alignItems: 'center', gap: 2,
-                        bgcolor: alpha(theme.palette.success.main, 0.1),
-                        borderBottom: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
-                    }}>
-                        <TextField
-                            size="small" label="Mã TK" value={accountId} onChange={(e) => setAccountId(e.target.value)}
-                            sx={{ width: 150, bgcolor: 'background.paper' }} autoFocus
-                        />
-                        <TextField
-                            size="small" label="Tên Tài Khoản" value={accountName} onChange={(e) => setAccountName(e.target.value)}
-                            sx={{ flex: 1, bgcolor: 'background.paper' }} onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-                        />
-                        <IconButton size="small" onClick={handleSave} sx={{ color: 'success.main', bgcolor: 'background.paper', border: '1px solid', borderColor: 'success.main' }}>
-                            <CheckIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small" onClick={onCancel} sx={{ color: 'error.main', bgcolor: 'background.paper', border: '1px solid', borderColor: 'error.main' }}>
-                            <CloseIcon fontSize="small" />
-                        </IconButton>
-                    </Box>
-                </motion.div>
-            </TableCell>
-        </TableRow>
-    );
-};
-
-const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, updateMutation, onShowDetails, onAddAccount }) => {
-    const theme = useTheme();
-    const isParent = account.children && account.children.length > 0;
-    const isExpanded = expanded.includes(account.id);
-    const [isAddingChild, setIsAddingChild] = useState(false);
-
-    const getNextAccountId = (parentAccount) => {
-        // Nếu có con, tìm con có ID số lớn nhất và +1
-        if (parentAccount.children && parentAccount.children.length > 0) {
-            const numericIds = parentAccount.children
-                .map(child => parseInt(child.accountId))
-                .filter(id => !isNaN(id));
-
-            if (numericIds.length > 0) {
-                const maxId = Math.max(...numericIds);
-                return (maxId + 1).toString();
-            }
-        }
-        // Nếu không có con, tăng chính ID của tài khoản này lên 1
-        // VD: 33406 -> 33407
-        const parentIdNum = parseInt(parentAccount.accountId);
-        if (!isNaN(parentIdNum)) {
-            return (parentIdNum + 1).toString();
-        }
-        // Fallback nếu ID không phải số
-        return `${parentAccount.accountId}_1`;
-    };
-
-    const handleStartAdd = (e) => {
-        e.stopPropagation();
-        if (!isExpanded && isParent) {
-            onToggle(account.id); // Mở rộng để thấy form thêm
-        }
-        setIsAddingChild(true);
-    };
-
-    const handleSaveChild = (newAccount) => {
-        onAddAccount(newAccount);
-        setIsAddingChild(false);
-    };
-
-    const formatStaticCurrency = (value) => {
-        if (typeof value !== 'number' || isNaN(value) || value === 0) return <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400, color: theme.palette.text.disabled }}>-</Typography>;
-        return value.toLocaleString('vi-VN');
-    };
-
-    return (
-        <React.Fragment>
-            <StyledTableRow
-                isParent={isParent}
-                isExpanded={isExpanded}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-                onClick={() => isParent && onToggle(account.id)}
-            >
-                <StickyCell left={0} isParent={isParent} style={{ paddingLeft: `${16 + level * 24}px` }}>
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                        {isParent ? (
-                            <IconButton size="small" onClick={(e) => { e.stopPropagation(); onToggle(account.id); }} sx={{ p: 0.5 }}>
-                                {isExpanded ? <ExpandMoreIcon fontSize="small" color="primary" /> : <ChevronRightIcon fontSize="small" />}
-                            </IconButton>
-                        ) : (<Box sx={{ width: 28 }} />)}
-                        <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400, color: isParent ? 'primary.main' : 'text.primary' }}>
-                            {account.accountId}
-                        </Typography>
-                        <Tooltip title="Thêm tài khoản con">
-                            <IconButton
-                                size="small"
-                                onClick={handleStartAdd}
-                                sx={{
-                                    opacity: 0.3,
-                                    transition: 'all 0.2s',
-                                    '&:hover': { opacity: 1, color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.1) },
-                                    p: 0.5,
-                                    ml: 1,
-                                    display: isParent ? 'inline-flex' : 'none'
-                                }}
-                            >
-                                <AddIcon fontSize="small" sx={{ fontSize: 16 }} />
-                            </IconButton>
-                        </Tooltip>
-                    </Stack>
-                </StickyCell>
-                <StickyCell left={200} isParent={isParent}>
-                    <Typography variant="body2" sx={{ fontWeight: isParent ? 600 : 400 }}>{account.accountName}</Typography>
-                </StickyCell>
-                {['dauKyNo', 'dauKyCo', 'cuoiKyNo', 'cuoiKyCo'].map((field) => (
-                    <TableCell key={field} align="right" sx={{ minWidth: 120, borderRight: `1px solid ${alpha(theme.palette.divider, 0.5)}` }}>
-                        {isParent ? (
-                            formatStaticCurrency(account[field])
-                        ) : (
-                            <EditableBalanceCell account={account} fieldName={field} year={year} quarter={quarter} updateMutation={updateMutation} onShowDetails={onShowDetails} />
-                        )}
-                    </TableCell>
-                ))}
-            </StyledTableRow>
-            <AnimatePresence>
-                {isAddingChild && (
-                    <InlineAccountCreator
-                        parentId={account.accountId}
-                        nextId={getNextAccountId(account)}
-                        onSave={handleSaveChild}
-                        onCancel={() => setIsAddingChild(false)}
-                    />
-                )}
-                {isParent && isExpanded && account.children.map(child => (
-                    <BalanceSheetRow
-                        key={child.id}
-                        account={child}
-                        level={level + 1}
-                        expanded={expanded}
-                        onToggle={onToggle}
-                        year={year}
-                        quarter={quarter}
-                        updateMutation={updateMutation}
-                        onShowDetails={onShowDetails}
-                        onAddAccount={onAddAccount}
-                    />
-                ))}
-            </AnimatePresence>
-        </React.Fragment>
-    );
-};
 
 const TableSkeleton = ({ columnCount }) => ([...Array(10)].map((_, index) => (
     <TableRow key={index}>
