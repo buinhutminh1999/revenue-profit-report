@@ -26,7 +26,8 @@ import {
     FilterList as FilterListIcon,
     Refresh as RefreshIcon,
     Search as SearchIcon,
-    AddCircleOutline as AddIcon
+    AddCircleOutline as AddIcon,
+    Check as CheckIcon
 } from '@mui/icons-material';
 
 import PasteDataDialog from '../../components/ui/PasteDataDialog';
@@ -38,6 +39,9 @@ import { toNum } from '../../utils/numberUtils';
 import { useReactToPrint } from 'react-to-print';
 import BalanceSheetPrintTemplate from '../../components/finance/BalanceSheetPrintTemplate';
 import AddAccountDialog from '../../components/finance/AddAccountDialog';
+import BalanceSheetRow, { StickyCell } from '../../components/finance/BalanceSheetRow';
+import { syncedCellsConfig } from '../../components/finance/EditableBalanceCell';
+import useAddAccounts from '../../hooks/useAddAccounts';
 
 // Khởi tạo Firestore và các hằng số
 const db = getFirestore();
@@ -678,10 +682,109 @@ const EditableBalanceCell = ({ account, fieldName, year, quarter, updateMutation
     );
 };
 
-const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, updateMutation, onShowDetails }) => {
+const useAddAccounts = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (newAccounts) => {
+            const batch = writeBatch(db);
+            newAccounts.forEach(acc => {
+                const docRef = doc(db, ACCOUNTS_COLLECTION, acc.accountId);
+                batch.set(docRef, acc);
+            });
+            await batch.commit();
+        },
+        onSuccess: () => {
+            toast.success('Thêm tài khoản thành công!');
+            queryClient.invalidateQueries({ queryKey: ['accountsStructure'] });
+        },
+        onError: (error) => toast.error(`Lỗi: ${error.message}`),
+    });
+};
+
+const InlineAccountCreator = ({ parentId, nextId, onSave, onCancel }) => {
+    const [accountId, setAccountId] = useState(nextId);
+    const [accountName, setAccountName] = useState("");
+    const theme = useTheme();
+
+    const handleSave = () => {
+        if (!accountId || !accountName) {
+            toast.error("Vui lòng nhập đầy đủ mã và tên tài khoản.");
+            return;
+        }
+        onSave({ accountId: accountId.trim(), accountName: accountName.trim(), parentId });
+    };
+
+    return (
+        <TableRow>
+            <TableCell colSpan={6} sx={{ p: 0 }}>
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                    <Box sx={{
+                        p: 1, pl: 4, display: 'flex', alignItems: 'center', gap: 2,
+                        bgcolor: alpha(theme.palette.success.main, 0.1),
+                        borderBottom: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
+                    }}>
+                        <TextField
+                            size="small" label="Mã TK" value={accountId} onChange={(e) => setAccountId(e.target.value)}
+                            sx={{ width: 150, bgcolor: 'background.paper' }} autoFocus
+                        />
+                        <TextField
+                            size="small" label="Tên Tài Khoản" value={accountName} onChange={(e) => setAccountName(e.target.value)}
+                            sx={{ flex: 1, bgcolor: 'background.paper' }} onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                        />
+                        <IconButton size="small" onClick={handleSave} sx={{ color: 'success.main', bgcolor: 'background.paper', border: '1px solid', borderColor: 'success.main' }}>
+                            <CheckIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" onClick={onCancel} sx={{ color: 'error.main', bgcolor: 'background.paper', border: '1px solid', borderColor: 'error.main' }}>
+                            <CloseIcon fontSize="small" />
+                        </IconButton>
+                    </Box>
+                </motion.div>
+            </TableCell>
+        </TableRow>
+    );
+};
+
+const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, updateMutation, onShowDetails, onAddAccount }) => {
     const theme = useTheme();
     const isParent = account.children && account.children.length > 0;
     const isExpanded = expanded.includes(account.id);
+    const [isAddingChild, setIsAddingChild] = useState(false);
+
+    const getNextAccountId = (parentAccount) => {
+        // Nếu có con, tìm con có ID số lớn nhất và +1
+        if (parentAccount.children && parentAccount.children.length > 0) {
+            const numericIds = parentAccount.children
+                .map(child => parseInt(child.accountId))
+                .filter(id => !isNaN(id));
+
+            if (numericIds.length > 0) {
+                const maxId = Math.max(...numericIds);
+                return (maxId + 1).toString();
+            }
+        }
+        // Nếu không có con, tăng chính ID của tài khoản này lên 1
+        // VD: 33406 -> 33407
+        const parentIdNum = parseInt(parentAccount.accountId);
+        if (!isNaN(parentIdNum)) {
+            return (parentIdNum + 1).toString();
+        }
+        // Fallback nếu ID không phải số
+        return `${parentAccount.accountId}_1`;
+    };
+
+    const handleStartAdd = (e) => {
+        e.stopPropagation();
+        if (!isExpanded && isParent) {
+            onToggle(account.id); // Mở rộng để thấy form thêm
+        }
+        setIsAddingChild(true);
+    };
+
+    const handleSaveChild = (newAccount) => {
+        onAddAccount(newAccount);
+        setIsAddingChild(false);
+    };
+
     const formatStaticCurrency = (value) => {
         if (typeof value !== 'number' || isNaN(value) || value === 0) return <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400, color: theme.palette.text.disabled }}>-</Typography>;
         return value.toLocaleString('vi-VN');
@@ -707,6 +810,22 @@ const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, up
                         <Typography variant="body2" sx={{ fontWeight: isParent ? 700 : 400, color: isParent ? 'primary.main' : 'text.primary' }}>
                             {account.accountId}
                         </Typography>
+                        <Tooltip title="Thêm tài khoản con">
+                            <IconButton
+                                size="small"
+                                onClick={handleStartAdd}
+                                sx={{
+                                    opacity: 0.3,
+                                    transition: 'all 0.2s',
+                                    '&:hover': { opacity: 1, color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.1) },
+                                    p: 0.5,
+                                    ml: 1,
+                                    display: isParent ? 'inline-flex' : 'none'
+                                }}
+                            >
+                                <AddIcon fontSize="small" sx={{ fontSize: 16 }} />
+                            </IconButton>
+                        </Tooltip>
                     </Stack>
                 </StickyCell>
                 <StickyCell left={200} isParent={isParent}>
@@ -723,8 +842,27 @@ const BalanceSheetRow = ({ account, level, expanded, onToggle, year, quarter, up
                 ))}
             </StyledTableRow>
             <AnimatePresence>
+                {isAddingChild && (
+                    <InlineAccountCreator
+                        parentId={account.accountId}
+                        nextId={getNextAccountId(account)}
+                        onSave={handleSaveChild}
+                        onCancel={() => setIsAddingChild(false)}
+                    />
+                )}
                 {isParent && isExpanded && account.children.map(child => (
-                    <BalanceSheetRow key={child.id} account={child} level={level + 1} expanded={expanded} onToggle={onToggle} year={year} quarter={quarter} updateMutation={updateMutation} onShowDetails={onShowDetails} />
+                    <BalanceSheetRow
+                        key={child.id}
+                        account={child}
+                        level={level + 1}
+                        expanded={expanded}
+                        onToggle={onToggle}
+                        year={year}
+                        quarter={quarter}
+                        updateMutation={updateMutation}
+                        onShowDetails={onShowDetails}
+                        onAddAccount={onAddAccount}
+                    />
                 ))}
             </AnimatePresence>
         </React.Fragment>
@@ -771,6 +909,7 @@ const BalanceSheet = () => {
     const [isDeleting, setIsDeleting] = useState(false);
     const queryClient = useQueryClient();
     const { updateBalanceMutation } = useMutateBalances();
+    const addAccountMutation = useAddAccounts();
 
     const [detailDialogOpen, setDetailDialogOpen] = useState(false);
     const [detailData, setDetailData] = useState(null);
@@ -1601,6 +1740,10 @@ const BalanceSheet = () => {
         setExpanded(prev => prev.includes(accountId) ? prev.filter(id => id !== accountId) : [...prev, accountId]);
     }, []);
 
+    const handleAddAccount = (newAccount) => {
+        addAccountMutation.mutate([newAccount]);
+    };
+
 
     if (isAccountsError || balancesError) {
         return (
@@ -1742,7 +1885,18 @@ const BalanceSheet = () => {
                                 <TableSkeleton columnCount={6} />
                             ) : filteredAccountTree.length > 0 ? (
                                 filteredAccountTree.map((rootAccount) => (
-                                    <BalanceSheetRow key={rootAccount.id} account={rootAccount} level={0} expanded={expanded} onToggle={handleToggle} year={selectedYear} quarter={selectedQuarter} updateMutation={updateBalanceMutation} onShowDetails={handleShowDetails} />
+                                    <BalanceSheetRow
+                                        key={rootAccount.id}
+                                        account={rootAccount}
+                                        level={0}
+                                        expanded={expanded}
+                                        onToggle={handleToggle}
+                                        year={selectedYear}
+                                        quarter={selectedQuarter}
+                                        updateMutation={updateBalanceMutation}
+                                        onShowDetails={handleShowDetails}
+                                        onAddAccount={handleAddAccount}
+                                    />
                                 ))
                             ) : (
                                 <EmptyState onUpdateClick={() => setIsPasteDialogOpen(true)} />

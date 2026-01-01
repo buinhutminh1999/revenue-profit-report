@@ -3,37 +3,15 @@ import {
     Dialog, DialogActions, DialogContent, DialogTitle,
     TextField, Button, Stack, Typography, CircularProgress
 } from '@mui/material';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFirestore, collection, getDocs, writeBatch, doc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { accountSchema } from "../../schemas/accountSchema";
+import useAddAccounts from "../../hooks/useAddAccounts";
 
 const db = getFirestore();
 const ACCOUNTS_COLLECTION = 'chartOfAccounts';
-
-// Hook for adding accounts
-const useAddAccounts = () => {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: async (newAccounts) => {
-            const batch = writeBatch(db);
-            newAccounts.forEach(acc => {
-                const docRef = doc(db, ACCOUNTS_COLLECTION, acc.accountId);
-                batch.set(docRef, acc);
-            });
-            await batch.commit();
-        },
-        onSuccess: () => {
-            toast.success('Thêm tài khoản thành công!');
-            queryClient.invalidateQueries({ queryKey: ['chartOfAccounts'] });
-            queryClient.invalidateQueries({ queryKey: ['accountsStructure'] });
-        },
-        onError: (error) => toast.error(`Lỗi: ${error.message}`),
-    });
-};
 
 const AddAccountDialog = ({ open, onClose, parent = null }) => {
     const addMutation = useAddAccounts();
