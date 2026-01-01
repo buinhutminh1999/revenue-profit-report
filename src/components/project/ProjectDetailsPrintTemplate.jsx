@@ -21,32 +21,46 @@ const ProjectDetailsPrintTemplate = React.forwardRef(({
             thousandSeparator="."
             decimalSeparator=","
             renderText={(val) => (
-                <span style={{ fontWeight: bold ? 700 : 400, fontSize: '9pt', textAlign: align, display: 'block' }}>
+                <span style={{ fontWeight: bold ? 700 : 400, fontSize: '7pt', textAlign: align, display: 'block' }}>
                     {val}
                 </span>
             )}
         />
     );
 
-    const columns = [
+    const isNhaMayType = projectData?.type === "Nhà máy";
+
+    // Define all possible columns with nhaMayOnly flag for type-specific columns
+    const allColumns = [
         { key: 'project', label: 'Công Trình', align: 'left' },
         { key: 'description', label: 'Khoản Mục', align: 'left' },
         { key: 'inventory', label: 'Tồn ĐK', align: 'right', isNumber: true },
         { key: 'debt', label: 'Nợ ĐK', align: 'right', isNumber: true },
         { key: 'directCost', label: 'CP TT', align: 'right', isNumber: true },
         { key: 'allocated', label: 'Phân Bổ', align: 'right', isNumber: true },
+        { key: 'payableDeductionThisQuarter', label: 'CP Trừ Vào CT', align: 'right', isNumber: true, nhaMayOnly: true },
         { key: 'carryover', label: 'Chuyển Tiếp', align: 'right', isNumber: true },
         { key: 'carryoverMinus', label: 'Được Trừ', align: 'right', isNumber: true },
-        { key: 'carryoverEnd', label: 'Cuối Kỳ', align: 'right', isNumber: true },
+        { key: 'carryoverEnd', label: isNhaMayType ? 'Vượt Cuối Kỳ' : 'Cuối Kỳ', align: 'right', isNumber: true },
         { key: 'tonKhoUngKH', label: 'Tồn/Ứng KH', align: 'right', isNumber: true },
         { key: 'noPhaiTraCK', label: 'Nợ CK', align: 'right', isNumber: true },
+        { key: 'noPhaiTraCKNM', label: 'Nợ CK NM', align: 'right', isNumber: true, nhaMayOnly: true },
         { key: 'totalCost', label: 'Tổng CP', align: 'right', isNumber: true },
+        { key: 'cpVuot', label: isNhaMayType ? 'CP Vượt Quý' : 'CP Vượt', align: 'right', isNumber: true, nhaMayOnly: true },
+        { key: 'revenue', label: 'Doanh Thu', align: 'right', isNumber: true },
+        { key: 'hskh', label: 'HSKH', align: 'right', isNumber: true },
+        { key: 'cpSauQuyetToan', label: 'CP Sau QT', align: 'right', isNumber: true },
     ];
 
-    const numericKeys = columns.filter(c => c.isNumber).map(c => c.key);
+    // Filter columns based on project type
+    const columns = allColumns.filter(col => {
+        if (col.nhaMayOnly && !isNhaMayType) {
+            return false; // Skip Nhà máy-only columns for non-Nhà máy projects
+        }
+        return true;
+    });
 
-    // Filter out columns that might be too wide or unnecessary for print if needed
-    // For now, I'll stick to a balanced set or maybe landscape mode is best.
+    // For calculating numeric columns in summaries
 
     return (
         <Box
@@ -95,9 +109,9 @@ const ProjectDetailsPrintTemplate = React.forwardRef(({
                     borderCollapse: 'collapse',
                     '& th, & td': {
                         border: '1px solid black',
-                        padding: '4px 6px',
+                        padding: '2px 3px',
                         fontFamily: '"Times New Roman", Times, serif',
-                        fontSize: '9pt',
+                        fontSize: '7pt',
                         verticalAlign: 'middle'
                     }
                 }}>
