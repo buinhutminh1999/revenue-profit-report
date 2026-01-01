@@ -219,7 +219,7 @@ export default function ProfitChange() {
             <FormControl size="small">
               <InputLabel>Năm</InputLabel>
               <Select value={year} label="Năm" onChange={(e) => setYear(e.target.value)}>
-                {[2023, 2024, 2025].map((y) => (
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i + 1).map((y) => (
                   <MenuItem key={y} value={y}>
                     {y}
                   </MenuItem>

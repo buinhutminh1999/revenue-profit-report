@@ -5,6 +5,14 @@ import toast from 'react-hot-toast';
 
 const REPORT_COLLECTION = 'capitalUtilizationReports';
 
+// Helper: get previous quarter's year and quarter number
+const getPreviousQuarter = (year, quarter) => {
+    if (quarter === 1) {
+        return { year: year - 1, quarter: 4 };
+    }
+    return { year, quarter: quarter - 1 };
+};
+
 export const useCapitalReport = (year, quarter) => {
     const queryClient = useQueryClient();
     const docId = `${year}_Q${quarter}`;
@@ -113,12 +121,27 @@ export const useCapitalReport = (year, quarter) => {
         onError: (error) => toast.error(`Lỗi khi lưu: ${error.message}`),
     });
 
+    // Function to fetch previous quarter's data (for copying)
+    const fetchPreviousQuarterData = async () => {
+        const prevQ = getPreviousQuarter(year, quarter);
+        const prevDocId = `${prevQ.year}_Q${prevQ.quarter}`;
+        const docRef = doc(db, REPORT_COLLECTION, prevDocId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            return { data: docSnap.data(), year: prevQ.year, quarter: prevQ.quarter };
+        }
+        return null;
+    };
+
     return {
         data: queryInfo.data,
         isLoading: queryInfo.isLoading,
         isError: queryInfo.isError,
         error: queryInfo.error,
         saveReport: mutation.mutate,
-        isSaving: mutation.isPending
+        isSaving: mutation.isPending,
+        fetchPreviousQuarterData,
+        currentYear: year,
+        currentQuarter: quarter
     };
 };

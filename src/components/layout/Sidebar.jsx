@@ -710,9 +710,17 @@ export default function Sidebar({ isOpen, onClose, widthExpanded, widthCollapsed
             PaperProps={{
                 sx: {
                     width: widthExpanded,
+                    // Glassmorphism effect
                     background: theme.palette.mode === 'light'
-                        ? `linear-gradient(180deg, #ffffff 0%, ${alpha('#f8fafc', 0.8)} 100%)`
-                        : theme.palette.background.paper,
+                        ? `linear-gradient(135deg, ${alpha('#ffffff', 0.95)} 0%, ${alpha('#f8fafc', 0.9)} 100%)`
+                        : `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.background.default, 0.9)} 100%)`,
+                    backdropFilter: 'blur(20px) saturate(180%)',
+                    borderTopRightRadius: 24,
+                    borderBottomRightRadius: 24,
+                    borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                    boxShadow: theme.palette.mode === 'light'
+                        ? '20px 0 40px rgba(0,0,0,0.05)'
+                        : '20px 0 40px rgba(0,0,0,0.4)',
                 }
             }}
             role="dialog"

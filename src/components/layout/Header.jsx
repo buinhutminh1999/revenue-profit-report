@@ -604,8 +604,8 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.3 }}
                 sx={{
-                    px: { xs: 2, sm: 3 },
-                    height: 68,
+                    px: { xs: 1.5, sm: 3 }, // Reduced padding on mobile
+                    height: { xs: 56, sm: 68 }, // Standard mobile height
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -734,7 +734,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
                 </Box>
 
                 {/* Right: actions */}
-                <Stack direction="row" alignItems="center" spacing={{ xs: 0.5, sm: 1 }}>
+                <Stack direction="row" alignItems="center" spacing={{ xs: 0, sm: 1 }}> {/* Reduced spacing on mobile */}
                     {/* Enhanced Search Button (Desktop) */}
                     <Box sx={{ display: { xs: "none", md: "block" }, mr: 1 }}>
                         <Button
@@ -793,6 +793,7 @@ export default function Header({ onSidebarToggle, isSidebarOpen }) {
 
                     <Tooltip title="Chế độ Sáng/Tối" arrow>
                         <StyledIconButton
+                            // Hide completely on mobile (xs) to save space, show on tablet+ (sm)
                             sx={{ display: { xs: "none", sm: "inline-flex" } }}
                             color="inherit"
                             onClick={toggleColorMode}

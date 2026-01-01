@@ -98,8 +98,8 @@ export default function UserProfile() {
                 sx={{
                     background: headerBackground,
                     color: 'white',
-                    pt: { xs: 4, md: 8 },
-                    pb: { xs: 8, md: 10 },
+                    pt: { xs: 3, md: 8 }, // Reduced PT
+                    pb: { xs: 5, md: 10 }, // Reduced PB
                     position: 'relative',
                     overflow: 'hidden',
                     zIndex: 0
@@ -113,15 +113,19 @@ export default function UserProfile() {
                 }} />
 
                 <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} alignItems="center">
+                    <Stack
+                        direction="row" // Always row for compact look
+                        spacing={{ xs: 2, sm: 3 }}
+                        alignItems="center"
+                    >
                         <Avatar
                             alt={user.displayName || "User"}
                             src={user.photoURL}
                             component={motion.div}
                             whileHover={{ scale: 1.05 }}
                             sx={{
-                                width: { xs: 100, sm: 120 },
-                                height: { xs: 100, sm: 120 },
+                                width: { xs: 72, sm: 120 },
+                                height: { xs: 72, sm: 120 },
                                 border: `4px solid ${alpha('#fff', 0.2)}`,
                                 boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.2)',
                                 backdropFilter: 'blur(4px)',
@@ -130,38 +134,42 @@ export default function UserProfile() {
                             {user.displayName?.[0]?.toUpperCase() || 'U'}
                         </Avatar>
 
-                        <Box sx={{ textAlign: { xs: 'center', sm: 'left' } }}>
-                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" justifyContent={{ xs: 'center', sm: 'flex-start' }} sx={{ mb: 1 }}>
-                                <Typography variant="h3" fontWeight={800} sx={{
-                                    textShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                                    fontSize: { xs: '1.75rem', md: '2.5rem' }
-                                }}>
-                                    {user.displayName || "Người dùng"}
-                                </Typography>
-                                {user.emailVerified && (
-                                    <Chip
-                                        icon={<CheckCircleIcon sx={{ color: 'success.main' }} />}
-                                        label="Verified"
-                                        size="small"
-                                        sx={{
-                                            bgcolor: 'rgba(255,255,255,0.2)',
-                                            color: 'white',
-                                            fontWeight: 600,
-                                            backdropFilter: 'blur(10px)',
-                                            border: '1px solid rgba(255,255,255,0.1)'
-                                        }}
-                                    />
-                                )}
+                        <Box sx={{ flex: 1 }}>
+                            <Stack direction="column" spacing={0.5} sx={{ mb: 1 }}>
+                                <Stack direction="row" alignItems="center" spacing={1}>
+                                    <Typography variant="h3" fontWeight={800} sx={{
+                                        textShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                                        fontSize: { xs: '1.25rem', md: '2.5rem' }
+                                    }}>
+                                        {user.displayName || "Người dùng"}
+                                    </Typography>
+                                    {user.emailVerified && (
+                                        <Chip
+                                            icon={<CheckCircleIcon sx={{ color: 'success.main', fontSize: '1rem' }} />}
+                                            label="Verified"
+                                            size="small"
+                                            sx={{
+                                                bgcolor: 'rgba(255,255,255,0.2)',
+                                                color: 'white',
+                                                fontWeight: 600,
+                                                backdropFilter: 'blur(10px)',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                height: 24,
+                                                '& .MuiChip-label': { px: 1, fontSize: '0.7rem' }
+                                            }}
+                                        />
+                                    )}
+                                </Stack>
                             </Stack>
 
-                            <Stack direction="row" spacing={3} alignItems="center" justifyContent={{ xs: 'center', sm: 'flex-start' }} sx={{ opacity: 0.9 }}>
+                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 3 }} alignItems={{ xs: 'flex-start', sm: 'center' }} sx={{ opacity: 0.9 }}>
                                 <Stack direction="row" spacing={0.5} alignItems="center">
-                                    <EmailIcon fontSize="small" />
-                                    <Typography variant="body1">{user.email}</Typography>
+                                    <EmailIcon sx={{ fontSize: '1rem' }} />
+                                    <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', sm: '1rem' } }}>{user.email}</Typography>
                                 </Stack>
                                 <Stack direction="row" spacing={0.5} alignItems="center">
-                                    <VerifiedUserIcon fontSize="small" />
-                                    <Typography variant="body1" textTransform="capitalize">
+                                    <VerifiedUserIcon sx={{ fontSize: '1rem' }} />
+                                    <Typography variant="body2" textTransform="capitalize" sx={{ fontSize: { xs: '0.85rem', sm: '1rem' } }}>
                                         {user.role === "admin" ? "Quản trị viên" : "Thành viên"}
                                     </Typography>
                                 </Stack>
@@ -172,7 +180,7 @@ export default function UserProfile() {
             </Box>
 
             {/* --- MAIN CONTENT CARD --- */}
-            <Container maxWidth="lg" sx={{ mt: -6, position: 'relative', zIndex: 2 }}>
+            <Container maxWidth="lg" sx={{ mt: { xs: -3, md: -6 }, position: 'relative', zIndex: 2 }}>
                 <Grid container spacing={3}>
                     {/* NAVIGATION SIDEBAR / TOP BAR */}
                     <Grid size={{ xs: 12, md: 3 }}>
@@ -196,29 +204,32 @@ export default function UserProfile() {
                                 onChange={handleTabChange}
                                 aria-label="User profile tabs"
                                 sx={{
+                                    p: isMobile ? 1.5 : 0,
                                     '.MuiTabs-indicator': {
-                                        left: isMobile ? 0 : 0,
-                                        width: isMobile ? '100%' : 4,
-                                        height: isMobile ? 3 : '100%',
-                                        bottom: 0,
-                                        borderRadius: isMobile ? '3px 3px 0 0' : '0 4px 4px 0',
+                                        display: isMobile ? 'none' : 'block', // Hide indicator on mobile
+                                        left: 0,
+                                        width: 4,
+                                        height: '100%',
+                                        borderRadius: '0 4px 4px 0',
                                         bgcolor: theme.palette.primary.main
                                     },
                                     '.MuiButtonBase-root': {
-                                        minHeight: 56,
+                                        minHeight: { xs: 44, md: 56 }, // Smaller on mobile
                                         justifyContent: isMobile ? 'center' : 'flex-start',
-                                        borderRadius: isMobile ? 0 : 2,
+                                        borderRadius: 2, // Always rounded
                                         px: 2,
-                                        mx: isMobile ? 0 : 1,
+                                        mx: isMobile ? 0.5 : 1, // Spacing between pills
                                         my: isMobile ? 0 : 0.5,
                                         transition: 'all 0.2s',
-                                        '&:hover': {
-                                            bgcolor: alpha(theme.palette.primary.main, 0.08),
-                                        },
+                                        // Pill style for active state on mobile
                                         '&.Mui-selected': {
-                                            bgcolor: alpha(theme.palette.primary.main, 0.12),
-                                            color: theme.palette.primary.main,
+                                            bgcolor: isMobile ? alpha(theme.palette.primary.main, 1) : alpha(theme.palette.primary.main, 0.12),
+                                            color: isMobile ? 'white' : theme.palette.primary.main,
                                             fontWeight: 600,
+                                            boxShadow: isMobile ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
+                                            '& .MuiSvgIcon-root': {
+                                                color: isMobile ? 'white' : 'inherit'
+                                            }
                                         }
                                     }
                                 }}

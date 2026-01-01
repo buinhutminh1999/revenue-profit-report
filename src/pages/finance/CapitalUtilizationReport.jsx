@@ -24,10 +24,14 @@ import {
     Stack,
     Paper,
     useTheme,
+    Button,
+    CircularProgress,
+    alpha,
 } from "@mui/material";
 import {
     AssessmentOutlined as AssessmentIcon,
     FilterList as FilterListIcon,
+    ContentCopy as ContentCopyIcon,
 } from "@mui/icons-material";
 import toast from "react-hot-toast";
 import debounce from "lodash/debounce";
@@ -48,6 +52,7 @@ const CapitalUtilizationReport = () => {
     );
     const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
     const [reportData, setReportData] = useState(null);
+    const [copyLoading, setCopyLoading] = useState(false);
 
     // Use Shared Hooks
     const {
@@ -55,7 +60,8 @@ const CapitalUtilizationReport = () => {
         isLoading: isReportLoading,
         isError,
         error,
-        saveReport: saveData
+        saveReport: saveData,
+        fetchPreviousQuarterData
     } = useCapitalReport(year, quarter);
 
     const { data: balances, isLoading: isBalancesLoading } = useAccountBalances(
@@ -246,6 +252,65 @@ const CapitalUtilizationReport = () => {
         );
     }, [debouncedSave]);
 
+    // Copy "Số hiệu TK" and "Số tiền KH" from previous quarter
+    const handleCopyFromPreviousQuarter = useCallback(async () => {
+        setCopyLoading(true);
+        try {
+            const prevQData = await fetchPreviousQuarterData();
+            if (!prevQData) {
+                toast.error(`Không tìm thấy dữ liệu quý trước.`);
+                setCopyLoading(false);
+                return;
+            }
+
+            const { data: prevData, year: pY, quarter: pQ } = prevQData;
+
+            setReportData((currentData) => {
+                const newData = JSON.parse(JSON.stringify(currentData));
+
+                // Helper to copy codes and plan from prev to current
+                const copyCodesAndPlan = (currentItems, prevItems) => {
+                    return currentItems.map((item) => {
+                        const prevItem = prevItems?.find((p) => p.id === item.id);
+                        if (prevItem) {
+                            return {
+                                ...item,
+                                codes: prevItem.codes || [],
+                                plan: prevItem.plan || 0,
+                            };
+                        }
+                        return item;
+                    });
+                };
+
+                // Copy for production
+                newData.production = copyCodesAndPlan(newData.production, prevData.production);
+
+                // Copy for construction (usage & revenue)
+                if (newData.construction && prevData.construction) {
+                    newData.construction.usage = copyCodesAndPlan(
+                        newData.construction.usage,
+                        prevData.construction.usage
+                    );
+                    newData.construction.revenue = copyCodesAndPlan(
+                        newData.construction.revenue,
+                        prevData.construction.revenue
+                    );
+                }
+
+                debouncedSave(newData);
+                return newData;
+            });
+
+            toast.success(`Đã sao chép "Số hiệu TK" và "Số tiền KH" từ Q${pQ}/${pY}.`);
+        } catch (err) {
+            console.error("Error copying from previous quarter:", err);
+            toast.error("Lỗi khi sao chép dữ liệu.");
+        } finally {
+            setCopyLoading(false);
+        }
+    }, [fetchPreviousQuarterData, debouncedSave]);
+
     const investmentTotals = useMemo(() => {
         if (!reportData?.investment?.projectDetails) {
             return { cost: 0, profit: 0, investmentValue: 0, lessProfit: 0, remaining: 0 };
@@ -306,20 +371,75 @@ const CapitalUtilizationReport = () => {
 
     return (
         <Container maxWidth="xl" sx={{ py: 3 }}>
-            <Stack direction="row" spacing={2} alignItems="center" mb={3}>
-                <AssessmentIcon color="primary" sx={{ fontSize: 40 }} />
-                <Box>
-                    <Typography variant="h4" fontWeight="bold">
-                        Bản Sử Dụng Vốn
-                    </Typography>
-                    <Typography variant="subtitle1" color="text.secondary">
-                        Phân tích kế hoạch và thực tế sử dụng vốn cho Quý{" "}
-                        {quarter}, Năm {year}
-                    </Typography>
-                </Box>
-            </Stack>
+            {/* HEADER SECTION */}
+            <Box
+                sx={{
+                    position: "relative",
+                    mb: 4,
+                    p: 4,
+                    borderRadius: 4,
+                    overflow: "hidden",
+                    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                    color: "white",
+                    boxShadow: "0 10px 40px -10px rgba(0,0,0,0.2)",
+                }}
+            >
+                <Box
+                    sx={{
+                        position: "absolute",
+                        top: 0,
+                        right: 0,
+                        width: "300px",
+                        height: "100%",
+                        background:
+                            "radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 60%)",
+                        zIndex: 0,
+                    }}
+                />
+                <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    spacing={3}
+                    alignItems="center"
+                    position="relative"
+                    zIndex={1}
+                >
+                    <Box
+                        sx={{
+                            p: 2,
+                            borderRadius: "50%",
+                            bgcolor: "rgba(255,255,255,0.15)",
+                            backdropFilter: "blur(10px)",
+                            display: "flex",
+                        }}
+                    >
+                        <AssessmentIcon sx={{ fontSize: 40, color: "white" }} />
+                    </Box>
+                    <Box textAlign={{ xs: "center", md: "left" }}>
+                        <Typography variant="h4" fontWeight={800} sx={{ mb: 0.5 }}>
+                            Bản Sử Dụng Vốn
+                        </Typography>
+                        <Typography
+                            variant="subtitle1"
+                            sx={{ color: "rgba(255,255,255,0.8)", fontWeight: 500 }}
+                        >
+                            Phân tích kế hoạch & thực tế sử dụng vốn • Quý {quarter} / {year}
+                        </Typography>
+                    </Box>
+                </Stack>
+            </Box>
 
-            <Paper elevation={0} variant="outlined" sx={{ p: 2, mb: 3 }}>
+            <Paper
+                elevation={0}
+                sx={{
+                    p: 2,
+                    mb: 4,
+                    borderRadius: 3,
+                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                    bgcolor: alpha(theme.palette.background.paper, 0.8),
+                    backdropFilter: "blur(20px)",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
+                }}
+            >
                 <Grid container spacing={2} alignItems="center">
                     <Grid size="auto">
                         <FilterListIcon color="action" />
@@ -361,10 +481,29 @@ const CapitalUtilizationReport = () => {
                             </Select>
                         </FormControl>
                     </Grid>
+                    <Grid size="auto">
+                        <Button
+                            variant="outlined"
+                            color="primary"
+                            startIcon={copyLoading ? <CircularProgress size={16} /> : <ContentCopyIcon />}
+                            onClick={handleCopyFromPreviousQuarter}
+                            disabled={copyLoading || isReportLoading}
+                        >
+                            Sao chép từ Quý trước
+                        </Button>
+                    </Grid>
                 </Grid>
             </Paper>
 
-            <Card sx={{ mb: 3 }}>
+            <Card
+                sx={{
+                    mb: 4,
+                    borderRadius: 3,
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
+                    overflow: "hidden",
+                    border: "none",
+                }}
+            >
                 <CardHeader
                     title="I. BỘ PHẬN SẢN XUẤT / (NHÀ MÁY)"
                     titleTypographyProps={{ variant: "h6", fontWeight: 600 }}
@@ -372,7 +511,17 @@ const CapitalUtilizationReport = () => {
                 <TableContainer>
                     <Table size="small">
                         <TableHead>
-                            <TableRow sx={{ "& > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
+                            <TableRow
+                                sx={{
+                                    "& > th": {
+                                        fontWeight: 700,
+                                        backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                                        color: theme.palette.primary.main,
+                                        borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                                        py: 2,
+                                    },
+                                }}
+                            >
                                 <TableCell>STT</TableCell>
                                 <TableCell sx={{ minWidth: 200 }}>Số hiệu TK</TableCell>
                                 <TableCell sx={{ minWidth: 250 }}>Kế hoạch sử dụng vốn</TableCell>
@@ -410,7 +559,16 @@ const CapitalUtilizationReport = () => {
                                     </TableRow>
                                 );
                             })}
-                            <TableRow sx={{ "& > td, & > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[200] } }}>
+                            <TableRow
+                                sx={{
+                                    "& > td, & > th": {
+                                        fontWeight: 800,
+                                        backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                                        color: theme.palette.primary.dark,
+                                        fontSize: "1rem",
+                                    },
+                                }}
+                            >
                                 <TableCell colSpan={3}>Tổng Cộng</TableCell>
                                 <TableCell align="right">{formatCurrency(totalProdPlan)}</TableCell>
                                 <TableCell align="right">{formatCurrency(totalProdActual)}</TableCell>
@@ -421,7 +579,15 @@ const CapitalUtilizationReport = () => {
                 </TableContainer>
             </Card>
 
-            <Card sx={{ mb: 3 }}>
+            <Card
+                sx={{
+                    mb: 4,
+                    borderRadius: 3,
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
+                    overflow: "hidden",
+                    border: "none",
+                }}
+            >
                 <CardHeader
                     title="II. BỘ PHẬN XÂY DỰNG"
                     titleTypographyProps={{ variant: "h6", fontWeight: 600 }}
@@ -429,7 +595,17 @@ const CapitalUtilizationReport = () => {
                 <TableContainer>
                     <Table size="small">
                         <TableHead>
-                            <TableRow sx={{ "& > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
+                            <TableRow
+                                sx={{
+                                    "& > th": {
+                                        fontWeight: 700,
+                                        backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                                        color: theme.palette.primary.main,
+                                        borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                                        py: 2,
+                                    },
+                                }}
+                            >
                                 <TableCell>STT</TableCell>
                                 <TableCell sx={{ minWidth: 200 }}>Số hiệu TK</TableCell>
                                 <TableCell sx={{ minWidth: 250 }}>Kế hoạch sử dụng vốn</TableCell>
@@ -440,7 +616,14 @@ const CapitalUtilizationReport = () => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            <TableRow sx={{ "& > td": { fontWeight: "bold", backgroundColor: theme.palette.grey[200] } }}>
+                            <TableRow
+                                sx={{
+                                    "& > td": {
+                                        fontWeight: 700,
+                                        backgroundColor: alpha(theme.palette.action.selected, 0.5),
+                                    },
+                                }}
+                            >
                                 <TableCell>a</TableCell>
                                 <TableCell colSpan={2}>Vốn dự kiến sử dụng</TableCell>
                                 <TableCell align="right">{formatCurrency(totalConsUsagePlan)}</TableCell>
@@ -472,7 +655,14 @@ const CapitalUtilizationReport = () => {
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            <TableRow sx={{ "& > td": { fontWeight: "bold", backgroundColor: theme.palette.grey[200] } }}>
+                            <TableRow
+                                sx={{
+                                    "& > td": {
+                                        fontWeight: 700,
+                                        backgroundColor: alpha(theme.palette.action.selected, 0.5),
+                                    },
+                                }}
+                            >
                                 <TableCell>b</TableCell>
                                 <TableCell colSpan={2}>Vốn thu hồi</TableCell>
                                 <TableCell align="right">{formatCurrency(totalConsRevenuePlan)}</TableCell>
@@ -504,7 +694,16 @@ const CapitalUtilizationReport = () => {
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            <TableRow sx={{ "& > td, & > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[300], fontSize: "1rem" } }}>
+                            <TableRow
+                                sx={{
+                                    "& > td, & > th": {
+                                        fontWeight: 800,
+                                        backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                                        color: theme.palette.primary.dark,
+                                        fontSize: "1rem",
+                                    },
+                                }}
+                            >
                                 <TableCell colSpan={3}>Nhu cầu vay vốn (a-b)</TableCell>
                                 <TableCell align="right">{formatCurrency(totalConsUsagePlan - totalConsRevenuePlan)}</TableCell>
                                 <TableCell align="right">{formatCurrency(totalConsUsageActual - totalConsRevenueActual)}</TableCell>
@@ -515,7 +714,15 @@ const CapitalUtilizationReport = () => {
                 </TableContainer>
             </Card>
 
-            <Card sx={{ mb: 3 }}>
+            <Card
+                sx={{
+                    mb: 4,
+                    borderRadius: 3,
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
+                    overflow: "hidden",
+                    border: "none",
+                }}
+            >
                 <CardHeader
                     title="III. BỘ PHẬN ĐẦU TƯ"
                     titleTypographyProps={{ variant: "h6", fontWeight: 600 }}
@@ -528,7 +735,17 @@ const CapitalUtilizationReport = () => {
                 <TableContainer onPaste={handleInvestmentPaste} sx={{ outline: 'none' }} tabIndex={0}>
                     <Table size="small">
                         <TableHead>
-                            <TableRow sx={{ "& > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[100], borderBottom: `2px solid ${theme.palette.divider}` } }}>
+                            <TableRow
+                                sx={{
+                                    "& > th": {
+                                        fontWeight: 700,
+                                        backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                                        color: theme.palette.primary.main,
+                                        borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                                        py: 2,
+                                    },
+                                }}
+                            >
                                 <TableCell>STT</TableCell>
                                 <TableCell sx={{ minWidth: 250 }}>Nội dung đầu tư (Dự án)</TableCell>
                                 <TableCell align="right" sx={{ minWidth: 140 }}>Nguyên giá</TableCell>
@@ -560,7 +777,16 @@ const CapitalUtilizationReport = () => {
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            <TableRow sx={{ "& > td, & > th": { fontWeight: "bold", backgroundColor: theme.palette.grey[200] } }}>
+                            <TableRow
+                                sx={{
+                                    "& > td, & > th": {
+                                        fontWeight: 800,
+                                        backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                                        color: theme.palette.primary.dark,
+                                        fontSize: "1rem",
+                                    },
+                                }}
+                            >
                                 <TableCell colSpan={2}>Tổng Cộng</TableCell>
                                 <TableCell align="right">{formatCurrency(investmentTotals.cost)}</TableCell>
                                 <TableCell align="right">{formatCurrency(investmentTotals.profit)}</TableCell>

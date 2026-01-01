@@ -284,7 +284,7 @@ const Home = () => {
             bgcolor: theme.palette.mode === 'light' ? '#f4f6f8' : theme.palette.background.default,
             pb: 4
         }}>
-            <Box sx={{ maxWidth: 1600, mx: 'auto', px: { xs: 2, sm: 3, md: 4 } }}>
+            <Box sx={{ maxWidth: 1600, mx: 'auto', px: { xs: 1.5, sm: 3, md: 4 } }}>
                 {/* Enhanced Header với Gradient */}
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}
@@ -294,9 +294,9 @@ const Home = () => {
                     <Box
                         sx={{
                             background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                            borderRadius: 4,
-                            p: { xs: 3, sm: 4, md: 5 },
-                            mb: 4,
+                            borderRadius: { xs: 3, sm: 4 },
+                            p: { xs: 2.5, sm: 4, md: 5 },
+                            mb: { xs: 3, sm: 4 },
                             position: 'relative',
                             overflow: 'hidden',
                             color: 'white',
@@ -349,85 +349,49 @@ const Home = () => {
                                 </Box>
                             </Stack>
 
-                            {/* Stats Cards */}
-                            <Grid container spacing={2} sx={{ mb: 3 }}>
-                                <Grid size={{ xs: 6, sm: 3 }}>
-                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                        <StatCard color="#ffffff" sx={{ bgcolor: alpha('#fff', 0.15), borderColor: alpha('#fff', 0.3) }}>
-                                            <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 48, height: 48 }}>
-                                                    <Activity sx={{ fontSize: 24 }} />
-                                                </Avatar>
-                                                <Box>
-                                                    <Typography variant="h4" sx={{ fontWeight: 800, color: 'white' }}>
-                                                        {stats.total}
-                                                    </Typography>
-                                                    <Typography variant="body2" sx={{ color: alpha('#fff', 0.9), fontWeight: 600, fontSize: '0.8rem' }}>
-                                                        Tổng chức năng
-                                                    </Typography>
-                                                </Box>
-                                            </Stack>
-                                        </StatCard>
-                                    </motion.div>
-                                </Grid>
-                                <Grid size={{ xs: 6, sm: 3 }}>
-                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                        <StatCard color="#ffffff" sx={{ bgcolor: alpha('#fff', 0.15), borderColor: alpha('#fff', 0.3) }}>
-                                            <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 48, height: 48 }}>
-                                                    <FolderOpen sx={{ fontSize: 24 }} />
-                                                </Avatar>
-                                                <Box>
-                                                    <Typography variant="h4" sx={{ fontWeight: 800, color: 'white' }}>
-                                                        {stats.categoryCount}
-                                                    </Typography>
-                                                    <Typography variant="body2" sx={{ color: alpha('#fff', 0.9), fontWeight: 600, fontSize: '0.8rem' }}>
-                                                        Nhóm chức năng
-                                                    </Typography>
-                                                </Box>
-                                            </Stack>
-                                        </StatCard>
-                                    </motion.div>
-                                </Grid>
-                                <Grid size={{ xs: 6, sm: 3 }}>
-                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                        <StatCard color="#ffffff" sx={{ bgcolor: alpha('#fff', 0.15), borderColor: alpha('#fff', 0.3) }}>
-                                            <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 48, height: 48 }}>
-                                                    <TrendingUp sx={{ fontSize: 24 }} />
-                                                </Avatar>
-                                                <Box>
-                                                    <Typography variant="h4" sx={{ fontWeight: 800, color: 'white' }}>
-                                                        {stats.mainFeatures}
-                                                    </Typography>
-                                                    <Typography variant="body2" sx={{ color: alpha('#fff', 0.9), fontWeight: 600, fontSize: '0.8rem' }}>
-                                                        Chức năng chính
-                                                    </Typography>
-                                                </Box>
-                                            </Stack>
-                                        </StatCard>
-                                    </motion.div>
-                                </Grid>
-                                <Grid size={{ xs: 6, sm: 3 }}>
-                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                        <StatCard color="#ffffff" sx={{ bgcolor: alpha('#fff', 0.15), borderColor: alpha('#fff', 0.3) }}>
-                                            <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 48, height: 48 }}>
-                                                    <BarChart3 sx={{ fontSize: 24 }} />
-                                                </Avatar>
-                                                <Box>
-                                                    <Typography variant="h4" sx={{ fontWeight: 800, color: 'white' }}>
-                                                        {stats.reports}
-                                                    </Typography>
-                                                    <Typography variant="body2" sx={{ color: alpha('#fff', 0.9), fontWeight: 600, fontSize: '0.8rem' }}>
-                                                        Báo cáo
-                                                    </Typography>
-                                                </Box>
-                                            </Stack>
-                                        </StatCard>
-                                    </motion.div>
-                                </Grid>
-                            </Grid>
+                            {/* Stats Cards - Resonsive Carousel on Mobile */}
+                            <Box sx={{
+                                display: 'flex',
+                                gap: 2,
+                                overflowX: { xs: 'auto', md: 'visible' },
+                                pb: { xs: 2, md: 0 }, // Padding for scrollbar
+                                mx: { xs: -2, md: 0 }, // Negative margin to bleed edges
+                                px: { xs: 2, md: 0 }, // Padding to compensates negative margin
+                                scrollSnapType: { xs: 'x mandatory', md: 'none' },
+                                '&::-webkit-scrollbar': { display: 'none' },
+                                mb: 3
+                            }}>
+                                {[
+                                    { icon: <Activity sx={{ fontSize: 24 }} />, count: stats.total, label: "Tổng chức năng" },
+                                    { icon: <FolderOpen sx={{ fontSize: 24 }} />, count: stats.categoryCount, label: "Nhóm chức năng" },
+                                    { icon: <TrendingUp sx={{ fontSize: 24 }} />, count: stats.mainFeatures, label: "Chức năng chính" },
+                                    { icon: <BarChart3 sx={{ fontSize: 24 }} />, count: stats.reports, label: "Báo cáo" }
+                                ].map((stat, index) => (
+                                    <Box key={index} sx={{
+                                        minWidth: { xs: 160, sm: 200, md: 'auto' },
+                                        flex: { md: 1 },
+                                        scrollSnapAlign: 'start'
+                                    }}>
+                                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                            <StatCard color="#ffffff" sx={{ bgcolor: alpha('#fff', 0.15), borderColor: alpha('#fff', 0.3) }}>
+                                                <Stack direction="row" spacing={2} alignItems="center">
+                                                    <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 44, height: 44 }}>
+                                                        {stat.icon}
+                                                    </Avatar>
+                                                    <Box>
+                                                        <Typography variant="h5" sx={{ fontWeight: 800, color: 'white' }}>
+                                                            {stat.count}
+                                                        </Typography>
+                                                        <Typography variant="body2" sx={{ color: alpha('#fff', 0.9), fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                                            {stat.label}
+                                                        </Typography>
+                                                    </Box>
+                                                </Stack>
+                                            </StatCard>
+                                        </motion.div>
+                                    </Box>
+                                ))}
+                            </Box>
 
                             {/* Search and Filter */}
                             <Stack spacing={2}>
@@ -527,7 +491,7 @@ const Home = () => {
                     animate="visible"
                 >
                     {Object.entries(groupedModules).map(([category, modules]) => (
-                        <Box key={category} sx={{ mb: 6 }}>
+                        <Box key={category} sx={{ mb: { xs: 4, sm: 6 } }}>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -568,11 +532,11 @@ const Home = () => {
                                 </Stack>
                             </motion.div>
 
-                            <Grid container spacing={3}>
+                            <Grid container spacing={{ xs: 2, sm: 3 }}>
                                 <AnimatePresence>
                                     {modules.map((module, index) => (
                                         <Grid
-                                            size={{ xs: 12, sm: 6, md: 4, lg: 3 }}
+                                            size={{ xs: 6, sm: 6, md: 4, lg: 3 }}
                                             key={module.to}
                                         >
                                             <motion.div
@@ -606,24 +570,25 @@ const Home = () => {
                                                                 }}
                                                             />
                                                         )}
-                                                        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                                        <CardContent sx={{ p: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', height: '100%' }}>
                                                             <Box
                                                                 className="icon-box"
                                                                 sx={{
-                                                                    width: 60,
-                                                                    height: 60,
-                                                                    borderRadius: '18px',
+                                                                    width: { xs: 48, sm: 60 },
+                                                                    height: { xs: 48, sm: 60 },
+                                                                    borderRadius: { xs: '14px', sm: '18px' },
                                                                     display: 'flex',
                                                                     alignItems: 'center',
                                                                     justifyContent: 'center',
                                                                     background: `linear-gradient(135deg, ${alpha(module.color, 0.15)} 0%, ${alpha(module.color, 0.25)} 100%)`,
                                                                     color: module.color,
-                                                                    mb: 2.5,
+                                                                    mb: { xs: 1.5, sm: 2.5 },
                                                                     flexShrink: 0,
                                                                     transition: 'all 0.3s ease',
                                                                 }}
                                                             >
-                                                                {module.icon}
+                                                                {/* Resize icon on mobile */}
+                                                                {React.cloneElement(module.icon, { sx: { fontSize: { xs: 24, sm: 26 } } })}
                                                             </Box>
                                                             <Box sx={{ flexGrow: 1 }}>
                                                                 <Typography
@@ -633,21 +598,27 @@ const Home = () => {
                                                                     sx={{
                                                                         fontWeight: 700,
                                                                         color: theme.palette.text.primary,
-                                                                        fontSize: '1.1rem',
+                                                                        fontSize: { xs: '0.95rem', sm: '1.1rem' },
                                                                         lineHeight: 1.3,
-                                                                        minHeight: '2.8rem',
-                                                                        mb: 1,
+                                                                        minHeight: { xs: '2.4rem', sm: '2.8rem' },
+                                                                        mb: 0.5,
                                                                         transition: 'color 0.3s ease',
                                                                     }}
                                                                 >
                                                                     {searchQuery ? highlightText(module.title, searchQuery) : module.title}
                                                                 </Typography>
+                                                                {/* Hide description on mobile for cleaner 2-column view, or clamp it */}
                                                                 <Typography
                                                                     variant="body2"
                                                                     sx={{
                                                                         color: theme.palette.text.secondary,
-                                                                        fontSize: '0.875rem',
-                                                                        lineHeight: 1.6,
+                                                                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                                                        lineHeight: 1.5,
+                                                                        display: '-webkit-box',
+                                                                        WebkitLineClamp: { xs: 2, sm: 3 },
+                                                                        WebkitBoxOrient: 'vertical',
+                                                                        overflow: 'hidden',
+                                                                        textOverflow: 'ellipsis'
                                                                     }}
                                                                 >
                                                                     {searchQuery ? highlightText(module.desc, searchQuery) : module.desc}
