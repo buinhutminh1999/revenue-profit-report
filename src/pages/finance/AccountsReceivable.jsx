@@ -2,18 +2,19 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import toast from 'react-hot-toast';
 import {
-    Box, Typography, Paper, FormControl, InputLabel, Select, MenuItem, Stack, Grid, Skeleton,
-    Chip, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
+    Box, Typography, Paper, Select, MenuItem, Stack, Grid, Skeleton,
+    Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, TextField,
-    useTheme, alpha, Tooltip, Divider, Card, CardContent
+    useTheme, alpha, Tooltip, Divider, Fab, Fade
 } from "@mui/material";
 import {
     ArchiveOutlined, TrendingUp, TrendingDown, AttachMoney,
+    AccountBalanceWallet, Savings,
     Add as AddIcon, Delete as DeleteIcon,
-    ContentCopy, KeyboardArrowDown, KeyboardArrowUp,
-    Edit as EditIcon,
-    Save as SaveIcon,
-    Close as CloseIcon
+    ContentCopy,
+    Tv as TvIcon,
+    FullscreenExit as FullscreenExitIcon,
+
 } from "@mui/icons-material";
 import { NumericFormat } from "react-number-format";
 import { useAccountsReceivable } from "../../hooks/useAccountsReceivable";
@@ -21,10 +22,40 @@ import { toNum } from "../../utils/numberUtils";
 import { EmptyState, SkeletonTable } from "../../components/common";
 
 // =================================================================
-// STYLED & HELPER COMPONENTS
+// PREMIUM THEME HELPERS
+// =================================================================
+const getPremiumStyles = (theme, isTvMode) => {
+    if (!isTvMode) return {};
+
+    return {
+        background: `radial-gradient(circle at 50% 0%, #0f172a 0%, #020617 100%)`, // Deep Slate/Navy (Tailwind colors)
+        text: {
+            primary: '#f8fafc',
+            secondary: '#94a3b8',
+            gold: '#fbbf24',
+            emerald: '#34d399',
+            rose: '#fb7185',
+        },
+        glass: {
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+        },
+        glassCard: {
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
+        }
+    };
+};
+
+// =================================================================
+// SUB-COMPONENTS
 // =================================================================
 
-const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel }) => {
+const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel, isTvMode }) => {
     const [currentValue, setCurrentValue] = useState(value);
     const inputRef = useRef(null);
     const theme = useTheme();
@@ -57,16 +88,17 @@ const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel }) => {
     const commonSx = {
         width: '100%',
         '& .MuiInputBase-root': {
-            fontSize: '0.875rem',
-            fontFamily: type === 'number' ? 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace' : 'inherit',
+            fontSize: isTvMode ? '1.1rem' : 'inherit',
+            fontFamily: type === 'number' ? 'Consolas, Monaco, "Andale Mono", monospace' : 'inherit',
             fontWeight: 500,
             p: 0,
+            color: isTvMode ? '#fff' : 'inherit',
         },
         '& .MuiInputBase-input': {
             p: '4px 8px',
             textAlign: type === 'number' ? 'right' : 'left',
             borderRadius: 1,
-            bgcolor: alpha(theme.palette.primary.main, 0.08),
+            bgcolor: isTvMode ? 'rgba(255,255,255,0.1)' : alpha(theme.palette.primary.main, 0.08),
         }
     };
 
@@ -130,76 +162,111 @@ const categories = [
 ];
 
 const tableColumns = [
-    { field: "project", headerName: "Diễn giải", type: "string", minWidth: 250 },
+    { field: "project", headerName: "Diễn giải", type: "string", minWidth: 250, align: 'left' },
     { field: "openingDebit", headerName: "Phải Thu ĐK", type: "number", minWidth: 140 },
     { field: "openingCredit", headerName: "KH Ứng Trước ĐK", type: "number", minWidth: 140 },
     { field: "debitIncrease", headerName: "Phát Sinh Tăng", type: "number", minWidth: 140 },
     { field: "creditDecrease", headerName: "Phát Sinh Giảm", type: "number", minWidth: 140 },
     { field: "closingDebit", headerName: "Phải Thu CK", type: "number", minWidth: 140 },
     { field: "closingCredit", headerName: "Trả Trước CK", type: "number", minWidth: 140 },
-    { field: "notes", headerName: "Ghi chú", type: "string", minWidth: 180 },
+    { field: "notes", headerName: "Ghi chú", type: "string", minWidth: 180, align: 'left' },
 ];
 
 // =================================================================
 // HELPER COMPONENTS
 // =================================================================
-const MetricCard = ({ title, value, icon, color, loading, index }) => {
+const MetricCard = ({ title, value, icon, colorName, loading, index, isTvMode }) => {
     const theme = useTheme();
+    const premium = getPremiumStyles(theme, isTvMode);
+
+    // Map color names to theme/custom colors
+    const getColor = (name) => {
+        if (!isTvMode) return theme.palette[name];
+        switch (name) {
+            case 'info': return { main: '#38bdf8', dark: '#0ea5e9', light: '#7dd3fc' }; // Sky
+            case 'warning': return { main: '#fbbf24', dark: '#f59e0b', light: '#fcd34d' }; // Amber
+            case 'success': return { main: '#34d399', dark: '#10b981', light: '#6ee7b7' }; // Emerald
+            case 'error': return { main: '#fb7185', dark: '#f43f5e', light: '#fda4af' }; // Rose
+            default: return theme.palette[name];
+        }
+    };
+    const colorObj = getColor(colorName);
+
     return (
         <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.05 }}
+            transition={{ duration: 0.5, delay: index * 0.1 }}
             style={{ height: '100%' }}
         >
             <Paper
-                elevation={0}
+                elevation={isTvMode ? 0 : 0}
                 sx={{
-                    p: 2,
                     height: '100%',
-                    borderRadius: 3,
-                    border: `1px solid ${alpha(theme.palette[color].main, 0.2)}`,
-                    background: `linear-gradient(145deg, ${alpha(theme.palette.background.paper, 0.8)}, ${alpha(theme.palette[color].main, 0.05)})`,
-                    backdropFilter: 'blur(20px)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    transition: 'transform 0.2s',
-                    '&:hover': {
-                        transform: 'translateY(-2px)',
-                        boxShadow: `0 8px 20px ${alpha(theme.palette[color].main, 0.15)}`
-                    }
+                    borderRadius: isTvMode ? 4 : 3,
+                    p: isTvMode ? 3 : 2,
+                    ...(isTvMode ? premium.glassCard : {
+                        border: `1px solid ${alpha(theme.palette[colorName || 'primary'].main, 0.2)}`,
+                        background: `linear-gradient(145deg, ${alpha(theme.palette.background.paper, 0.8)}, ${alpha(theme.palette[colorName || 'primary'].main, 0.05)})`,
+                    }),
+                    position: 'relative',
+                    overflow: 'hidden',
                 }}
             >
-                <Box
-                    sx={{
-                        p: 1.25,
-                        borderRadius: 2.5,
-                        bgcolor: alpha(theme.palette[color].main, 0.1),
-                        color: theme.palette[color].main,
-                        display: 'flex'
-                    }}
-                >
-                    {icon}
-                </Box>
-                <Box sx={{ flex: 1, overflow: 'hidden' }}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        {title}
-                    </Typography>
-                    {loading ? (
-                        <Skeleton width="80%" height={28} />
-                    ) : (
+                {/* Glow Effect for TV Mode */}
+                {isTvMode && (
+                    <Box sx={{
+                        position: 'absolute',
+                        top: '-50%',
+                        right: '-50%',
+                        width: '100%',
+                        height: '100%',
+                        background: `radial-gradient(circle, ${alpha(colorObj.main, 0.2)} 0%, transparent 70%)`,
+                        filter: 'blur(40px)',
+                        zIndex: 0,
+                    }} />
+                )}
+
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 0, gap: isTvMode ? 3 : 2, position: 'relative', zIndex: 1 }}>
+                    <Box
+                        sx={{
+                            p: isTvMode ? 2 : 1.25,
+                            borderRadius: '50%',
+                            bgcolor: isTvMode ? alpha(colorObj.main, 0.2) : alpha(theme.palette[colorName || 'primary'].main, 0.15),
+                            color: colorObj.main,
+                            display: 'flex',
+                            boxShadow: isTvMode ? `0 0 20px ${alpha(colorObj.main, 0.4)}` : 'none',
+                        }}
+                    >
+                        {React.cloneElement(icon, { fontSize: isTvMode ? "large" : "medium" })}
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
                         <Typography
-                            variant="h6"
-                            fontWeight={700}
+                            variant={isTvMode ? "h6" : "caption"}
                             sx={{
-                                color: theme.palette[color].dark,
-                                fontFamily: 'Consolas, Monaco, monospace'
+                                color: isTvMode ? premium.text.secondary : "text.secondary",
+                                fontWeight: 600,
+                                textTransform: 'uppercase',
+                                letterSpacing: isTvMode ? 1.5 : 1,
+                                mb: 0.5
                             }}
                         >
-                            <NumericFormat value={toNum(value)} displayType="text" thousandSeparator="," />
+                            {title}
                         </Typography>
-                    )}
+                        {loading ? (
+                            <Skeleton width="80%" height={28} sx={{ bgcolor: isTvMode ? 'rgba(255,255,255,0.1)' : undefined }} />
+                        ) : (
+                            <Typography variant="h6" fontWeight={isTvMode ? 800 : 700} sx={{
+                                fontFamily: 'Consolas, Monaco, monospace',
+                                fontSize: isTvMode ? '2.2rem' : '1.25rem',
+                                color: isTvMode ? premium.text.primary : theme.palette[colorName || 'primary'].dark,
+                                lineHeight: 1.2,
+                                textShadow: isTvMode ? `0 0 20px ${alpha(colorObj.main, 0.3)}` : 'none'
+                            }}>
+                                <NumericFormat value={toNum(value)} displayType="text" thousandSeparator="," />
+                            </Typography>
+                        )}
+                    </Box>
                 </Box>
             </Paper>
         </motion.div>
@@ -209,60 +276,92 @@ const MetricCard = ({ title, value, icon, color, loading, index }) => {
 // =================================================================
 // MAIN TABLE ROW COMPONENT
 // =================================================================
-const TableRowItem = React.memo(({ row, tableColumns, editingCell, setEditingCell, handleUpdateCell, handleDeleteRow, handleCopyRow, handleSelectCategory, selectedCategory, theme, isGroupHeader, isParentHeader, isGrandTotal }) => {
-    // Styles calculation moved inside for cleaner render loop
+const TableRowItem = React.memo(({ row, tableColumns, editingCell, setEditingCell, handleUpdateCell, handleDeleteRow, handleCopyRow, handleSelectCategory, selectedCategory, theme, isGroupHeader, isParentHeader, isGrandTotal, isTvMode }) => {
     const isDataRow = row.type === 'data';
     const isLockedCell = (field) => (field === 'openingDebit' && row.isOpeningDebitLocked) || (field === 'openingCredit' && row.isOpeningCreditLocked);
     const isSelected = selectedCategory && row.categoryId === selectedCategory;
+    const premium = getPremiumStyles(theme, isTvMode);
 
     // Row Styles
     let rowSx = {
-        '&:hover': isDataRow ? { bgcolor: alpha(theme.palette.primary.main, 0.02) } : {},
-        transition: 'background-color 0.15s'
+        transition: 'all 0.15s ease',
+        '& td': {
+            fontSize: isTvMode ? '1.1rem' : 'inherit',
+            py: isTvMode ? 1.5 : 0.75,
+            borderBottom: isTvMode ? `1px solid rgba(255,255,255,0.05)` : undefined,
+            color: isTvMode ? premium.text.primary : 'inherit',
+        }
     };
+
+    // Hover effect
+    if (isDataRow) {
+        rowSx['&:hover'] = {
+            bgcolor: isTvMode ? alpha('#fff', 0.05) : alpha(theme.palette.primary.main, 0.02)
+        };
+    }
+
+    // Zebra Striping for Data Rows in TV Mode
+    if (isTvMode && isDataRow) {
+        if (row.rowIndex % 2 !== 0) {
+            rowSx.bgcolor = alpha('#fff', 0.02);
+        }
+    }
 
     if (isGrandTotal) {
         rowSx = {
-            bgcolor: alpha(theme.palette.primary.main, 0.1),
+            bgcolor: isTvMode ? alpha(premium.text.gold, 0.15) : alpha(theme.palette.primary.main, 0.1),
+            position: 'relative',
+            bottom: 0,
+            zIndex: 10,
+            backdropFilter: isTvMode ? 'blur(10px)' : 'none',
+            boxShadow: isTvMode ? '0 -4px 20px rgba(0,0,0,0.2)' : 'none',
             '& td': {
-                color: theme.palette.primary.dark,
-                fontWeight: 800,
-                fontSize: '0.95rem',
-                borderTop: `2px solid ${theme.palette.primary.main}`,
-                borderBottom: 'none'
+                color: isTvMode ? premium.text.gold : theme.palette.primary.dark,
+                fontWeight: 900,
+                fontSize: isTvMode ? '1.4rem' : '1rem',
+                borderTop: `2px solid ${isTvMode ? premium.text.gold : theme.palette.primary.main}`,
+                borderBottom: 'none',
+                py: isTvMode ? 2.5 : 0.75
             }
         };
     } else if (isParentHeader) {
         rowSx = {
-            bgcolor: alpha(theme.palette.background.paper, 1),
+            bgcolor: isTvMode ? alpha('#020617', 0.95) : alpha(theme.palette.background.paper, 1),
             '& td': {
-                color: theme.palette.text.primary,
+                color: isTvMode ? '#fff' : theme.palette.text.primary,
                 fontWeight: 800,
-                fontSize: '0.9rem',
-                borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                bgcolor: alpha(theme.palette.grey[500], 0.05),
+                fontSize: isTvMode ? '1.2rem' : '0.9rem',
+                borderBottom: isTvMode ? `1px solid ${alpha(theme.palette.divider, 0.1)}` : undefined,
+                borderTop: isTvMode ? `1px solid ${alpha(theme.palette.divider, 0.1)}` : undefined,
+                py: isTvMode ? 2 : 0.75,
+                textTransform: 'uppercase',
+                letterSpacing: 1
             }
         };
     } else if (isGroupHeader) {
         rowSx = {
-            bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.background.paper, 0.6),
+            bgcolor: isSelected
+                ? (isTvMode ? alpha(premium.text.gold, 0.2) : alpha(theme.palette.primary.main, 0.15))
+                : (isTvMode ? alpha('#fff', 0.05) : alpha(theme.palette.background.paper, 0.6)),
             cursor: 'pointer',
-            '&:hover': {
-                bgcolor: alpha(theme.palette.primary.main, 0.1),
-            },
             '& td': {
-                color: isSelected ? theme.palette.primary.main : theme.palette.text.secondary,
+                color: isSelected
+                    ? (isTvMode ? premium.text.gold : theme.palette.primary.main)
+                    : (isTvMode ? '#cbd5e1' : theme.palette.text.secondary),
                 fontWeight: 700,
-                fontSize: '0.85rem',
+                fontSize: isTvMode ? '1.1rem' : '0.85rem',
                 fontStyle: 'italic',
-                pl: 4
+                pl: 4,
+                py: isTvMode ? 1.5 : 0.75
             }
         };
     }
 
     return (
         <TableRow
+            component={motion.tr}
+            initial={{ opacity: 0 }} // Simple fade in
+            animate={{ opacity: 1 }}
             sx={rowSx}
             onClick={isGroupHeader && handleSelectCategory ? () => handleSelectCategory(row.categoryId) : undefined}
         >
@@ -274,19 +373,29 @@ const TableRowItem = React.memo(({ row, tableColumns, editingCell, setEditingCel
                 const isEditing = editingCell?.rowId === row.id && editingCell?.field === field;
                 const isEditable = isDataRow && !isLocked;
 
-                // Special rendering for Project Name in headers
+                // Column Highlight for Closing Debit
+                const isClosingDebit = field === 'closingDebit';
+
+                // Styles for specific cells
+                const cellSx = {
+                    fontFamily: (isDataRow || isGrandTotal) && isNumber ? 'Consolas, Monaco, monospace' : 'inherit',
+                    cursor: isEditable ? 'pointer' : 'default',
+                    color: (isClosingDebit && isTvMode && isDataRow) ? premium.text.rose :
+                        (isNumber && cellValue < 0 ? (isTvMode ? premium.text.rose : theme.palette.error.main) : 'inherit'),
+                    fontWeight: (isClosingDebit && isTvMode) ? 700 : 'inherit',
+                    bgcolor: (isClosingDebit && isTvMode && isDataRow) ? alpha(premium.text.rose, 0.05) : 'inherit',
+                };
+
+                // Neon Text Shadow for Grand Totals in TV Mode
+                if (isTvMode && isGrandTotal && isNumber && cellValue !== 0) {
+                    cellSx.textShadow = `0 0 10px ${alpha(premium.text.gold, 0.5)}`;
+                }
+
                 if (field === 'project') {
                     return (
-                        <TableCell key={field} sx={{ py: 1.5, pl: isDataRow ? 6 : undefined }}> {/* Indent data rows */}
+                        <TableCell key={field} sx={{ pl: isDataRow ? 6 : undefined }}>
                             {isEditing ? (
-                                <EditableCell
-                                    value={cellValue}
-                                    rowId={row.id}
-                                    field={field}
-                                    type={col.type}
-                                    onUpdate={handleUpdateCell}
-                                    onCancel={() => setEditingCell(null)}
-                                />
+                                <EditableCell value={cellValue} rowId={row.id} field={field} type={col.type} onUpdate={handleUpdateCell} onCancel={() => setEditingCell(null)} isTvMode={isTvMode} />
                             ) : (
                                 <Box
                                     onClick={() => isEditable && setEditingCell({ rowId: row.id, field: field })}
@@ -294,46 +403,29 @@ const TableRowItem = React.memo(({ row, tableColumns, editingCell, setEditingCel
                                         cursor: isEditable ? 'pointer' : 'default',
                                         fontWeight: 'inherit',
                                         display: 'flex',
-                                        alignItems: 'center'
+                                        alignItems: 'center',
+                                        whiteSpace: 'normal',
                                     }}
                                 >
-                                    {cellValue} {isLocked && <Box component="span" sx={{ ml: 1, fontSize: '0.7em', color: 'text.disabled' }}>(locked)</Box>}
+                                    {cellValue} {isLocked && !isTvMode && <Box component="span" sx={{ ml: 1, fontSize: '0.7em', color: 'text.disabled' }}>(locked)</Box>}
                                 </Box>
                             )}
                         </TableCell>
                     );
                 }
 
-                // Numeric Cells
                 return (
                     <TableCell
                         key={field}
-                        align="right"
+                        align={col.align || (isNumber ? 'right' : 'left')}
                         onClick={() => isEditable && setEditingCell({ rowId: row.id, field: field })}
-                        sx={{
-                            py: 0.75,
-                            fontFamily: isDataRow || isGrandTotal ? 'Consolas, Monaco, monospace' : 'inherit',
-                            cursor: isEditable ? 'pointer' : 'default',
-                            bgcolor: isLocked ? alpha(theme.palette.action.disabledBackground, 0.05) : 'inherit',
-                            color: isNumber && cellValue < 0 ? theme.palette.error.main : 'inherit',
-                            '&:hover': isEditable && !isEditing ? {
-                                boxShadow: `inset 0 0 0 1px ${theme.palette.primary.light}`,
-                                borderRadius: 0.5
-                            } : {}
-                        }}
+                        sx={cellSx}
                     >
                         {isEditing ? (
-                            <EditableCell
-                                value={cellValue}
-                                rowId={row.id}
-                                field={field}
-                                type={col.type}
-                                onUpdate={handleUpdateCell}
-                                onCancel={() => setEditingCell(null)}
-                            />
+                            <EditableCell value={cellValue} rowId={row.id} field={field} type={col.type} onUpdate={handleUpdateCell} onCancel={() => setEditingCell(null)} isTvMode={isTvMode} />
                         ) : (
                             isNumber ? (
-                                cellValue === 0 ? <Typography variant="caption" color="text.disabled">-</Typography> :
+                                cellValue === 0 ? <Typography variant="caption" sx={{ opacity: 0.3 }}>-</Typography> :
                                     <NumericFormat value={toNum(cellValue)} displayType="text" thousandSeparator="," />
                             ) : cellValue
                         )}
@@ -341,57 +433,31 @@ const TableRowItem = React.memo(({ row, tableColumns, editingCell, setEditingCel
                 );
             })}
 
-            {/* Actions Column */}
-            <TableCell align="center" padding="none">
-                {row.type === 'data' && (
-                    <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                        <Tooltip title="Sao chép dòng" arrow placement="left">
-                            <IconButton
-                                size="small"
-                                onClick={() => handleCopyRow(row)}
-                                sx={{
-                                    opacity: 0,
-                                    transition: 'opacity 0.2s',
-                                    color: theme.palette.text.disabled,
-                                    '.MuiTableRow-root:hover &': { opacity: 1 },
-                                    '&:hover': { color: theme.palette.info.main, bgcolor: alpha(theme.palette.info.main, 0.1) }
-                                }}
-                            >
-                                <ContentCopy fontSize="small" />
+            {!isTvMode && (
+                <TableCell align="center" padding="none" sx={{ width: 80 }}>
+                    {row.type === 'data' && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                            <Tooltip title="Sao chép" arrow placement="left">
+                                <IconButton size="small" onClick={() => handleCopyRow(row)} sx={{ opacity: 0, transition: 'all 0.2s', '.MuiTableRow-root:hover &': { opacity: 1 }, hover: { color: theme.palette.info.main } }}>
+                                    <ContentCopy fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Xóa" arrow placement="left">
+                                <IconButton size="small" onClick={() => handleDeleteRow(row.id)} sx={{ opacity: 0, transition: 'all 0.2s', '.MuiTableRow-root:hover &': { opacity: 1 }, hover: { color: theme.palette.error.main } }}>
+                                    <DeleteIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                        </Box>
+                    )}
+                    {row.onAdd && (
+                        <Tooltip title="Thêm dòng" arrowPlacement="left">
+                            <IconButton size="small" onClick={() => row.onAdd(row.categoryId)} sx={{ color: theme.palette.action.active }}>
+                                <AddIcon fontSize="small" />
                             </IconButton>
                         </Tooltip>
-                        <Tooltip title="Xóa dòng" arrow placement="left">
-                            <IconButton
-                                size="small"
-                                onClick={() => handleDeleteRow(row.id)}
-                                sx={{
-                                    opacity: 0,
-                                    transition: 'opacity 0.2s',
-                                    color: theme.palette.text.disabled,
-                                    '.MuiTableRow-root:hover &': { opacity: 1 },
-                                    '&:hover': { color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.1) }
-                                }}
-                            >
-                                <DeleteIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                    </Box>
-                )}
-                {row.onAdd && (
-                    <Tooltip title="Thêm dòng" arrow placement="left">
-                        <IconButton
-                            size="small"
-                            onClick={() => row.onAdd(row.categoryId)}
-                            sx={{
-                                color: theme.palette.action.active,
-                                '&:hover': { color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.1) }
-                            }}
-                        >
-                            <AddIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                )}
-            </TableCell>
+                    )}
+                </TableCell>
+            )}
         </TableRow>
     );
 });
@@ -410,6 +476,10 @@ export default function AccountsReceivable() {
     const [selectedYear, setSelectedYear] = useState(currentYear);
     const [selectedQuarter, setSelectedQuarter] = useState(Math.ceil((new Date().getMonth() + 1) / 3));
 
+    // TV Mode State
+    const [isTvMode, setIsTvMode] = useState(false);
+
+
     // Hooks
     const {
         rows,
@@ -425,7 +495,7 @@ export default function AccountsReceivable() {
 
     const tableContainerRef = useRef(null);
     const [editingCell, setEditingCell] = useState(null);
-    const [selectedCategory, setSelectedCategory] = useState(null); // For quick paste on group header
+    const [selectedCategory, setSelectedCategory] = useState(null);
 
     // Dialogs State
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -436,14 +506,17 @@ export default function AccountsReceivable() {
     const [pasteContext, setPasteContext] = useState(null);
     const [displayRows, setDisplayRows] = useState([]);
 
-    // Handle clicking on a group header to select it for pasting
+    const premium = getPremiumStyles(theme, isTvMode);
+
+
+
+
     const handleSelectCategory = (categoryId) => {
         setSelectedCategory(categoryId);
-        setEditingCell(null); // Clear cell editing when selecting category
+        setEditingCell(null);
         toast.success(`Đã chọn nhóm "${categoryId}". Nhấn Ctrl+V để dán dữ liệu.`, { duration: 2000 });
     };
 
-    // Handlers
     const handleAddRow = async (categoryId) => {
         try {
             await addRow(categoryId);
@@ -507,7 +580,6 @@ export default function AccountsReceivable() {
         toast.success("Đã sao chép dòng vào clipboard!");
     };
 
-    // Paste Handle Logic (Restored)
     const confirmPaste = async () => {
         if (!pasteContext) return;
         setPasteDialogOpen(false);
@@ -582,12 +654,8 @@ export default function AccountsReceivable() {
                     }
                 });
 
-                const { addedCount, updatedCount } = await importRows(uniqueRowsToProcess);
-                let messages = [];
-                if (addedCount > 0) messages.push(`Đã thêm ${addedCount} dòng mới.`);
-                if (updatedCount > 0) messages.push(`Đã cập nhật ${updatedCount} dòng.`);
-                if (messages.length === 0) messages.push("Không có thay đổi nào.");
-                resolve(messages.join('. '));
+                const { addedCount, updatedCount } = importRows(uniqueRowsToProcess);
+                resolve(`Xử lý thành công.`);
             } catch (error) {
                 console.error("PASTE ERROR:", error);
                 reject("Đã xảy ra lỗi khi dán dữ liệu.");
@@ -610,7 +678,6 @@ export default function AccountsReceivable() {
         }
     };
 
-    // Calculate Data Logic (Same as before but cleaned up)
     const updateAndSaveTotals = useCallback(async (currentRows, year, quarter, prevRows = []) => {
         const result = [];
         const numericFields = tableColumns.filter(c => c.type === 'number').map(c => c.field);
@@ -619,7 +686,6 @@ export default function AccountsReceivable() {
         let dataRowIndex = 0;
         const usedPrevRowIds = new Set();
 
-        // Helper to handle carryovers logic
         const mergeCarryover = (row) => {
             let carryoverDebit = 0;
             let carryoverCredit = 0;
@@ -640,7 +706,6 @@ export default function AccountsReceivable() {
             const newRow = { ...row };
             if (isOpeningDebitLocked) newRow.openingDebit = carryoverDebit;
             if (isOpeningCreditLocked) newRow.openingCredit = carryoverCredit;
-
             return { ...newRow, isOpeningDebitLocked, isOpeningCreditLocked };
         };
 
@@ -649,7 +714,6 @@ export default function AccountsReceivable() {
             const categorySummary = { ...zeroSummary };
 
             if (category.children && category.children.length > 0) {
-                // Has Subcategories
                 category.children.forEach(child => {
                     const categoryRows = rows.filter(row => row.category === child.id).map(mergeCarryover);
                     const childSummary = categoryRows.reduce((acc, row) => {
@@ -657,30 +721,21 @@ export default function AccountsReceivable() {
                         return acc;
                     }, { ...zeroSummary });
 
-                    // Add Sub-Header
                     childDisplayRows.push({ id: `header-${child.id}`, type: 'group-header', project: child.label, categoryId: child.id, onAdd: handleAddRow, ...childSummary });
-                    // Add Rows
                     categoryRows.forEach(row => childDisplayRows.push({ ...row, type: 'data', rowIndex: dataRowIndex++ }));
-                    // Add to Category Summary
                     Object.keys(zeroSummary).forEach(key => categorySummary[key] += childSummary[key]);
                 });
-                // Add Parent Header
                 result.push({ id: `p-header-${category.id}`, type: 'parent-header', project: category.label, ...categorySummary });
                 result.push(...childDisplayRows);
             } else {
-                // No Subcategories
                 const categoryRows = rows.filter(row => row.category === category.id).map(mergeCarryover);
                 const summary = categoryRows.reduce((acc, row) => {
                     Object.keys(zeroSummary).forEach(key => acc[key] += toNum(row[key]));
                     return acc;
                 }, { ...zeroSummary });
 
-                // Reuse Group Header style
                 result.push({ id: `header-${category.id}`, type: 'parent-header', project: category.label, categoryId: category.id, onAdd: handleAddRow, ...summary });
-
-                // Categories without children act as both parent and group - add rows directly
                 categoryRows.forEach(row => childDisplayRows.push({ ...row, type: 'data', rowIndex: dataRowIndex++ }));
-
                 result.push(...childDisplayRows);
                 Object.keys(zeroSummary).forEach(key => categorySummary[key] += summary[key]);
             }
@@ -696,18 +751,15 @@ export default function AccountsReceivable() {
         updateAndSaveTotals(rows, selectedYear, selectedQuarter, prevQuarterRows).then(setDisplayRows);
     }, [rows, selectedYear, selectedQuarter, prevQuarterRows, updateAndSaveTotals]);
 
-    // Paste Effect - Now supports pasting on selected category OR editing cell
     useEffect(() => {
         const handlePaste = (event) => {
+            if (isTvMode) return;
             let categoryToPaste = null;
-            let startField = 'project'; // Default start field for pasting
+            let startField = 'project';
 
-            // Priority 1: If a category is selected (clicked on group header)
             if (selectedCategory) {
                 categoryToPaste = selectedCategory;
-            }
-            // Priority 2: If a cell is being edited
-            else if (editingCell) {
+            } else if (editingCell) {
                 const activeRow = displayRows.find(r => r.id === editingCell.rowId);
                 if (activeRow && activeRow.category) {
                     categoryToPaste = activeRow.category;
@@ -715,9 +767,7 @@ export default function AccountsReceivable() {
                 }
             }
 
-            if (!categoryToPaste) {
-                return toast.error("Vui lòng chọn một nhóm (click vào tiêu đề nhóm) hoặc một ô trong bảng trước khi dán.");
-            }
+            if (!categoryToPaste) return;
 
             event.preventDefault();
             const text = event.clipboardData.getData('text/plain');
@@ -727,176 +777,264 @@ export default function AccountsReceivable() {
         const container = tableContainerRef.current;
         if (container) container.addEventListener('paste', handlePaste);
         return () => { if (container) container.removeEventListener('paste', handlePaste); };
-    }, [editingCell, displayRows, selectedCategory]);
+    }, [editingCell, displayRows, selectedCategory, isTvMode]);
 
     const summaryData = useMemo(() => displayRows.find(row => row.type === 'grand-total') || {}, [displayRows]);
 
-    return (
-        <Box sx={{ p: { xs: 2, md: 4 }, minHeight: '100vh', bgcolor: 'background.default' }}>
-            {/* HEADer */}
-            <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems="center" spacing={3} mb={4}>
-                <Box>
-                    <Typography variant="h4" fontWeight={800} sx={{
-                        background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                        backgroundClip: "text", WebkitTextFillColor: "transparent"
-                    }}>
-                        Báo Cáo Công Nợ
-                    </Typography>
-                    <Typography variant="body1" color="text.secondary">Quản lý các khoản phải thu theo kỳ</Typography>
-                </Box>
+    // RENDER CONTENT FUNCTION
+    const renderContent = (isMockFullMode = false) => {
+        // Shadowing the outer 'premium' variable to ensure styles match the requested mode
+        const premium = getPremiumStyles(theme, isMockFullMode);
 
-                {/* Filters */}
-                <Paper elevation={0} sx={{ p: 0.5, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex' }}>
-                    <Select
-                        value={selectedQuarter}
-                        onChange={(e) => setSelectedQuarter(e.target.value)}
-                        variant="standard"
-                        disableUnderline
-                        sx={{ px: 2, py: 1, '& .MuiSelect-select': { fontWeight: 600 } }}
-                    >
-                        {quarterOptions.map(o => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
-                    </Select>
-                    <Divider orientation="vertical" flexItem />
-                    <Select
-                        value={selectedYear}
-                        onChange={(e) => setSelectedYear(e.target.value)}
-                        variant="standard"
-                        disableUnderline
-                        sx={{ px: 2, py: 1, '& .MuiSelect-select': { fontWeight: 600 } }}
-                    >
-                        {yearOptions.map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}
-                    </Select>
-                    <Divider orientation="vertical" flexItem />
-                    <Tooltip title="Sao chép từ kỳ trước">
-                        <IconButton onClick={handleCopyFromPrevQuarter} sx={{ color: theme.palette.primary.main, mx: 0.5 }}>
-                            <ContentCopy fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                </Paper>
-            </Stack>
+        return (
+            <React.Fragment>
+                {/* HEADER */}
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={isMockFullMode ? 5 : 4} sx={{ pt: isMockFullMode ? 4 : 0 }}>
+                    <Box>
+                        <Typography variant={isMockFullMode ? "h3" : "h4"} fontWeight={800} sx={{
+                            background: isMockFullMode
+                                ? `linear-gradient(45deg, ${premium.text?.gold || '#fbbf24'}, #ffffff)`
+                                : `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                            backgroundClip: "text", WebkitTextFillColor: "transparent",
+                            textTransform: isMockFullMode ? 'uppercase' : 'none',
+                            textAlign: isMockFullMode ? 'center' : 'left',
+                            width: '100%',
+                            letterSpacing: isMockFullMode ? 2 : 0,
+                            filter: isMockFullMode ? `drop-shadow(0 0 10px ${alpha(premium.text?.gold || '#fbbf24', 0.3)})` : 'none'
+                        }}>
+                            {isMockFullMode ? `BÁO CÁO CÔNG NỢ QUÝ ${selectedQuarter}/${selectedYear}` : "Báo Cáo Công Nợ"}
+                        </Typography>
+                        {!isMockFullMode && <Typography variant="body1" color="text.secondary">Quản lý các khoản phải thu theo kỳ</Typography>}
+                    </Box>
 
-            {/* METRICS */}
-            <Grid container spacing={2} mb={3}>
-                <Grid item xs={12} sm={6} md={3}>
-                    <MetricCard title="Đầu Kỳ" value={summaryData.openingDebit} icon={<ArchiveOutlined />} color="info" loading={isLoading} index={0} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <MetricCard title="Phát Sinh Tăng" value={summaryData.debitIncrease} icon={<TrendingUp />} color="warning" loading={isLoading} index={1} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <MetricCard title="Đã Thu" value={summaryData.creditDecrease} icon={<TrendingDown />} color="success" loading={isLoading} index={2} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <MetricCard title="Cuối Kỳ" value={summaryData.closingDebit} icon={<AttachMoney />} color="error" loading={isLoading} index={3} />
-                </Grid>
-            </Grid>
+                    {/* Controls */}
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        {isMockFullMode ? (
+                            <Box sx={{
+                                position: 'fixed', bottom: 30, right: 30, zIndex: 1200,
+                                display: 'flex', gap: 2,
+                                opacity: 0.1,
+                                transition: 'opacity 0.3s',
+                                '&:hover': { opacity: 1 }
+                            }}>
 
-            {/* TABLE */}
-            <Paper
-                ref={tableContainerRef}
-                elevation={0}
-                sx={{
-                    borderRadius: 3,
-                    border: `1px solid ${theme.palette.divider}`,
-                    overflow: 'hidden',
-                    bgcolor: 'background.paper',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
-                }}
-            >
-                <TableContainer sx={{ maxHeight: 'calc(100vh - 300px)' }}>
-                    <Table stickyHeader size="small">
-                        <TableHead>
-                            <TableRow>
-                                {tableColumns.map(col => (
-                                    <TableCell
-                                        key={col.field}
-                                        align={col.type === 'number' ? 'right' : 'left'}
+                                <Tooltip title="Thoát chế độ TV">
+                                    <Fab color="inherit" size="medium" onClick={() => setIsTvMode(false)}>
+                                        <FullscreenExitIcon />
+                                    </Fab>
+                                </Tooltip>
+                            </Box>
+                        ) : (
+                            <Paper elevation={0} sx={{ p: 0.5, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center' }}>
+                                <Select
+                                    value={selectedQuarter}
+                                    onChange={(e) => setSelectedQuarter(e.target.value)}
+                                    variant="standard"
+                                    disableUnderline
+                                    sx={{ px: 2, py: 1, '& .MuiSelect-select': { fontWeight: 600 } }}
+                                >
+                                    {quarterOptions.map(o => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+                                </Select>
+                                <Divider orientation="vertical" flexItem />
+                                <Select
+                                    value={selectedYear}
+                                    onChange={(e) => setSelectedYear(e.target.value)}
+                                    variant="standard"
+                                    disableUnderline
+                                    sx={{ px: 2, py: 1, '& .MuiSelect-select': { fontWeight: 600 } }}
+                                >
+                                    {yearOptions.map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}
+                                </Select>
+                                <Divider orientation="vertical" flexItem />
+                                <Tooltip title="Sao chép từ kỳ trước">
+                                    <IconButton onClick={handleCopyFromPrevQuarter} sx={{ color: theme.palette.primary.main, mx: 0.5 }}>
+                                        <ContentCopy fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                                <Divider orientation="vertical" flexItem />
+                                <Tooltip title="Chế độ Trình chiếu TV">
+                                    <Button
+                                        onClick={() => setIsTvMode(true)}
+                                        startIcon={<TvIcon />}
+                                        variant="contained"
+                                        size="small"
                                         sx={{
-                                            bgcolor: alpha(theme.palette.background.paper, 0.9),
-                                            backdropFilter: 'blur(8px)',
-                                            color: theme.palette.text.secondary,
-                                            fontWeight: 700,
-                                            textTransform: 'uppercase',
-                                            fontSize: '0.75rem',
-                                            py: 2,
-                                            borderBottom: `2px solid ${theme.palette.divider}`,
-                                            minWidth: col.minWidth
+                                            borderRadius: 2,
+                                            ml: 1,
+                                            mr: 0.5,
+                                            textTransform: 'none',
+                                            background: 'linear-gradient(45deg, #2196F3, #21CBF3)'
                                         }}
                                     >
-                                        {col.headerName}
-                                    </TableCell>
-                                ))}
-                                <TableCell sx={{ bgcolor: alpha(theme.palette.background.paper, 0.9), borderBottom: `2px solid ${theme.palette.divider}`, minWidth: 60 }} />
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {isLoading ? (
-                                <TableRow>
-                                    <TableCell colSpan={tableColumns.length + 1}>
-                                        <SkeletonTable rows={10} />
-                                    </TableCell>
+                                        TV Mode
+                                    </Button>
+                                </Tooltip>
+                            </Paper>
+                        )}
+                    </Stack>
+                </Stack>
+
+                <Grid container spacing={isTvMode ? 3 : 2} mb={isTvMode ? 5 : 3} px={isTvMode ? 4 : 0}>
+                    <Grid item xs={12} sm={6} md={4} lg={2}>
+                        <MetricCard title="Phải Thu ĐK" value={summaryData.openingDebit} icon={<ArchiveOutlined />} colorName="info" loading={isLoading} index={0} isTvMode={isTvMode} />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={4} lg={2}>
+                        <MetricCard title="KH Ứng Trước ĐK" value={summaryData.openingCredit} icon={<AccountBalanceWallet />} colorName="warning" loading={isLoading} index={1} isTvMode={isTvMode} />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={4} lg={2}>
+                        <MetricCard title="Phát Sinh Tăng" value={summaryData.debitIncrease} icon={<TrendingUp />} colorName="primary" loading={isLoading} index={2} isTvMode={isTvMode} />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={4} lg={2}>
+                        <MetricCard title="Phát Sinh Giảm" value={summaryData.creditDecrease} icon={<TrendingDown />} colorName="success" loading={isLoading} index={3} isTvMode={isTvMode} />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={4} lg={2}>
+                        <MetricCard title="Phải Thu CK" value={summaryData.closingDebit} icon={<AttachMoney />} colorName="error" loading={isLoading} index={4} isTvMode={isTvMode} />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={4} lg={2}>
+                        <MetricCard title="KH Trả Trước CK" value={summaryData.closingCredit} icon={<Savings />} colorName="secondary" loading={isLoading} index={5} isTvMode={isTvMode} />
+                    </Grid>
+                </Grid>
+
+                {/* TABLE */}
+                <Paper
+                    ref={tableContainerRef}
+                    elevation={0}
+                    sx={{
+                        borderRadius: 3,
+                        border: isMockFullMode ? 'none' : `1px solid ${theme.palette.divider}`,
+                        overflow: 'hidden',
+                        // In TV Mode, use full height minus header/metrics, or auto if content is small.
+                        // We use a fixed height for auto-scroll to work effectively.
+                        height: isMockFullMode ? '65vh' : 'auto',
+                        display: 'flex', flexDirection: 'column',
+                        p: isMockFullMode ? 2 : 0,
+                        ...(isMockFullMode ? premium.glass : { bgcolor: 'background.paper' }),
+                        transition: 'all 0.3s ease',
+                        overflowY: isMockFullMode ? 'auto' : 'hidden',
+                        // Hide scrollbar in TV mode for cleaner look
+                        '&::-webkit-scrollbar': isMockFullMode ? { display: 'none' } : undefined,
+                    }}
+                >
+                    <TableContainer sx={{ flexGrow: 1 }}>
+                        <Table stickyHeader size={isMockFullMode ? "medium" : "medium"}>
+                            <TableHead>
+                                <TableRow sx={{
+                                    '& th': {
+                                        bgcolor: isMockFullMode ? 'rgba(15, 23, 42, 0.8)' : undefined,
+                                        backdropFilter: isMockFullMode ? 'blur(10px)' : undefined
+                                    }
+                                }}>
+                                    {tableColumns.map(col => (
+                                        !isMockFullMode || col.field !== 'actions' ? (
+                                            <TableCell key={col.field} align={col.align || (col.type === 'number' ? 'right' : 'left')} style={{ minWidth: col.minWidth }}>
+                                                <Typography variant={isMockFullMode ? "h6" : "subtitle2"} fontWeight={700} sx={{ color: isMockFullMode ? '#94a3b8' : 'inherit' }}>
+                                                    {col.headerName}
+                                                </Typography>
+                                            </TableCell>
+                                        ) : null
+                                    ))}
+                                    {!isMockFullMode && <TableCell align="center" width={80}>Thao tác</TableCell>}
                                 </TableRow>
-                            ) : displayRows.length > 0 ? (
-                                displayRows.map((row) => (
-                                    <TableRowItem
-                                        key={row.id}
-                                        row={row}
-                                        tableColumns={tableColumns}
-                                        editingCell={editingCell}
-                                        setEditingCell={setEditingCell}
-                                        handleUpdateCell={handleUpdateCell}
-                                        handleDeleteRow={handleDeleteRow}
-                                        handleCopyRow={handleCopyRow}
-                                        handleSelectCategory={handleSelectCategory}
-                                        selectedCategory={selectedCategory}
-                                        theme={theme}
-                                        isGroupHeader={row.type === 'group-header'}
-                                        isParentHeader={row.type === 'parent-header'}
-                                        isGrandTotal={row.type === 'grand-total'}
-                                    />
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={tableColumns.length + 1} align="center" sx={{ py: 8 }}>
-                                        <EmptyState title="Chưa có dữ liệu" />
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            </Paper>
+                            </TableHead>
+                            <TableBody>
+                                {isLoading ? (
+                                    <SkeletonTable columns={tableColumns.length + 1} rows={5} />
+                                ) : displayRows.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={tableColumns.length + 1} align="center" sx={{ py: 8 }}>
+                                            <EmptyState message="Chưa có dữ liệu" />
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    displayRows.map((row) => (
+                                        <TableRowItem
+                                            key={row.id}
+                                            row={row}
+                                            tableColumns={tableColumns}
+                                            editingCell={editingCell}
+                                            setEditingCell={setEditingCell}
+                                            handleUpdateCell={handleUpdateCell}
+                                            handleDeleteRow={handleDeleteRow}
+                                            handleCopyRow={handleCopyRow}
+                                            handleSelectCategory={handleSelectCategory}
+                                            selectedCategory={selectedCategory}
+                                            theme={theme}
+                                            isGroupHeader={row.type === 'group-header'}
+                                            isParentHeader={row.type === 'parent-header'}
+                                            isGrandTotal={row.type === 'grand-total'}
+                                            isTvMode={isMockFullMode}
+                                        />
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </Paper>
+            </React.Fragment>
+        );
+    };
+
+    return (
+        <Box sx={{ p: { xs: 2, md: 4 }, minHeight: '100vh', bgcolor: 'background.default' }}>
+            {renderContent(false)}
 
             {/* DIALOGS */}
-            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} PaperProps={{ sx: { borderRadius: 3 } }}>
+            <Dialog
+                open={isTvMode}
+                fullScreen
+                onClose={() => setIsTvMode(false)}
+                TransitionComponent={Fade}
+                PaperProps={{
+                    sx: {
+                        bgcolor: 'background.default',
+                        p: 0,
+                        ...(isTvMode ? premium.background && { background: premium.background } : {})
+                    }
+                }}
+            >
+                <Box sx={{ p: 4, height: '100%' }}>
+                    {isTvMode && renderContent(true)}
+                </Box>
+            </Dialog>
+
+            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
                 <DialogTitle>Xác nhận xóa</DialogTitle>
-                <DialogContent><DialogContentText>Bạn có chắc chắn muốn xóa dòng này không?</DialogContentText></DialogContent>
+                <DialogContent>
+                    <DialogContentText>Bạn có chắc chắn muốn xóa dòng này không? Hành động này không thể hoàn tác.</DialogContentText>
+                </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDeleteDialogOpen(false)}>Hủy</Button>
                     <Button onClick={confirmDelete} color="error" variant="contained">Xóa</Button>
                 </DialogActions>
             </Dialog>
 
-            <Dialog open={pasteDialogOpen} onClose={() => setPasteDialogOpen(false)} PaperProps={{ sx: { borderRadius: 3 } }}>
-                <DialogTitle>Xác nhận dán</DialogTitle>
+            <Dialog open={pasteDialogOpen} onClose={() => setPasteDialogOpen(false)}>
+                <DialogTitle>Xác nhận Dán dữ liệu</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        Dữ liệu dán sẽ được thêm vào danh sách hiện có.
-                        <br />Bạn có chắc chắn muốn tiếp tục?
+                        Bạn sắp dán dữ liệu vào nhóm <b>{pasteContext?.category}</b> bắt đầu từ cột <b>{tableColumns.find(c => c.field === pasteContext?.startField)?.headerName}</b>.<br />
+                        Số lượng dòng dự kiến: <b>{pasteContext?.text?.split('\n').filter(r => r.trim() !== '').length}</b>.
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setPasteDialogOpen(false)}>Hủy</Button>
-                    <Button onClick={confirmPaste} variant="contained">Dán</Button>
+                    <Button onClick={confirmPaste} variant="contained" color="primary">Xác nhận Dán</Button>
                 </DialogActions>
             </Dialog>
 
-            <Dialog open={deleteGroupDialogOpen} onClose={() => setDeleteGroupDialogOpen(false)} PaperProps={{ sx: { borderRadius: 3 } }}>
-                <DialogTitle>Xóa nhóm</DialogTitle>
-                <DialogContent><DialogContentText>Bạn có chắc muốn xóa TẤT CẢ dòng trong nhóm này?</DialogContentText></DialogContent>
+            <Dialog open={deleteGroupDialogOpen} onClose={() => setDeleteGroupDialogOpen(false)}>
+                <DialogTitle sx={{ color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <DeleteIcon /> Xóa toàn bộ nhóm?
+                </DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Bạn đang yêu cầu xóa toàn bộ dữ liệu trong nhóm này. <br />
+                        <b>Cảnh báo:</b> Hành động này sẽ xóa vĩnh viễn tất cả các dòng trong nhóm và không thể khôi phục.
+                    </DialogContentText>
+                </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setDeleteGroupDialogOpen(false)}>Hủy</Button>
-                    <Button onClick={confirmDeleteGroup} color="error" variant="contained">Xóa Tất Cả</Button>
+                    <Button onClick={() => setDeleteGroupDialogOpen(false)} variant="outlined">Hủy bỏ</Button>
+                    <Button onClick={confirmDeleteGroup} color="error" variant="contained" autoFocus>Xóa Tất Cả</Button>
                 </DialogActions>
             </Dialog>
         </Box>

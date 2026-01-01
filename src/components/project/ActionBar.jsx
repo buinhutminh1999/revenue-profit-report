@@ -14,6 +14,7 @@ import {
     Functions as FunctionsIcon, CheckCircle, Warning, Info, Description,
     TaskAlt,
     RestartAlt,
+    Print,
 } from "@mui/icons-material";
 import { getExcelSheetNames } from "../../utils/excelUtils";
 
@@ -63,7 +64,8 @@ export default function EnhancedActionBar({
     onShowFormulas,
     onFinalizeProject, // <-- 2. THÊM PROP MỚI
     onUndoFinalize,
-    isProjectFinalized
+    isProjectFinalized,
+    onPrint // Added onPrint prop
 }) {
     const theme = useTheme();
     const isSmall = useMediaQuery(theme.breakpoints.down("md"));
@@ -234,6 +236,14 @@ export default function EnhancedActionBar({
                             tooltip="Nhập dữ liệu từ Excel (Ctrl/Cmd + I)"
                             variant="outlined"
                             disabled={uploading}
+                        />
+                        <ActionButton
+                            icon={<Print />}
+                            label="In"
+                            onClick={onPrint}
+                            tooltip="In chi tiết (Ctrl/Cmd + P)"
+                            variant="outlined"
+                            color="inherit"
                         />
                         <input ref={fileInputRef} hidden type="file" accept=".xlsx,.xls" onChange={handleFile} />
                         {fileName && (

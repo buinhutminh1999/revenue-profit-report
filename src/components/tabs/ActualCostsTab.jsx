@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useReactToPrint } from "react-to-print";
 
 import { Box } from "@mui/material";
 import toast from "react-hot-toast"; // [NEW]
@@ -27,6 +28,7 @@ import CostTable from "../project/CostTable";
 import SummaryPanel from "../ui/SummaryPanel";
 import FormulaGuide from "../ui/FormulaGuide";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import ProjectDetailsPrintTemplate from "../project/ProjectDetailsPrintTemplate";
 import { useActualCosts } from "../../hooks/useActualCosts";
 import { motion } from "framer-motion";
 
@@ -320,6 +322,18 @@ export default function ActualCostsTab({ projectId }) {
     const [isFinalizing, setIsFinalizing] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const setLoading = setIsProcessing;
+
+    // Print functionality
+    const printRef = useRef(null);
+    const reactToPrintFn = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `Chi-Tiet-Cong-Trinh-${projectData?.code || "Detail"}-${quarter}-${year}`,
+    });
+    const handlePrint = () => {
+        if (reactToPrintFn) {
+            reactToPrintFn();
+        }
+    };
 
     const setIsProjectFinalized = (val) => { /* State is managed by hook/DB */ };
 
@@ -1146,6 +1160,7 @@ export default function ActualCostsTab({ projectId }) {
                     sx={{ mb: 0, px: 3, py: 2 }}
                     onShowFormulas={handleShowFormulasCallback}
                     isProjectFinalized={isProjectFinalized}
+                    onPrint={handlePrint}
                 />
             </Box>
 
@@ -1288,6 +1303,29 @@ export default function ActualCostsTab({ projectId }) {
                 confirmText={confirmState.confirmText}
                 confirmColor={confirmState.confirmColor}
             />
+
+            {/* Hidden Print Template */}
+            <div style={{
+                position: "fixed",
+                left: "-9999px",
+                top: 0,
+                visibility: "hidden",
+                width: "297mm",
+                height: "210mm"
+            }}>
+                {costItems.length > 0 && (
+                    <ProjectDetailsPrintTemplate
+                        ref={printRef}
+                        costItems={filtered}
+                        groupedData={groupedData}
+                        projectData={projectData}
+                        year={year}
+                        quarter={quarter}
+                        overallRevenue={overallRevenue}
+                        projectTotalAmount={projectTotalAmount}
+                    />
+                )}
+            </div>
         </Box>
     );
 }

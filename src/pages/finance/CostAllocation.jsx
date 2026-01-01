@@ -45,6 +45,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
 import { motion } from "framer-motion";
+import { useInterestExpenses } from "../../hooks/useInterestExpenses";
 
 // --- CÁC HÀM VÀ KHAI BÁO CƠ BẢN ---
 const fixedRows = [
@@ -215,6 +216,38 @@ export default function CostAllocation() {
         () => quarterMap[quarter]?.label || "Quý",
         [quarter]
     );
+
+    // FETCH INTEREST EXPENSES DATA
+    const quarterNumber = useMemo(() => parseInt(quarter.replace("Q", "")) || 1, [quarter]);
+    const { data: interestData } = useInterestExpenses(year, quarterNumber);
+
+    // Helper to check override condition (>= Q4 2025)
+    // AND match specific rows to override values
+    const getOverrideValue = useCallback((row, field) => {
+        // Condition: From Q4 2025 onwards
+        if (year < 2025) return null;
+        if (year === 2025 && quarterNumber < 4) return null;
+        if (!interestData) return null;
+
+        const nameLower = (row.name || "").toLowerCase();
+
+        // 1. Thi Công: "Khoản mục Chi phí lãi vay + các chi phí hồ sơ, thủ tục vay (vốn lưu động 18 tỷ)"
+        if (field === 'thiCongValue' && nameLower.includes("vốn lưu động 18 tỷ") && nameLower.includes("chi phí lãi vay")) {
+            return interestData.allocationThiCong || 0;
+        }
+
+        // 2. Nhà Máy: "Khoản mục Chi phí lãi vay + các chi phí hồ sơ, thủ tục vay (Giá trị XD cuối năm 2024...)"
+        if (field === 'nhaMayValue' && nameLower.includes("giá trị xd cuối năm 2024") && nameLower.includes("chi phí lãi vay")) {
+            return interestData.allocationNhaMay || 0;
+        }
+
+        // 3. KH-ĐT: "Chi phí lãi vay KH-ĐT"
+        if (field === 'khdtValue' && nameLower.includes("chi phí lãi vay kh-đt")) {
+            return interestData.allocationDauTu || 0;
+        }
+
+        return null;
+    }, [year, quarterNumber, interestData]);
 
     const [isLoading, setIsLoading] = useState(true);
 
@@ -398,6 +431,10 @@ export default function CostAllocation() {
                     };
                 }
 
+                const overrideThiCong = getOverrideValue(r, 'thiCongValue');
+                const overrideNhaMay = getOverrideValue(r, 'nhaMayValue');
+                const overrideKhdt = getOverrideValue(r, 'khdtValue');
+
                 return {
                     id: r.id,
                     name: r.name,
@@ -409,13 +446,13 @@ export default function CostAllocation() {
                     percentage: r.percentage,
                     percentThiCong: r.percentThiCong,
                     percentKHDT: r.percentKHDT,
-                    thiCongValue: Math.round(
+                    thiCongValue: overrideThiCong !== null ? overrideThiCong : Math.round(
                         (qv * parseValue(r.percentThiCong)) / 100
                     ),
-                    nhaMayValue: Math.round(
+                    nhaMayValue: overrideNhaMay !== null ? overrideNhaMay : Math.round(
                         (qv * parseValue(r.percentage)) / 100
                     ),
-                    khdtValue: Math.round(
+                    khdtValue: overrideKhdt !== null ? overrideKhdt : Math.round(
                         (qv * parseValue(r.percentKHDT)) / 100
                     ),
                 };
@@ -451,13 +488,17 @@ export default function CostAllocation() {
         // Main Rows
         rows.forEach((r) => {
             const qv = getQuarterValue(r);
-            const nhaMayValue = Math.round(
+            const overrideThiCong = getOverrideValue(r, 'thiCongValue');
+            const overrideNhaMay = getOverrideValue(r, 'nhaMayValue');
+            const overrideKhdt = getOverrideValue(r, 'khdtValue');
+
+            const nhaMayValue = overrideNhaMay !== null ? overrideNhaMay : Math.round(
                 (qv * parseValue(r.percentage)) / 100
             );
-            const thiCongValue = Math.round(
+            const thiCongValue = overrideThiCong !== null ? overrideThiCong : Math.round(
                 (qv * parseValue(r.percentThiCong)) / 100
             );
-            const khdtValue = Math.round(
+            const khdtValue = overrideKhdt !== null ? overrideKhdt : Math.round(
                 (qv * parseValue(r.percentKHDT)) / 100
             );
 
@@ -624,15 +665,19 @@ export default function CostAllocation() {
         const isSalaryRow =
             (r.name || "").trim().toLowerCase() === "chi phí lương";
 
+        const overrideThiCong = getOverrideValue(r, 'thiCongValue');
+        const overrideNhaMay = getOverrideValue(r, 'nhaMayValue');
+        const overrideKhdt = getOverrideValue(r, 'khdtValue');
+
         const nhaMayValue = isSalaryRow
             ? fixedSum.factory
-            : Math.round((qv * parseValue(r.percentage)) / 100);
+            : (overrideNhaMay !== null ? overrideNhaMay : Math.round((qv * parseValue(r.percentage)) / 100));
         const thiCongValue = isSalaryRow
             ? fixedSum.thiCong
-            : Math.round((qv * parseValue(r.percentThiCong)) / 100);
+            : (overrideThiCong !== null ? overrideThiCong : Math.round((qv * parseValue(r.percentThiCong)) / 100));
         const khdtValue = isSalaryRow
             ? fixedSum.khdt
-            : Math.round((qv * parseValue(r.percentKHDT)) / 100);
+            : (overrideKhdt !== null ? overrideKhdt : Math.round((qv * parseValue(r.percentKHDT)) / 100));
 
         return (
             <TableRow

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useReactToPrint } from "react-to-print";
+import ProjectDetailsPrintTemplate from "../../components/project/ProjectDetailsPrintTemplate";
 import {
     Box,
     Snackbar,
@@ -8,25 +10,26 @@ import {
     createTheme,
     Typography,
     Chip,
+    Button,
 } from "@mui/material";
 import {
     doc,
     setDoc,
 } from "firebase/firestore";
 import { db } from "../../../services/firebase-config";
-import { parseNumber } from "../../../utils/numberUtils";
-import { calcAllFields } from "../../../utils/calcUtils";
-import { exportToExcel } from "../../../utils/excelUtils";
-import { groupByProject } from "../../../utils/groupingUtils";
-import { createDefaultRow, defaultRow } from "../../../utils/defaultRow";
-import { handleFileUpload } from "../../../utils/fileUploadUtils";
-import Filters from "../../../components/ui/Filters";
-import ActionBar from "../../../components/project/ActionBar";
-import ColumnSelector from "../../../components/ui/ColumnSelector";
-import CostTable from "../../../components/project/CostTable";
-import SummaryPanel from "../../../components/ui/SummaryPanel";
-import ConfirmDialog from "../../../components/ui/ConfirmDialog"; // Unified Dialog
-import { useActualCosts } from "../../../hooks/useActualCosts";
+import { parseNumber } from "../../utils/numberUtils";
+import { calcAllFields } from "../../utils/calcUtils";
+import { exportToExcel } from "../../utils/excelUtils";
+import { groupByProject } from "../../utils/groupingUtils";
+import { createDefaultRow, defaultRow } from "../../utils/defaultRow";
+import { handleFileUpload } from "../../utils/fileUploadUtils";
+import Filters from "../../components/ui/Filters";
+import ActionBar from "../../components/project/ActionBar";
+import ColumnSelector from "../../components/ui/ColumnSelector";
+import CostTable from "../../components/project/CostTable";
+import SummaryPanel from "../../components/ui/SummaryPanel";
+import ConfirmDialog from "../../components/ui/ConfirmDialog"; // Unified Dialog
+import { useActualCosts } from "../../hooks/useActualCosts";
 import { motion } from "framer-motion";
 import BusinessIcon from "@mui/icons-material/Business";
 
@@ -95,6 +98,22 @@ export default function ProjectDetails() {
         categories,
         saveItems
     } = useActualCosts(id, year, quarter);
+
+    const printRef = React.useRef(null);
+    const reactToPrintFn = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `Chi-Tiet-Cong-Trinh-${projectData?.code || "Detail"}-${quarter}-${year}`,
+    });
+
+    const handlePrint = () => {
+        console.log("handlePrint called");
+        console.log("printRef.current:", printRef.current);
+        if (reactToPrintFn) {
+            reactToPrintFn();
+        } else {
+            console.error("reactToPrintFn is not defined");
+        }
+    };
 
     useEffect(() => {
         if (hookError) setError(hookError);
@@ -405,6 +424,9 @@ export default function ProjectDetails() {
                     color="primary"
                     variant="outlined"
                 />
+                <Button variant="contained" onClick={handlePrint}>
+                    TEST IN
+                </Button>
             </Box>
 
             <ActionBar
@@ -428,7 +450,31 @@ export default function ProjectDetails() {
                 onBack={() => navigate(-1)}
                 costItems={costItems}
                 sx={{ mb: 2 }}
+                onPrint={handlePrint}
             />
+
+            {/* Host for printing */}
+            <div style={{
+                position: "fixed",
+                left: "-9999px",
+                top: 0,
+                visibility: "hidden",
+                width: "297mm",
+                height: "210mm"
+            }}>
+                {costItems.length > 0 && (
+                    <ProjectDetailsPrintTemplate
+                        ref={printRef}
+                        costItems={filtered}
+                        groupedData={groupedData}
+                        projectData={projectData}
+                        year={year}
+                        quarter={quarter}
+                        overallRevenue={overallRevenue}
+                        projectTotalAmount={projectTotalAmount}
+                    />
+                )}
+            </div>
 
             <Box
                 component={motion.div}
