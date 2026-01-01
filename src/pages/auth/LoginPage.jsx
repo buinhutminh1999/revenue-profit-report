@@ -22,7 +22,9 @@ import {
   browserSessionPersistence,
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult
 } from "firebase/auth";
 
 import logo from "../../assets/logo.webp";
@@ -132,6 +134,17 @@ export default function LoginPage() {
   const [success, setSuccess] = useState(false);
   const [capsOn, setCapsOn] = useState(false);
   const [prefersReduced, setPrefersReduced] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Detect if running as PWA (standalone mode) or mobile
+  const isPWA = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true || // iOS Safari
+      document.referrer.includes('android-app://') // Android TWA
+    );
+  }, []);
 
   // ====== React Hook Form ======
   const { register, handleSubmit, formState: { errors, isSubmitting }, control, setValue } = useForm({
@@ -241,24 +254,78 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setError("");
     setLoading(true);
+    setGoogleLoading(true);
     try {
       const provider = new GoogleAuthProvider();
       // Google Sign In thường không persit session tốt nếu dùng browserSessionPersistence
       // nên ta switch sang local tạm thời hoặc giữ default
       await setPersistence(auth, browserLocalPersistence);
 
-      await signInWithPopup(auth, provider);
-
-      setSuccess(true);
-      setTimeout(() => {
-        navigate(safeRedirect, { replace: true });
-      }, 1500);
+      // PWA or Mobile: Use redirect (popups are blocked in standalone mode)
+      // Desktop: Use popup for better UX
+      if (isPWA || isMobile) {
+        // Store a flag so we know to check redirect result on reload
+        sessionStorage.setItem('googleSignInPending', '1');
+        await signInWithRedirect(auth, provider);
+        // Page will redirect, so we don't need to handle success here
+      } else {
+        await signInWithPopup(auth, provider);
+        setSuccess(true);
+        setTimeout(() => {
+          navigate(safeRedirect, { replace: true });
+        }, 1500);
+      }
     } catch (err) {
       console.error("Google Login Error:", err);
-      setError("Đăng nhập Google thất bại. Vui lòng thử lại.");
+      // Handle specific error for popup blocked
+      if (err?.code === 'auth/popup-blocked') {
+        setError("Popup bị chặn. Đang thử phương thức khác...");
+        // Fallback to redirect
+        try {
+          const provider = new GoogleAuthProvider();
+          sessionStorage.setItem('googleSignInPending', '1');
+          await signInWithRedirect(auth, provider);
+        } catch (redirectErr) {
+          setError("Đăng nhập Google thất bại. Vui lòng thử lại.");
+        }
+      } else {
+        setError("Đăng nhập Google thất bại. Vui lòng thử lại.");
+      }
       setLoading(false);
+      setGoogleLoading(false);
     }
   };
+
+  // ====== Handle Google Redirect Result (for PWA/mobile) ======
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      const pending = sessionStorage.getItem('googleSignInPending');
+      if (!pending) return;
+
+      setGoogleLoading(true);
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          sessionStorage.removeItem('googleSignInPending');
+          setSuccess(true);
+          setTimeout(() => {
+            navigate(safeRedirect, { replace: true });
+          }, 1500);
+        } else {
+          // No result but had pending flag - might be cancelled
+          sessionStorage.removeItem('googleSignInPending');
+        }
+      } catch (err) {
+        console.error("Redirect Result Error:", err);
+        sessionStorage.removeItem('googleSignInPending');
+        setError("Đăng nhập Google thất bại. Vui lòng thử lại.");
+      } finally {
+        setGoogleLoading(false);
+      }
+    };
+
+    handleRedirectResult();
+  }, [auth, navigate, safeRedirect]);
 
   // ====== Handle Enter key ======
   const handleKeyPress = useCallback((e) => {
@@ -862,9 +929,9 @@ export default function LoginPage() {
                         <Button
                           fullWidth
                           variant="outlined"
-                          startIcon={<GoogleIcon />}
+                          startIcon={googleLoading ? <CircularProgress size={20} sx={{ color: alpha("#fff", 0.7) }} /> : <GoogleIcon />}
                           onClick={handleGoogleLogin}
-                          disabled={loading || success}
+                          disabled={loading || success || googleLoading}
                           sx={{
                             mt: 1.5,
                             py: 1.5,
@@ -885,7 +952,7 @@ export default function LoginPage() {
                             }
                           }}
                         >
-                          Đăng nhập với Google
+                          {googleLoading ? "Đang xác thực Google..." : "Đăng nhập với Google"}
                         </Button>
                       </motion.div>
                     </motion.div>
