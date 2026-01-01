@@ -77,13 +77,13 @@ const ReportListTab = ({
     ];
 
     return (
-        <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
+        <Box sx={{ p: { xs: 1, sm: 2.5 }, bgcolor: '#fbfcfe' }}>
             {/* Toolbar: Search - Premium Style matching TransferListTab */}
             <Paper
                 variant="outlined"
                 sx={{
                     p: { xs: 1.5, sm: 2 },
-                    mb: 2.5,
+                    mb: { xs: 1, sm: 1.5 },
                     borderRadius: 2.5,
                     background: theme.palette.mode === 'light'
                         ? `linear-gradient(135deg, ${alpha('#ffffff', 0.8)} 0%, ${alpha('#f8fafc', 0.8)} 100%)`
@@ -104,7 +104,7 @@ const ReportListTab = ({
                         <TextField
                             placeholder={isMobile ? "🔎 Tìm kiếm..." : "🔎 Tìm mã phiếu, tiêu đề, phòng ban..."}
                             size="small"
-                            sx={{ flex: "1 1 360px" }}
+                            sx={{ flex: { xs: '1 1 auto', sm: "1 1 360px" }, width: { xs: '100%', sm: 'auto' } }}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             InputProps={{
@@ -122,7 +122,7 @@ const ReportListTab = ({
             </Paper>
 
             {/* Quick Status Filter */}
-            <Box sx={{ mb: 2.5, overflowX: 'auto', display: 'flex', gap: 1, pb: 0.5 }}>
+            <Box sx={{ mb: { xs: 0.5, sm: 1 }, overflowX: 'auto', display: 'flex', gap: 1, pb: 0.5 }}>
                 {statusOptions.map((opt) => (
                     <Chip
                         key={opt.value}
@@ -151,7 +151,7 @@ const ReportListTab = ({
                 />
             ) : isMobile ? (
                 // Mobile: Card list
-                <Box mt={2.5}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     {filteredReports.map((report) => (
                         <ReportTableRowMobile
                             key={report.id}

@@ -127,7 +127,7 @@ const RequestListTab = ({
                         <TextField
                             placeholder={isMobile ? "🔎 Tìm kiếm..." : "🔎 Tìm tên tài sản, người yêu cầu..."}
                             size="small"
-                            sx={{ flex: "1 1 360px" }}
+                            sx={{ flex: { xs: '1 1 auto', sm: "1 1 360px" }, width: { xs: '100%', sm: 'auto' } }}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             InputProps={{
@@ -145,7 +145,7 @@ const RequestListTab = ({
             </Paper>
 
             {/* Quick Status Filter */}
-            <Box sx={{ mb: 2.5, overflowX: 'auto', display: 'flex', gap: 1, pb: 0.5 }}>
+            <Box sx={{ mb: 1.5, overflowX: 'auto', display: 'flex', gap: 1, pb: 0.5 }}>
                 {statusOptions.map((opt) => (
                     <Chip
                         key={opt.value}
@@ -183,7 +183,7 @@ const RequestListTab = ({
                 // Data Display
                 isMobile ? (
                     // Mobile: Card list
-                    <Box mt={2.5} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         {filteredRequests.map((req) => (
                             <RequestTableRowMobile
                                 key={req.id}

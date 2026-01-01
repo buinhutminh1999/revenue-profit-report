@@ -151,8 +151,34 @@ const InterestExpensesPage = () => {
             (acc, item) => acc + (item.remaining || 0), 0
         ) || 0;
 
-        // Thi Công Actual = Lấy từ giá trị đã tính sẵn (constructionGrandTotalActual)
-        const thiCongActual = capitalData.constructionGrandTotalActual || 0;
+        // Thi Công Actual = Tính từ account balances (giống CapitalUtilizationReport)
+        // vì actual field bị loại bỏ khi save vào database
+        const calculateActualFromCodes = (items, negateIds = []) => {
+            if (!items || !balances || !chartOfAccounts) return 0;
+            return items.reduce((total, item) => {
+                if (!item.codes || item.codes.length === 0) return total;
+                const allAccountsToSum = item.codes.flatMap((parentCode) =>
+                    getAccountAndAllChildren(parentCode, chartOfAccounts)
+                );
+                const uniqueAccountsToSum = [...new Set(allAccountsToSum)];
+                let itemActual = uniqueAccountsToSum.reduce((sum, code) => {
+                    const balanceInfo = balances[code];
+                    if (balanceInfo) {
+                        return sum + (balanceInfo.cuoiKyNo || balanceInfo.cuoiKyCo || 0);
+                    }
+                    return sum;
+                }, 0);
+                // Negate for specific IDs (e.g., revenue items)
+                if (negateIds.includes(item.id)) {
+                    itemActual = -itemActual;
+                }
+                return total + itemActual;
+            }, 0);
+        };
+
+        const totalConsUsageActual = calculateActualFromCodes(capitalData.construction?.usage);
+        const totalConsRevenueActual = calculateActualFromCodes(capitalData.construction?.revenue);
+        const thiCongActual = totalConsUsageActual - totalConsRevenueActual;
 
         // Nhà Máy Actual = productionTotalActual + TK 212 cuối kỳ Nợ (bao gồm các tài khoản con)
         const productionActual = capitalData.productionTotalActual || 0;
@@ -200,10 +226,8 @@ const InterestExpensesPage = () => {
     const [row2Plan, setRow2Plan] = useState(0);
     const [row3Plan, setRow3Plan] = useState(0);
 
-    // Allocation input values (PHÂN BỔ)
-    const [row1Allocation, setRow1Allocation] = useState(0);
-    const [row2Allocation, setRow2Allocation] = useState(0);
-    const [row3Allocation, setRow3Allocation] = useState(0);
+    // Single Allocation input (PHÂN BỔ) - chỉ nhập ở hàng tổng cộng
+    const [totalAllocationInput, setTotalAllocationInput] = useState(0);
 
     // Helper to parse number input
     const parseNumber = (val) => {
@@ -215,11 +239,10 @@ const InterestExpensesPage = () => {
     const totalPlan = planValues.thiCong + row2Plan + row3Plan;
     const totalActual = planValues.thiCongActual + planValues.nhaMayActual + planValues.dauTuActual;
 
-    // Calculate allocation values: (THỰC TẾ * nhập vào) / tổng THỰC TẾ
-    const row1AllocationResult = totalActual > 0 ? (planValues.thiCongActual * row1Allocation) / totalActual : 0;
-    const row2AllocationResult = totalActual > 0 ? (planValues.nhaMayActual * row2Allocation) / totalActual : 0;
-    const row3AllocationResult = totalActual > 0 ? (planValues.dauTuActual * row3Allocation) / totalActual : 0;
-    const totalAllocation = row1AllocationResult + row2AllocationResult + row3AllocationResult;
+    // Calculate allocation values proportionally: (THỰC TẾ hàng / tổng THỰC TẾ) * tổng nhập vào
+    const row1Allocation = totalActual > 0 ? (planValues.thiCongActual / totalActual) * totalAllocationInput : 0;
+    const row2Allocation = totalActual > 0 ? (planValues.nhaMayActual / totalActual) * totalAllocationInput : 0;
+    const row3Allocation = totalActual > 0 ? (planValues.dauTuActual / totalActual) * totalAllocationInput : 0;
 
     if (isLoading) {
         return (
@@ -319,22 +342,9 @@ const InterestExpensesPage = () => {
                                 {formatCurrency(planValues.thiCongActual)}
                             </TableCell>
                             <TableCell align="right">
-                                <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
-                                    <StyledTextField
-                                        size="small"
-                                        variant="standard"
-                                        sx={{ width: 100 }}
-                                        inputProps={{ style: { textAlign: 'right', fontWeight: 600 } }}
-                                        placeholder="0"
-                                        value={row1Allocation ? formatCurrency(row1Allocation) : ''}
-                                        onChange={(e) => setRow1Allocation(parseNumber(e.target.value))}
-                                    />
-                                    <Box sx={{ minWidth: 100, textAlign: 'right', bgcolor: alpha(theme.palette.primary.main, 0.05), py: 0.5, px: 1, borderRadius: 1 }}>
-                                        <Typography variant="body2" color="primary.main" fontWeight="bold">
-                                            {formatCurrency(Math.round(row1AllocationResult))}
-                                        </Typography>
-                                    </Box>
-                                </Stack>
+                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'primary.main', fontFamily: 'monospace' }}>
+                                    {formatCurrency(Math.round(row1Allocation))}
+                                </Typography>
                             </TableCell>
                         </StyledTableRow>
 
@@ -357,22 +367,9 @@ const InterestExpensesPage = () => {
                                 {formatCurrency(planValues.nhaMayActual)}
                             </TableCell>
                             <TableCell align="right">
-                                <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
-                                    <StyledTextField
-                                        size="small"
-                                        variant="standard"
-                                        sx={{ width: 100 }}
-                                        inputProps={{ style: { textAlign: 'right', fontWeight: 600 } }}
-                                        placeholder="0"
-                                        value={row2Allocation ? formatCurrency(row2Allocation) : ''}
-                                        onChange={(e) => setRow2Allocation(parseNumber(e.target.value))}
-                                    />
-                                    <Box sx={{ minWidth: 100, textAlign: 'right', bgcolor: alpha(theme.palette.primary.main, 0.05), py: 0.5, px: 1, borderRadius: 1 }}>
-                                        <Typography variant="body2" color="primary.main" fontWeight="bold">
-                                            {formatCurrency(Math.round(row2AllocationResult))}
-                                        </Typography>
-                                    </Box>
-                                </Stack>
+                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'primary.main', fontFamily: 'monospace' }}>
+                                    {formatCurrency(Math.round(row2Allocation))}
+                                </Typography>
                             </TableCell>
                         </StyledTableRow>
 
@@ -395,22 +392,9 @@ const InterestExpensesPage = () => {
                                 {formatCurrency(planValues.dauTuActual)}
                             </TableCell>
                             <TableCell align="right">
-                                <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
-                                    <StyledTextField
-                                        size="small"
-                                        variant="standard"
-                                        sx={{ width: 100 }}
-                                        inputProps={{ style: { textAlign: 'right', fontWeight: 600 } }}
-                                        placeholder="0"
-                                        value={row3Allocation ? formatCurrency(row3Allocation) : ''}
-                                        onChange={(e) => setRow3Allocation(parseNumber(e.target.value))}
-                                    />
-                                    <Box sx={{ minWidth: 100, textAlign: 'right', bgcolor: alpha(theme.palette.primary.main, 0.05), py: 0.5, px: 1, borderRadius: 1 }}>
-                                        <Typography variant="body2" color="primary.main" fontWeight="bold">
-                                            {formatCurrency(Math.round(row3AllocationResult))}
-                                        </Typography>
-                                    </Box>
-                                </Stack>
+                                <Typography variant="body1" sx={{ fontWeight: 600, color: 'primary.main', fontFamily: 'monospace' }}>
+                                    {formatCurrency(Math.round(row3Allocation))}
+                                </Typography>
                             </TableCell>
                         </StyledTableRow>
 
@@ -425,15 +409,15 @@ const InterestExpensesPage = () => {
                                 {formatCurrency(totalActual)}
                             </TableCell>
                             <TableCell align="right">
-                                <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                    <Chip
-                                        label={formatCurrency(Math.round(totalAllocation))}
-                                        color="secondary"
-                                        variant="filled"
-                                        size="medium"
-                                        sx={{ fontWeight: 'bold', minWidth: 100, fontSize: '0.95rem' }}
-                                    />
-                                </Box>
+                                <StyledTextField
+                                    size="small"
+                                    variant="standard"
+                                    sx={{ width: 150 }}
+                                    inputProps={{ style: { textAlign: 'right', fontWeight: 700, fontSize: '1.1rem' } }}
+                                    placeholder="Nhập tổng phân bổ"
+                                    value={totalAllocationInput ? formatCurrency(totalAllocationInput) : ''}
+                                    onChange={(e) => setTotalAllocationInput(parseNumber(e.target.value))}
+                                />
                             </TableCell>
                         </StyledTableRow>
                     </TableBody>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect, Suspense, lazy } from 'react';
 import {
     Box, Typography, Button, Paper, Stack, Tabs, Tab, Switch, FormControlLabel,
     TextField, InputAdornment, CircularProgress, useMediaQuery, useTheme, Collapse,
@@ -15,16 +15,20 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { vi } from 'date-fns/locale';
 import { format } from 'date-fns';
 import { useSearchParams } from 'react-router-dom';
+// Note: react-window virtualization deferred - MobileProposalCard has variable heights
 
 // Hooks
 import { useRepairProposals } from '../../hooks/useRepairProposals';
 import { useRepairProposalRoles } from '../../hooks/useRepairProposalRoles';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDebounce } from '../../hooks/useDebounce';
 
-// Components
+// Lazy Load Dialogs (Code Splitting)
+const ProposalDialog = lazy(() => import('../../components/dialogs/ProposalDialog'));
+const ActionDialog = lazy(() => import('../../components/dialogs/ActionDialog'));
+
+// Components (Keep sync import for critical UI)
 import MobileProposalCard from '../../components/cards/MobileProposalCard';
-import ProposalDialog from '../../components/dialogs/ProposalDialog';
-import ActionDialog from '../../components/dialogs/ActionDialog';
 import {
     StatsPanel,
     ProposalSkeleton,
@@ -66,6 +70,7 @@ const RepairProposalPage = () => {
 
     // UI States
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 300); // Debounce 300ms
     const [myActionOnly, setMyActionOnly] = useState(false);
 
     // Pull to Refresh State
@@ -149,7 +154,19 @@ const RepairProposalPage = () => {
         touchStart.current = 0;
     }, [pullY, handleRefresh]);
 
-    // Filter Logic
+    // Helper: Check if proposal requires user action (Consolidated Logic)
+    const isMyAction = useCallback((p) => {
+        const step = getActiveStep(p);
+        if (isMaintenance && (step === 1 || step === 3)) return true;
+        if (isViceDirector && (step === 2 || step === 5)) return true;
+        if (p.proposerEmail === userEmail || p.proposer?.toLowerCase() === user?.displayName?.toLowerCase()) {
+            if (step === 4) return true;
+            if (step === 1 || p.approval?.status === 'rejected') return true;
+        }
+        return false;
+    }, [isMaintenance, isViceDirector, userEmail, user?.displayName]);
+
+    // Filter Logic (Using consolidated isMyAction and debounced search)
     const filteredProposals = useMemo(() => {
         return proposals.filter(p => {
             const isCompleted = p.confirmations?.maintenance && p.confirmations?.proposer && p.confirmations?.viceDirector;
@@ -158,44 +175,26 @@ const RepairProposalPage = () => {
             if (tabIndex === 0 && isCompleted) return false;
             if (tabIndex === 1 && !isCompleted) return false;
 
-            // Search Filter
-            if (searchTerm) {
-                const term = searchTerm.toLowerCase();
+            // Debounced Search Filter
+            if (debouncedSearchTerm) {
+                const term = debouncedSearchTerm.toLowerCase();
                 const matchCode = p.code?.toLowerCase().includes(term);
                 const matchProposer = p.proposer?.toLowerCase().includes(term);
                 const matchContent = p.content?.toLowerCase().includes(term);
                 if (!matchCode && !matchProposer && !matchContent) return false;
             }
 
-            // "My Tasks" Filter
-            if (myActionOnly) {
-                const step = getActiveStep(p);
-                if (isMaintenance && (step === 1 || step === 3)) return true;
-                if (isViceDirector && (step === 2 || step === 5)) return true;
-                if (p.proposerEmail === userEmail || p.proposer?.toLowerCase() === user?.displayName?.toLowerCase()) {
-                    if (step === 4) return true;
-                    if (step === 1 || p.approval?.status === 'rejected') return true;
-                }
-                return false;
-            }
+            // "My Tasks" Filter (using consolidated helper)
+            if (myActionOnly && !isMyAction(p)) return false;
 
             return true;
         });
-    }, [proposals, tabIndex, searchTerm, myActionOnly, isMaintenance, isViceDirector, userEmail, user?.displayName]);
+    }, [proposals, tabIndex, debouncedSearchTerm, myActionOnly, isMyAction]);
 
-    // Calculate count of "My Actions" for badges
+    // Calculate count of "My Actions" (Reusing isMyAction helper)
     const myActionCount = useMemo(() => {
-        return proposals.filter(p => {
-            const step = getActiveStep(p);
-            if (isMaintenance && (step === 1 || step === 3)) return true;
-            if (isViceDirector && (step === 2 || step === 5)) return true;
-            if (p.proposerEmail === userEmail || p.proposer?.toLowerCase() === user?.displayName?.toLowerCase()) {
-                if (step === 4) return true;
-                if (step === 1 || p.approval?.status === 'rejected') return true;
-            }
-            return false;
-        }).length;
-    }, [proposals, isMaintenance, isViceDirector, userEmail, user?.displayName]);
+        return proposals.filter(isMyAction).length;
+    }, [proposals, isMyAction]);
 
     const handleSaveProposal = useCallback((data) => {
         if (editData?.id) {
@@ -519,22 +518,24 @@ const RepairProposalPage = () => {
                     />
                 )}
 
-                {/* Dialogs */}
-                <ProposalDialog
-                    open={dialogOpen}
-                    onClose={() => setDialogOpen(false)}
-                    onSubmit={handleSaveProposal}
-                    initialData={editData}
-                />
+                {/* Dialogs (Lazy Loaded with Suspense) */}
+                <Suspense fallback={<CircularProgress sx={{ position: 'fixed', top: '50%', left: '50%' }} />}>
+                    <ProposalDialog
+                        open={dialogOpen}
+                        onClose={() => setDialogOpen(false)}
+                        onSubmit={handleSaveProposal}
+                        initialData={editData}
+                    />
 
-                <ActionDialog
-                    open={actionDialog.open}
-                    onClose={() => setActionDialog({ ...actionDialog, open: false })}
-                    title={actionDialog.title}
-                    actionType={actionDialog.type}
-                    initialData={actionDialog.initialData}
-                    onAction={handleActionSubmit}
-                />
+                    <ActionDialog
+                        open={actionDialog.open}
+                        onClose={() => setActionDialog({ ...actionDialog, open: false })}
+                        title={actionDialog.title}
+                        actionType={actionDialog.type}
+                        initialData={actionDialog.initialData}
+                        onAction={handleActionSubmit}
+                    />
+                </Suspense>
 
                 <ImagePreviewDialog
                     previewImage={previewImage}

@@ -41,6 +41,8 @@
         "react-resizable": "^3.0.5",
         "react-router-dom": "^7.1.5",
         "react-to-print": "^3.1.1",
+        "react-virtualized-auto-sizer": "^2.0.1",
+        "react-window": "^2.2.3",
         "react-zoom-pan-pinch": "^3.7.0",
         "zod": "^4.1.12"
     },

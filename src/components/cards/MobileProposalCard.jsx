@@ -385,26 +385,35 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                     // Determine comment to show for each step
                                     let stepComment = null;
                                     let stepTime = null;
+                                    let stepUser = null;
+                                    let extraInfo = null;
 
                                     if (idx === 0 && item.maintenanceOpinion) {
                                         // Step 1: Ý kiến bảo trì
                                         stepComment = item.maintenanceOpinion;
+                                        if (item.estimatedCompletion) {
+                                            extraInfo = `⏰ Dự kiến xong: ${formatDateSafe(item.estimatedCompletion)}`;
+                                        }
                                     } else if (idx === 1 && item.approval?.comment) {
                                         // Step 2: Phê duyệt P.GĐ - Comment ở đây
                                         stepComment = item.approval.comment;
                                         stepTime = item.approval.time;
+                                        stepUser = item.approval.user;
                                     } else if (idx === 2 && item.confirmations?.maintenance?.comment) {
                                         // Step 3: Bảo trì xác nhận làm xong
                                         stepComment = item.confirmations.maintenance.comment;
                                         stepTime = item.confirmations.maintenance.time;
+                                        stepUser = item.confirmations.maintenance.user;
                                     } else if (idx === 3 && item.confirmations?.proposer?.comment) {
                                         // Step 4: Người đề xuất nghiệm thu
                                         stepComment = item.confirmations.proposer.comment;
                                         stepTime = item.confirmations.proposer.time;
+                                        stepUser = item.confirmations.proposer.user;
                                     } else if (idx === 4 && item.confirmations?.viceDirector?.comment) {
                                         // Step 5: P.GĐ xác nhận cuối
                                         stepComment = item.confirmations.viceDirector.comment;
                                         stepTime = item.confirmations.viceDirector.time;
+                                        stepUser = item.confirmations.viceDirector.user;
                                     }
 
                                     return (
@@ -414,21 +423,45 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                                     {s.label} {s.role ? `(${s.role})` : ''}
                                                 </Typography>
                                                 {stepComment && (
-                                                    <Typography
-                                                        variant="caption"
-                                                        color="text.secondary"
+                                                    <Box
                                                         sx={{
-                                                            display: 'block',
                                                             mt: 0.5,
-                                                            fontStyle: 'italic',
-                                                            bgcolor: theme.palette.action.hover,
-                                                            p: 0.5,
-                                                            borderRadius: 1,
-                                                            fontSize: '0.7rem'
+                                                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#f5f5f5',
+                                                            p: 1,
+                                                            borderRadius: 1.5,
+                                                            borderLeft: `3px solid ${theme.palette.primary.main}`
                                                         }}
                                                     >
-                                                        💬 {stepComment}
-                                                    </Typography>
+                                                        <Typography
+                                                            variant="caption"
+                                                            color="text.primary"
+                                                            sx={{ fontSize: '0.75rem', display: 'block', whiteSpace: 'pre-wrap', mb: 0.5 }}
+                                                        >
+                                                            "{stepComment}"
+                                                        </Typography>
+                                                        <Stack direction="row" spacing={1} alignItems="center">
+                                                            {stepUser && (
+                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', display: 'flex', alignItems: 'center' }}>
+                                                                    <PersonIcon sx={{ fontSize: 10, mr: 0.5 }} />
+                                                                    {stepUser.split('@')[0]}
+                                                                </Typography>
+                                                            )}
+                                                            {stepTime && (
+                                                                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                                                                    • {formatDateSafe(stepTime)}
+                                                                </Typography>
+                                                            )}
+                                                        </Stack>
+                                                        {extraInfo && (
+                                                            <Typography
+                                                                variant="caption"
+                                                                color="warning.main"
+                                                                sx={{ fontSize: '0.7rem', display: 'block', mt: 0.5, fontWeight: 500 }}
+                                                            >
+                                                                {extraInfo}
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
                                                 )}
                                             </StepLabel>
                                         </Step>

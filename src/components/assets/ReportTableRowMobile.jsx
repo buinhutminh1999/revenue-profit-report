@@ -31,7 +31,7 @@ const ReportTableRowMobile = ({
             // Removed whileTap for performance
             onClick={() => onDetailClick(report)}
             sx={{
-                mb: 1.5,
+                // mb: 1.5, // REMOVED: Parent uses gap
                 borderRadius: 3,
                 border: '1px solid',
                 borderColor: 'divider',

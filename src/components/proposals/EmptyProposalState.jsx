@@ -7,20 +7,53 @@ import { Add as AddIcon } from '@mui/icons-material';
  * Được memo hóa để tránh re-render không cần thiết
  */
 const EmptyProposalState = React.memo(({ onAdd }) => (
-    <Box sx={{ textAlign: 'center', py: 8, px: 2 }}>
+    <Box sx={{ textAlign: 'center', py: 10, px: 2 }}>
         <Box
-            component="img"
-            src="https://img.freepik.com/free-vector/no-data-concept-illustration_114360-536.jpg"
-            alt="No Proposals"
-            sx={{ width: 150, height: 150, mb: 2, opacity: 0.7, mixBlendMode: 'multiply' }}
-        />
-        <Typography variant="h6" color="text.secondary" gutterBottom>
-            Chưa có đề xuất nào
+            sx={{
+                mb: 3,
+                mx: 'auto',
+                width: 120,
+                height: 120,
+                bgcolor: 'action.hover',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'text.secondary'
+            }}
+        >
+            <Box sx={{ position: 'relative' }}>
+                <AddIcon sx={{ fontSize: 60, opacity: 0.2 }} />
+                <Box sx={{
+                    position: 'absolute', bottom: -10, right: -10,
+                    bgcolor: 'background.paper', borderRadius: '50%', p: 0.5,
+                    boxShadow: 2
+                }}>
+                    <AddIcon sx={{ fontSize: 24, color: 'primary.main' }} />
+                </Box>
+            </Box>
+        </Box>
+
+        <Typography variant="h6" color="text.secondary" fontWeight="bold" gutterBottom>
+            Danh sách trống
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 300, mx: 'auto' }}>
-            Hiện chưa có yêu cầu sửa chữa nào cần xử lý. Bạn có thể tạo đề xuất mới ngay bây giờ.
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 4, maxWidth: 280, mx: 'auto', opacity: 0.8 }}>
+            Hiện chưa có yêu cầu sửa chữa nào. Hãy tạo đề xuất mới để bắt đầu quy trình.
         </Typography>
-        <Button variant="outlined" startIcon={<AddIcon />} onClick={onAdd}>
+
+        <Button
+            variant="contained"
+            size="large"
+            startIcon={<AddIcon />}
+            onClick={onAdd}
+            sx={{
+                borderRadius: 3,
+                boxShadow: 2,
+                px: 4,
+                bgcolor: 'primary.main',
+                '&:hover': { bgcolor: 'primary.dark' }
+            }}
+        >
             Tạo Đề Xuất Mới
         </Button>
     </Box>
