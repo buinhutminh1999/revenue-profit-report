@@ -283,7 +283,30 @@ export default function TransferDetailPage() {
     const handlePrint = useReactToPrint({
         contentRef: printRef,
         documentTitle: `phieu-luan-chuyen-${transferId}`,
-        pageStyle: "@page { size: A4; margin: 10mm; } @media print { html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }",
+        pageStyle: `
+            @page { size: A4; margin: 10mm; }
+            @media print { 
+                html, body { 
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    -webkit-print-color-adjust: exact !important; 
+                    print-color-adjust: exact !important; 
+                }
+            }
+        `,
+        // Use iframe for better PWA compatibility
+        print: async (printIframe) => {
+            const document = printIframe.contentDocument;
+            if (document) {
+                const html = document.getElementsByTagName("html")[0];
+                // Force print
+                html.style.width = "210mm";
+                return new Promise((resolve) => {
+                    printIframe.contentWindow?.print();
+                    resolve();
+                });
+            }
+        },
     });
 
     const handleApprove = async (signatureKeyToSign) => {
@@ -505,8 +528,15 @@ export default function TransferDetailPage() {
 
 
 
-            {/* Host for printing - uses display:none for mobile compatibility */}
-            <div style={{ display: "none" }}>
+            {/* Host for printing - uses visibility:hidden for PWA compatibility */}
+            <div style={{
+                position: "fixed",
+                left: "-9999px",
+                top: 0,
+                visibility: "hidden",
+                width: "210mm",
+                height: "297mm"
+            }}>
                 {transfer && (
                     <TransferPrintTemplate ref={printRef} transfer={transfer} company={companyInfo} />
                 )}
