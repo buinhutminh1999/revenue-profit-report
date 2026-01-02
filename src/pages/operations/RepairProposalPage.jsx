@@ -26,6 +26,8 @@ import { useDebounce } from '../../hooks/useDebounce';
 // Lazy Load Dialogs (Code Splitting)
 const ProposalDialog = lazy(() => import('../../components/dialogs/ProposalDialog'));
 const ActionDialog = lazy(() => import('../../components/dialogs/ActionDialog'));
+const CommentDialog = lazy(() => import('../../components/dialogs/CommentDialog'));
+const ProposalDetailDialog = lazy(() => import('../../components/dialogs/ProposalDetailDialog'));
 
 // Components (Keep sync import for critical UI)
 import MobileProposalCard from '../../components/cards/MobileProposalCard';
@@ -38,7 +40,7 @@ import {
 } from '../../components/proposals';
 
 // Utils
-import { vibrate, getActiveStep } from '../../utils/proposalUtils';
+import { vibrate, getActiveStep, DEPARTMENTS } from '../../utils/proposalUtils';
 
 /**
  * Tạo mã code cho đề xuất mới
@@ -91,6 +93,8 @@ const RepairProposalPage = () => {
 
     // Action Dialog State
     const [actionDialog, setActionDialog] = useState({ open: false, type: null, item: null, initialData: null });
+    const [commentDialog, setCommentDialog] = useState({ open: false, proposal: null });
+    const [detailDialog, setDetailDialog] = useState({ open: false, proposal: null });
     const [previewImage, setPreviewImage] = useState(null);
 
     const { user } = useAuth();
@@ -181,7 +185,8 @@ const RepairProposalPage = () => {
                 const matchCode = p.code?.toLowerCase().includes(term);
                 const matchProposer = p.proposer?.toLowerCase().includes(term);
                 const matchContent = p.content?.toLowerCase().includes(term);
-                if (!matchCode && !matchProposer && !matchContent) return false;
+                const matchDepartment = p.department?.toLowerCase().includes(term);
+                if (!matchCode && !matchProposer && !matchContent && !matchDepartment) return false;
             }
 
             // "My Tasks" Filter (using consolidated helper)
@@ -229,7 +234,7 @@ const RepairProposalPage = () => {
                     status: statusOrPayload,
                     comment: extraPayload.comment,
                     time: extraPayload.time,
-                    user: user.email
+                    user: user.displayName || user.email
                 }
             };
         } else if (actionDialog.type === 'maintenance_opinion') {
@@ -246,7 +251,9 @@ const RepairProposalPage = () => {
                     confirmed: true,
                     comment: statusOrPayload.comment,
                     time: statusOrPayload.time,
-                    user: user.email
+                    user: user.displayName || user.email,
+                    // Include images if uploaded (for maintenance confirmation)
+                    ...(statusOrPayload.images && { images: statusOrPayload.images })
                 }
             };
         } else if (actionDialog.type === 'resubmit') {
@@ -256,7 +263,7 @@ const RepairProposalPage = () => {
                 lastRejection: {
                     comment: currentData.approval?.comment,
                     time: currentData.approval?.time,
-                    user: currentData.approval?.user,
+                    user: currentData.approval?.user, // Keep original rejector name/email if possible, or just user
                     resubmitNote: statusOrPayload.comment,
                     resubmitTime: statusOrPayload.time
                 }
@@ -267,7 +274,13 @@ const RepairProposalPage = () => {
                 lastReworkRequest: {
                     comment: statusOrPayload.comment,
                     time: statusOrPayload.time,
-                    user: user.email
+                    user: user.displayName || user.email,
+                    // Include evidence images if uploaded
+                    ...(statusOrPayload.images && { images: statusOrPayload.images }),
+                    // Preserve previous maintenance images for comparison
+                    ...(currentData.confirmations?.maintenance?.images && { maintenanceImages: currentData.confirmations.maintenance.images }),
+                    // NEW: Preserve full previous maintenance info for history
+                    previousMaintenance: currentData.confirmations?.maintenance
                 }
             };
         } else if (actionDialog.type === 'reject_final') {
@@ -278,8 +291,14 @@ const RepairProposalPage = () => {
                 lastReworkRequest: {
                     comment: statusOrPayload.comment,
                     time: statusOrPayload.time,
-                    user: user.email,
-                    fromStep: 'final_confirmation'
+                    user: user.displayName || user.email,
+                    fromStep: 'final_confirmation',
+                    // Include evidence images if uploaded
+                    ...(statusOrPayload.images && { images: statusOrPayload.images }),
+                    // Preserve previous maintenance images for comparison
+                    ...(currentData.confirmations?.maintenance?.images && { maintenanceImages: currentData.confirmations.maintenance.images }),
+                    // NEW: Preserve full previous maintenance info for history
+                    previousMaintenance: currentData.confirmations?.maintenance
                 }
             };
         }
@@ -291,12 +310,35 @@ const RepairProposalPage = () => {
         setActionDialog({ open: false, type: null, item: null, initialData: null });
     }, [actionDialog.item, actionDialog.type, deleteProposal, updateProposal, user?.email]);
 
+    const handleAddComment = useCallback(async (proposalId, content, replyToId = null) => {
+        if (!user || !proposalId) return;
+
+        const newComment = {
+            id: Date.now().toString(36) + Math.random().toString(36).substr(2), // Simple unique ID
+            content: content,
+            time: new Date(),
+            userEmail: user.email,
+            userName: user.displayName || user.email.split('@')[0],
+            role: isMaintenance ? 'Bảo trì' : isViceDirector ? 'P.GĐ' : 'Thành viên',
+            replyToId: replyToId // For nested replies
+        };
+
+        const currentProposal = proposals.find(p => p.id === proposalId);
+        const currentComments = currentProposal?.comments || [];
+
+        const updateData = {
+            comments: [...currentComments, newComment]
+        };
+
+        await updateProposal.mutateAsync({ id: proposalId, data: updateData });
+    }, [user, proposals, updateProposal, isMaintenance, isViceDirector]);
+
 
 
     const handleOpenAdd = useCallback(() => {
         setEditData({
             proposer: user?.displayName || user?.email || 'Unknown',
-            department: '',
+            department: '', // User selects from dropdown
             content: '',
             proposalTime: new Date(),
         });
@@ -305,6 +347,10 @@ const RepairProposalPage = () => {
 
     const handleClosePreview = useCallback(() => {
         setPreviewImage(null);
+    }, []);
+
+    const handleViewDetails = useCallback((item) => {
+        setDetailDialog({ open: true, proposal: item });
     }, []);
 
     return (
@@ -536,6 +582,8 @@ const RepairProposalPage = () => {
                                     userEmail={userEmail}
                                     isMaintenance={isMaintenance}
                                     isViceDirector={isViceDirector}
+                                    setCommentDialog={setCommentDialog}
+                                    onViewDetails={handleViewDetails}
                                 />
                             ))
                         ) : (
@@ -550,10 +598,10 @@ const RepairProposalPage = () => {
                         setEditData={setEditData}
                         setDialogOpen={setDialogOpen}
                         setPreviewImage={setPreviewImage}
-                        user={user}
-                        userEmail={userEmail}
                         isMaintenance={isMaintenance}
                         isViceDirector={isViceDirector}
+                        setCommentDialog={setCommentDialog}
+                        onViewDetails={handleViewDetails}
                     />
                 )}
 
@@ -573,6 +621,21 @@ const RepairProposalPage = () => {
                         actionType={actionDialog.type}
                         initialData={actionDialog.initialData}
                         onAction={handleActionSubmit}
+                    />
+
+                    <CommentDialog
+                        open={commentDialog.open}
+                        onClose={() => setCommentDialog({ open: false, proposal: null })}
+                        proposal={proposals.find(p => p.id === commentDialog.proposal?.id) || commentDialog.proposal}
+                        onAddComment={handleAddComment}
+                        user={user}
+                    />
+
+                    <ProposalDetailDialog
+                        open={detailDialog.open}
+                        onClose={() => setDetailDialog({ open: false, proposal: null })}
+                        proposal={detailDialog.proposal ? proposals.find(p => p.id === detailDialog.proposal.id) || detailDialog.proposal : null}
+                        setPreviewImage={setPreviewImage}
                     />
                 </Suspense>
 

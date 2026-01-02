@@ -56,17 +56,6 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
             {/* Step 3: Maintenance Confirm Done */}
             {step === 3 && canDoAction('confirm_maintenance') && (
                 <Stack spacing={1} width="100%">
-                    {item.lastReworkRequest && (
-                        <Chip
-                            icon={<LoopIcon />}
-                            label="Yêu cầu làm lại"
-                            color="error"
-                            size="small"
-                            variant="outlined"
-                            onClick={() => alert(`Yêu cầu làm lại: "${item.lastReworkRequest.comment}"`)}
-                            sx={{ alignSelf: 'flex-start', mb: 1 }}
-                        />
-                    )}
                     <Button
                         size="medium"
                         variant="contained"
@@ -80,75 +69,87 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
                     </Button>
                 </Stack>
             )}
-            {step === 3 && !canDoAction('confirm_maintenance') && (
-                <Chip label="Chờ BT xác nhận" color="info" size="small" variant="outlined" />
-            )}
+            {
+                step === 3 && !canDoAction('confirm_maintenance') && (
+                    <Chip label="Chờ BT xác nhận" color="info" size="small" variant="outlined" />
+                )
+            }
 
             {/* Step 4: Proposer Confirm */}
-            {step === 4 && canDoAction('confirm_proposer', item) && (
-                <Stack direction="row" spacing={1} width="100%">
-                    <Button
-                        size="medium"
-                        variant="contained"
-                        color="primary"
-                        startIcon={<CheckCircleIcon />}
-                        onClick={() => { vibrate(); setActionDialog({ open: true, type: 'confirm_proposer', item, title: 'Nghiệm thu sửa chữa' }); }}
-                        fullWidth
-                        sx={{ flex: 2, boxShadow: 2 }}
-                    >
-                        Nghiệm Thu
-                    </Button>
-                    <Button
-                        size="medium"
-                        variant="outlined"
-                        color="error"
-                        startIcon={<LoopIcon />}
-                        onClick={() => setActionDialog({ open: true, type: 'reject_maintenance', item, title: 'Yêu cầu làm lại' })}
-                        sx={{ flex: 1, bgcolor: 'white' }}
-                    >
-                        Chưa đạt
-                    </Button>
-                </Stack>
-            )}
-            {step === 4 && !canDoAction('confirm_proposer', item) && (
-                <Chip label="Chờ nghiệm thu" color="primary" size="small" variant="outlined" />
-            )}
+            {
+                step === 4 && canDoAction('confirm_proposer', item) && (
+                    <Stack direction="row" spacing={1} width="100%">
+                        <Button
+                            size="medium"
+                            variant="contained"
+                            color="primary"
+                            startIcon={<CheckCircleIcon />}
+                            onClick={() => { vibrate(); setActionDialog({ open: true, type: 'confirm_proposer', item, title: 'Nghiệm thu sửa chữa' }); }}
+                            fullWidth
+                            sx={{ flex: 2, boxShadow: 2 }}
+                        >
+                            Nghiệm Thu
+                        </Button>
+                        <Button
+                            size="medium"
+                            variant="outlined"
+                            color="error"
+                            startIcon={<LoopIcon />}
+                            onClick={() => setActionDialog({ open: true, type: 'reject_maintenance', item, title: 'Yêu cầu làm lại' })}
+                            sx={{ flex: 1, bgcolor: 'white' }}
+                        >
+                            Chưa đạt
+                        </Button>
+                    </Stack>
+                )
+            }
+            {
+                step === 4 && !canDoAction('confirm_proposer', item) && (
+                    <Chip label="Chờ nghiệm thu" color="primary" size="small" variant="outlined" />
+                )
+            }
 
             {/* Step 5: Final Confirm by Vice Director - with accept/reject options */}
-            {step === 5 && canDoAction('confirm_vice_director') && (
-                <Stack direction="row" spacing={1} width="100%">
-                    <Button
-                        size="medium"
-                        variant="contained"
-                        color="success"
-                        startIcon={<CheckCircleIcon />}
-                        onClick={() => { vibrate(); setActionDialog({ open: true, type: 'confirm_vice_director', item, title: 'Nghiệm thu và hoàn tất' }); }}
-                        fullWidth
-                        sx={{ flex: 2, boxShadow: 2 }}
-                    >
-                        Nghiệm Thu
-                    </Button>
-                    <Button
-                        size="medium"
-                        variant="outlined"
-                        color="error"
-                        startIcon={<LoopIcon />}
-                        onClick={() => setActionDialog({ open: true, type: 'reject_final', item, title: 'Yêu cầu làm lại' })}
-                        sx={{ flex: 1, bgcolor: 'white' }}
-                    >
-                        Chưa đạt
-                    </Button>
-                </Stack>
-            )}
-            {step === 5 && !canDoAction('confirm_vice_director') && (
-                <Chip label="Chờ P.GĐ XN" color="warning" size="small" variant="outlined" />
-            )}
+            {
+                step === 5 && canDoAction('confirm_vice_director') && (
+                    <Stack direction="row" spacing={1} width="100%">
+                        <Button
+                            size="medium"
+                            variant="contained"
+                            color="success"
+                            startIcon={<CheckCircleIcon />}
+                            onClick={() => { vibrate(); setActionDialog({ open: true, type: 'confirm_vice_director', item, title: 'Nghiệm thu và hoàn tất' }); }}
+                            fullWidth
+                            sx={{ flex: 2, boxShadow: 2 }}
+                        >
+                            Nghiệm Thu
+                        </Button>
+                        <Button
+                            size="medium"
+                            variant="outlined"
+                            color="error"
+                            startIcon={<LoopIcon />}
+                            onClick={() => setActionDialog({ open: true, type: 'reject_final', item, title: 'Yêu cầu làm lại' })}
+                            sx={{ flex: 1, bgcolor: 'white' }}
+                        >
+                            Chưa đạt
+                        </Button>
+                    </Stack>
+                )
+            }
+            {
+                step === 5 && !canDoAction('confirm_vice_director') && (
+                    <Chip label="Chờ P.GĐ XN" color="warning" size="small" variant="outlined" />
+                )
+            }
 
             {/* Step 6: Completed */}
-            {step === 6 && (
-                <Chip label="Hoàn Thành" color="success" size="small" icon={<CheckCircleIcon />} />
-            )}
-        </Box>
+            {
+                step === 6 && (
+                    <Chip label="Hoàn Thành" color="success" size="small" icon={<CheckCircleIcon />} />
+                )
+            }
+        </Box >
     );
 });
 

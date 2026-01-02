@@ -10,6 +10,33 @@ export const STEPS = [
     { label: 'Hoàn tất', value: 'completed', role: '' }
 ];
 
+// Department list for proposals
+export const DEPARTMENTS = [
+    'Cọc BTLT',
+    'Cọc vuông - Cọc ván',
+    'Cống',
+    'GVH',
+    'GKN'
+];
+
+// Email-to-Department mapping (editable by admin in the future)
+// Key: lowercase email, Value: department name
+export const DEPARTMENT_EMAIL_MAP = {
+    // Example: 'user@example.com': 'Cọc BTLT'
+    // Add emails here as needed
+};
+
+/**
+ * Get department by user email
+ * @param {string} email - User email
+ * @returns {string} - Department name or empty string if not mapped
+ */
+export const getDepartmentByEmail = (email) => {
+    if (!email) return '';
+    const lowerEmail = email.toLowerCase();
+    return DEPARTMENT_EMAIL_MAP[lowerEmail] || '';
+};
+
 export const getActiveStep = (item) => {
     if (!item) return 1;
     if (item.confirmations?.viceDirector) return 6; // Completed

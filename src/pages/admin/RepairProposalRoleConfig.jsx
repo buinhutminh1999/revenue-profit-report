@@ -5,7 +5,8 @@ import {
 } from '@mui/material';
 import {
     Save as SaveIcon, Security as SecurityIcon,
-    Build as BuildIcon, Badge as BadgeIcon, AdminPanelSettings as AdminIcon
+    Build as BuildIcon, Badge as BadgeIcon, AdminPanelSettings as AdminIcon,
+    Factory as FactoryIcon, Delete as DeleteIcon, Add as AddIcon
 } from '@mui/icons-material';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase-config';
@@ -20,10 +21,14 @@ const RepairProposalRoleConfig = () => {
 
     // Form state
     const [formData, setFormData] = useState({
-        maintenance: '',
+        maintenance: [], // Array of emails
         viceDirector: '',
-        admins: []
+        admins: [],
+        departmentAssignments: {} // { email: department }
     });
+
+    // New assignment form state
+    const [newAssignment, setNewAssignment] = useState({ email: '', department: '' });
 
     // Fetch users from Firestore
     useEffect(() => {
@@ -48,9 +53,10 @@ const RepairProposalRoleConfig = () => {
     useEffect(() => {
         if (!loading && roles) {
             setFormData({
-                maintenance: roles.maintenance || '',
+                maintenance: roles.maintenance || [],
                 viceDirector: roles.viceDirector || '',
-                admins: roles.admins || []
+                admins: roles.admins || [],
+                departmentAssignments: roles.departmentAssignments || {}
             });
         }
     }, [roles, loading]);
@@ -110,15 +116,26 @@ const RepairProposalRoleConfig = () => {
                             </Typography>
                         </Stack>
                         <Typography variant="body2" color="text.secondary" mb={1}>
-                            Người này có quyền: Nhập Ý kiến, Dự kiến HT, Xác nhận HT (Bảo Trì)
+                            Những người này có quyền: Nhập Ý kiến, Dự kiến HT, Xác nhận HT (Bảo Trì)
                         </Typography>
                         <Autocomplete
+                            multiple
                             options={users.map(u => u.email)}
-                            value={formData.maintenance}
-                            onChange={(e, newValue) => setFormData({ ...formData, maintenance: newValue || '' })}
+                            value={Array.isArray(formData.maintenance) ? formData.maintenance : (formData.maintenance ? [formData.maintenance] : [])}
+                            onChange={(e, newValue) => setFormData({ ...formData, maintenance: newValue })}
                             getOptionLabel={(option) => getUserLabel(option)}
+                            renderTags={(value, getTagProps) =>
+                                (Array.isArray(value) ? value : []).map((option, index) => (
+                                    <Chip
+                                        label={getUserLabel(option)}
+                                        size="small"
+                                        {...getTagProps({ index })}
+                                        key={option}
+                                    />
+                                ))
+                            }
                             renderInput={(params) => (
-                                <TextField {...params} label="Chọn người phụ trách" size="small" />
+                                <TextField {...params} label="Chọn người phụ trách (nhiều người)" size="small" />
                             )}
                         />
                     </Box>

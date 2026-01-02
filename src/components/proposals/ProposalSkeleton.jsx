@@ -36,13 +36,7 @@ const ProposalSkeleton = React.memo(() => (
             </Stack>
         </Box>
 
-        {/* Mini Progress Bar Placeholder */}
-        <Box sx={{ px: 2, pb: 2 }}>
-            <Stack direction="row" spacing={1} alignItems="center">
-                <Skeleton variant="text" width={30} />
-                <Skeleton variant="rounded" height={4} sx={{ flex: 1, borderRadius: 2 }} />
-            </Stack>
-        </Box>
+
     </Card>
 ));
 

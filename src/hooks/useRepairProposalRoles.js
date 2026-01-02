@@ -11,9 +11,10 @@ const ROLES_DOC_PATH = 'settings/repairProposalRoles';
  */
 export function useRepairProposalRoles() {
     const [roles, setRoles] = useState({
-        maintenance: '',
+        maintenance: [], // Array of emails
         viceDirector: '',
-        admins: []
+        admins: [],
+        departmentAssignments: {} // email -> department mapping
     });
     const [loading, setLoading] = useState(true);
     const { user } = useAuth();
@@ -36,7 +37,8 @@ export function useRepairProposalRoles() {
     // Save roles config (Admin only)
     const saveRoles = async (newRoles) => {
         try {
-            await setDoc(doc(db, ROLES_DOC_PATH), newRoles, { merge: true });
+            // Note: Using setDoc WITHOUT merge to ensure deletions are persisted
+            await setDoc(doc(db, ROLES_DOC_PATH), newRoles);
             return { success: true };
         } catch (error) {
             console.error('Error saving roles:', error);
@@ -48,7 +50,11 @@ export function useRepairProposalRoles() {
     const userEmail = user?.email?.toLowerCase();
 
     const isMaintenance = useMemo(() => {
-        return roles.maintenance?.toLowerCase() === userEmail;
+        // Handle both old string format and new array format
+        const maintenanceList = Array.isArray(roles.maintenance)
+            ? roles.maintenance
+            : (roles.maintenance ? [roles.maintenance] : []);
+        return maintenanceList.some(email => email?.toLowerCase() === userEmail);
     }, [roles.maintenance, userEmail]);
 
     const isViceDirector = useMemo(() => {
@@ -109,6 +115,19 @@ export function useRepairProposalRoles() {
         }
     };
 
+    // Get department by email helper
+    const getDepartmentByEmail = (email) => {
+        if (!email) return '';
+        const lowerEmail = email.toLowerCase();
+        // Find matching assignment (case-insensitive)
+        for (const [assignedEmail, dept] of Object.entries(roles.departmentAssignments || {})) {
+            if (assignedEmail.toLowerCase() === lowerEmail) {
+                return dept;
+            }
+        }
+        return '';
+    };
+
     return {
         roles,
         loading,
@@ -118,7 +137,8 @@ export function useRepairProposalRoles() {
         isAdmin,
         isProposer,
         canDoAction,
-        userEmail
+        userEmail,
+        getDepartmentByEmail
     };
 }
 

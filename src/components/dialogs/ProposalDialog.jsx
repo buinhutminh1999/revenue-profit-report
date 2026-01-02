@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions,
-    Button, TextField, Box, Stack, Typography, CircularProgress, LinearProgress
+    Button, TextField, Box, Stack, Typography, CircularProgress, LinearProgress,
+    Autocomplete
 } from '@mui/material';
 import { Image as ImageIcon, Print as PrintIcon } from '@mui/icons-material';
 import { useForm, Controller } from "react-hook-form";
@@ -12,7 +13,7 @@ import { useTheme, useMediaQuery } from '@mui/material';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
 import { compressImage } from '../../utils/imageCompression';
 import { compressVideo } from '../../utils/videoCompression';
-import { isVideo } from '../../utils/proposalUtils';
+import { isVideo, DEPARTMENTS } from '../../utils/proposalUtils';
 
 const ProposalDialog = ({ open, onClose, onSubmit, initialData }) => {
     const { register, handleSubmit, reset, control } = useForm({
@@ -214,7 +215,22 @@ const ProposalDialog = ({ open, onClose, onSubmit, initialData }) => {
                             {...register('proposer', { required: true })}
                             InputProps={{ readOnly: true }}
                         />
-                        <TextField label="Phân xưởng" fullWidth {...register('department', { required: true })} />
+                        <Controller
+                            control={control}
+                            name="department"
+                            rules={{ required: true }}
+                            render={({ field }) => (
+                                <Autocomplete
+                                    options={DEPARTMENTS}
+                                    value={field.value || ''}
+                                    onChange={(e, newValue) => field.onChange(newValue || '')}
+                                    freeSolo
+                                    renderInput={(params) => (
+                                        <TextField {...params} label="Phân xưởng" fullWidth required />
+                                    )}
+                                />
+                            )}
+                        />
                         <TextField
                             label="Nội dung đề xuất"
                             fullWidth

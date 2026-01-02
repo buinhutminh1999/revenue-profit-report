@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
 import {
     TableRow, TableCell, Chip, Typography, Stack, Box, IconButton,
-    Stepper, Step, StepLabel, Tooltip, Button, Paper
+    Stepper, Step, StepLabel, Tooltip, Button, Paper, Badge
 } from '@mui/material';
 import {
     Edit as EditIcon, Delete as DeleteIcon,
-    CheckCircle as CheckCircleIcon, History as HistoryIcon, Error as ErrorIcon
+    CheckCircle as CheckCircleIcon, History as HistoryIcon, Error as ErrorIcon,
+    Comment as CommentIcon, Visibility as VisibilityIcon
 } from '@mui/icons-material';
 import ProposalActions from '../cards/ProposalActions';
 import { QontoConnector, QontoStepIcon } from './QontoStepper';
@@ -25,7 +26,9 @@ const ProposalTableRow = React.memo(({
     user,
     userEmail,
     isMaintenance,
-    isViceDirector
+    isViceDirector,
+    setCommentDialog,
+    onViewDetails
 }) => {
     // Cache getActiveStep để tránh tính toán lại nhiều lần
     const step = useMemo(() => getActiveStep(item), [item]);
@@ -79,25 +82,10 @@ const ProposalTableRow = React.memo(({
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
                     {formatDateSafe(item.proposalTime)}
                 </Typography>
-                {item.images?.[0] && (
-                    <Box sx={{ mt: 1 }}>
-                        {isVideo(item.images[0]) ? (
-                            <video
-                                src={item.images[0]}
-                                style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4, border: '1px solid #ddd', cursor: 'pointer' }}
-                                onClick={(e) => { e.stopPropagation(); setPreviewImage(item.images[0]); }}
-                                title="Bấm để xem video"
-                            />
-                        ) : (
-                            <img
-                                src={item.images[0]}
-                                alt="Đính kèm"
-                                style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4, border: '1px solid #ddd', cursor: 'pointer' }}
-                                onClick={(e) => { e.stopPropagation(); setPreviewImage(item.images[0]); }}
-                                title="Bấm để xem ảnh lớn"
-                            />
-                        )}
-                    </Box>
+                {item.images?.length > 0 && (
+                    <Typography variant="caption" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                        📎 {item.images.length} tệp đính kèm
+                    </Typography>
                 )}
             </TableCell>
 
@@ -133,124 +121,60 @@ const ProposalTableRow = React.memo(({
                             {formatDateSafe(item.estimatedCompletion)}
                         </Typography>
                     </Box>
+
+                    {/* Maintenance Images Indicator */}
+                    {item.confirmations?.maintenance?.images?.length > 0 && (
+                        <Typography variant="caption" color="primary">
+                            📸 {item.confirmations.maintenance.images.length} ảnh bảo trì
+                        </Typography>
+                    )}
                 </Stack>
             </TableCell>
 
             {/* Progress & Actions */}
             <TableCell>
-                {item.approval?.status === 'rejected' ? (
-                    <Stack spacing={1} alignItems="center" sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 2, border: '1px dashed #ef5350' }}>
-                        <Chip label="ĐÃ TỪ CHỐI" color="error" icon={<ErrorIcon />} sx={{ fontWeight: 'bold' }} />
-                        <Typography variant="body2" color="error" align="center" fontStyle="italic">
-                            "{item.approval.comment}"
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                            {formatDateSafe(item.approval.time)} • {item.approval.user?.split('@')[0]}
-                        </Typography>
-                        {(canDoAction('edit_proposal', item) || canDoAction('configure_roles')) && (
-                            <Button
-                                size="small"
-                                variant="outlined"
-                                color="error"
-                                sx={{ mt: 1, bgcolor: 'white', textTransform: 'none', fontWeight: 'bold' }}
-                                onClick={() => setActionDialog({ open: true, type: 'resubmit', item, title: 'Xin duyệt lại' })}
-                            >
-                                Xin duyệt lại
-                            </Button>
-                        )}
-                    </Stack>
-                ) : (
-                    <Stack spacing={2} alignItems="center">
-                        {/* Show Resubmission History if exists */}
-                        {item.lastRejection && (
-                            <Paper
-                                variant="outlined"
-                                sx={{
-                                    p: 1.5,
-                                    mb: 2,
-                                    width: '100%',
-                                    bgcolor: '#FFF8E1',
-                                    borderColor: '#FFC107',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 0.5
-                                }}
-                            >
-                                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
-                                    <HistoryIcon fontSize="small" color="warning" />
-                                    <Typography variant="subtitle2" fontWeight="bold">
-                                        Đã gửi lại sau từ chối (bởi {item.lastRejection.user?.split('@')[0]})
-                                    </Typography>
-                                </Stack>
+                <Stack spacing={1.5} alignItems="flex-start">
+                    {/* Status Chip */}
+                    <Chip
+                        label={item.approval?.status === 'rejected' ? 'Đã từ chối' : (STEPS[step - 1]?.label || 'Hoàn tất')}
+                        color={item.approval?.status === 'rejected' ? 'error' : (step === 5 ? 'success' : 'primary')}
+                        size="small"
+                        icon={item.approval?.status === 'rejected' ? <ErrorIcon /> : (step === 5 ? <CheckCircleIcon /> : undefined)}
+                        variant={step === 5 ? 'filled' : 'outlined'}
+                        sx={{ fontWeight: 'bold' }}
+                    />
 
-                                <Box sx={{ pl: 3.5 }}>
-                                    <Typography variant="body2" color="error.main" sx={{ fontStyle: 'italic' }}>
-                                        &bull; Lý do từ chối: "{item.lastRejection.comment}" ({formatDateSafe(item.lastRejection.time)})
-                                    </Typography>
-                                    <Typography variant="body2" color="text.primary" sx={{ mt: 0.5 }}>
-                                        &bull; Giải trình: <strong>"{item.lastRejection.resubmitNote}"</strong>
-                                    </Typography>
-                                </Box>
-                            </Paper>
-                        )}
+                    {/* Completion Info (Only for Completed items) */}
+                    {step === 6 && item.confirmations?.viceDirector && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <CheckCircleIcon color="success" sx={{ fontSize: 16 }} />
+                            <Typography variant="caption" color="success.main" fontWeight="bold">
+                                {formatDateSafe(item.confirmations.viceDirector.time)} bởi {item.confirmations.viceDirector.user}
+                            </Typography>
+                        </Box>
+                    )}
 
-                        {/* Compact Stepper */}
-                        <Stepper alternativeLabel activeStep={step - 1} connector={<QontoConnector />} sx={{ width: '100%' }}>
-                            {STEPS.map((stepItem, idx) => {
-                                let tooltipContent = stepItem.role ? `${stepItem.label} - Bởi: ${stepItem.role}` : stepItem.label;
-                                let info = null;
-                                // idx 0 = Step 1 (Chờ BT nhập) - maintenanceOpinion
-                                // idx 1 = Step 2 (Chờ duyệt P.GĐ) - approval
-                                // idx 2 = Step 3 (Bảo trì đang làm) - confirmations.maintenance
-                                // idx 3 = Step 4 (Chờ nghiệm thu) - confirmations.proposer
-                                // idx 4 = Step 5 (Chờ xác nhận cuối) - confirmations.viceDirector
-                                if (idx === 1 && item.approval?.status === 'approved') info = item.approval;
-                                else if (idx === 2 && item.confirmations?.maintenance?.confirmed) info = item.confirmations.maintenance;
-                                else if (idx === 3 && item.confirmations?.proposer?.confirmed) info = item.confirmations.proposer;
-                                else if (idx === 4 && item.confirmations?.viceDirector?.confirmed) info = item.confirmations.viceDirector;
+                    {/* View Details Button */}
+                    <Button
+                        size="small"
+                        startIcon={<VisibilityIcon />}
+                        onClick={() => onViewDetails(item)}
+                        sx={{ textTransform: 'none', color: 'text.secondary' }}
+                    >
+                        Xem chi tiết
+                    </Button>
 
-                                if (info) {
-                                    tooltipContent = (
-                                        <Box sx={{ p: 1, textAlign: 'center' }}>
-                                            <Typography variant="subtitle2" fontWeight="bold" sx={{ borderBottom: '1px solid rgba(255,255,255,0.2)', mb: 1, pb: 0.5 }}>
-                                                ✅ {stepItem.label}
-                                            </Typography>
-                                            <Typography variant="body2" sx={{ fontStyle: 'italic', mb: 1 }}>"{info.comment}"</Typography>
-                                            <Typography variant="caption" display="block">🕒 {formatDateSafe(info.time)}</Typography>
-                                            <Typography variant="caption" display="block">👤 {info.user?.split('@')[0]}</Typography>
-                                        </Box>
-                                    );
-                                }
-
-                                return (
-                                    <Step key={stepItem.label}>
-                                        <StepLabel StepIconComponent={QontoStepIcon}>
-                                            <Tooltip title={tooltipContent} arrow>
-                                                <Stack alignItems="center" spacing={0} sx={{ cursor: 'help' }}>
-                                                    <span style={{ fontSize: '0.7rem' }}>{stepItem.label}</span>
-                                                    {stepItem.role && (
-                                                        <span style={{ fontSize: '0.6rem', color: '#888' }}>({stepItem.role})</span>
-                                                    )}
-                                                </Stack>
-                                            </Tooltip>
-                                        </StepLabel>
-                                    </Step>
-                                );
-                            })}
-                        </Stepper>
-
-                        {/* Action Buttons */}
-                        <ProposalActions
-                            item={item}
-                            canDoAction={canDoAction}
-                            setActionDialog={setActionDialog}
-                            user={user}
-                            userEmail={userEmail}
-                            isMaintenance={isMaintenance}
-                            isViceDirector={isViceDirector}
-                        />
-                    </Stack>
-                )}
+                    {/* Action Buttons */}
+                    <ProposalActions
+                        item={item}
+                        canDoAction={canDoAction}
+                        setActionDialog={setActionDialog}
+                        user={user}
+                        userEmail={userEmail}
+                        isMaintenance={isMaintenance}
+                        isViceDirector={isViceDirector}
+                    />
+                </Stack>
             </TableCell>
 
             {/* Edit/Delete Actions */}
@@ -261,6 +185,16 @@ const ProposalTableRow = React.memo(({
                             <EditIcon fontSize="small" />
                         </IconButton>
                     )}
+
+                    <IconButton
+                        size="small"
+                        onClick={() => setCommentDialog({ open: true, proposal: item })}
+                        sx={{ color: item.comments?.length > 0 ? 'primary.main' : 'action.active' }}
+                    >
+                        <Badge badgeContent={item.comments?.length || 0} color="error">
+                            <CommentIcon fontSize="small" />
+                        </Badge>
+                    </IconButton>
 
                     {canDelete && (
                         <IconButton
@@ -281,7 +215,7 @@ const ProposalTableRow = React.memo(({
                     )}
                 </Stack>
             </TableCell>
-        </TableRow>
+        </TableRow >
     );
 }, (prevProps, nextProps) => {
     // Custom comparison - chỉ re-render khi item thay đổi hoặc user permissions thay đổi

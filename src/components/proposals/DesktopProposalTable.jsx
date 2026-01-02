@@ -27,7 +27,9 @@ const DesktopProposalTable = React.memo(({
     user,
     userEmail,
     isMaintenance,
-    isViceDirector
+    isViceDirector,
+    setCommentDialog,
+    onViewDetails
 }) => {
     return (
         <TableContainer sx={{ maxHeight: 'calc(100vh - 200px)' }}>
@@ -56,6 +58,8 @@ const DesktopProposalTable = React.memo(({
                             userEmail={userEmail}
                             isMaintenance={isMaintenance}
                             isViceDirector={isViceDirector}
+                            setCommentDialog={setCommentDialog}
+                            onViewDetails={onViewDetails}
                         />
                     ))}
                     {filteredProposals.length === 0 && (

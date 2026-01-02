@@ -1,15 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import {
     Box, Card, Typography, Chip,
-    Grid, Avatar, Stack, Divider, Collapse, Stepper, Step, StepLabel,
-    useTheme, AvatarGroup, LinearProgress, Tooltip
+    Grid, Avatar, Stack, Divider,
+    useTheme, AvatarGroup, LinearProgress, Tooltip, IconButton, Badge, Menu, MenuItem
 } from '@mui/material';
 import {
     Edit as EditIcon, Delete as DeleteIcon,
     Build as BuildIcon, AccessTime as AccessTimeIcon,
     Person as PersonIcon, History as HistoryIcon,
     Error as ErrorIcon, Loop as LoopIcon,
-    KeyboardArrowDown as KeyboardArrowDownIcon
+    MoreVert as MoreVertIcon,
+    Comment as CommentIcon, Visibility as VisibilityIcon,
+    CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import { motion, useMotionValue } from 'framer-motion';
 import ProposalActions from './ProposalActions';
@@ -19,11 +21,20 @@ import { formatDateSafe, isVideo, vibrate, getActiveStep, STEPS } from '../../ut
  * MobileProposalCard - Card hiển thị proposal cho mobile
  * Được memo hóa với custom comparison để tối ưu performance
  */
-const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, setEditData, setDialogOpen, setPreviewImage, user, userEmail, isMaintenance, isViceDirector }) => {
+const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, setEditData, setDialogOpen, setPreviewImage, user, userEmail, isMaintenance, isViceDirector, setCommentDialog, onViewDetails }) => {
     // Cache step calculation
     const step = useMemo(() => getActiveStep(item), [item]);
-    const [expanded, setExpanded] = useState(false);
+    const [anchorEl, setAnchorEl] = useState(null); // For MoreVert menu
     const theme = useTheme();
+
+    const handleMenuOpen = (event) => {
+        event.stopPropagation();
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+        setAnchorEl(null);
+    };
 
     let statusColor = 'default';
     let statusText = STEPS[step - 1]?.label || 'Không rõ';
@@ -199,31 +210,83 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                 {statusText}
                             </Typography>
                         </Stack>
-                        {/* Swipe Hint Arrow if actions available */}
-                        {(canEdit || canDelete) && (
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', opacity: 0.5 }}>
-                                <span style={{ marginRight: 4 }}>Vuốt</span> ≪
-                            </Typography>
-                        )}
+                        <Stack direction="row" spacing={0} alignItems="center">
+                            <IconButton onClick={(e) => { e.stopPropagation(); setCommentDialog({ open: true, proposal: item }); }} size="small">
+                                <Badge badgeContent={item.comments?.length || 0} color="error">
+                                    <CommentIcon fontSize="small" color="action" />
+                                </Badge>
+                            </IconButton>
+
+                            <IconButton onClick={(e) => { e.stopPropagation(); onViewDetails(item); }} size="small">
+                                <VisibilityIcon fontSize="small" />
+                            </IconButton>
+
+                            {(canEdit || canDelete || canResubmit) && (
+                                <IconButton onClick={handleMenuOpen} size="small">
+                                    <MoreVertIcon fontSize="small" />
+                                </IconButton>
+                            )}
+                            <Menu
+                                anchorEl={anchorEl}
+                                open={Boolean(anchorEl)}
+                                onClose={handleMenuClose}
+                                PaperProps={{
+                                    sx: {
+                                        boxShadow: 3,
+                                        borderRadius: 2,
+                                        minWidth: 150,
+                                    },
+                                }}
+                            >
+                                {canResubmit && (
+                                    <MenuItem onClick={(e) => {
+                                        handleMenuClose();
+                                        vibrate(50);
+                                        setActionDialog({ open: true, type: 'resubmit', item, title: 'Xin duyệt lại' });
+                                    }}>
+                                        <LoopIcon fontSize="small" sx={{ mr: 1 }} /> Gửi lại
+                                    </MenuItem>
+                                )}
+                                {canEdit && (
+                                    <MenuItem onClick={(e) => {
+                                        handleMenuClose();
+                                        vibrate(50);
+                                        setEditData(item);
+                                        setDialogOpen(true);
+                                    }}>
+                                        <EditIcon fontSize="small" sx={{ mr: 1 }} /> Sửa
+                                    </MenuItem>
+                                )}
+                                {canDelete && (
+                                    <MenuItem onClick={(e) => {
+                                        handleMenuClose();
+                                        vibrate(50);
+                                        setActionDialog({ open: true, type: 'delete', item, title: 'Xác nhận xóa' });
+                                    }}>
+                                        <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Xóa
+                                    </MenuItem>
+                                )}
+                            </Menu>
+                            {/* Swipe Hint Arrow if actions available */}
+                            {(canEdit || canDelete) && (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', opacity: 0.5, ml: 1 }}>
+                                    <span style={{ marginRight: 4 }}>Vuốt</span> ≪
+                                </Typography>
+                            )}
+                        </Stack>
                     </Box>
 
-                    <Box sx={{ p: 2, cursor: 'pointer' }} onClick={() => { setExpanded(!expanded); vibrate(40); }}>
+                    <Box sx={{ p: 2 }}>
                         {/* Content */}
                         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
                             <Typography variant="body1" sx={{ fontWeight: 600, mb: 1.5, fontSize: '1.05rem', flex: 1 }}>
                                 {item.content}
                             </Typography>
-                            <motion.div
-                                animate={{ rotate: expanded ? 180 : 0 }}
-                                transition={{ duration: 0.3 }}
-                            >
-                                <KeyboardArrowDownIcon color="action" />
-                            </motion.div>
                         </Stack>
 
                         <Grid container spacing={2}>
                             {/* Info Column */}
-                            <Grid item xs={item.images?.[0] ? 8 : 12}>
+                            <Grid size={{ xs: item.images?.[0] ? 8 : 12 }}>
                                 <Stack spacing={1}>
                                     <Stack direction="row" spacing={1} alignItems="center">
                                         <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 24, height: 24, fontSize: 12, border: '1px solid white' } }}>
@@ -256,6 +319,18 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                             {formatDateSafe(item.proposalTime)}
                                         </Typography>
                                     </Stack>
+
+                                    {/* Completion Info (Only for Completed items) */}
+                                    {step === 6 && item.confirmations?.viceDirector && (
+                                        <Stack direction="row" spacing={1} alignItems="center">
+                                            <CheckCircleIcon color="success" sx={{ fontSize: 16 }} />
+                                            <Typography variant="caption" color="success.main" fontWeight="bold">
+                                                Hoàn tất: {formatDateSafe(item.confirmations.viceDirector.time)}
+                                                <br />
+                                                bởi {item.confirmations.viceDirector.user}
+                                            </Typography>
+                                        </Stack>
+                                    )}
 
                                     {/* Maintenance Opinion Highlight if exists */}
                                     {item.maintenanceOpinion && (
@@ -298,12 +373,65 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                             </Typography>
                                         </Box>
                                     )}
+
+                                    {/* Rework Request Highlight */}
+                                    {item.lastReworkRequest && (
+                                        <Box sx={{ mt: 1, p: 1, bgcolor: '#FFF3E0', borderRadius: 2, borderLeft: `3px solid ${theme.palette.warning.main}` }}>
+                                            <Typography variant="caption" fontWeight="bold" display="block" color="warning.dark">
+                                                <BuildIcon sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'text-top' }} />
+                                                Yêu cầu làm lại:
+                                            </Typography>
+
+                                            {/* Comparison: Maintenance Images vs Rejection Images */}
+                                            {item.lastReworkRequest.maintenanceImages?.length > 0 && (
+                                                <Box sx={{ mb: 1, mt: 0.5, p: 1, bgcolor: 'rgba(255,255,255,0.5)', borderRadius: 1 }}>
+                                                    <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                                                        📸 Ảnh bảo trì đã báo cáo:
+                                                    </Typography>
+                                                    <Stack direction="row" spacing={1}>
+                                                        {item.lastReworkRequest.maintenanceImages.map((img, i) => (
+                                                            <Box
+                                                                key={i}
+                                                                onClick={(e) => { e.stopPropagation(); setPreviewImage(img); }}
+                                                                sx={{ width: 40, height: 40, borderRadius: 1, overflow: 'hidden', border: '1px solid #ddd' }}
+                                                            >
+                                                                <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                            </Box>
+                                                        ))}
+                                                    </Stack>
+                                                </Box>
+                                            )}
+
+                                            <Typography variant="caption" color="text.primary" display="block" sx={{ mt: 1, fontStyle: 'italic' }}>
+                                                Lý do: "{item.lastReworkRequest.comment}"
+                                            </Typography>
+
+                                            {item.lastReworkRequest.images?.length > 0 && (
+                                                <Box sx={{ mt: 1 }}>
+                                                    <Typography variant="caption" color="error" display="block" mb={0.5}>
+                                                        🚩 Ảnh minh chứng chưa đạt:
+                                                    </Typography>
+                                                    <Stack direction="row" spacing={1}>
+                                                        {item.lastReworkRequest.images.map((img, i) => (
+                                                            <Box
+                                                                key={i}
+                                                                onClick={(e) => { e.stopPropagation(); setPreviewImage(img); }}
+                                                                sx={{ width: 40, height: 40, borderRadius: 1, overflow: 'hidden', border: '1px solid #ddd', borderColor: 'error.main' }}
+                                                            >
+                                                                <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                            </Box>
+                                                        ))}
+                                                    </Stack>
+                                                </Box>
+                                            )}
+                                        </Box>
+                                    )}
                                 </Stack>
                             </Grid>
 
                             {/* Image Column */}
                             {item.images?.[0] && (
-                                <Grid item xs={4}>
+                                <Grid size={{ xs: 4 }}>
                                     <Box
                                         onClick={(e) => { e.stopPropagation(); setPreviewImage(item.images[0]); }}
                                         sx={{
@@ -337,33 +465,10 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                         {/* Main Content End */}
                     </Box>
 
-                    {/* Mini Progress Bar (Visible when collapsed) */}
-                    {!expanded && (
-                        <Box sx={{ px: 2, pb: 2 }}>
-                            <Stack direction="row" alignItems="center" spacing={1}>
-                                <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ fontSize: '0.65rem' }}>
-                                    {Math.round((step / 6) * 100)}%
-                                </Typography>
-                                <LinearProgress
-                                    variant="determinate"
-                                    value={(step / 6) * 100}
-                                    sx={{
-                                        flex: 1,
-                                        height: 4,
-                                        borderRadius: 2,
-                                        bgcolor: theme.palette.grey[200],
-                                        '& .MuiLinearProgress-bar': {
-                                            borderRadius: 2,
-                                            bgcolor: statusColor === 'default' ? 'primary.main' : `${statusColor}.main`
-                                        }
-                                    }}
-                                />
-                            </Stack>
-                        </Box>
-                    )}
 
-                    {/* Action Bar - Always visible based on status */}
-                    <Box sx={{ px: 2, pb: 2 }}>
+
+                    {/* Action Bar - Looking compact */}
+                    <Box sx={{ px: 2, pb: 1.5 }}>
                         <ProposalActions
                             item={item}
                             canDoAction={canDoAction}
@@ -374,102 +479,6 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                             isViceDirector={isViceDirector}
                         />
                     </Box>
-
-                    {/* Expand Content (Stepper & Details) */}
-                    <Collapse in={expanded} timeout="auto" unmountOnExit>
-                        <Divider sx={{ mb: 0 }} />
-                        <Box sx={{ p: 2, bgcolor: theme.palette.background.neutral }}>
-                            <Typography variant="caption" color="textSecondary" fontWeight="bold" gutterBottom display="block">TIẾN ĐỘ CHI TIẾT</Typography>
-                            <Stepper activeStep={step - 1} orientation="vertical" sx={{ '& .MuiStepConnector-line': { minHeight: 10 } }}>
-                                {STEPS.map((s, idx) => {
-                                    // Determine comment to show for each step
-                                    let stepComment = null;
-                                    let stepTime = null;
-                                    let stepUser = null;
-                                    let extraInfo = null;
-
-                                    if (idx === 0 && item.maintenanceOpinion) {
-                                        // Step 1: Ý kiến bảo trì
-                                        stepComment = item.maintenanceOpinion;
-                                        if (item.estimatedCompletion) {
-                                            extraInfo = `⏰ Dự kiến xong: ${formatDateSafe(item.estimatedCompletion)}`;
-                                        }
-                                    } else if (idx === 1 && item.approval?.comment) {
-                                        // Step 2: Phê duyệt P.GĐ - Comment ở đây
-                                        stepComment = item.approval.comment;
-                                        stepTime = item.approval.time;
-                                        stepUser = item.approval.user;
-                                    } else if (idx === 2 && item.confirmations?.maintenance?.comment) {
-                                        // Step 3: Bảo trì xác nhận làm xong
-                                        stepComment = item.confirmations.maintenance.comment;
-                                        stepTime = item.confirmations.maintenance.time;
-                                        stepUser = item.confirmations.maintenance.user;
-                                    } else if (idx === 3 && item.confirmations?.proposer?.comment) {
-                                        // Step 4: Người đề xuất nghiệm thu
-                                        stepComment = item.confirmations.proposer.comment;
-                                        stepTime = item.confirmations.proposer.time;
-                                        stepUser = item.confirmations.proposer.user;
-                                    } else if (idx === 4 && item.confirmations?.viceDirector?.comment) {
-                                        // Step 5: P.GĐ xác nhận cuối
-                                        stepComment = item.confirmations.viceDirector.comment;
-                                        stepTime = item.confirmations.viceDirector.time;
-                                        stepUser = item.confirmations.viceDirector.user;
-                                    }
-
-                                    return (
-                                        <Step key={idx} completed={step > idx + 1}>
-                                            <StepLabel>
-                                                <Typography variant="caption" sx={{ lineHeight: 1.2 }}>
-                                                    {s.label} {s.role ? `(${s.role})` : ''}
-                                                </Typography>
-                                                {stepComment && (
-                                                    <Box
-                                                        sx={{
-                                                            mt: 0.5,
-                                                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#f5f5f5',
-                                                            p: 1,
-                                                            borderRadius: 1.5,
-                                                            borderLeft: `3px solid ${theme.palette.primary.main}`
-                                                        }}
-                                                    >
-                                                        <Typography
-                                                            variant="caption"
-                                                            color="text.primary"
-                                                            sx={{ fontSize: '0.75rem', display: 'block', whiteSpace: 'pre-wrap', mb: 0.5 }}
-                                                        >
-                                                            "{stepComment}"
-                                                        </Typography>
-                                                        <Stack direction="row" spacing={1} alignItems="center">
-                                                            {stepUser && (
-                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', display: 'flex', alignItems: 'center' }}>
-                                                                    <PersonIcon sx={{ fontSize: 10, mr: 0.5 }} />
-                                                                    {stepUser.split('@')[0]}
-                                                                </Typography>
-                                                            )}
-                                                            {stepTime && (
-                                                                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
-                                                                    • {formatDateSafe(stepTime)}
-                                                                </Typography>
-                                                            )}
-                                                        </Stack>
-                                                        {extraInfo && (
-                                                            <Typography
-                                                                variant="caption"
-                                                                color="warning.main"
-                                                                sx={{ fontSize: '0.7rem', display: 'block', mt: 0.5, fontWeight: 500 }}
-                                                            >
-                                                                {extraInfo}
-                                                            </Typography>
-                                                        )}
-                                                    </Box>
-                                                )}
-                                            </StepLabel>
-                                        </Step>
-                                    );
-                                })}
-                            </Stepper>
-                        </Box>
-                    </Collapse>
                 </Card >
             </motion.div >
         </Box >
