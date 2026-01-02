@@ -243,7 +243,7 @@ export const TransferPrintTemplate = React.forwardRef(({ transfer, company }, re
 
     return (
         <div ref={ref} style={styles.page}>
-            <header style={styles.header}>
+            <div style={styles.header}>
                 <div>
                     <h3 style={styles.companyName}>{company?.name || 'TÊN CÔNG TY'}</h3>
                     <p style={styles.companyInfo}>
@@ -255,7 +255,7 @@ export const TransferPrintTemplate = React.forwardRef(({ transfer, company }, re
                     <QRCodeSVG value={qrValue} size={80} level="H" />
                     <p style={styles.qrLabel}>Quét để xem & duyệt</p>
                 </div>
-            </header>
+            </div>
 
             <section style={styles.titleSection}>
                 <h1 style={styles.title}>Phiếu Luân Chuyển Tài Sản</h1>

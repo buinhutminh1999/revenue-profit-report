@@ -126,12 +126,12 @@ export const RequestPrintTemplate = React.forwardRef(({ request, company }, ref)
             };
         }
     };
-    
+
     const requestInfo = getRequestTypeInfo();
 
     return (
         <div ref={ref} className="print-page" style={styles.page}>
-            <header style={styles.header}>
+            <div style={styles.header}>
                 <div>
                     <h3 style={styles.companyName}>{company?.name || "TÊN CÔNG TY"}</h3>
                     <p style={styles.companyInfo}>
@@ -143,7 +143,7 @@ export const RequestPrintTemplate = React.forwardRef(({ request, company }, ref)
                     <QRCodeSVG value={qrValue} size={80} level="H" />
                     <p style={styles.qrLabel}>Quét để xem & duyệt</p>
                 </div>
-            </header>
+            </div>
 
             <section style={styles.titleSection}>
                 {/* Tiêu đề động */}
@@ -158,39 +158,39 @@ export const RequestPrintTemplate = React.forwardRef(({ request, company }, ref)
                 <table style={styles.table}>
                     <tbody>
                         <tr>
-                            <td style={{...styles.td, ...styles.tdHeader}}>Loại yêu cầu</td>
-                            <td style={{...styles.td, backgroundColor: requestInfo.bg, color: requestInfo.color, fontWeight: 'bold' }}>
+                            <td style={{ ...styles.td, ...styles.tdHeader }}>Loại yêu cầu</td>
+                            <td style={{ ...styles.td, backgroundColor: requestInfo.bg, color: requestInfo.color, fontWeight: 'bold' }}>
                                 {requestInfo.label}
                             </td>
                         </tr>
                         <tr>
-                            <td style={{...styles.td, ...styles.tdHeader}}>Người yêu cầu</td>
-                            <td style={{...styles.td}}>{requester?.name || 'Không rõ'}</td>
+                            <td style={{ ...styles.td, ...styles.tdHeader }}>Người yêu cầu</td>
+                            <td style={{ ...styles.td }}>{requester?.name || 'Không rõ'}</td>
                         </tr>
                         <tr>
-                            <td style={{...styles.td, ...styles.tdHeader}}>Tên tài sản</td>
-                            <td style={{...styles.td}}>{assetData?.name}</td>
+                            <td style={{ ...styles.td, ...styles.tdHeader }}>Tên tài sản</td>
+                            <td style={{ ...styles.td }}>{assetData?.name}</td>
                         </tr>
                         <tr>
-                            <td style={{...styles.td, ...styles.tdHeader}}>Phòng ban</td>
-                            <td style={{...styles.td}}>{request.departmentName}</td>
+                            <td style={{ ...styles.td, ...styles.tdHeader }}>Phòng ban</td>
+                            <td style={{ ...styles.td }}>{request.departmentName}</td>
                         </tr>
                         <tr>
-                            <td style={{...styles.td, ...styles.tdHeader}}>Khối Quản lý</td>
-                            <td style={{...styles.td}}>{request.managementBlock || '—'}</td>
+                            <td style={{ ...styles.td, ...styles.tdHeader }}>Khối Quản lý</td>
+                            <td style={{ ...styles.td }}>{request.managementBlock || '—'}</td>
                         </tr>
                         <tr>
                             {/* Nhãn số lượng động */}
-                            <td style={{...styles.td, ...styles.tdHeader}}>{requestInfo.quantityLabel}</td>
-                            <td style={{...styles.td}}>{assetData?.quantity} {assetData?.unit}</td>
+                            <td style={{ ...styles.td, ...styles.tdHeader }}>{requestInfo.quantityLabel}</td>
+                            <td style={{ ...styles.td }}>{assetData?.quantity} {assetData?.unit}</td>
                         </tr>
                         <tr>
-                            <td style={{...styles.td, ...styles.tdHeader}}>Mô tả</td>
-                            <td style={{...styles.td, whiteSpace: 'pre-wrap'}}>{assetData?.description || '—'}</td>
+                            <td style={{ ...styles.td, ...styles.tdHeader }}>Mô tả</td>
+                            <td style={{ ...styles.td, whiteSpace: 'pre-wrap' }}>{assetData?.description || '—'}</td>
                         </tr>
                         <tr>
-                            <td style={{...styles.td, ...styles.tdHeader}}>Ghi chú</td>
-                            <td style={{...styles.td, whiteSpace: 'pre-wrap'}}>{assetData?.notes || '—'}</td>
+                            <td style={{ ...styles.td, ...styles.tdHeader }}>Ghi chú</td>
+                            <td style={{ ...styles.td, whiteSpace: 'pre-wrap' }}>{assetData?.notes || '—'}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -204,7 +204,7 @@ export const RequestPrintTemplate = React.forwardRef(({ request, company }, ref)
                     />
                 </div>
                 <div style={styles.signatureCol}>
-                     <SignatureDisplay
+                    <SignatureDisplay
                         signature={signatures.blockLeader}
                         role={request.managementBlock ? `${request.managementBlock} duyệt` : 'Lãnh đạo Khối'}
                     />
@@ -216,7 +216,7 @@ export const RequestPrintTemplate = React.forwardRef(({ request, company }, ref)
                     />
                 </div>
             </section>
-            
+
             <footer style={styles.footer}>
                 <p>In từ hệ thống Quản lý Tài sản • {new Date().toLocaleString("vi-VN")}</p>
             </footer>

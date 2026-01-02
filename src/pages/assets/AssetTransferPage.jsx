@@ -281,6 +281,22 @@ export default function AssetTransferPage() {
     const handlePrintReport = useReactToPrint({
         contentRef: reportPrintRef,  // ✅ v3
         documentTitle: `bien-ban-kiem-ke-${selectedReport?.departmentName?.replace(/\s+/g, '_') || 'tong-hop'}-${selectedReport?.id?.slice(0, 6) || ''}`,
+        pageStyle: `
+            @page { 
+                size: A4 portrait; 
+                margin: 10mm; 
+            } 
+            @media print { 
+                html, body { 
+                    -webkit-print-color-adjust: exact !important; 
+                    print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                }
+                * {
+                    visibility: visible !important;
+                }
+            }
+        `,
     });
     const printRef = useRef(null);
     const handlePrint = useReactToPrint({
@@ -3446,15 +3462,6 @@ export default function AssetTransferPage() {
             >
                 {selectedReport && (
                     <>
-                        {/* Component ẩn để in - SẼ CHỌN TEMPLATE PHÙ HỢP */}
-                        <div style={{ position: 'absolute', left: -10000, top: 0, height: 0, overflow: 'hidden' }}>
-                            {(selectedReport.type === 'DEPARTMENT_INVENTORY' || selectedReport.type === 'BLOCK_INVENTORY')
-                                ? <AssetListPrintTemplate ref={reportPrintRef} report={selectedReport} company={companyInfo} departments={departments} />
-                                : <AssetSummaryPrintTemplate ref={reportPrintRef} report={selectedReport} company={companyInfo} departments={departments} />
-                            }
-                        </div>
-
-
                         <DialogTitle>
                             <Stack direction="row" justifyContent="space-between" alignItems="center">
                                 <Box>
@@ -3811,6 +3818,16 @@ export default function AssetTransferPage() {
             >
                 <Alert onClose={() => setToast({ ...toast, open: false })} severity={toast.severity} variant="filled" sx={{ width: "100%" }}>{toast.msg}</Alert>
             </Snackbar>
+
+            {/* Hidden Print Template cho Báo cáo - đặt ở root level */}
+            {selectedReport && (
+                <div style={{ position: 'absolute', top: '-10000px', left: 0, width: '210mm' }}>
+                    {(selectedReport.type === 'DEPARTMENT_INVENTORY' || selectedReport.type === 'BLOCK_INVENTORY')
+                        ? <AssetListPrintTemplate ref={reportPrintRef} report={selectedReport} company={companyInfo} departments={departments} />
+                        : <AssetSummaryPrintTemplate ref={reportPrintRef} report={selectedReport} company={companyInfo} departments={departments} />
+                    }
+                </div>
+            )}
 
             <Snackbar open={undo.open} onClose={() => setUndo({ open: false, transfer: null })} message="Phiếu đã xóa"
                 anchorOrigin={{ vertical: "bottom", horizontal: "left" }}

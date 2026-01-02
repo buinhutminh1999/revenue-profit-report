@@ -248,40 +248,40 @@ const SignatureDisplay = ({ signature, role }) => (
 // --- Main Print Component ---
 export const AssetSummaryPrintTemplate = React.forwardRef(
     ({ report, company, departments }, ref) => {
-        
+
         // Thay thế khối useMemo hiện tại (từ dòng 110 đến 130) bằng mã sau:
-const processedData = useMemo(() => {
-    if (!report?.assets || !Array.isArray(departments)) {
-        return { sortedDeptNames: [], assetsByDept: {}, grandTotal: 0 };
-    }
+        const processedData = useMemo(() => {
+            if (!report?.assets || !Array.isArray(departments)) {
+                return { sortedDeptNames: [], assetsByDept: {}, grandTotal: 0 };
+            }
 
-    const departmentMap = new Map(
-        departments.map(d => [d.id, d.name])
-    );
+            const departmentMap = new Map(
+                departments.map(d => [d.id, d.name])
+            );
 
-    // Lọc tài sản có số lượng > 0 trước khi nhóm
-    const filteredAssets = report.assets.filter(asset => Number(asset.quantity || 0) > 0);
+            // Lọc tài sản có số lượng > 0 trước khi nhóm
+            const filteredAssets = report.assets.filter(asset => Number(asset.quantity || 0) > 0);
 
-    const assetsByDept = filteredAssets.reduce((acc, asset) => { // Dùng filteredAssets
-        const deptName = departmentMap.get(asset.departmentId) || "Chưa phân loại";
-        if (!acc[deptName]) {
-            acc[deptName] = [];
-        }
-        acc[deptName].push(asset);
-        return acc;
-    }, {});
+            const assetsByDept = filteredAssets.reduce((acc, asset) => { // Dùng filteredAssets
+                const deptName = departmentMap.get(asset.departmentId) || "Chưa phân loại";
+                if (!acc[deptName]) {
+                    acc[deptName] = [];
+                }
+                acc[deptName].push(asset);
+                return acc;
+            }, {});
 
-    const sortedDeptNames = Object.keys(assetsByDept).sort((a, b) => a.localeCompare(b, "vi"));
-    // Tổng số loại tài sản (sau khi lọc số lượng = 0)
-    const totalAssetTypes = filteredAssets.length; 
+            const sortedDeptNames = Object.keys(assetsByDept).sort((a, b) => a.localeCompare(b, "vi"));
+            // Tổng số loại tài sản (sau khi lọc số lượng = 0)
+            const totalAssetTypes = filteredAssets.length;
 
-    return { sortedDeptNames, assetsByDept, grandTotal: totalAssetTypes };
-    
-}, [report, departments]);
+            return { sortedDeptNames, assetsByDept, grandTotal: totalAssetTypes };
+
+        }, [report, departments]);
 
         if (!report || !processedData) {
-             // Thêm một điểm return an toàn ở đây
-             return <div ref={ref}>Đang tải dữ liệu...</div>;
+            // Thêm một điểm return an toàn ở đây
+            return <div ref={ref}>Đang tải dữ liệu...</div>;
         }
 
         const { sortedDeptNames, assetsByDept, grandTotal } = processedData;
@@ -295,7 +295,7 @@ const processedData = useMemo(() => {
 
         return (
             <div ref={ref} className="print-page" style={styles.page}>
-                <header style={styles.header}>
+                <div style={styles.header}>
                     <div>
                         <h3 style={styles.companyName}>
                             {company?.name || "TÊN CÔNG TY"}
@@ -312,7 +312,7 @@ const processedData = useMemo(() => {
                         <QRCodeSVG value={qrValue} size={80} level="H" />
                         <p style={styles.qrLabel}>Quét để xem & duyệt</p>
                     </div>
-                </header>
+                </div>
 
                 <section style={styles.titleSection}>
                     <h1 style={styles.title}>
@@ -406,7 +406,7 @@ const processedData = useMemo(() => {
                         </table>
                     </div>
                 </main>
-                
+
                 <section className="no-break" style={styles.signatureRow}>
                     <div style={styles.signatureCol}>
                         <SignatureDisplay

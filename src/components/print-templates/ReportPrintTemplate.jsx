@@ -268,7 +268,7 @@ export const ReportPrintTemplate = React.forwardRef(({ report, company, assets =
 
     return (
         <div ref={ref} style={styles.page}>
-            <header style={styles.header}>
+            <div style={styles.header}>
                 <div>
                     <h3 style={styles.companyName}>{company?.name || 'CÔNG TY CỔ PHẦN XÂY DỰNG BÁCH KHOA'}</h3>
                     <p style={styles.companyInfo}>
@@ -280,7 +280,7 @@ export const ReportPrintTemplate = React.forwardRef(({ report, company, assets =
                     <QRCodeSVG value={qrValue} size={60} level="H" />
                     <p style={styles.qrLabel}>Quét để xem chi tiết</p>
                 </div>
-            </header>
+            </div>
 
             <section style={styles.titleSection}>
                 <h1 style={styles.title}>Báo Cáo Kiểm Kê Tài Sản</h1>

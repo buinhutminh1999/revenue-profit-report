@@ -270,6 +270,18 @@ const RepairProposalPage = () => {
                     user: user.email
                 }
             };
+        } else if (actionDialog.type === 'reject_final') {
+            // P.GĐ yêu cầu làm lại - quay lại bước bảo trì
+            updateData = {
+                'confirmations.maintenance': null,
+                'confirmations.proposer': null,
+                lastReworkRequest: {
+                    comment: statusOrPayload.comment,
+                    time: statusOrPayload.time,
+                    user: user.email,
+                    fromStep: 'final_confirmation'
+                }
+            };
         }
 
         if (Object.keys(updateData).length > 0) {
@@ -341,12 +353,12 @@ const RepairProposalPage = () => {
                 </Stack>
 
                 {/* Control Bar */}
-                <Paper sx={{ mb: 3 }}>
+                <Paper sx={{ mb: isMobile ? 1 : 3 }}>
                     <Stack
                         direction={isMobile ? "column" : "row"}
                         justifyContent="space-between"
                         alignItems={isMobile ? "stretch" : "center"}
-                        spacing={isMobile ? 2 : 0}
+                        spacing={isMobile ? 1 : 0}
                         sx={{ px: 2, py: 1 }}
                     >
                         {/* Tabs: Processing vs History */}
@@ -361,35 +373,9 @@ const RepairProposalPage = () => {
                             <Tab label="Lịch Sử" icon={<HistoryIcon fontSize="small" />} iconPosition="start" />
                         </Tabs>
 
-                        {/* Filters Row */}
-                        <Stack
-                            direction={isMobile ? "column" : "row"}
-                            spacing={isMobile ? 2 : 2}
-                            alignItems={isMobile ? "stretch" : "center"}
-                        >
-                            {/* Mobile: Filter Chips */}
-                            {isMobile && (
-                                <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5 }}>
-                                    <Chip
-                                        label="Tất cả"
-                                        onClick={() => setMyActionOnly(false)}
-                                        color={!myActionOnly ? "primary" : "default"}
-                                        variant={!myActionOnly ? "filled" : "outlined"}
-                                        size="small"
-                                    />
-                                    <Chip
-                                        label={`Cần xử lý (${myActionCount})`}
-                                        icon={<CheckCircleIcon />}
-                                        onClick={() => setMyActionOnly(true)}
-                                        color={myActionOnly ? "warning" : "default"}
-                                        variant={myActionOnly ? "filled" : "outlined"}
-                                        size="small"
-                                    />
-                                </Stack>
-                            )}
-
-                            {/* Desktop: Switch Filter */}
-                            {!isMobile && (
+                        {/* Filters Row - Desktop Only */}
+                        {!isMobile && (
+                            <Stack direction="row" spacing={2} alignItems="center">
                                 <FormControlLabel
                                     control={
                                         <Switch
@@ -400,46 +386,99 @@ const RepairProposalPage = () => {
                                         />
                                     }
                                     label={
-                                        <Typography variant="body2" fontWeight="bold">
+                                        <Typography
+                                            variant="body2"
+                                            fontWeight="bold"
+                                            color={myActionCount > 0 ? "error.main" : "text.primary"}
+                                            sx={myActionCount > 0 ? {
+                                                animation: 'pulseText 1.5s infinite',
+                                                '@keyframes pulseText': {
+                                                    '0%': { color: theme.palette.error.main },
+                                                    '50%': { color: theme.palette.warning.main },
+                                                    '100%': { color: theme.palette.error.main },
+                                                }
+                                            } : {}}
+                                        >
                                             Cần xử lý ({myActionCount})
                                         </Typography>
                                     }
                                 />
-                            )}
-
-                            {/* Search Box */}
-                            <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
-                                {isMobile ? (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: '#f5f5f5', borderRadius: 2, px: 2, py: 1, width: '100%' }}>
-                                        <SearchIcon color="action" fontSize="small" sx={{ mr: 1 }} />
-                                        <input
-                                            style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem' }}
-                                            placeholder="Tìm tên, mã, nội dung..."
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                        />
-                                        {searchTerm && (
-                                            <IconButton size="small" onClick={() => setSearchTerm('')} sx={{ p: 0.5 }}>
-                                                <SearchIcon fontSize="small" sx={{ transform: 'rotate(45deg)' }} />
-                                            </IconButton>
-                                        )}
-                                    </Box>
-                                ) : (
-                                    <TextField
-                                        size="small"
-                                        placeholder="Tìm kiếm..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        InputProps={{
-                                            startAdornment: <InputAdornment position="start">🔍</InputAdornment>,
-                                        }}
-                                        sx={{ width: 220 }}
-                                    />
-                                )}
+                                <TextField
+                                    size="small"
+                                    placeholder="Tìm kiếm..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    InputProps={{
+                                        startAdornment: <InputAdornment position="start">🔍</InputAdornment>,
+                                    }}
+                                    sx={{ width: 220 }}
+                                />
                             </Stack>
-                        </Stack>
+                        )}
+
+                        {/* Mobile: Compact Search */}
+                        {isMobile && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: '#f5f5f5', borderRadius: 2, px: 2, py: 1 }}>
+                                <SearchIcon color="action" fontSize="small" sx={{ mr: 1 }} />
+                                <input
+                                    style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem' }}
+                                    placeholder="Tìm tên, mã, nội dung..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                                {searchTerm && (
+                                    <IconButton size="small" onClick={() => setSearchTerm('')} sx={{ p: 0.5 }}>
+                                        <SearchIcon fontSize="small" sx={{ transform: 'rotate(45deg)' }} />
+                                    </IconButton>
+                                )}
+                            </Box>
+                        )}
                     </Stack>
                 </Paper>
+
+                {/* Mobile: Prominent Action Filter - Large, Easy to Tap */}
+                {isMobile && (
+                    <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                        <Button
+                            variant={!myActionOnly ? "contained" : "outlined"}
+                            color="primary"
+                            onClick={() => setMyActionOnly(false)}
+                            fullWidth
+                            sx={{
+                                py: 1.5,
+                                fontSize: '0.95rem',
+                                fontWeight: 'bold',
+                                borderRadius: 2,
+                            }}
+                        >
+                            Tất cả
+                        </Button>
+                        <Button
+                            variant={myActionOnly ? "contained" : (myActionCount > 0 ? "contained" : "outlined")}
+                            color={myActionOnly ? "warning" : (myActionCount > 0 ? "error" : "inherit")}
+                            onClick={() => setMyActionOnly(true)}
+                            fullWidth
+                            startIcon={<CheckCircleIcon />}
+                            sx={{
+                                py: 1.5,
+                                fontSize: '0.95rem',
+                                fontWeight: 'bold',
+                                borderRadius: 2,
+                                ...(myActionCount > 0 && !myActionOnly && {
+                                    animation: 'pulse 1.5s infinite',
+                                    boxShadow: 4,
+                                }),
+                                '@keyframes pulse': {
+                                    '0%': { transform: 'scale(1)' },
+                                    '50%': { transform: 'scale(1.02)' },
+                                    '100%': { transform: 'scale(1)' },
+                                }
+                            }}
+                        >
+                            Cần xử lý ({myActionCount})
+                        </Button>
+                    </Stack>
+                )}
 
                 {/* Content */}
                 {isMobile ? (

@@ -114,18 +114,31 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
                 <Chip label="Chờ nghiệm thu" color="primary" size="small" variant="outlined" />
             )}
 
-            {/* Step 5: Final Confirm by Vice Director */}
+            {/* Step 5: Final Confirm by Vice Director - with accept/reject options */}
             {step === 5 && canDoAction('confirm_vice_director') && (
-                <Button
-                    size="medium"
-                    variant="contained"
-                    color="success"
-                    onClick={() => { vibrate(); setActionDialog({ open: true, type: 'confirm_vice_director', item, title: 'Hoàn tất phiếu' }); }}
-                    fullWidth
-                    sx={{ boxShadow: 2 }}
-                >
-                    Hoàn Tất
-                </Button>
+                <Stack direction="row" spacing={1} width="100%">
+                    <Button
+                        size="medium"
+                        variant="contained"
+                        color="success"
+                        startIcon={<CheckCircleIcon />}
+                        onClick={() => { vibrate(); setActionDialog({ open: true, type: 'confirm_vice_director', item, title: 'Nghiệm thu và hoàn tất' }); }}
+                        fullWidth
+                        sx={{ flex: 2, boxShadow: 2 }}
+                    >
+                        Nghiệm Thu
+                    </Button>
+                    <Button
+                        size="medium"
+                        variant="outlined"
+                        color="error"
+                        startIcon={<LoopIcon />}
+                        onClick={() => setActionDialog({ open: true, type: 'reject_final', item, title: 'Yêu cầu làm lại' })}
+                        sx={{ flex: 1, bgcolor: 'white' }}
+                    >
+                        Chưa đạt
+                    </Button>
+                </Stack>
             )}
             {step === 5 && !canDoAction('confirm_vice_director') && (
                 <Chip label="Chờ P.GĐ XN" color="warning" size="small" variant="outlined" />

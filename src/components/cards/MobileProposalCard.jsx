@@ -117,7 +117,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                     vibrate(50);
                                     setActionDialog({ open: true, type: 'resubmit', item, title: 'Xin duyệt lại' });
                                 }}
-                                sx={{ cursor: 'pointer', zIndex: 10 }}
+                                sx={{ cursor: 'pointer' }}
                             >
                                 <Box sx={{
                                     bgcolor: 'warning.main', color: 'white',
@@ -137,7 +137,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                     setEditData(item);
                                     setDialogOpen(true);
                                 }}
-                                sx={{ cursor: 'pointer', zIndex: 10 }}
+                                sx={{ cursor: 'pointer' }}
                             >
                                 <Box sx={{
                                     bgcolor: 'primary.main', color: 'white',
@@ -156,7 +156,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                     vibrate(50);
                                     setActionDialog({ open: true, type: 'delete', item, title: 'Xác nhận xóa' });
                                 }}
-                                sx={{ cursor: 'pointer', zIndex: 10 }}
+                                sx={{ cursor: 'pointer' }}
                             >
                                 <Box sx={{
                                     bgcolor: 'error.main', color: 'white',
@@ -174,7 +174,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
 
             {/* Foreground Card */}
             <motion.div
-                style={{ x, position: 'relative', touchAction: 'pan-y' }} // Allow vertical scroll, handle horizontal pan
+                style={{ x, position: 'relative', touchAction: 'pan-y', zIndex: 2 }} // Ensure foreground covers background
                 drag="x"
                 dragConstraints={{ left: (canEdit || canDelete) ? -150 : 0, right: 0 }}
                 dragElastic={0.1}

@@ -29,7 +29,7 @@ import {
     FormHelperText,
     Divider,
 } from '@mui/material';
-import { Save as SaveIcon, Check as CheckIcon, Print as PrintIcon } from '@mui/icons-material';
+import { Save as SaveIcon, Check as CheckIcon, Print as PrintIcon, ContentCopy as ContentCopyIcon } from '@mui/icons-material';
 import { useReactToPrint } from 'react-to-print';
 import { NumericFormat } from 'react-number-format';
 
@@ -1483,6 +1483,61 @@ export default function QuarterlyCostAllocationReport() {
                     <FormControl sx={{ minWidth: 120 }} size="small"> <InputLabel id="quarter-select-label">Quý</InputLabel> <Select labelId="quarter-select-label" value={quarter} label="Quý" onChange={(e) => setQuarter(e.target.value)}> <MenuItem value={1}>Quý 1</MenuItem> <MenuItem value={2}>Quý 2</MenuItem> <MenuItem value={3}>Quý 3</MenuItem> <MenuItem value={4}>Quý 4</MenuItem> </Select> </FormControl>
                     <FormControl sx={{ minWidth: 150 }} size="small"> <InputLabel id="project-type-label">Loại dự án</InputLabel> <Select labelId="project-type-label" value={projectType} label="Loại dự án" onChange={(e) => setProjectType(e.target.value)}> <MenuItem value="thi_cong">Thi công</MenuItem> <MenuItem value="kh_dt">KH-ĐT</MenuItem> </Select> </FormControl>
                     <Button variant="outlined" startIcon={<PrintIcon />} onClick={handlePrint} sx={{ height: "40px" }}>In Báo Cáo</Button>
+                    <Button
+                        variant="outlined"
+                        color="secondary"
+                        startIcon={<ContentCopyIcon />}
+                        onClick={() => {
+                            // Sao chép %DT từ quý trước
+                            if (!prevQuarterMainRows || prevQuarterMainRows.length === 0) {
+                                showSnack("Không có dữ liệu %DT từ quý trước!", "warning");
+                                return;
+                            }
+
+                            // Tạo map từ prevQuarterMainRows
+                            const prevPctMap = new Map();
+                            prevQuarterMainRows.forEach(row => {
+                                const prevPct = row.byType?.[typeFilter]?.[pctKey];
+                                if (typeof prevPct === 'number') {
+                                    prevPctMap.set(row.id, prevPct);
+                                }
+                            });
+
+                            if (prevPctMap.size === 0) {
+                                showSnack("Không tìm thấy giá trị %DT từ quý trước!", "warning");
+                                return;
+                            }
+
+                            // Cập nhật mainRowsData
+                            setMainRowsData(prevRows => {
+                                const newRows = prevRows.map(row => {
+                                    const prevPct = prevPctMap.get(row.id);
+                                    if (typeof prevPct === 'number') {
+                                        // Đánh dấu dirty
+                                        setDirtyRows(prev => new Set(prev).add(row.id));
+                                        return {
+                                            ...row,
+                                            byType: {
+                                                ...row.byType,
+                                                [typeFilter]: {
+                                                    ...(row.byType?.[typeFilter] || {}),
+                                                    [pctKey]: prevPct
+                                                }
+                                            }
+                                        };
+                                    }
+                                    return row;
+                                });
+                                return newRows;
+                            });
+
+                            showSnack(`Đã sao chép ${prevPctMap.size} giá trị %DT từ Q${prevQuarterStr} ${prevYear}`, "success");
+                        }}
+                        sx={{ height: "40px" }}
+                        disabled={!prevQuarterMainRows || prevQuarterMainRows.length === 0}
+                    >
+                        Copy %DT Q.trước
+                    </Button>
                     <Button variant="contained" color="primary" startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />} onClick={handleSave} disabled={saving} sx={{ height: "40px", ml: 'auto' }} > {saving ? "Đang lưu..." : "Lưu thay đổi"} </Button>
                 </Stack>
             </Paper>
