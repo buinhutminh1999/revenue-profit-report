@@ -92,7 +92,7 @@ const AllocationTimelineModal = ({ open, onClose, project, onSave }) => {
 
     const displayYears = useMemo(() => {
         const currentYear = new Date().getFullYear();
-        return [currentYear, currentYear + 1, currentYear + 2];
+        return [currentYear - 1, currentYear, currentYear + 1, currentYear + 2];
     }, []);
 
     useEffect(() => {
