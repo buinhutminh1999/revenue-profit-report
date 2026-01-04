@@ -1000,12 +1000,13 @@ export default function ActualCostsTab({ projectId }) {
                     isFinalized: true,
                 };
             } else {
-                // -CP projects: recalculate noPhaiTraCK = debt - carryover + carryoverMinus
+                // -CP projects: recalculate noPhaiTraCK = debt - directCost - carryover + carryoverMinus
                 // Then reset carryoverMinus and carryoverEnd to 0
                 const debt = parseNumber(row.debt || "0");
+                const directCost = parseNumber(row.directCost || "0");
                 const carryover = parseNumber(row.carryover || "0");
                 const carryoverMinus = parseNumber(row.carryoverMinus || "0");
-                const newNoPhaiTraCK = debt - carryover + carryoverMinus;
+                const newNoPhaiTraCK = debt - directCost - carryover + carryoverMinus;
 
                 return {
                     ...row,

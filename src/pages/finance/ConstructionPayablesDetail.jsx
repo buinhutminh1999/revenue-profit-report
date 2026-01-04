@@ -353,15 +353,12 @@ const ConstructionPayablesDetail = () => {
             const psNo = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
             const psGiam = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
 
-            let finalBalance;
-            if (projectType === 'Nhà máy') {
-                finalBalance = toNum(item.noPhaiTraCK) + toNum(item.noPhaiTraCKNM || 0);
-            } else {
-                finalBalance = toNum(item.noPhaiTraCK);
-            }
+            // ✅ SỬA LỖI: Tính cuối kỳ nợ bằng công thức đúng
+            // Cuối Kỳ Nợ = Đầu Kỳ Nợ + PS Nợ - PS Giảm
+            const calculatedBalance = dauKyNo + psNo - psGiam;
 
-            const cuoiKyNo = finalBalance > 0 ? finalBalance : 0;
-            const cuoiKyCo = finalBalance < 0 ? -finalBalance : 0;
+            const cuoiKyNo = calculatedBalance > 0 ? calculatedBalance : 0;
+            const cuoiKyCo = calculatedBalance < 0 ? -calculatedBalance : 0;
 
             result.push({
                 _id: item._id,
