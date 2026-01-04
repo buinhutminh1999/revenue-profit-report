@@ -253,7 +253,6 @@ export default function LoginPage() {
   // ====== Google Login Handler ======
   const handleGoogleLogin = async () => {
     setError("");
-    setLoading(true);
     setGoogleLoading(true);
     try {
       const provider = new GoogleAuthProvider();
@@ -270,13 +269,19 @@ export default function LoginPage() {
         // Page will redirect, so we don't need to handle success here
       } else {
         await signInWithPopup(auth, provider);
+        // Don't navigate here - onAuthStateChanged will handle it
         setSuccess(true);
-        setTimeout(() => {
-          navigate(safeRedirect, { replace: true });
-        }, 1500);
       }
     } catch (err) {
       console.error("Google Login Error:", err);
+      
+      // User closed popup or cancelled - don't show error
+      if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
+        // Silent fail - user cancelled
+        setGoogleLoading(false);
+        return;
+      }
+      
       // Handle specific error for popup blocked
       if (err?.code === 'auth/popup-blocked') {
         setError("Popup bị chặn. Đang thử phương thức khác...");
@@ -285,13 +290,15 @@ export default function LoginPage() {
           const provider = new GoogleAuthProvider();
           sessionStorage.setItem('googleSignInPending', '1');
           await signInWithRedirect(auth, provider);
+          return; // Don't reset loading - page will redirect
         } catch (redirectErr) {
           setError("Đăng nhập Google thất bại. Vui lòng thử lại.");
         }
+      } else if (err?.code === 'auth/account-exists-with-different-credential') {
+        setError("Email này đã được đăng ký với phương thức khác. Vui lòng đăng nhập bằng email/mật khẩu.");
       } else {
         setError("Đăng nhập Google thất bại. Vui lòng thử lại.");
       }
-      setLoading(false);
       setGoogleLoading(false);
     }
   };

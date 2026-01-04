@@ -1098,13 +1098,8 @@ export default function ProfitReportQuarter() {
             newValue = toNum(rawValue);
         }
 
-        if (
-            ["revenue", "cost"].includes(field) &&
-            typeof newValue === "number" &&
-            newValue < 0
-        ) {
-            return;
-        }
+        // ✅ ĐÃ XÓA: Validation chặn số âm cho revenue/cost
+        // Giờ đây người dùng có thể nhập số âm nếu cần thiết
 
         let newRows = [...rows];
         newRows[idx][field] = newValue;

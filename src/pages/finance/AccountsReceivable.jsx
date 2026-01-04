@@ -14,8 +14,10 @@ import {
     ContentCopy,
     Tv as TvIcon,
     FullscreenExit as FullscreenExitIcon,
-
+    FilterListOff as FilterListOffIcon,
+    FilterList as FilterListIcon,
 } from "@mui/icons-material";
+import { keyframes } from "@emotion/react"; // Import keyframes separately if needed or use MUI styled keyframes
 import { NumericFormat } from "react-number-format";
 import { useAccountsReceivable } from "../../hooks/useAccountsReceivable";
 import { toNum } from "../../utils/numberUtils";
@@ -24,29 +26,63 @@ import { EmptyState, SkeletonTable } from "../../components/common";
 // =================================================================
 // PREMIUM THEME HELPERS
 // =================================================================
+// =================================================================
+// PREMIUM THEME HELPERS & ANIMATIONS
+// =================================================================
+const moveGradient = keyframes`
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+`;
+
 const getPremiumStyles = (theme, isTvMode) => {
     if (!isTvMode) return {};
 
     return {
-        background: `radial-gradient(circle at 50% 0%, #0f172a 0%, #020617 100%)`, // Deep Slate/Navy (Tailwind colors)
+        // Animated Deep Space Background
+        wrapper: {
+            background: `linear-gradient(-45deg, #020617, #0f172a, #1e1b4b, #172554)`,
+            backgroundSize: '400% 400%',
+            animation: `${moveGradient} 15s ease infinite`,
+        },
         text: {
             primary: '#f8fafc',
             secondary: '#94a3b8',
-            gold: '#fbbf24',
+            gold: '#fcd34d', // Sáng hơn chút
             emerald: '#34d399',
             rose: '#fb7185',
+            blue: '#60a5fa',
+            neonGlow: '0 0 10px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3), 0 0 30px rgba(255, 255, 255, 0.1)',
         },
         glass: {
-            background: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(16px)',
-            border: '1px solid rgba(255, 255, 255, 0.05)',
-            boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+            background: 'rgba(15, 23, 42, 0.4)', // Trong suốt hơn
+            backdropFilter: 'blur(24px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.5)',
         },
         glassCard: {
-            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%)',
-            backdropFilter: 'blur(20px)',
+            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%)',
+            backdropFilter: 'blur(16px) saturate(180%)',
             border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
+            boxShadow: '0 4px 24px -1px rgba(0, 0, 0, 0.25)',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+                background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%)',
+                transform: 'translateY(-4px)',
+                boxShadow: '0 12px 32px -1px rgba(0, 0, 0, 0.4), 0 0 15px rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+            }
+        },
+        stickyHeader: {
+            background: 'rgba(2, 6, 23, 0.85)', // Darker alignment
+            backdropFilter: 'blur(20px)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+        },
+        stickyColumn: {
+            background: '#020617', // Match background
+            borderRight: '1px solid rgba(255, 255, 255, 0.2)', // Brighter border
+            boxShadow: '4px 0 24px rgba(0,0,0,0.5)', // Drop shadow to separate
         }
     };
 };
@@ -258,7 +294,7 @@ const MetricCard = ({ title, value, icon, colorName, loading, index, isTvMode })
                         ) : (
                             <Typography variant="h6" fontWeight={isTvMode ? 800 : 700} sx={{
                                 fontFamily: 'Consolas, Monaco, monospace',
-                                fontSize: isTvMode ? '2.2rem' : '1.25rem',
+                                fontSize: isTvMode ? '1.5rem' : '1.25rem', // Reduced from 2.2rem to 1.5rem for compact view
                                 color: isTvMode ? premium.text.primary : theme.palette[colorName || 'primary'].dark,
                                 lineHeight: 1.2,
                                 textShadow: isTvMode ? `0 0 20px ${alpha(colorObj.main, 0.3)}` : 'none'
@@ -286,10 +322,10 @@ const TableRowItem = React.memo(({ row, tableColumns, editingCell, setEditingCel
     let rowSx = {
         transition: 'all 0.15s ease',
         '& td': {
-            fontSize: isTvMode ? '1.1rem' : 'inherit',
-            py: isTvMode ? 1.5 : 0.75,
+            fontSize: isTvMode ? '1.25rem' : 'inherit', // Increased font size
+            py: isTvMode ? 2 : 0.75, // Increased padding
             borderBottom: isTvMode ? `1px solid rgba(255,255,255,0.05)` : undefined,
-            color: isTvMode ? premium.text.primary : 'inherit',
+            color: isTvMode ? '#e2e8f0' : 'inherit', // Brighter text (Slate-200)
         }
     };
 
@@ -392,8 +428,37 @@ const TableRowItem = React.memo(({ row, tableColumns, editingCell, setEditingCel
                 }
 
                 if (field === 'project') {
+                    // Logic xác định background color cho Sticky Cell
+                    let stickyBgColor = rowSx.bgcolor; // Ưu tiên màu của Row (cho Headers, Total)
+
+                    if (!stickyBgColor) {
+                        // Cho Data Row
+                        if (isTvMode) stickyBgColor = '#020617'; // Màu nền TV mode
+                        else stickyBgColor = theme.palette.background.paper; // Màu nền thường
+                    }
+
                     return (
-                        <TableCell key={field} sx={{ pl: isDataRow ? 6 : undefined }}>
+                        <TableCell
+                            key={field}
+                            sx={{
+                                pl: isDataRow ? 6 : undefined,
+                                position: 'sticky',
+                                left: 0,
+                                zIndex: isGrandTotal || isParentHeader || isGroupHeader ? 11 : 1, // Header row > Data row
+                                bgcolor: stickyBgColor,
+                                borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                                // Premium Sticky Column Style for TV Mode
+                                ...(isTvMode && premium.stickyColumn),
+
+                                // Fix hover effect for data rows in normal mode
+                                ...(isDataRow && !isTvMode && {
+                                    transition: 'background-color 0.15s ease',
+                                    '.MuiTableRow-root:hover &': {
+                                        bgcolor: alpha(theme.palette.primary.main, 0.02)
+                                    }
+                                })
+                            }}
+                        >
                             {isEditing ? (
                                 <EditableCell value={cellValue} rowId={row.id} field={field} type={col.type} onUpdate={handleUpdateCell} onCancel={() => setEditingCell(null)} isTvMode={isTvMode} />
                             ) : (
@@ -478,6 +543,9 @@ export default function AccountsReceivable() {
 
     // TV Mode State
     const [isTvMode, setIsTvMode] = useState(false);
+
+    // Filter Empty Rows State
+    const [hideEmptyRows, setHideEmptyRows] = useState(false);
 
 
     // Hooks
@@ -781,6 +849,24 @@ export default function AccountsReceivable() {
 
     const summaryData = useMemo(() => displayRows.find(row => row.type === 'grand-total') || {}, [displayRows]);
 
+    // Filter empty rows - only show rows that have at least one numeric value != 0
+    const filteredDisplayRows = useMemo(() => {
+        if (!hideEmptyRows) return displayRows;
+
+        const numericFields = ['openingDebit', 'openingCredit', 'debitIncrease', 'creditDecrease', 'closingDebit', 'closingCredit'];
+
+        return displayRows.filter(row => {
+            // Always show headers and grand total
+            if (row.type !== 'data') return true;
+
+            // Check if any numeric field has a non-zero value
+            return numericFields.some(field => {
+                const val = toNum(row[field]);
+                return val !== 0;
+            });
+        });
+    }, [displayRows, hideEmptyRows]);
+
     // RENDER CONTENT FUNCTION
     const renderContent = (isMockFullMode = false) => {
         // Shadowing the outer 'premium' variable to ensure styles match the requested mode
@@ -789,9 +875,9 @@ export default function AccountsReceivable() {
         return (
             <React.Fragment>
                 {/* HEADER */}
-                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={isMockFullMode ? 5 : 4} sx={{ pt: isMockFullMode ? 4 : 0 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={isMockFullMode ? 2 : 4} sx={{ pt: isMockFullMode ? 2 : 0 }}>
                     <Box>
-                        <Typography variant={isMockFullMode ? "h3" : "h4"} fontWeight={800} sx={{
+                        <Typography variant={isMockFullMode ? "h4" : "h4"} fontWeight={800} sx={{
                             background: isMockFullMode
                                 ? `linear-gradient(45deg, ${premium.text?.gold || '#fbbf24'}, #ffffff)`
                                 : `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
@@ -852,6 +938,18 @@ export default function AccountsReceivable() {
                                     </IconButton>
                                 </Tooltip>
                                 <Divider orientation="vertical" flexItem />
+                                <Tooltip title={hideEmptyRows ? "Hiện tất cả" : "Ẩn hàng trống"}>
+                                    <IconButton
+                                        onClick={() => setHideEmptyRows(!hideEmptyRows)}
+                                        sx={{
+                                            color: hideEmptyRows ? theme.palette.warning.main : theme.palette.action.active,
+                                            mx: 0.5
+                                        }}
+                                    >
+                                        {hideEmptyRows ? <FilterListOffIcon fontSize="small" /> : <FilterListIcon fontSize="small" />}
+                                    </IconButton>
+                                </Tooltip>
+                                <Divider orientation="vertical" flexItem />
                                 <Tooltip title="Chế độ Trình chiếu TV">
                                     <Button
                                         onClick={() => setIsTvMode(true)}
@@ -874,26 +972,57 @@ export default function AccountsReceivable() {
                     </Stack>
                 </Stack>
 
-                <Grid container spacing={isTvMode ? 3 : 2} mb={isTvMode ? 5 : 3} px={isTvMode ? 4 : 0}>
-                    <Grid item xs={12} sm={6} md={4} lg={2}>
-                        <MetricCard title="Phải Thu ĐK" value={summaryData.openingDebit} icon={<ArchiveOutlined />} colorName="info" loading={isLoading} index={0} isTvMode={isTvMode} />
+                {/* Use Flexbox with nowrap for TV Mode: 2 rows x 3 cards for better readability */}
+                {isTvMode ? (
+                    <Box mb={1} px={2}>
+                        <Stack
+                            direction="row"
+                            spacing={1.5}
+                            mb={1}
+                            sx={{
+                                flexWrap: 'nowrap',
+                                '& > *': { flex: '1 1 0', minWidth: 0 }
+                            }}
+                        >
+                            <MetricCard title="Phải Thu ĐK" value={summaryData.openingDebit} icon={<ArchiveOutlined />} colorName="info" loading={isLoading} index={0} isTvMode={isTvMode} />
+                            <MetricCard title="KH Ứng Trước ĐK" value={summaryData.openingCredit} icon={<AccountBalanceWallet />} colorName="warning" loading={isLoading} index={1} isTvMode={isTvMode} />
+                            <MetricCard title="Phát Sinh Tăng" value={summaryData.debitIncrease} icon={<TrendingUp />} colorName="primary" loading={isLoading} index={2} isTvMode={isTvMode} />
+                        </Stack>
+                        <Stack
+                            direction="row"
+                            spacing={1.5}
+                            sx={{
+                                flexWrap: 'nowrap',
+                                '& > *': { flex: '1 1 0', minWidth: 0 }
+                            }}
+                        >
+                            <MetricCard title="Phát Sinh Giảm" value={summaryData.creditDecrease} icon={<TrendingDown />} colorName="success" loading={isLoading} index={3} isTvMode={isTvMode} />
+                            <MetricCard title="Phải Thu CK" value={summaryData.closingDebit} icon={<AttachMoney />} colorName="error" loading={isLoading} index={4} isTvMode={isTvMode} />
+                            <MetricCard title="KH Trả Trước CK" value={summaryData.closingCredit} icon={<Savings />} colorName="secondary" loading={isLoading} index={5} isTvMode={isTvMode} />
+                        </Stack>
+                    </Box>
+                ) : (
+                    <Grid container spacing={2} mb={3}>
+                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                            <MetricCard title="Phải Thu ĐK" value={summaryData.openingDebit} icon={<ArchiveOutlined />} colorName="info" loading={isLoading} index={0} isTvMode={isTvMode} />
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                            <MetricCard title="KH Ứng Trước ĐK" value={summaryData.openingCredit} icon={<AccountBalanceWallet />} colorName="warning" loading={isLoading} index={1} isTvMode={isTvMode} />
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                            <MetricCard title="Phát Sinh Tăng" value={summaryData.debitIncrease} icon={<TrendingUp />} colorName="primary" loading={isLoading} index={2} isTvMode={isTvMode} />
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                            <MetricCard title="Phát Sinh Giảm" value={summaryData.creditDecrease} icon={<TrendingDown />} colorName="success" loading={isLoading} index={3} isTvMode={isTvMode} />
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                            <MetricCard title="Phải Thu CK" value={summaryData.closingDebit} icon={<AttachMoney />} colorName="error" loading={isLoading} index={4} isTvMode={isTvMode} />
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                            <MetricCard title="KH Trả Trước CK" value={summaryData.closingCredit} icon={<Savings />} colorName="secondary" loading={isLoading} index={5} isTvMode={isTvMode} />
+                        </Grid>
                     </Grid>
-                    <Grid item xs={12} sm={6} md={4} lg={2}>
-                        <MetricCard title="KH Ứng Trước ĐK" value={summaryData.openingCredit} icon={<AccountBalanceWallet />} colorName="warning" loading={isLoading} index={1} isTvMode={isTvMode} />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={4} lg={2}>
-                        <MetricCard title="Phát Sinh Tăng" value={summaryData.debitIncrease} icon={<TrendingUp />} colorName="primary" loading={isLoading} index={2} isTvMode={isTvMode} />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={4} lg={2}>
-                        <MetricCard title="Phát Sinh Giảm" value={summaryData.creditDecrease} icon={<TrendingDown />} colorName="success" loading={isLoading} index={3} isTvMode={isTvMode} />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={4} lg={2}>
-                        <MetricCard title="Phải Thu CK" value={summaryData.closingDebit} icon={<AttachMoney />} colorName="error" loading={isLoading} index={4} isTvMode={isTvMode} />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={4} lg={2}>
-                        <MetricCard title="KH Trả Trước CK" value={summaryData.closingCredit} icon={<Savings />} colorName="secondary" loading={isLoading} index={5} isTvMode={isTvMode} />
-                    </Grid>
-                </Grid>
+                )}
 
                 {/* TABLE */}
                 <Paper
@@ -905,7 +1034,7 @@ export default function AccountsReceivable() {
                         overflow: 'hidden',
                         // In TV Mode, use full height minus header/metrics, or auto if content is small.
                         // We use a fixed height for auto-scroll to work effectively.
-                        height: isMockFullMode ? '65vh' : 'auto',
+                        height: isMockFullMode ? '78vh' : 'auto', // Increased from 65vh to 78vh
                         display: 'flex', flexDirection: 'column',
                         p: isMockFullMode ? 2 : 0,
                         ...(isMockFullMode ? premium.glass : { bgcolor: 'background.paper' }),
@@ -926,8 +1055,31 @@ export default function AccountsReceivable() {
                                 }}>
                                     {tableColumns.map(col => (
                                         !isMockFullMode || col.field !== 'actions' ? (
-                                            <TableCell key={col.field} align={col.align || (col.type === 'number' ? 'right' : 'left')} style={{ minWidth: col.minWidth }}>
-                                                <Typography variant={isMockFullMode ? "h6" : "subtitle2"} fontWeight={700} sx={{ color: isMockFullMode ? '#94a3b8' : 'inherit' }}>
+                                            <TableCell
+                                                key={col.field}
+                                                align={col.align || (col.type === 'number' ? 'right' : 'left')}
+                                                style={{ minWidth: col.minWidth }}
+                                                sx={{
+                                                    ...(col.field === 'project' && {
+                                                        position: 'sticky',
+                                                        left: 0,
+                                                        zIndex: 20, // Cao nhất
+                                                        // Use Premium Sticky Header style for TV Mode
+                                                        ...(isMockFullMode ? premium.stickyHeader : {
+                                                            bgcolor: 'background.paper',
+                                                        }),
+                                                        ...(!isMockFullMode && { bgcolor: 'background.paper' }),
+
+                                                        borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                                                        // Ensure text is readable
+                                                        color: isMockFullMode ? '#fff' : 'inherit',
+                                                    })
+                                                }}
+                                            >
+                                                <Typography variant={isMockFullMode ? "h6" : "subtitle2"} fontWeight={isMockFullMode ? 800 : 700} sx={{
+                                                    color: isMockFullMode ? premium.text.gold : 'inherit',
+                                                    letterSpacing: isMockFullMode ? 0.5 : 0,
+                                                }}>
                                                     {col.headerName}
                                                 </Typography>
                                             </TableCell>
@@ -939,14 +1091,14 @@ export default function AccountsReceivable() {
                             <TableBody>
                                 {isLoading ? (
                                     <SkeletonTable columns={tableColumns.length + 1} rows={5} />
-                                ) : displayRows.length === 0 ? (
+                                ) : filteredDisplayRows.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={tableColumns.length + 1} align="center" sx={{ py: 8 }}>
                                             <EmptyState message="Chưa có dữ liệu" />
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    displayRows.map((row) => (
+                                    filteredDisplayRows.map((row) => (
                                         <TableRowItem
                                             key={row.id}
                                             row={row}
@@ -986,13 +1138,19 @@ export default function AccountsReceivable() {
                 TransitionComponent={Fade}
                 PaperProps={{
                     sx: {
-                        bgcolor: 'background.default',
                         p: 0,
-                        ...(isTvMode ? premium.background && { background: premium.background } : {})
+                        ...(isTvMode ? premium.wrapper : { bgcolor: 'background.default' }),
+                        overflow: 'hidden' // Hide default scrollbar
                     }
                 }}
             >
-                <Box sx={{ p: 4, height: '100%' }}>
+                <Box sx={{
+                    p: 4,
+                    height: '100%',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}>
                     {isTvMode && renderContent(true)}
                 </Box>
             </Dialog>

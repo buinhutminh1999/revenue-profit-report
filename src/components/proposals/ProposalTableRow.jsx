@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import {
     TableRow, TableCell, Chip, Typography, Stack, Box, IconButton,
-    Stepper, Step, StepLabel, Tooltip, Button, Paper, Badge
+    Stepper, Step, StepLabel, Tooltip, Button, Paper, Badge, useTheme, alpha
 } from '@mui/material';
 import {
     Edit as EditIcon, Delete as DeleteIcon,
@@ -31,6 +31,7 @@ const ProposalTableRow = React.memo(({
     onViewDetails
 }) => {
     // Cache getActiveStep để tránh tính toán lại nhiều lần
+    const theme = useTheme();
     const step = useMemo(() => getActiveStep(item), [item]);
 
     // Tính toán xem có cần highlight row không
@@ -45,7 +46,21 @@ const ProposalTableRow = React.memo(({
     const canDelete = canDoAction('delete_proposal', item);
 
     return (
-        <TableRow hover sx={{ bgcolor: isActionRequired ? '#fffde7' : 'inherit' }}>
+        <TableRow
+            hover
+            sx={{
+                bgcolor: isActionRequired ? alpha(theme.palette.warning.light, 0.1) : 'inherit',
+                '&:last-child td, &:last-child th': { border: 0 },
+                transition: 'all 0.2s',
+                '&:hover': {
+                    bgcolor: isActionRequired ? alpha(theme.palette.warning.light, 0.2) : alpha(theme.palette.primary.main, 0.04),
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                    zIndex: 1,
+                    position: 'relative'
+                }
+            }}
+        >
             {/* SC Code */}
             <TableCell align="center">
                 <Chip

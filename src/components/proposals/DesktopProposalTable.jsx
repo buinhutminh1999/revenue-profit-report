@@ -7,8 +7,19 @@ import ProposalTableRow from './ProposalTableRow';
 /**
  * HeaderCell - Styled header cell cho bảng
  */
-const HeaderCell = ({ children, width }) => (
-    <TableCell sx={{ fontWeight: 700, backgroundColor: '#f5f5f5', width: width, borderRight: '1px solid #e0e0e0' }}>
+const HeaderCell = ({ children, width, align = 'left', sx = {} }) => (
+    <TableCell
+        sx={{
+            fontWeight: 700,
+            fontSize: '0.75rem',
+            color: 'text.secondary',
+            backgroundColor: 'transparent',
+            width: width,
+            borderBottom: 'none',
+            ...sx
+        }}
+        align={align}
+    >
         {children}
     </TableCell>
 );
@@ -32,16 +43,22 @@ const DesktopProposalTable = React.memo(({
     onViewDetails
 }) => {
     return (
-        <TableContainer sx={{ maxHeight: 'calc(100vh - 200px)' }}>
-            <Table stickyHeader size="small" sx={{ minWidth: 1200 }}>
+        <TableContainer sx={{
+            maxHeight: 'calc(100vh - 200px)',
+            borderRadius: 3,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+            bgcolor: 'background.paper',
+            overflow: 'hidden' // Important for rounded corners
+        }}>
+            <Table stickyHeader size="medium" sx={{ minWidth: 1200 }}>
                 <TableHead>
                     <TableRow>
-                        <HeaderCell width={100}>Mã Phiếu</HeaderCell>
-                        <HeaderCell width={180}>Người Đề Xuất</HeaderCell>
-                        <HeaderCell width={300}>Nội Dung</HeaderCell>
-                        <HeaderCell width={250}>Thông Tin Bảo Trì</HeaderCell>
-                        <HeaderCell width={400}>Tiến Độ & Hành Động</HeaderCell>
-                        <HeaderCell width={80}>Công Cụ</HeaderCell>
+                        <HeaderCell width={100} sx={{ pl: 3, borderTopLeftRadius: 10, borderBottomLeftRadius: 10 }}>MÃ PHIẾU</HeaderCell>
+                        <HeaderCell width={180}>NGƯỜI ĐỀ XUẤT</HeaderCell>
+                        <HeaderCell width={300}>NỘI DUNG</HeaderCell>
+                        <HeaderCell width={250}>THÔNG TIN BẢO TRÌ</HeaderCell>
+                        <HeaderCell width={350}>TIẾN ĐỘ & HÀNH ĐỘNG</HeaderCell>
+                        <HeaderCell width={100} align="center" sx={{ borderTopRightRadius: 10, borderBottomRightRadius: 10 }}>CÔNG CỤ</HeaderCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>

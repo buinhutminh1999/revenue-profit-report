@@ -2,12 +2,12 @@ import React, { useState, useMemo, useRef, useCallback, useEffect, Suspense, laz
 import {
     Box, Typography, Button, Paper, Stack, Tabs, Tab, Switch, FormControlLabel,
     TextField, InputAdornment, CircularProgress, useMediaQuery, useTheme, Collapse,
-    IconButton, Fab, Zoom, useScrollTrigger, Chip
+    IconButton, Fab, Zoom, useScrollTrigger, Chip, alpha
 } from '@mui/material';
 import {
     Add as AddIcon, Build as BuildIcon, History as HistoryIcon,
     Search as SearchIcon, Loop as LoopIcon, CheckCircle as CheckCircleIcon,
-    WifiOff as WifiOffIcon
+    WifiOff as WifiOffIcon, PendingActions as PendingIcon
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -398,22 +398,51 @@ const RepairProposalPage = () => {
                     </Stack>
                 </Stack>
 
-                {/* Control Bar */}
-                <Paper sx={{ mb: isMobile ? 1 : 3 }}>
+                {/* Control Bar - Modern UI */}
+                <Paper
+                    elevation={0}
+                    sx={{
+                        mb: 3,
+                        borderRadius: 3,
+                        bgcolor: 'background.paper',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+                        overflow: 'hidden'
+                    }}
+                >
                     <Stack
                         direction={isMobile ? "column" : "row"}
                         justifyContent="space-between"
-                        alignItems={isMobile ? "stretch" : "center"}
-                        spacing={isMobile ? 1 : 0}
-                        sx={{ px: 2, py: 1 }}
+                        alignItems="center"
+                        sx={{ px: 1, py: 1 }}
                     >
-                        {/* Tabs: Processing vs History */}
+                        {/* Modern Tabs */}
                         <Tabs
                             value={tabIndex}
                             onChange={(e, v) => setTabIndex(v)}
                             variant={isMobile ? "fullWidth" : "standard"}
-                            textColor="primary"
-                            indicatorColor="primary"
+                            sx={{
+                                '& .MuiTab-root': {
+                                    textTransform: 'none',
+                                    fontWeight: 600,
+                                    fontSize: '0.95rem',
+                                    minHeight: 48,
+                                    px: 3,
+                                    borderRadius: 2,
+                                    transition: 'all 0.2s',
+                                    '&.Mui-selected': {
+                                        color: 'primary.main',
+                                        bgcolor: alpha(theme.palette.primary.main, 0.08)
+                                    },
+                                    '&:hover:not(.Mui-selected)': {
+                                        bgcolor: alpha(theme.palette.text.primary, 0.04)
+                                    }
+                                },
+                                '& .MuiTabs-indicator': {
+                                    height: 3,
+                                    borderTopLeftRadius: 3,
+                                    borderTopRightRadius: 3
+                                }
+                            }}
                         >
                             <Tab label="Đang Xử Lý" icon={<BuildIcon fontSize="small" />} iconPosition="start" />
                             <Tab label="Lịch Sử" icon={<HistoryIcon fontSize="small" />} iconPosition="start" />
@@ -421,7 +450,7 @@ const RepairProposalPage = () => {
 
                         {/* Filters Row - Desktop Only */}
                         {!isMobile && (
-                            <Stack direction="row" spacing={2} alignItems="center">
+                            <Stack direction="row" spacing={2} alignItems="center" px={2}>
                                 <FormControlLabel
                                     control={
                                         <Switch
@@ -434,49 +463,76 @@ const RepairProposalPage = () => {
                                     label={
                                         <Typography
                                             variant="body2"
-                                            fontWeight="bold"
-                                            color={myActionCount > 0 ? "error.main" : "text.primary"}
-                                            sx={myActionCount > 0 ? {
-                                                animation: 'pulseText 1.5s infinite',
-                                                '@keyframes pulseText': {
-                                                    '0%': { color: theme.palette.error.main },
-                                                    '50%': { color: theme.palette.warning.main },
-                                                    '100%': { color: theme.palette.error.main },
-                                                }
-                                            } : {}}
+                                            fontWeight="600"
+                                            color={myActionCount > 0 ? "error.main" : "text.secondary"}
+                                            sx={{
+                                                display: 'flex', alignItems: 'center', gap: 0.5,
+                                                ...(myActionCount > 0 && {
+                                                    textShadow: '0 0 10px rgba(211, 47, 47, 0.3)'
+                                                })
+                                            }}
                                         >
+                                            {myActionCount > 0 && <PendingIcon fontSize="small" />}
                                             Cần xử lý ({myActionCount})
                                         </Typography>
                                     }
                                 />
-                                <TextField
-                                    size="small"
-                                    placeholder="Tìm kiếm..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    InputProps={{
-                                        startAdornment: <InputAdornment position="start">🔍</InputAdornment>,
-                                    }}
-                                    sx={{ width: 220 }}
-                                />
+
+                                {/* Modern Search Bar */}
+                                <Box sx={{
+                                    position: 'relative',
+                                    bgcolor: alpha(theme.palette.common.black, 0.04),
+                                    borderRadius: 3,
+                                    '&:hover': { bgcolor: alpha(theme.palette.common.black, 0.06) },
+                                    transition: 'all 0.2s',
+                                    width: 280
+                                }}>
+                                    <Box sx={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'text.disabled', display: 'flex' }}>
+                                        <SearchIcon fontSize="small" />
+                                    </Box>
+                                    <input
+                                        style={{
+                                            width: '100%',
+                                            border: 'none',
+                                            padding: '10px 12px 10px 40px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.875rem',
+                                            backgroundColor: 'transparent',
+                                            outline: 'none',
+                                            color: theme.palette.text.primary,
+                                            fontWeight: 500
+                                        }}
+                                        placeholder="Tìm kiếm phiếu..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </Box>
                             </Stack>
                         )}
 
                         {/* Mobile: Compact Search */}
                         {isMobile && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: '#f5f5f5', borderRadius: 2, px: 2, py: 1 }}>
-                                <SearchIcon color="action" fontSize="small" sx={{ mr: 1 }} />
-                                <input
-                                    style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem' }}
-                                    placeholder="Tìm tên, mã, nội dung..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                                {searchTerm && (
-                                    <IconButton size="small" onClick={() => setSearchTerm('')} sx={{ p: 0.5 }}>
-                                        <SearchIcon fontSize="small" sx={{ transform: 'rotate(45deg)' }} />
-                                    </IconButton>
-                                )}
+                            <Box sx={{ width: '100%', px: 1, py: 1 }}>
+                                <Box sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    bgcolor: alpha(theme.palette.common.black, 0.05),
+                                    borderRadius: 3,
+                                    px: 2, py: 1
+                                }}>
+                                    <SearchIcon color="action" fontSize="small" sx={{ mr: 1 }} />
+                                    <input
+                                        style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: '0.9rem' }}
+                                        placeholder="Tìm tên, mã, nội dung..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                    {searchTerm && (
+                                        <IconButton size="small" onClick={() => setSearchTerm('')} sx={{ p: 0.5 }}>
+                                            <SearchIcon fontSize="small" sx={{ transform: 'rotate(45deg)' }} />
+                                        </IconButton>
+                                    )}
+                                </Box>
                             </Box>
                         )}
                     </Stack>
