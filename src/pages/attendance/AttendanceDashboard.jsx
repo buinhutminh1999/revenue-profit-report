@@ -35,9 +35,10 @@ import { startOfDay, endOfDay } from "date-fns";
 import {
     Print, Search, Clear, CloudUpload,
     AccessTime, People, TrendingUp, CalendarToday,
-    FilterList, Refresh
+    FilterList, Refresh, Warning, Build
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
+import { useAuth } from "../../contexts/AuthContext";
 
 import FileUpload from "../../components/common/FileUpload";
 import DepartmentFilter from "../../components/common/DepartmentFilter";
@@ -122,6 +123,7 @@ const companyOptions = [
 export default function AttendanceDashboard() {
     const theme = useTheme();
     const isMobile = useMediaQuery("(max-width:600px)");
+    const { currentUser } = useAuth();
     const [rows, setRows] = useState([]);
     const [depts, setDepts] = useState([]);
     const [dept, setDept] = useState("all");
@@ -137,6 +139,9 @@ export default function AttendanceDashboard() {
     const [isUploading, setIsUploading] = useState(false);
 
     const Picker = isMobile ? MobileDatePicker : DatePicker;
+
+    // Kiểm tra email để hiển thị trang bảo trì
+    const isMaintenanceUser = currentUser?.email === "phuongma1972@gmail.com";
 
     const loadAttendanceData = useCallback(async () => {
         setIsLoading(true);
@@ -339,6 +344,100 @@ export default function AttendanceDashboard() {
             <Typography sx={{ color: 'text.secondary' }}>Đang tải dữ liệu chấm công...</Typography>
         </Box>
     );
+
+    // Hiển thị trang bảo trì cho user cụ thể
+    if (isMaintenanceUser) {
+        return (
+            <Box sx={{
+                minHeight: '100vh',
+                background: `linear-gradient(135deg, ${theme.palette.warning.dark} 0%, ${theme.palette.warning.main} 50%, ${theme.palette.warning.light} 100%)`,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                p: 3,
+                position: 'relative',
+                overflow: 'hidden'
+            }}>
+                {/* Decorative Circles */}
+                <Box sx={{ position: 'absolute', top: -100, right: -100, width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%)' }} />
+                <Box sx={{ position: 'absolute', bottom: -80, left: -80, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)' }} />
+
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.6, ease: "easeOut" }}
+                >
+                    <Paper
+                        elevation={24}
+                        sx={{
+                            p: { xs: 4, md: 6 },
+                            borderRadius: 4,
+                            textAlign: 'center',
+                            maxWidth: 500,
+                            bgcolor: 'rgba(255, 255, 255, 0.95)',
+                            backdropFilter: 'blur(20px)',
+                            position: 'relative',
+                            zIndex: 1
+                        }}
+                    >
+                        <motion.div
+                            animate={{
+                                rotate: [0, 10, -10, 10, 0],
+                            }}
+                            transition={{
+                                duration: 2,
+                                repeat: Infinity,
+                                repeatDelay: 3
+                            }}
+                        >
+                            <Box sx={{
+                                width: 100,
+                                height: 100,
+                                borderRadius: '50%',
+                                bgcolor: alpha(theme.palette.warning.main, 0.15),
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                mx: 'auto',
+                                mb: 3
+                            }}>
+                                <Build sx={{ fontSize: 50, color: theme.palette.warning.main }} />
+                            </Box>
+                        </motion.div>
+
+                        <Typography variant="h4" fontWeight={800} gutterBottom sx={{ color: theme.palette.grey[800] }}>
+                            🚧 Đang Bảo Trì
+                        </Typography>
+
+                        <Typography variant="h6" sx={{ color: theme.palette.warning.dark, mb: 2, fontWeight: 600 }}>
+                            Tính năng đang trong thời gian phát triển
+                        </Typography>
+
+                        <Divider sx={{ my: 3 }} />
+
+                        <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ mb: 2 }}>
+                            <Warning sx={{ color: theme.palette.warning.main }} />
+                            <Typography variant="body1" color="text.secondary">
+                                Chúng tôi đang nâng cấp hệ thống
+                            </Typography>
+                        </Stack>
+
+                        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.8 }}>
+                            Trang Quản lý Chấm công đang được cập nhật với nhiều tính năng mới.
+                            Vui lòng quay lại sau. Xin cảm ơn sự thông cảm của bạn!
+                        </Typography>
+
+                        <Box sx={{ mt: 4, p: 2, bgcolor: alpha(theme.palette.info.main, 0.1), borderRadius: 2 }}>
+                            <Typography variant="caption" color="text.secondary">
+                                💡 Liên hệ Admin nếu cần hỗ trợ khẩn cấp
+                            </Typography>
+                        </Box>
+                    </Paper>
+                </motion.div>
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{

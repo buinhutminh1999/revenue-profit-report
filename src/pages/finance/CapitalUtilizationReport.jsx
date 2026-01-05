@@ -41,6 +41,7 @@ import { ErrorState, SkeletonTable, EditableCell, MultiAccountSelect } from "../
 import { useCapitalReport } from "../../hooks/useCapitalReport";
 import { useChartOfAccounts, getAccountAndAllChildren } from "../../hooks/useChartOfAccounts";
 import { useAccountBalances } from "../../hooks/useAccountBalances";
+import { useInterestExpenses } from "../../hooks/useInterestExpenses";
 import { formatCurrency } from "../../utils/numberUtils";
 
 const CapitalUtilizationReport = () => {
@@ -71,6 +72,9 @@ const CapitalUtilizationReport = () => {
     );
     const { data: chartOfAccounts, isLoading: isChartLoading } =
         useChartOfAccounts();
+
+    // Fetch interest expenses data to get allocationDauTu for allocatedProfit calculation
+    const { data: interestExpensesData, isLoading: isInterestLoading } = useInterestExpenses(year, quarter);
 
     const parentAccountsForSelection = useMemo(() => {
         if (!chartOfAccounts) return {};
@@ -140,7 +144,7 @@ const CapitalUtilizationReport = () => {
         }
     }, [year, quarter, fetchedData, fetchPreviousQuarterData]);
 
-    // Calculate cost and investmentValue from previous quarter when available
+    // Calculate cost, allocatedProfit, and investmentValue from previous quarter when available
     const calculatedInvestmentData = useMemo(() => {
         if (!reportData?.investment?.projectDetails) return null;
 
@@ -150,13 +154,14 @@ const CapitalUtilizationReport = () => {
             return reportData.investment.projectDetails;
         }
 
-        // For Q4/2025+:
-        // - Nguyên giá = Nguyên giá quý trước + Phát sinh quý trước
-        // - Lãi = Phân bổ lãi quý trước + Lãi quý trước
-        // - Giá trị đầu tư = Nguyên giá + Phát sinh + Phân bổ lãi + Lãi
-        return reportData.investment.projectDetails.map(row => {
+        // IDs for rows 1-7 (STT 1-7) - these get auto-calculated allocatedProfit
+        const autoCalcIds = [13, 14, 15, 16, 17, 18, 19]; // IDs corresponding to STT 1-7
+
+        // First pass: calculate cost, profit, and gather data for allocatedProfit calculation
+        const firstPassData = reportData.investment.projectDetails.map(row => {
             let calculatedCost = row.cost || 0;
             let calculatedProfit = row.profit || 0;
+            let prevInvestmentValue = 0;
 
             // Calculate from previous quarter if available
             if (prevQuarterInvestment) {
@@ -166,20 +171,52 @@ const CapitalUtilizationReport = () => {
                     calculatedCost = (prevRow.cost || 0) + (prevRow.accrued || 0);
                     // Lãi = Phân bổ lãi quý trước + Lãi quý trước
                     calculatedProfit = (prevRow.allocatedProfit || 0) + (prevRow.profit || 0);
+                    // Giá trị đầu tư quý trước
+                    prevInvestmentValue = prevRow.investmentValue || 0;
                 }
             }
-
-            // Calculate investmentValue = Nguyên giá + Phát sinh + Phân bổ lãi + Lãi
-            const calculatedInvestmentValue = calculatedCost + (row.accrued || 0) + (row.allocatedProfit || 0) + calculatedProfit;
 
             return {
                 ...row,
                 cost: calculatedCost,
                 profit: calculatedProfit,
+                _prevInvestmentValue: prevInvestmentValue // temporary field for calculation
+            };
+        });
+
+        // Calculate total base for allocatedProfit formula (only for rows 1-7)
+        // totalBase = sum of (prevInvestmentValue + currentAccrued) for rows 1-7
+        const totalBase = firstPassData
+            .filter(row => autoCalcIds.includes(row.id))
+            .reduce((sum, row) => sum + (row._prevInvestmentValue || 0) + (row.accrued || 0), 0);
+
+        // Get allocationDauTu (ĐẦU TƯ row's PHÂN BỔ column) from interest-expenses page
+        // This is the total profit to be allocated from /interest-expenses
+        const allocationDauTu = interestExpensesData?.allocationDauTu || 0;
+
+        // Second pass: calculate allocatedProfit and investmentValue
+        return firstPassData.map(row => {
+            let calculatedAllocatedProfit = row.allocatedProfit || 0;
+
+            // Auto-calculate allocatedProfit for rows 1-7 (ids 13-19)
+            // Formula: (Giá trị đầu tư quý trước + Phát sinh quý này) × allocationDauTu / totalBase
+            if (autoCalcIds.includes(row.id) && totalBase > 0) {
+                const rowBase = (row._prevInvestmentValue || 0) + (row.accrued || 0);
+                calculatedAllocatedProfit = (rowBase * allocationDauTu) / totalBase;
+            }
+
+            // Calculate investmentValue = Nguyên giá + Phát sinh + Phân bổ lãi + Lãi
+            const calculatedInvestmentValue = row.cost + (row.accrued || 0) + calculatedAllocatedProfit + row.profit;
+
+            // Remove temporary field and return final data
+            const { _prevInvestmentValue, ...restRow } = row;
+            return {
+                ...restRow,
+                allocatedProfit: calculatedAllocatedProfit,
                 investmentValue: calculatedInvestmentValue
             };
         });
-    }, [reportData, prevQuarterInvestment, year, quarter]);
+    }, [reportData, prevQuarterInvestment, year, quarter, interestExpensesData]);
 
     const debouncedSave = useMemo(
         () =>
@@ -229,16 +266,18 @@ const CapitalUtilizationReport = () => {
                 dataToSave.investmentTotalRemaining = totalInvestmentRemaining;
 
                 // IMPORTANT: Save calculated values if using auto-calculation (Q4/2025+)
-                // This ensures the next quarter can correctly use this quarter's cost + accrued
-                if (calculatedInvestmentData) {
+                // This ensures the next quarter can correctly use this quarter's cost + accrued + allocatedProfit
+                const shouldCalculateFromPrev = year > 2025 || (year === 2025 && quarter >= 4);
+                if (shouldCalculateFromPrev && calculatedInvestmentData) {
                     dataToSave.investment.projectDetails = dataToSave.investment.projectDetails.map(row => {
                         const calcRow = calculatedInvestmentData.find(c => c.id === row.id);
                         if (calcRow) {
                             return {
                                 ...row,
-                                cost: calcRow.cost,
-                                profit: calcRow.profit,
-                                investmentValue: calcRow.investmentValue
+                                cost: calcRow.cost ?? row.cost ?? 0,
+                                profit: calcRow.profit ?? row.profit ?? 0,
+                                allocatedProfit: calcRow.allocatedProfit ?? row.allocatedProfit ?? 0,
+                                investmentValue: calcRow.investmentValue ?? row.investmentValue ?? 0
                             };
                         }
                         return row;
@@ -408,7 +447,7 @@ const CapitalUtilizationReport = () => {
     // Check if should show new columns (Q3/2025 onwards)
     const showNewInvestmentColumns = year > 2025 || (year === 2025 && quarter >= 3);
 
-    if (isReportLoading || isBalancesLoading || isChartLoading || !reportData) {
+    if (isReportLoading || isBalancesLoading || isChartLoading || isInterestLoading || !reportData) {
         return (
             <Container sx={{ py: 3 }}>
                 <Paper elevation={0} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 3 }}>
@@ -863,7 +902,14 @@ const CapitalUtilizationReport = () => {
                                                     <EditableCell value={row.accrued} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "accrued", v)} />
                                                 </TableCell>
                                                 <TableCell align="right">
-                                                    <EditableCell value={row.allocatedProfit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "allocatedProfit", v)} />
+                                                    {/* Auto-calculate allocatedProfit for rows 1-7 (ids 13-19) when Q4/2025+ */}
+                                                    {shouldCalculateFromPrev && [13, 14, 15, 16, 17, 18, 19].includes(row.id) ? (
+                                                        <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                                                            {formatCurrency(row.allocatedProfit)}
+                                                        </Typography>
+                                                    ) : (
+                                                        <EditableCell value={row.allocatedProfit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "allocatedProfit", v)} />
+                                                    )}
                                                 </TableCell>
                                             </>
                                         )}
