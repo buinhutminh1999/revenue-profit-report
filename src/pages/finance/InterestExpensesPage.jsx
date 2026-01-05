@@ -280,11 +280,11 @@ const InterestExpensesPage = () => {
     const totalActual = planValues.thiCongActual + planValues.nhaMayActual + planValues.dauTuActual;
 
     const row1Allocation =
-        totalActual > 0 ? (planValues.thiCongActual / totalActual) * totalAllocationInput : 0;
+        totalPlan > 0 ? (planValues.thiCong / totalPlan) * totalAllocationInput : 0;
     const row2Allocation =
-        totalActual > 0 ? (planValues.nhaMayActual / totalActual) * totalAllocationInput : 0;
+        totalPlan > 0 ? (row2Plan / totalPlan) * totalAllocationInput : 0;
     const row3Allocation =
-        totalActual > 0 ? (planValues.dauTuActual / totalActual) * totalAllocationInput : 0;
+        totalPlan > 0 ? (row3Plan / totalPlan) * totalAllocationInput : 0;
 
     const handleSave = () => {
         saveReport({

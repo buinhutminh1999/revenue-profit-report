@@ -154,8 +154,8 @@ const CapitalUtilizationReport = () => {
             return reportData.investment.projectDetails;
         }
 
-        // IDs for rows 1-7 (STT 1-7) - these get auto-calculated allocatedProfit
-        const autoCalcIds = [13, 14, 15, 16, 17, 18, 19]; // IDs corresponding to STT 1-7
+        // IDs for rows 1-6 (STT 1-6) - these get auto-calculated allocatedProfit
+        const autoCalcIds = [13, 14, 15, 16, 17, 18]; // IDs corresponding to STT 1-6
 
         // First pass: calculate cost, profit, and gather data for allocatedProfit calculation
         const firstPassData = reportData.investment.projectDetails.map(row => {
@@ -268,6 +268,7 @@ const CapitalUtilizationReport = () => {
                 // IMPORTANT: Save calculated values if using auto-calculation (Q4/2025+)
                 // This ensures the next quarter can correctly use this quarter's cost + accrued + allocatedProfit
                 const shouldCalculateFromPrev = year > 2025 || (year === 2025 && quarter >= 4);
+                const autoCalcIds = [13, 14, 15, 16, 17, 18]; // IDs for STT 1-6 - only these get auto-calculated allocatedProfit
                 if (shouldCalculateFromPrev && calculatedInvestmentData) {
                     dataToSave.investment.projectDetails = dataToSave.investment.projectDetails.map(row => {
                         const calcRow = calculatedInvestmentData.find(c => c.id === row.id);
@@ -276,7 +277,8 @@ const CapitalUtilizationReport = () => {
                                 ...row,
                                 cost: calcRow.cost ?? row.cost ?? 0,
                                 profit: calcRow.profit ?? row.profit ?? 0,
-                                allocatedProfit: calcRow.allocatedProfit ?? row.allocatedProfit ?? 0,
+                                // Only use calculated allocatedProfit for auto-calc rows (STT 1-6), keep manual input for others
+                                allocatedProfit: autoCalcIds.includes(row.id) ? (calcRow.allocatedProfit ?? row.allocatedProfit ?? 0) : (row.allocatedProfit ?? 0),
                                 investmentValue: calcRow.investmentValue ?? row.investmentValue ?? 0
                             };
                         }
@@ -902,8 +904,8 @@ const CapitalUtilizationReport = () => {
                                                     <EditableCell value={row.accrued} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "accrued", v)} />
                                                 </TableCell>
                                                 <TableCell align="right">
-                                                    {/* Auto-calculate allocatedProfit for rows 1-7 (ids 13-19) when Q4/2025+ */}
-                                                    {shouldCalculateFromPrev && [13, 14, 15, 16, 17, 18, 19].includes(row.id) ? (
+                                                    {/* Auto-calculate allocatedProfit for rows 1-6 (ids 13-18) when Q4/2025+ */}
+                                                    {shouldCalculateFromPrev && [13, 14, 15, 16, 17, 18].includes(row.id) ? (
                                                         <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
                                                             {formatCurrency(row.allocatedProfit)}
                                                         </Typography>
