@@ -268,11 +268,13 @@ export default function CostAllocation() {
 
             // Find all table rows in the selection
             const rows = container.querySelectorAll('tr');
+            // Also find direct cells (for partial row selections)
+            const directCells = container.querySelectorAll('td, th');
 
             let tsvData = '';
 
             if (rows.length > 0) {
-                // Process as table data
+                // Process as table data with proper rows
                 rows.forEach((row, rowIndex) => {
                     const cells = row.querySelectorAll('td, th');
                     const cellTexts = Array.from(cells).map(cell => {
@@ -284,6 +286,14 @@ export default function CostAllocation() {
                     tsvData += cellTexts.join('\t');
                     if (rowIndex < rows.length - 1) tsvData += '\n';
                 });
+            } else if (directCells.length > 0) {
+                // Cells found without proper row wrapper (partial selection)
+                const cellTexts = Array.from(directCells).map(cell => {
+                    let text = cell.textContent.trim();
+                    text = text.replace(/(\d),(\d)/g, '$1.$2');
+                    return text;
+                });
+                tsvData = cellTexts.join('\t');
             } else {
                 // Fallback: plain text with comma-to-dot replacement
                 let text = selection.toString();
