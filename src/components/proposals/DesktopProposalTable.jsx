@@ -1,8 +1,22 @@
 import React from 'react';
 import {
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, Box, keyframes
 } from '@mui/material';
 import ProposalTableRow from './ProposalTableRow';
+import ProposalTableSkeleton from './ProposalTableSkeleton';
+import EmptyProposalState from './EmptyProposalState';
+
+// Define keyframes for slide-in animation
+const slideIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`;
 
 /**
  * HeaderCell - Styled header cell cho bảng
@@ -30,6 +44,7 @@ const HeaderCell = ({ children, width, align = 'left', sx = {} }) => (
  */
 const DesktopProposalTable = React.memo(({
     filteredProposals,
+    isLoading,
     canDoAction,
     setActionDialog,
     setEditData,
@@ -40,7 +55,8 @@ const DesktopProposalTable = React.memo(({
     isMaintenance,
     isViceDirector,
     setCommentDialog,
-    onViewDetails
+    onViewDetails,
+    onAdd // Passed for EmptyState
 }) => {
     return (
         <TableContainer sx={{
@@ -48,7 +64,22 @@ const DesktopProposalTable = React.memo(({
             borderRadius: 3,
             boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
             bgcolor: 'background.paper',
-            overflow: 'hidden' // Important for rounded corners
+            overflow: 'auto', // Changed to auto to allow scrolling
+            '&::-webkit-scrollbar': {
+                width: '8px',
+                height: '8px',
+            },
+            '&::-webkit-scrollbar-track': {
+                background: '#f1f1f1',
+                borderRadius: '4px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+                background: '#c1c1c1',
+                borderRadius: '4px',
+                '&:hover': {
+                    background: '#a8a8a8',
+                },
+            },
         }}>
             <Table stickyHeader size="medium" sx={{ minWidth: 1200 }}>
                 <TableHead>
@@ -62,27 +93,36 @@ const DesktopProposalTable = React.memo(({
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {filteredProposals.map((item) => (
-                        <ProposalTableRow
-                            key={item.id}
-                            item={item}
-                            canDoAction={canDoAction}
-                            setActionDialog={setActionDialog}
-                            setEditData={setEditData}
-                            setDialogOpen={setDialogOpen}
-                            setPreviewImage={setPreviewImage}
-                            user={user}
-                            userEmail={userEmail}
-                            isMaintenance={isMaintenance}
-                            isViceDirector={isViceDirector}
-                            setCommentDialog={setCommentDialog}
-                            onViewDetails={onViewDetails}
-                        />
-                    ))}
-                    {filteredProposals.length === 0 && (
+                    {isLoading ? (
+                        <ProposalTableSkeleton />
+                    ) : filteredProposals.length > 0 ? (
+                        filteredProposals.map((item, index) => (
+                            <Box
+                                component={ProposalTableRow}
+                                key={item.id}
+                                item={item}
+                                canDoAction={canDoAction}
+                                setActionDialog={setActionDialog}
+                                setEditData={setEditData}
+                                setDialogOpen={setDialogOpen}
+                                setPreviewImage={setPreviewImage}
+                                user={user}
+                                userEmail={userEmail}
+                                isMaintenance={isMaintenance}
+                                isViceDirector={isViceDirector}
+                                setCommentDialog={setCommentDialog}
+                                onViewDetails={onViewDetails}
+                                sx={{
+                                    animation: `${slideIn} 0.3s ease-out forwards`,
+                                    animationDelay: `${index * 0.05}s`, // Staggered animation
+                                    opacity: 0 // Initial state handled by animation
+                                }}
+                            />
+                        ))
+                    ) : (
                         <TableRow>
-                            <TableCell colSpan={10} align="center" sx={{ py: 3 }}>
-                                <Typography color="text.secondary">Chưa có dữ liệu</Typography>
+                            <TableCell colSpan={6} sx={{ borderBottom: 'none', py: 0 }}>
+                                <EmptyProposalState onAdd={onAdd} />
                             </TableCell>
                         </TableRow>
                     )}

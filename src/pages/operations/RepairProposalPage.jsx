@@ -479,34 +479,51 @@ const RepairProposalPage = () => {
                                 />
 
                                 {/* Modern Search Bar */}
-                                <Box sx={{
-                                    position: 'relative',
-                                    bgcolor: alpha(theme.palette.common.black, 0.04),
-                                    borderRadius: 3,
-                                    '&:hover': { bgcolor: alpha(theme.palette.common.black, 0.06) },
-                                    transition: 'all 0.2s',
-                                    width: 280
-                                }}>
-                                    <Box sx={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'text.disabled', display: 'flex' }}>
-                                        <SearchIcon fontSize="small" />
-                                    </Box>
+                                {/* Search Bar - Glassmorphism */}
+                                <Paper
+                                    component="form"
+                                    sx={{
+                                        p: '2px 4px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        width: 300,
+                                        bgcolor: alpha(theme.palette.background.paper, 0.6),
+                                        backdropFilter: 'blur(8px)',
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        borderRadius: 3,
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                                        transition: 'all 0.3s',
+                                        '&:hover, &:focus-within': {
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                            borderColor: 'primary.main',
+                                            bgcolor: theme.palette.background.paper
+                                        }
+                                    }}
+                                >
+                                    <IconButton sx={{ p: '10px' }} aria-label="search">
+                                        <SearchIcon />
+                                    </IconButton>
                                     <input
                                         style={{
-                                            width: '100%',
                                             border: 'none',
-                                            padding: '10px 12px 10px 40px',
-                                            borderRadius: '12px',
-                                            fontSize: '0.875rem',
-                                            backgroundColor: 'transparent',
                                             outline: 'none',
+                                            flex: 1,
+                                            background: 'transparent',
+                                            fontSize: '0.9rem',
                                             color: theme.palette.text.primary,
-                                            fontWeight: 500
+                                            padding: '8px 0'
                                         }}
                                         placeholder="Tìm kiếm phiếu..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
-                                </Box>
+                                    {searchTerm && (
+                                        <IconButton sx={{ p: '10px' }} aria-label="clear" onClick={() => setSearchTerm('')}>
+                                            <SearchIcon sx={{ transform: 'rotate(45deg)' }} />
+                                        </IconButton>
+                                    )}
+                                </Paper>
                             </Stack>
                         )}
 
@@ -649,6 +666,7 @@ const RepairProposalPage = () => {
                 ) : (
                     <DesktopProposalTable
                         filteredProposals={filteredProposals}
+                        isLoading={isLoading}
                         canDoAction={canDoAction}
                         setActionDialog={setActionDialog}
                         setEditData={setEditData}
@@ -658,6 +676,9 @@ const RepairProposalPage = () => {
                         isViceDirector={isViceDirector}
                         setCommentDialog={setCommentDialog}
                         onViewDetails={handleViewDetails}
+                        onAdd={handleOpenAdd}
+                        user={user}
+                        userEmail={userEmail}
                     />
                 )}
 

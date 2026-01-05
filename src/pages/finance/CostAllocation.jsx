@@ -255,6 +255,49 @@ export default function CostAllocation() {
         setSnack({ open: true, msg, sev });
     }, []);
 
+    // Copy event handler: Convert to TSV format with dot separators for Excel
+    useEffect(() => {
+        const handleCopy = (e) => {
+            const selection = window.getSelection();
+            if (!selection || selection.rangeCount === 0) return;
+
+            // Get the selected range and clone its contents
+            const range = selection.getRangeAt(0);
+            const container = document.createElement('div');
+            container.appendChild(range.cloneContents());
+
+            // Find all table rows in the selection
+            const rows = container.querySelectorAll('tr');
+
+            let tsvData = '';
+
+            if (rows.length > 0) {
+                // Process as table data
+                rows.forEach((row, rowIndex) => {
+                    const cells = row.querySelectorAll('td, th');
+                    const cellTexts = Array.from(cells).map(cell => {
+                        let text = cell.textContent.trim();
+                        // Replace commas with dots in numbers
+                        text = text.replace(/(\d),(\d)/g, '$1.$2');
+                        return text;
+                    });
+                    tsvData += cellTexts.join('\t');
+                    if (rowIndex < rows.length - 1) tsvData += '\n';
+                });
+            } else {
+                // Fallback: plain text with comma-to-dot replacement
+                let text = selection.toString();
+                tsvData = text.replace(/(\d),(\d)/g, '$1.$2');
+            }
+
+            e.clipboardData.setData('text/plain', tsvData);
+            e.preventDefault();
+        };
+
+        document.addEventListener('copy', handleCopy);
+        return () => document.removeEventListener('copy', handleCopy);
+    }, []);
+
     // ...
     useEffect(() => {
         const q = query(collection(db, "categories"), orderBy("order", "asc"));

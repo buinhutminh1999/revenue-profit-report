@@ -1,46 +1,131 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions,
     Button, Box, Typography, Stepper, Step, StepLabel,
-    Chip, Divider, Grid, Paper, IconButton, Stack, useTheme, useMediaQuery
+    Chip, Divider, Grid, Paper, IconButton, Stack, useTheme, useMediaQuery, alpha,
+    Avatar, Slide
 } from '@mui/material';
 import {
     Close as CloseIcon,
     CheckCircle as CheckCircleIcon,
     Error as ErrorIcon,
     History as HistoryIcon,
+    Person as PersonIcon,
+    Build as BuildIcon,
+    Description as DescriptionIcon,
+    Timeline as TimelineIcon,
     Image as ImageIcon
 } from '@mui/icons-material';
+import {
+    Timeline, TimelineItem, TimelineSeparator, TimelineConnector,
+    TimelineContent, TimelineDot, TimelineOppositeContent
+} from '@mui/lab';
 import { formatDateSafe, getActiveStep, STEPS } from '../../utils/proposalUtils';
 import { QontoConnector, QontoStepIcon } from '../proposals/QontoStepper';
 
+// Transition for Dialog
+const Transition = React.forwardRef(function Transition(props, ref) {
+    return <Slide direction="up" ref={ref} {...props} />;
+});
 
+// Helper to get status color for header
+const getStatusColor = (status, theme) => {
+    switch (status) {
+        case 'completed': return theme.palette.success.main;
+        case 'rejected': return theme.palette.error.main;
+        case 'maintenance': return theme.palette.warning.main;
+        case 'processing': return theme.palette.info.main;
+        default: return theme.palette.primary.main;
+    }
+};
+
+const InfoCard = ({ title, icon, children, sx = {} }) => (
+    <Paper
+        elevation={0}
+        variant="outlined"
+        sx={{
+            p: 2,
+            height: '100%',
+            borderRadius: 3,
+            bgcolor: 'background.paper',
+            borderColor: 'divider',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+                borderColor: 'primary.main',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+            },
+            ...sx
+        }}
+    >
+        <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
+            <Avatar
+                sx={{
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                    color: 'primary.main',
+                    width: 32, height: 32
+                }}
+            >
+                {icon}
+            </Avatar>
+            <Typography variant="subtitle2" fontWeight={700} textTransform="uppercase" letterSpacing={0.5}>
+                {title}
+            </Typography>
+        </Stack>
+        {children}
+    </Paper>
+);
 
 const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage }) => {
     // IMPORTANT: Hooks must be called unconditionally BEFORE any early returns
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
+    // Memoize status for header color
+    const { activeStep, headerColor, headerIcon } = useMemo(() => {
+        if (!proposal) return { activeStep: 0, headerColor: theme.palette.primary.main, headerIcon: <DescriptionIcon /> };
+
+        const step = getActiveStep(proposal);
+        let color = theme.palette.primary.main;
+        let icon = <DescriptionIcon />;
+
+        if (proposal.approval?.status === 'rejected') {
+            color = theme.palette.error.main;
+            icon = <ErrorIcon />;
+        } else if (step === 6) { // Completed
+            color = theme.palette.success.main;
+            icon = <CheckCircleIcon />;
+        } else if (step === 3 || step === 4) { // Maintenance
+            color = theme.palette.warning.main;
+            icon = <BuildIcon />;
+        } else {
+            color = theme.palette.info.main;
+        }
+
+        return { activeStep: step, headerColor: color, headerIcon: icon };
+    }, [proposal, theme]);
+
     // Early return AFTER hooks
     if (!proposal) return null;
-
-    const activeStep = getActiveStep(proposal);
 
     const renderImages = (images, title) => {
         if (!images || images.length === 0) return null;
         return (
             <Box sx={{ mt: 2 }}>
-                <Typography variant="subtitle2" gutterBottom>{title}</Typography>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'text.secondary' }}>
+                    {title}
+                </Typography>
                 <Grid container spacing={1}>
                     {images.map((img, index) => (
-                        <Grid size={{ xs: 4, sm: 3 }} key={index}>
+                        <Grid item xs={4} sm={3} key={index}>
                             <Box
                                 component="img"
                                 src={img}
                                 alt={`${title} ${index + 1}`}
                                 sx={{
-                                    width: '100%', height: 80, objectFit: 'cover', borderRadius: 1,
-                                    cursor: 'pointer', border: '1px solid #ddd'
+                                    width: '100%', height: 70, objectFit: 'cover', borderRadius: 2,
+                                    cursor: 'pointer', border: '1px solid #eee',
+                                    transition: 'transform 0.2s',
+                                    '&:hover': { transform: 'scale(1.05)', boxShadow: 2 }
                                 }}
                                 onClick={() => setPreviewImage(img)}
                             />
@@ -51,28 +136,51 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage }) => {
         );
     };
 
-
     return (
         <Dialog
             open={open}
+            TransitionComponent={Transition}
             onClose={onClose}
             maxWidth="md"
             fullWidth
             scroll="paper"
             fullScreen={isMobile}
-
+            PaperProps={{
+                sx: { borderRadius: isMobile ? 0 : 3, overflow: 'hidden' }
+            }}
         >
-            <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="h6" component="div">
-                    Chi Tiết Đề Xuất #{proposal.code}
-                </Typography>
-                <IconButton onClick={onClose} size="small">
+            {/* Status-Aware Header */}
+            <DialogTitle
+                sx={{
+                    bgcolor: headerColor,
+                    color: '#fff',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    py: 2, px: 3
+                }}
+            >
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }}>
+                        {headerIcon}
+                    </Avatar>
+                    <Box>
+                        <Typography variant="h6" fontWeight={700} lineHeight={1.2}>
+                            Đề Xuất #{proposal.code}
+                        </Typography>
+                        <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                            {STEPS[activeStep - 1]?.label || 'Hoàn tất'}
+                        </Typography>
+                    </Box>
+                </Stack>
+                <IconButton onClick={onClose} size="small" sx={{ color: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}>
                     <CloseIcon />
                 </IconButton>
             </DialogTitle>
-            <DialogContent dividers>
-                {/* 1. Progress Stepper */}
-                <Box sx={{ mb: 4, mt: 1 }}>
+
+            <DialogContent dividers sx={{ bgcolor: '#f8f9fa', p: 0 }}>
+                {/* 1. Progress Stepper (Styled with improved spacing) */}
+                <Box sx={{ bgcolor: '#fff', py: 4, px: 2, mb: 3, boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
                     <Stepper alternativeLabel activeStep={activeStep - 1} connector={<QontoConnector />}>
                         {STEPS.map((step, index) => (
                             <Step key={step.label} completed={activeStep > index + 1 || (activeStep === 6 && index === 5)}>
@@ -82,302 +190,299 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage }) => {
                     </Stepper>
                 </Box>
 
-                {/* 2. Basic Info */}
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                        <Typography variant="subtitle2" color="text.secondary">Người đề xuất</Typography>
-                        <Typography variant="body1" fontWeight={500}>
-                            {proposal.proposer} <Typography component="span" variant="caption">({proposal.department})</Typography>
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                            {formatDateSafe(proposal.proposalTime)}
-                        </Typography>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                        <Typography variant="subtitle2" color="text.secondary">Trạng thái hiện tại</Typography>
-                        <Chip
-                            label={STEPS[activeStep - 1]?.label || 'Hoàn tất'}
-                            color={activeStep === 5 ? 'success' : 'primary'}
-                            size="small"
-                            sx={{ fontWeight: 'bold' }}
-                        />
-                    </Grid>
-                    <Grid size={{ xs: 12 }}>
-                        <Typography variant="subtitle2" color="text.secondary">Nội dung đề xuất</Typography>
-                        <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f9fafb' }}>
-                            <Typography variant="body1">{proposal.content}</Typography>
-                            {/* Initial Proposal Images */}
-                            {renderImages(proposal.images, "📸 Ảnh hiện trường:")}
+                <Box sx={{ px: 3, pb: 4 }}>
+                    {/* Alerts (Rejection/Rework) - Restored */}
+                    {proposal.lastRejection && !proposal.approval && (
+                        <Paper sx={{ p: 2, mb: 3, bgcolor: '#ffebee', border: '1px solid #ef5350' }}>
+                            <Stack direction="row" spacing={2} alignItems="flex-start">
+                                <ErrorIcon color="error" />
+                                <Box>
+                                    <Typography variant="subtitle2" color="error" fontWeight="bold">
+                                        Đã bị từ chối
+                                    </Typography>
+                                    <Typography variant="body2" gutterBottom>{proposal.lastRejection.comment}</Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {formatDateSafe(proposal.lastRejection.time)} bởi {proposal.lastRejection.user}
+                                    </Typography>
+                                </Box>
+                            </Stack>
                         </Paper>
-                    </Grid>
-                </Grid>
+                    )}
 
-                <Divider sx={{ my: 2 }} />
-
-                {/* 3. Maintenance Info */}
-                {proposal.maintenanceOpinion && (
-                    <Box sx={{ mb: 3 }}>
-                        <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            🛠️ Thông Tin Bảo Trì
-                        </Typography>
-                        <Paper variant="outlined" sx={{ p: 2 }}>
-                            <Typography variant="body2" gutterBottom>
-                                <strong>Phương án:</strong> {proposal.maintenanceOpinion}
-                            </Typography>
-                            {proposal.estimatedCompletion && (
-                                <Typography variant="body2" color="primary" fontWeight={500}>
-                                    ⏱️ Dự kiến xong: {formatDateSafe(proposal.estimatedCompletion)}
-                                </Typography>
-                            )}
-                            {/* Maintenance Images */}
-                            {renderImages(proposal.confirmations?.maintenance?.images || proposal.lastReworkRequest?.maintenanceImages, "Ảnh bảo trì:")}
+                    {proposal.lastReworkRequest && (
+                        <Paper sx={{ p: 2, mb: 3, bgcolor: '#fff3e0', border: '1px solid #ff9800' }}>
+                            <Stack direction="row" spacing={2} alignItems="flex-start">
+                                <HistoryIcon color="warning" />
+                                <Box>
+                                    <Typography variant="subtitle2" color="warning.main" fontWeight="bold">
+                                        Yêu cầu làm lại
+                                    </Typography>
+                                    <Typography variant="body2" gutterBottom>{proposal.lastReworkRequest.comment}</Typography>
+                                    <Typography variant="caption" display="block" color="text.secondary" fontWeight="bold">
+                                        Thời gian: {formatDateSafe(proposal.lastReworkRequest.time)}
+                                    </Typography>
+                                    <Typography variant="caption" display="block" color="text.secondary">
+                                        Bởi: {proposal.lastReworkRequest.user}
+                                    </Typography>
+                                    {/* Evidence Images for Rework */}
+                                    {renderImages(proposal.lastReworkRequest.images, "Ảnh minh chứng yêu cầu làm lại:")}
+                                </Box>
+                            </Stack>
                         </Paper>
-                    </Box>
-                )}
+                    )}
 
-                {/* 4. Alerts (Rejection/Rework) */}
-                {proposal.lastRejection && !proposal.approval && (
-                    <Paper sx={{ p: 2, mb: 2, bgcolor: '#ffebee', border: '1px solid #ef5350' }}>
-                        <Stack direction="row" spacing={1} alignItems="flex-start">
-                            <ErrorIcon color="error" />
-                            <Box>
-                                <Typography variant="subtitle2" color="error" fontWeight="bold">
-                                    Đã bị từ chối
-                                </Typography>
-                                <Typography variant="body2">{proposal.lastRejection.comment}</Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                    {formatDateSafe(proposal.lastRejection.time)} bởi {proposal.lastRejection.user}
-                                </Typography>
-                            </Box>
-                        </Stack>
-                    </Paper>
-                )}
+                    <Grid container spacing={3}>
+                        {/* 2. Basic Info & Content */}
+                        <Grid item xs={12} md={7}>
+                            <Stack spacing={3}>
+                                <InfoCard title="Thông tin chung" icon={<PersonIcon />}>
+                                    <Grid container spacing={2}>
+                                        <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Người đề xuất</Typography>
+                                            <Typography variant="body2" fontWeight={600}>{proposal.proposer}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Bộ phận</Typography>
+                                            <Typography variant="body2" fontWeight={600}>{proposal.department}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Ngày tạo</Typography>
+                                            <Typography variant="body2" fontWeight={600}>{formatDateSafe(proposal.proposalTime)}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Trạng thái</Typography>
+                                            <Chip
+                                                label={STEPS[activeStep - 1]?.label || 'Hoàn tất'}
+                                                color={activeStep === 5 || activeStep === 6 ? 'success' : 'primary'}
+                                                size="small"
+                                                sx={{ height: 24, fontSize: '0.7rem', fontWeight: 600 }}
+                                            />
+                                        </Grid>
+                                    </Grid>
+                                </InfoCard>
 
-                {proposal.lastReworkRequest && (
-                    <Paper sx={{ p: 2, mb: 2, bgcolor: '#fff3e0', border: '1px solid #ff9800' }}>
-                        <Stack direction="row" spacing={1} alignItems="flex-start">
-                            <HistoryIcon color="warning" />
-                            <Box>
-                                <Typography variant="subtitle2" color="warning.main" fontWeight="bold">
-                                    Yêu cầu làm lại
-                                </Typography>
-                                <Typography variant="body2">{proposal.lastReworkRequest.comment}</Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                    {formatDateSafe(proposal.lastReworkRequest.time)} bởi {proposal.lastReworkRequest.user}
-                                </Typography>
-                                {/* Evidence Images for Rework */}
-                                {renderImages(proposal.lastReworkRequest.images, "Ảnh minh chứng yêu cầu làm lại:")}
-                            </Box>
-                        </Stack>
-                    </Paper>
-                )}
+                                <InfoCard title="Nội dung đề xuất" icon={<DescriptionIcon />}>
+                                    <Typography variant="body2" sx={{ whiteSpace: 'pre-line', lineHeight: 1.6 }}>
+                                        {proposal.content}
+                                    </Typography>
+                                    {renderImages(proposal.images, "📸 Ảnh hiện trường")}
+                                </InfoCard>
 
-                {/* 5. Process History Log */}
-                <Box sx={{ mt: 3 }}>
-                    <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                        📋 Lịch sử Xử lý
-                    </Typography>
-                    <Paper variant="outlined">
-                        <Stack divider={<Divider />}>
-                            {/* Step 1: Created */}
-                            <Box sx={{ p: 1.5 }}>
-                                <Grid container spacing={1} alignItems="center">
-                                    <Grid size={{ xs: 4, sm: 3 }}>
-                                        <Typography variant="caption" color="text.secondary" display="block">
-                                            {formatDateSafe(proposal.proposalTime)}
+                                {proposal.maintenanceOpinion && (
+                                    <InfoCard title="Phương án bảo trì" icon={<BuildIcon />}>
+                                        <Typography variant="body2" gutterBottom>
+                                            <strong>Phương án:</strong> {proposal.maintenanceOpinion}
                                         </Typography>
-                                    </Grid>
-                                    <Grid size={{ xs: 8, sm: 9 }}>
-                                        <Stack direction="row" spacing={1} alignItems="center">
-                                            <Chip label="Tạo ĐX" size="small" variant="outlined" />
-                                            <Typography variant="body2">
-                                                <strong>{proposal.proposer}</strong> tạo phiếu
+                                        {proposal.estimatedCompletion && (
+                                            <Typography variant="caption" color="primary.main" fontWeight={600} display="block" gutterBottom>
+                                                ⏱️ Dự kiến xong: {formatDateSafe(proposal.estimatedCompletion)}
                                             </Typography>
-                                        </Stack>
-                                    </Grid>
-                                </Grid>
-                            </Box>
+                                        )}
+                                        {/* Previous Maintenance Completion (if any) */}
+                                        {proposal.lastReworkRequest?.previousMaintenance?.time && (
+                                            <Typography variant="caption" color="text.secondary" sx={{ textDecoration: 'line-through', display: 'block', mb: 0.5 }}>
+                                                🕒 Hoàn thành (Cũ): {formatDateSafe(proposal.lastReworkRequest.previousMaintenance.time)}
+                                            </Typography>
+                                        )}
+                                        {proposal.confirmations?.maintenance?.time && (
+                                            <Typography variant="caption" color="success.main" fontWeight={600} display="block" gutterBottom>
+                                                ✅ Hoàn thành lúc: {formatDateSafe(proposal.confirmations.maintenance.time)}
+                                            </Typography>
+                                        )}
+                                        {/* Maintenance Images */}
+                                        {renderImages(proposal.confirmations?.maintenance?.images || proposal.lastReworkRequest?.maintenanceImages, "📸 Ảnh bảo trì")}
+                                    </InfoCard>
+                                )}
+                            </Stack>
+                        </Grid>
 
-                            {/* Approval History */}
-                            {proposal.approval?.status && (proposal.approval.status === 'approved' || proposal.approval.status === 'rejected') && (
-                                <Box sx={{ p: 1.5, bgcolor: proposal.approval.status === 'approved' ? '#f1f8e9' : '#ffebee' }}>
-                                    <Grid container spacing={1} alignItems="center">
-                                        <Grid size={{ xs: 4, sm: 3 }}>
-                                            <Typography variant="caption" color="text.secondary" display="block">
-                                                {formatDateSafe(proposal.approval.time)}
+                        {/* 3. Timeline History */}
+                        <Grid item xs={12} md={5}>
+                            <InfoCard title="Lịch sử xử lý" icon={<HistoryIcon />}>
+                                <Timeline
+                                    sx={{
+                                        [`& .MuiTimelineItem-root:before`]: { flex: 0, padding: 0 },
+                                        p: 0, mt: 0
+                                    }}
+                                >
+                                    {/* Created */}
+                                    <TimelineItem>
+                                        <TimelineSeparator>
+                                            <TimelineDot color="primary" sx={{ width: 12, height: 12, borderWidth: 2 }} variant="outlined" />
+                                            <TimelineConnector />
+                                        </TimelineSeparator>
+                                        <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                            <Typography variant="subtitle2" component="span" fontWeight={600}>
+                                                Tạo đề xuất
                                             </Typography>
-                                        </Grid>
-                                        <Grid size={{ xs: 8, sm: 9 }}>
-                                            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                                                <Chip
-                                                    label={proposal.approval.status === 'approved' ? 'Đã duyệt' : 'Từ chối'}
+                                            <Typography variant="caption" display="block" color="text.secondary">
+                                                {formatDateSafe(proposal.proposalTime)} bởi <strong>{proposal.proposer}</strong>
+                                            </Typography>
+                                        </TimelineContent>
+                                    </TimelineItem>
+
+                                    {/* Approval */}
+                                    {proposal.approval?.status && (proposal.approval.status === 'approved' || proposal.approval.status === 'rejected') && (
+                                        <TimelineItem>
+                                            <TimelineSeparator>
+                                                <TimelineDot
                                                     color={proposal.approval.status === 'approved' ? 'success' : 'error'}
-                                                    size="small"
+                                                    sx={{ width: 12, height: 12 }}
                                                 />
-                                                <Typography variant="body2" component="span" sx={{ wordBreak: 'break-word' }}>
-                                                    bởi <strong>{proposal.approval.user}</strong>
+                                                <TimelineConnector />
+                                            </TimelineSeparator>
+                                            <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                                <Typography variant="subtitle2" component="span" fontWeight={600} color={proposal.approval.status === 'approved' ? 'success.main' : 'error.main'}>
+                                                    {proposal.approval.status === 'approved' ? 'Đã duyệt' : 'Từ chối'}
                                                 </Typography>
-                                            </Stack>
-                                            {proposal.approval.comment && (
-                                                <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic' }}>
-                                                    "{proposal.approval.comment}"
+                                                <Typography variant="caption" display="block" color="text.secondary">
+                                                    {formatDateSafe(proposal.approval.time)} bởi <strong>{proposal.approval.user}</strong>
                                                 </Typography>
-                                            )}
-                                        </Grid>
-                                    </Grid>
-                                </Box>
-                            )}
+                                                {proposal.approval.comment && (
+                                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fafafa', fontSize: '0.75rem' }}>
+                                                        "{proposal.approval.comment}"
+                                                    </Paper>
+                                                )}
+                                            </TimelineContent>
+                                        </TimelineItem>
+                                    )}
 
-                            {/* Previous Maintenance (Rejected) - Always show if exists in history */}
-                            {proposal.lastReworkRequest?.previousMaintenance && (
-                                <Box sx={{ p: 1.5, opacity: 0.7 }}>
-                                    <Grid container spacing={1} alignItems="center">
-                                        <Grid size={{ xs: 4, sm: 3 }}>
-                                            <Typography variant="caption" color="text.secondary" display="block">
-                                                {formatDateSafe(proposal.lastReworkRequest.previousMaintenance.time)}
-                                            </Typography>
-                                        </Grid>
-                                        <Grid size={{ xs: 8, sm: 9 }}>
-                                            <Stack direction="row" spacing={1} alignItems="center">
-                                                <Chip
-                                                    label="BT Xong"
-                                                    color="info"
-                                                    size="small"
-                                                    variant="outlined"
-                                                />
-                                                <Typography variant="body2" sx={{ textDecoration: 'line-through', wordBreak: 'break-word' }}>
-                                                    bởi <strong>{proposal.lastReworkRequest.previousMaintenance.user}</strong>
+                                    {/* Previous Maintenance (Rejected) - Chronologically First */}
+                                    {proposal.lastReworkRequest?.previousMaintenance && (
+                                        <TimelineItem>
+                                            <TimelineSeparator>
+                                                <TimelineDot sx={{ width: 12, height: 12, bgcolor: 'action.disabled' }} />
+                                                <TimelineConnector />
+                                            </TimelineSeparator>
+                                            <TimelineContent sx={{ py: '12px', px: 2, opacity: 0.7 }}>
+                                                <Typography variant="subtitle2" component="span" fontWeight={600} sx={{ textDecoration: 'line-through' }}>
+                                                    Hoàn thành sửa chữa (Cũ)
                                                 </Typography>
-                                            </Stack>
-                                            <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic' }}>
-                                                "{proposal.lastReworkRequest.previousMaintenance.comment}"
-                                            </Typography>
-                                            <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
-                                                (Đã bị yêu cầu làm lại)
-                                            </Typography>
-                                            {/* Previous images */}
-                                            {renderImages(
-                                                proposal.lastReworkRequest.previousMaintenance.images ||
-                                                proposal.lastReworkRequest.previousMaintenance.maintenanceImages,
-                                                "Ảnh bảo trì (đã hủy):"
-                                            )}
-                                        </Grid>
-                                    </Grid>
-                                </Box>
-                            )}
+                                                <Typography variant="caption" display="block" color="text.secondary">
+                                                    {formatDateSafe(proposal.lastReworkRequest.previousMaintenance.time)} bởi <strong>{proposal.lastReworkRequest.previousMaintenance.user}</strong>
+                                                </Typography>
+                                                {proposal.lastReworkRequest.previousMaintenance.comment && (
+                                                    <Typography variant="caption" display="block" fontStyle="italic">
+                                                        "{proposal.lastReworkRequest.previousMaintenance.comment}"
+                                                    </Typography>
+                                                )}
+                                                {renderImages(
+                                                    proposal.lastReworkRequest.maintenanceImages ||
+                                                    proposal.lastReworkRequest.previousMaintenance.images,
+                                                    "Ảnh bảo trì (đã hủy)"
+                                                )}
+                                            </TimelineContent>
+                                        </TimelineItem>
+                                    )}
 
-                            {/* Current Maintenance Confirm */}
-                            {proposal.confirmations?.maintenance?.confirmed && (
-                                <Box sx={{ p: 1.5 }}>
-                                    <Grid container spacing={1} alignItems="center">
-                                        <Grid size={{ xs: 4, sm: 3 }}>
-                                            <Typography variant="caption" color="text.secondary" display="block">
-                                                {formatDateSafe(proposal.confirmations.maintenance.time)}
-                                            </Typography>
-                                        </Grid>
-                                        <Grid size={{ xs: 8, sm: 9 }}>
-                                            <Stack direction="row" spacing={1} alignItems="center">
-                                                <Chip
-                                                    label="BT Xong"
-                                                    color="info"
-                                                    size="small"
-                                                    variant="filled"
-                                                />
-                                                <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
-                                                    bởi <strong>{proposal.confirmations.maintenance.user}</strong>
+                                    {/* Rework Request Event - Chronologically Second */}
+                                    {proposal.lastReworkRequest && (
+                                        <TimelineItem>
+                                            <TimelineSeparator>
+                                                <TimelineDot color="warning" sx={{ width: 12, height: 12 }} />
+                                                <TimelineConnector />
+                                            </TimelineSeparator>
+                                            <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                                <Typography variant="subtitle2" component="span" fontWeight={600} color="warning.main">
+                                                    Yêu cầu làm lại
                                                 </Typography>
-                                            </Stack>
-                                            <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic' }}>
-                                                "{proposal.confirmations.maintenance.comment}"
-                                            </Typography>
-                                        </Grid>
-                                    </Grid>
-                                </Box>
-                            )}
+                                                <Typography variant="caption" display="block" color="text.secondary">
+                                                    Thời gian: {formatDateSafe(proposal.lastReworkRequest.time)}
+                                                </Typography>
+                                                <Typography variant="caption" display="block" color="text.secondary">
+                                                    Bởi: <strong>{proposal.lastReworkRequest.user}</strong>
+                                                </Typography>
+                                                {proposal.lastReworkRequest.comment && (
+                                                    <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic', fontSize: '0.8rem' }}>
+                                                        "{proposal.lastReworkRequest.comment}"
+                                                    </Typography>
+                                                )}
+                                                {renderImages(proposal.lastReworkRequest.images, "Ảnh minh chứng")}
+                                            </TimelineContent>
+                                        </TimelineItem>
+                                    )}
 
-                            {/* Rework Request Event (If exists) */}
-                            {proposal.lastReworkRequest && (
-                                <Box sx={{ p: 1.5, bgcolor: '#fff3e0' }}>
-                                    <Grid container spacing={1} alignItems="center">
-                                        <Grid size={{ xs: 4, sm: 3 }}>
-                                            <Typography variant="caption" color="text.secondary" display="block">
-                                                {formatDateSafe(proposal.lastReworkRequest.time)}
-                                            </Typography>
-                                        </Grid>
-                                        <Grid size={{ xs: 8, sm: 9 }}>
-                                            <Stack direction="row" spacing={1} alignItems="center">
-                                                <Chip label="Yêu cầu làm lại" color="warning" size="small" icon={<HistoryIcon />} />
-                                                <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
-                                                    bởi <strong>{proposal.lastReworkRequest.user}</strong>
+                                    {/* Current Maintenance Confirm - Chronologically Third */}
+                                    {proposal.confirmations?.maintenance?.confirmed && (
+                                        <TimelineItem>
+                                            <TimelineSeparator>
+                                                <TimelineDot color="info" sx={{ width: 12, height: 12 }} />
+                                                <TimelineConnector />
+                                            </TimelineSeparator>
+                                            <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                                <Typography variant="subtitle2" component="span" fontWeight={600}>
+                                                    Hoàn thành sửa chữa
                                                 </Typography>
-                                            </Stack>
-                                            {proposal.lastReworkRequest.comment && (
-                                                <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic', color: 'text.secondary' }}>
-                                                    "{proposal.lastReworkRequest.comment}"
+                                                <Typography variant="caption" display="block" color="text.secondary">
+                                                    {formatDateSafe(proposal.confirmations.maintenance.time)} bởi <strong>{proposal.confirmations.maintenance.user}</strong>
                                                 </Typography>
-                                            )}
-                                        </Grid>
-                                    </Grid>
-                                </Box>
-                            )}
+                                                {proposal.confirmations.maintenance.comment && (
+                                                    <Typography variant="caption" display="block" fontStyle="italic">
+                                                        "{proposal.confirmations.maintenance.comment}"
+                                                    </Typography>
+                                                )}
+                                                {/* Images for Maintenance Confirm */}
+                                                {renderImages(proposal.confirmations.maintenance.images, "Ảnh bảo trì hoàn thành")}
+                                            </TimelineContent>
+                                        </TimelineItem>
+                                    )}
 
-                            {/* Proposer Confirm */}
-                            {proposal.confirmations?.proposer?.confirmed && (
-                                <Box sx={{ p: 1.5 }}>
-                                    <Grid container spacing={1} alignItems="center">
-                                        <Grid size={{ xs: 4, sm: 3 }}>
-                                            <Typography variant="caption" color="text.secondary" display="block">
-                                                {formatDateSafe(proposal.confirmations.proposer.time)}
-                                            </Typography>
-                                        </Grid>
-                                        <Grid size={{ xs: 8, sm: 9 }}>
-                                            <Stack direction="row" spacing={1} alignItems="center">
-                                                <Chip label="Nghiệm thu" color="primary" size="small" />
-                                                <Typography variant="body2">
-                                                    bởi <strong>{proposal.confirmations.proposer.user}</strong>
+                                    {/* Proposer Confirm */}
+                                    {proposal.confirmations?.proposer?.confirmed && (
+                                        <TimelineItem>
+                                            <TimelineSeparator>
+                                                <TimelineDot color="primary" sx={{ width: 12, height: 12 }} />
+                                                <TimelineConnector />
+                                            </TimelineSeparator>
+                                            <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                                <Typography variant="subtitle2" component="span" fontWeight={600}>
+                                                    Nghiệm thu
                                                 </Typography>
-                                            </Stack>
-                                            {proposal.confirmations.proposer.comment && (
-                                                <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic' }}>
-                                                    "{proposal.confirmations.proposer.comment}"
+                                                <Typography variant="caption" display="block" color="text.secondary">
+                                                    {formatDateSafe(proposal.confirmations.proposer.time)} bởi <strong>{proposal.confirmations.proposer.user}</strong>
                                                 </Typography>
-                                            )}
-                                        </Grid>
-                                    </Grid>
-                                </Box>
-                            )}
+                                                {proposal.confirmations.proposer.comment && (
+                                                    <Typography variant="caption" display="block" fontStyle="italic">
+                                                        "{proposal.confirmations.proposer.comment}"
+                                                    </Typography>
+                                                )}
+                                                {/* Images for Proposer Confirm */}
+                                                {renderImages(proposal.confirmations.proposer.images, "Ảnh nghiệm thu")}
+                                            </TimelineContent>
+                                        </TimelineItem>
+                                    )}
 
-                            {/* Final Confirm */}
-                            {proposal.confirmations?.viceDirector?.confirmed && (
-                                <Box sx={{ p: 1.5, bgcolor: '#f1f8e9' }}>
-                                    <Grid container spacing={1} alignItems="center">
-                                        <Grid size={{ xs: 4, sm: 3 }}>
-                                            <Typography variant="caption" color="text.secondary" display="block">
-                                                {formatDateSafe(proposal.confirmations.viceDirector.time)}
-                                            </Typography>
-                                        </Grid>
-                                        <Grid size={{ xs: 8, sm: 9 }}>
-                                            <Stack direction="row" spacing={1} alignItems="center">
-                                                <Chip label="Hoàn tất" color="success" size="small" icon={<CheckCircleIcon />} />
-                                                <Typography variant="body2">
-                                                    P.GĐ <strong>{proposal.confirmations.viceDirector.user}</strong> chốt
+                                    {/* Final Confirm */}
+                                    {proposal.confirmations?.viceDirector?.confirmed && (
+                                        <TimelineItem>
+                                            <TimelineSeparator>
+                                                <TimelineDot color="success" sx={{ width: 14, height: 14 }} />
+                                            </TimelineSeparator>
+                                            <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                                <Typography variant="subtitle2" component="span" fontWeight={600} color="success.main">
+                                                    P.GĐ xác nhận
                                                 </Typography>
-                                            </Stack>
-                                            {proposal.confirmations.viceDirector.comment && (
-                                                <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic' }}>
-                                                    "{proposal.confirmations.viceDirector.comment}"
+                                                <Typography variant="caption" display="block" color="text.secondary">
+                                                    {formatDateSafe(proposal.confirmations.viceDirector.time)} bởi <strong>{proposal.confirmations.viceDirector.user}</strong>
                                                 </Typography>
-                                            )}
-                                        </Grid>
-                                    </Grid>
-                                </Box>
-                            )}
-                        </Stack>
-                    </Paper>
+                                                {proposal.confirmations.viceDirector.comment && (
+                                                    <Typography variant="caption" display="block" fontStyle="italic">
+                                                        "{proposal.confirmations.viceDirector.comment}"
+                                                    </Typography>
+                                                )}
+                                                {/* Images for Vice Director Confirm */}
+                                                {renderImages(proposal.confirmations.viceDirector.images, "Ảnh xác nhận")}
+                                            </TimelineContent>
+                                        </TimelineItem>
+                                    )}
+                                </Timeline>
+                            </InfoCard>
+                        </Grid>
+                    </Grid>
                 </Box>
             </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose} color="inherit">Đóng</Button>
+            <DialogActions sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+                <Button onClick={onClose} variant="contained" color="inherit" sx={{ borderRadius: 2 }}>Đóng</Button>
             </DialogActions>
         </Dialog>
     );

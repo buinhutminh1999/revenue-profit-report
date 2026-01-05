@@ -65,7 +65,7 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
                         fullWidth
                         sx={{ boxShadow: 2 }}
                     >
-                        XN Bảo Trì
+                        Tổ bảo trì
                     </Button>
                 </Stack>
             )}

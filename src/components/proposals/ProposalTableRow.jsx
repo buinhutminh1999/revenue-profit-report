@@ -28,7 +28,8 @@ const ProposalTableRow = React.memo(({
     isMaintenance,
     isViceDirector,
     setCommentDialog,
-    onViewDetails
+    onViewDetails,
+    ...otherProps
 }) => {
     // Cache getActiveStep để tránh tính toán lại nhiều lần
     const theme = useTheme();
@@ -48,6 +49,7 @@ const ProposalTableRow = React.memo(({
     return (
         <TableRow
             hover
+            {...otherProps}
             sx={{
                 bgcolor: isActionRequired ? alpha(theme.palette.warning.light, 0.1) : 'inherit',
                 '&:last-child td, &:last-child th': { border: 0 },
@@ -58,7 +60,8 @@ const ProposalTableRow = React.memo(({
                     boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
                     zIndex: 1,
                     position: 'relative'
-                }
+                },
+                ...otherProps.sx // Merge formatting
             }}
         >
             {/* SC Code */}

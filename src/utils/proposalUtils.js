@@ -16,7 +16,10 @@ export const DEPARTMENTS = [
     'Cọc vuông - Cọc ván',
     'Cống',
     'GVH',
-    'GKN'
+    'GKN',
+    'Văn Phòng',
+    'Xe Vận chuyển',
+    'Khác'
 ];
 
 // Email-to-Department mapping (editable by admin in the future)
