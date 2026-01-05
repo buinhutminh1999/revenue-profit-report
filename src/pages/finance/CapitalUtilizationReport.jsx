@@ -53,6 +53,7 @@ const CapitalUtilizationReport = () => {
     const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
     const [reportData, setReportData] = useState(null);
     const [copyLoading, setCopyLoading] = useState(false);
+    const [prevQuarterInvestment, setPrevQuarterInvestment] = useState(null);
 
     // Use Shared Hooks
     const {
@@ -124,6 +125,62 @@ const CapitalUtilizationReport = () => {
         }
     }, [fetchedData, balances, chartOfAccounts]);
 
+    // Fetch previous quarter data for investment cost calculation (Q4/2025+)
+    useEffect(() => {
+        const shouldCalculateFromPrev = year > 2025 || (year === 2025 && quarter >= 4);
+
+        if (shouldCalculateFromPrev && fetchedData) {
+            fetchPreviousQuarterData().then(prevData => {
+                if (prevData?.data?.investment?.projectDetails) {
+                    setPrevQuarterInvestment(prevData.data.investment.projectDetails);
+                }
+            });
+        } else {
+            setPrevQuarterInvestment(null);
+        }
+    }, [year, quarter, fetchedData, fetchPreviousQuarterData]);
+
+    // Calculate cost and investmentValue from previous quarter when available
+    const calculatedInvestmentData = useMemo(() => {
+        if (!reportData?.investment?.projectDetails) return null;
+
+        const shouldCalculateFromPrev = year > 2025 || (year === 2025 && quarter >= 4);
+
+        if (!shouldCalculateFromPrev) {
+            return reportData.investment.projectDetails;
+        }
+
+        // For Q4/2025+:
+        // - Nguyên giá = Nguyên giá quý trước + Phát sinh quý trước
+        // - Lãi = Phân bổ lãi quý trước + Lãi quý trước
+        // - Giá trị đầu tư = Nguyên giá + Phát sinh + Phân bổ lãi + Lãi
+        return reportData.investment.projectDetails.map(row => {
+            let calculatedCost = row.cost || 0;
+            let calculatedProfit = row.profit || 0;
+
+            // Calculate from previous quarter if available
+            if (prevQuarterInvestment) {
+                const prevRow = prevQuarterInvestment.find(p => p.id === row.id);
+                if (prevRow) {
+                    // Nguyên giá = Nguyên giá quý trước + Phát sinh quý trước
+                    calculatedCost = (prevRow.cost || 0) + (prevRow.accrued || 0);
+                    // Lãi = Phân bổ lãi quý trước + Lãi quý trước
+                    calculatedProfit = (prevRow.allocatedProfit || 0) + (prevRow.profit || 0);
+                }
+            }
+
+            // Calculate investmentValue = Nguyên giá + Phát sinh + Phân bổ lãi + Lãi
+            const calculatedInvestmentValue = calculatedCost + (row.accrued || 0) + (row.allocatedProfit || 0) + calculatedProfit;
+
+            return {
+                ...row,
+                cost: calculatedCost,
+                profit: calculatedProfit,
+                investmentValue: calculatedInvestmentValue
+            };
+        });
+    }, [reportData, prevQuarterInvestment, year, quarter]);
+
     const debouncedSave = useMemo(
         () =>
             debounce((data) => {
@@ -171,9 +228,26 @@ const CapitalUtilizationReport = () => {
                 );
                 dataToSave.investmentTotalRemaining = totalInvestmentRemaining;
 
+                // IMPORTANT: Save calculated values if using auto-calculation (Q4/2025+)
+                // This ensures the next quarter can correctly use this quarter's cost + accrued
+                if (calculatedInvestmentData) {
+                    dataToSave.investment.projectDetails = dataToSave.investment.projectDetails.map(row => {
+                        const calcRow = calculatedInvestmentData.find(c => c.id === row.id);
+                        if (calcRow) {
+                            return {
+                                ...row,
+                                cost: calcRow.cost,
+                                profit: calcRow.profit,
+                                investmentValue: calcRow.investmentValue
+                            };
+                        }
+                        return row;
+                    });
+                }
+
                 saveData({ year, quarter, data: dataToSave });
             }, 1500),
-        [year, quarter, saveData]
+        [year, quarter, saveData, calculatedInvestmentData]
     );
 
     const handleDataChange = useCallback(
@@ -313,20 +387,26 @@ const CapitalUtilizationReport = () => {
 
     const investmentTotals = useMemo(() => {
         if (!reportData?.investment?.projectDetails) {
-            return { cost: 0, profit: 0, investmentValue: 0, lessProfit: 0, remaining: 0 };
+            return { cost: 0, accrued: 0, allocatedProfit: 0, profit: 0, investmentValue: 0, lessProfit: 0, remaining: 0 };
         }
-        return reportData.investment.projectDetails.reduce(
+        const dataToSum = calculatedInvestmentData || reportData.investment.projectDetails;
+        return dataToSum.reduce(
             (acc, row) => {
                 acc.cost += row.cost || 0;
+                acc.accrued += row.accrued || 0;
+                acc.allocatedProfit += row.allocatedProfit || 0;
                 acc.profit += row.profit || 0;
                 acc.investmentValue += row.investmentValue || 0;
                 acc.lessProfit += row.lessProfit || 0;
                 acc.remaining += row.remaining || 0;
                 return acc;
             },
-            { cost: 0, profit: 0, investmentValue: 0, lessProfit: 0, remaining: 0 }
+            { cost: 0, accrued: 0, allocatedProfit: 0, profit: 0, investmentValue: 0, lessProfit: 0, remaining: 0 }
         );
-    }, [reportData]);
+    }, [reportData, calculatedInvestmentData]);
+
+    // Check if should show new columns (Q3/2025 onwards)
+    const showNewInvestmentColumns = year > 2025 || (year === 2025 && quarter >= 3);
 
     if (isReportLoading || isBalancesLoading || isChartLoading || !reportData) {
         return (
@@ -749,6 +829,12 @@ const CapitalUtilizationReport = () => {
                                 <TableCell>STT</TableCell>
                                 <TableCell sx={{ minWidth: 250 }}>Nội dung đầu tư (Dự án)</TableCell>
                                 <TableCell align="right" sx={{ minWidth: 140 }}>Nguyên giá</TableCell>
+                                {showNewInvestmentColumns && (
+                                    <>
+                                        <TableCell align="right" sx={{ minWidth: 140 }}>Phát sinh</TableCell>
+                                        <TableCell align="right" sx={{ minWidth: 140 }}>Phân bổ lãi</TableCell>
+                                    </>
+                                )}
                                 <TableCell align="right" sx={{ minWidth: 140 }}>Lãi</TableCell>
                                 <TableCell align="right" sx={{ minWidth: 140 }}>Giá trị đầu tư</TableCell>
                                 <TableCell align="right" sx={{ minWidth: 140 }}>Đã trừ lãi</TableCell>
@@ -756,27 +842,58 @@ const CapitalUtilizationReport = () => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {reportData.investment.projectDetails.map((row) => (
-                                <TableRow key={row.id} hover sx={{ "&:nth-of-type(odd)": { backgroundColor: theme.palette.action.hover } }}>
-                                    <TableCell>{row.stt}</TableCell>
-                                    <TableCell>{row.name}</TableCell>
-                                    <TableCell align="right">
-                                        <EditableCell value={row.cost} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "cost", v)} />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                        <EditableCell value={row.profit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "profit", v)} />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                        <EditableCell value={row.investmentValue} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "investmentValue", v)} />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                        <EditableCell value={row.lessProfit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "lessProfit", v)} />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                        <EditableCell value={row.remaining} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "remaining", v)} />
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                            {(calculatedInvestmentData || reportData.investment.projectDetails).map((row) => {
+                                const shouldCalculateFromPrev = year > 2025 || (year === 2025 && quarter >= 4);
+                                return (
+                                    <TableRow key={row.id} hover sx={{ "&:nth-of-type(odd)": { backgroundColor: theme.palette.action.hover } }}>
+                                        <TableCell>{row.stt}</TableCell>
+                                        <TableCell>{row.name}</TableCell>
+                                        <TableCell align="right">
+                                            {shouldCalculateFromPrev && prevQuarterInvestment ? (
+                                                <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                                                    {formatCurrency(row.cost)}
+                                                </Typography>
+                                            ) : (
+                                                <EditableCell value={row.cost} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "cost", v)} />
+                                            )}
+                                        </TableCell>
+                                        {showNewInvestmentColumns && (
+                                            <>
+                                                <TableCell align="right">
+                                                    <EditableCell value={row.accrued} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "accrued", v)} />
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                    <EditableCell value={row.allocatedProfit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "allocatedProfit", v)} />
+                                                </TableCell>
+                                            </>
+                                        )}
+                                        <TableCell align="right">
+                                            {shouldCalculateFromPrev && prevQuarterInvestment ? (
+                                                <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                                                    {formatCurrency(row.profit)}
+                                                </Typography>
+                                            ) : (
+                                                <EditableCell value={row.profit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "profit", v)} />
+                                            )}
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            {shouldCalculateFromPrev ? (
+                                                <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
+                                                    {formatCurrency(row.investmentValue)}
+                                                </Typography>
+                                            ) : (
+                                                <EditableCell value={row.investmentValue} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "investmentValue", v)} />
+                                            )}
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            <EditableCell value={row.lessProfit} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "lessProfit", v)} />
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            <EditableCell value={row.remaining} onSave={(v) => handleNestedDataChange("investment", "projectDetails", row.id, "remaining", v)} />
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
                             <TableRow
                                 sx={{
                                     "& > td, & > th": {
@@ -789,6 +906,12 @@ const CapitalUtilizationReport = () => {
                             >
                                 <TableCell colSpan={2}>Tổng Cộng</TableCell>
                                 <TableCell align="right">{formatCurrency(investmentTotals.cost)}</TableCell>
+                                {showNewInvestmentColumns && (
+                                    <>
+                                        <TableCell align="right">{formatCurrency(investmentTotals.accrued)}</TableCell>
+                                        <TableCell align="right">{formatCurrency(investmentTotals.allocatedProfit)}</TableCell>
+                                    </>
+                                )}
                                 <TableCell align="right">{formatCurrency(investmentTotals.profit)}</TableCell>
                                 <TableCell align="right">{formatCurrency(investmentTotals.investmentValue)}</TableCell>
                                 <TableCell align="right">{formatCurrency(investmentTotals.lessProfit)}</TableCell>

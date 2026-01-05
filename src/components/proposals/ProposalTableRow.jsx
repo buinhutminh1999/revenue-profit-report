@@ -206,7 +206,7 @@ const ProposalTableRow = React.memo(({
 
                     <IconButton
                         size="small"
-                        onClick={() => setCommentDialog({ open: true, proposal: item })}
+                        onClick={() => onViewDetails(item)}
                         sx={{ color: item.comments?.length > 0 ? 'primary.main' : 'action.active' }}
                     >
                         <Badge badgeContent={item.comments?.length || 0} color="error">

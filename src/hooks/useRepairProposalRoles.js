@@ -12,6 +12,7 @@ const ROLES_DOC_PATH = 'settings/repairProposalRoles';
 export function useRepairProposalRoles() {
     const [roles, setRoles] = useState({
         maintenance: [], // Array of emails
+        maintenanceLead: [], // Tổ trưởng BT - for post-inspection
         viceDirector: '',
         admins: [],
         departmentAssignments: {} // email -> department mapping
@@ -60,6 +61,31 @@ export function useRepairProposalRoles() {
     const isViceDirector = useMemo(() => {
         return roles.viceDirector?.toLowerCase() === userEmail;
     }, [roles.viceDirector, userEmail]);
+
+    const isMaintenanceLead = useMemo(() => {
+        // Support both old array format and new object format
+        if (Array.isArray(roles.maintenanceLead)) {
+            return roles.maintenanceLead.some(email => email?.toLowerCase() === userEmail);
+        }
+        // New object format: { email: [departments] }
+        return Object.keys(roles.maintenanceLead || {}).some(email => email?.toLowerCase() === userEmail);
+    }, [roles.maintenanceLead, userEmail]);
+
+    // Check if user is lead for a specific department
+    const isMaintenanceLeadForDepartment = (department) => {
+        if (!userEmail || !department) return false;
+        // Support both old array format (any lead can approve any dept) and new object format
+        if (Array.isArray(roles.maintenanceLead)) {
+            return roles.maintenanceLead.some(email => email?.toLowerCase() === userEmail);
+        }
+        // New object format: check if user has this department assigned
+        for (const [email, depts] of Object.entries(roles.maintenanceLead || {})) {
+            if (email?.toLowerCase() === userEmail && Array.isArray(depts)) {
+                if (depts.includes(department)) return true;
+            }
+        }
+        return false;
+    };
 
     const isAdmin = useMemo(() => {
         // Check both: system admin role OR in repair proposal admins list
@@ -133,6 +159,8 @@ export function useRepairProposalRoles() {
         loading,
         saveRoles,
         isMaintenance,
+        isMaintenanceLead,
+        isMaintenanceLeadForDepartment,
         isViceDirector,
         isAdmin,
         isProposer,

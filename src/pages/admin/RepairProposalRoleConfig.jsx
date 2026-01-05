@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Box, Typography, Paper, TextField, Button, Stack,
+    Box, Typography, Paper, TextField, Button, Stack, IconButton,
     CircularProgress, Alert, Autocomplete, Divider, Chip
 } from '@mui/material';
 import {
@@ -11,6 +11,7 @@ import {
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase-config';
 import { useRepairProposalRoles } from '../../hooks/useRepairProposalRoles';
+import { DEPARTMENTS } from '../../utils/proposalUtils';
 import toast from 'react-hot-toast';
 
 const RepairProposalRoleConfig = () => {
@@ -22,6 +23,7 @@ const RepairProposalRoleConfig = () => {
     // Form state
     const [formData, setFormData] = useState({
         maintenance: [], // Array of emails
+        maintenanceLead: {}, // Tổ trưởng BT - { email: [departments] }
         viceDirector: '',
         admins: [],
         departmentAssignments: {} // { email: department }
@@ -29,6 +31,7 @@ const RepairProposalRoleConfig = () => {
 
     // New assignment form state
     const [newAssignment, setNewAssignment] = useState({ email: '', department: '' });
+    const [newLeadAssignment, setNewLeadAssignment] = useState({ email: '', departments: [] });
 
     // Fetch users from Firestore
     useEffect(() => {
@@ -54,6 +57,7 @@ const RepairProposalRoleConfig = () => {
         if (!loading && roles) {
             setFormData({
                 maintenance: roles.maintenance || [],
+                maintenanceLead: roles.maintenanceLead || {},
                 viceDirector: roles.viceDirector || '',
                 admins: roles.admins || [],
                 departmentAssignments: roles.departmentAssignments || {}
@@ -138,6 +142,104 @@ const RepairProposalRoleConfig = () => {
                                 <TextField {...params} label="Chọn người phụ trách (nhiều người)" size="small" />
                             )}
                         />
+                    </Box>
+
+                    <Divider />
+
+                    {/* Tổ trưởng BT - Hậu kiểm */}
+                    <Box>
+                        <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+                            <FactoryIcon color="warning" />
+                            <Typography variant="subtitle1" fontWeight={600}>
+                                Tổ trưởng Bảo Trì (Hậu kiểm)
+                            </Typography>
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary" mb={2}>
+                            Tổ trưởng có quyền xác nhận hậu kiểm cho các phân xưởng được gán
+                        </Typography>
+
+                        {/* Add new assignment */}
+                        <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'action.hover' }}>
+                            <Typography variant="subtitle2" gutterBottom>Thêm Tổ trưởng mới</Typography>
+                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
+                                <Autocomplete
+                                    size="small"
+                                    options={users.map(u => u.email)}
+                                    value={newLeadAssignment.email}
+                                    onChange={(e, newValue) => setNewLeadAssignment({ ...newLeadAssignment, email: newValue || '' })}
+                                    getOptionLabel={(option) => getUserLabel(option)}
+                                    sx={{ minWidth: 250 }}
+                                    renderInput={(params) => (
+                                        <TextField {...params} label="Chọn người" size="small" />
+                                    )}
+                                />
+                                <Autocomplete
+                                    multiple
+                                    size="small"
+                                    options={DEPARTMENTS}
+                                    value={newLeadAssignment.departments}
+                                    onChange={(e, newValue) => setNewLeadAssignment({ ...newLeadAssignment, departments: newValue })}
+                                    sx={{ minWidth: 300 }}
+                                    renderInput={(params) => (
+                                        <TextField {...params} label="Phân xưởng quản lý" size="small" />
+                                    )}
+                                />
+                                <Button
+                                    variant="contained"
+                                    color="warning"
+                                    startIcon={<AddIcon />}
+                                    disabled={!newLeadAssignment.email || newLeadAssignment.departments.length === 0}
+                                    onClick={() => {
+                                        if (newLeadAssignment.email && newLeadAssignment.departments.length > 0) {
+                                            setFormData({
+                                                ...formData,
+                                                maintenanceLead: {
+                                                    ...formData.maintenanceLead,
+                                                    [newLeadAssignment.email]: newLeadAssignment.departments
+                                                }
+                                            });
+                                            setNewLeadAssignment({ email: '', departments: [] });
+                                        }
+                                    }}
+                                    sx={{ whiteSpace: 'nowrap' }}
+                                >
+                                    Thêm
+                                </Button>
+                            </Stack>
+                        </Paper>
+
+                        {/* Existing assignments */}
+                        {Object.keys(formData.maintenanceLead || {}).length > 0 ? (
+                            <Stack spacing={1}>
+                                {Object.entries(formData.maintenanceLead).map(([email, departments]) => (
+                                    <Paper key={email} variant="outlined" sx={{ p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <Box>
+                                            <Typography variant="body2" fontWeight={600}>{getUserLabel(email)}</Typography>
+                                            <Stack direction="row" spacing={0.5} flexWrap="wrap" mt={0.5}>
+                                                {(Array.isArray(departments) ? departments : []).map(dept => (
+                                                    <Chip key={dept} label={dept} size="small" color="warning" variant="outlined" />
+                                                ))}
+                                            </Stack>
+                                        </Box>
+                                        <IconButton
+                                            size="small"
+                                            color="error"
+                                            onClick={() => {
+                                                const newLeads = { ...formData.maintenanceLead };
+                                                delete newLeads[email];
+                                                setFormData({ ...formData, maintenanceLead: newLeads });
+                                            }}
+                                        >
+                                            <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                    </Paper>
+                                ))}
+                            </Stack>
+                        ) : (
+                            <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                                Chưa có Tổ trưởng nào được gán
+                            </Typography>
+                        )}
                     </Box>
 
                     <Divider />

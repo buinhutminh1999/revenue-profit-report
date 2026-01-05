@@ -201,7 +201,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                         </Stack>
 
                         <Stack direction="row" spacing={0} alignItems="center">
-                            <IconButton onClick={(e) => { e.stopPropagation(); setCommentDialog({ open: true, proposal: item }); }} size="small" sx={{ color: 'text.secondary' }}>
+                            <IconButton onClick={(e) => { e.stopPropagation(); onViewDetails(item); }} size="small" sx={{ color: 'text.secondary' }}>
                                 <Badge badgeContent={item.comments?.length || 0} color="error" sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: 16, minWidth: 16 } }}>
                                     <CommentIcon fontSize="small" />
                                 </Badge>

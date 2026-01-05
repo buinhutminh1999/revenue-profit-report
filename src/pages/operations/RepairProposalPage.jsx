@@ -19,6 +19,7 @@ import { useSearchParams } from 'react-router-dom';
 
 // Hooks
 import { useRepairProposals } from '../../hooks/useRepairProposals';
+import { usePostInspections, createPostInspectionFromProposal } from '../../hooks/usePostInspections';
 import { useRepairProposalRoles } from '../../hooks/useRepairProposalRoles';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -31,6 +32,7 @@ const ProposalDetailDialog = lazy(() => import('../../components/dialogs/Proposa
 
 // Components (Keep sync import for critical UI)
 import MobileProposalCard from '../../components/cards/MobileProposalCard';
+import PostInspectionTab from '../../components/proposals/PostInspectionTab';
 import {
     StatsPanel,
     ProposalSkeleton,
@@ -61,6 +63,7 @@ const generateCode = () => {
  */
 const RepairProposalPage = () => {
     const { proposals, isLoading, addProposal, updateProposal, deleteProposal } = useRepairProposals();
+    const { createInspection } = usePostInspections();
     const [tabIndex, setTabIndex] = useState(0);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editData, setEditData] = useState(null);
@@ -98,7 +101,7 @@ const RepairProposalPage = () => {
     const [previewImage, setPreviewImage] = useState(null);
 
     const { user } = useAuth();
-    const { canDoAction, userEmail, isMaintenance, isViceDirector } = useRepairProposalRoles();
+    const { canDoAction, userEmail, isMaintenance, isMaintenanceLead, isMaintenanceLeadForDepartment, isViceDirector, isAdmin } = useRepairProposalRoles();
 
     // Touch handlers for Pull-to-Refresh
     const touchStart = useRef(0);
@@ -246,16 +249,38 @@ const RepairProposalPage = () => {
             const key = actionDialog.type.replace('confirm_', '');
             const dbKey = key === 'vice_director' ? 'viceDirector' : key;
 
-            updateData = {
-                [`confirmations.${dbKey}`]: {
-                    confirmed: true,
-                    comment: statusOrPayload.comment,
-                    time: statusOrPayload.time,
-                    user: user.displayName || user.email,
-                    // Include images if uploaded (for maintenance confirmation)
-                    ...(statusOrPayload.images && { images: statusOrPayload.images })
-                }
+            const confirmationData = {
+                confirmed: true,
+                comment: statusOrPayload.comment,
+                time: statusOrPayload.time,
+                user: user.displayName || user.email,
+                // Include images if uploaded (for maintenance confirmation)
+                ...(statusOrPayload.images && { images: statusOrPayload.images })
             };
+
+            updateData = {
+                [`confirmations.${dbKey}`]: confirmationData
+            };
+
+            // For maintenance confirmation, also add to maintenanceHistory array
+            if (dbKey === 'maintenance') {
+                const currentHistory = currentData.maintenanceHistory || [];
+                const attemptNumber = currentHistory.filter(h => h.type === 'completed').length + 1;
+                updateData.maintenanceHistory = [
+                    ...currentHistory,
+                    {
+                        ...confirmationData,
+                        type: 'completed',
+                        attempt: attemptNumber
+                    }
+                ];
+            }
+
+            // For viceDirector confirmation (proposal complete), auto-create post-inspection
+            if (dbKey === 'viceDirector') {
+                // Create post-inspection after 7 days
+                createPostInspectionFromProposal(currentData, createInspection);
+            }
         } else if (actionDialog.type === 'resubmit') {
             updateData = {
                 approval: null,
@@ -269,22 +294,42 @@ const RepairProposalPage = () => {
                 }
             };
         } else if (actionDialog.type === 'reject_maintenance') {
+            const reworkData = {
+                type: 'rework_requested',
+                comment: statusOrPayload.comment,
+                time: statusOrPayload.time,
+                user: user.displayName || user.email,
+                ...(statusOrPayload.images && { images: statusOrPayload.images }),
+                // Reference to the maintenance that was rejected
+                rejectedMaintenance: currentData.confirmations?.maintenance
+            };
+            const currentHistory = currentData.maintenanceHistory || [];
+
             updateData = {
                 'confirmations.maintenance': null,
                 lastReworkRequest: {
                     comment: statusOrPayload.comment,
                     time: statusOrPayload.time,
                     user: user.displayName || user.email,
-                    // Include evidence images if uploaded
                     ...(statusOrPayload.images && { images: statusOrPayload.images }),
-                    // Preserve previous maintenance images for comparison
                     ...(currentData.confirmations?.maintenance?.images && { maintenanceImages: currentData.confirmations.maintenance.images }),
-                    // NEW: Preserve full previous maintenance info for history
                     previousMaintenance: currentData.confirmations?.maintenance
-                }
+                },
+                maintenanceHistory: [...currentHistory, reworkData]
             };
         } else if (actionDialog.type === 'reject_final') {
             // P.GĐ yêu cầu làm lại - quay lại bước bảo trì
+            const reworkData = {
+                type: 'rework_requested',
+                comment: statusOrPayload.comment,
+                time: statusOrPayload.time,
+                user: user.displayName || user.email,
+                fromStep: 'final_confirmation',
+                ...(statusOrPayload.images && { images: statusOrPayload.images }),
+                rejectedMaintenance: currentData.confirmations?.maintenance
+            };
+            const currentHistory = currentData.maintenanceHistory || [];
+
             updateData = {
                 'confirmations.maintenance': null,
                 'confirmations.proposer': null,
@@ -293,13 +338,11 @@ const RepairProposalPage = () => {
                     time: statusOrPayload.time,
                     user: user.displayName || user.email,
                     fromStep: 'final_confirmation',
-                    // Include evidence images if uploaded
                     ...(statusOrPayload.images && { images: statusOrPayload.images }),
-                    // Preserve previous maintenance images for comparison
                     ...(currentData.confirmations?.maintenance?.images && { maintenanceImages: currentData.confirmations.maintenance.images }),
-                    // NEW: Preserve full previous maintenance info for history
                     previousMaintenance: currentData.confirmations?.maintenance
-                }
+                },
+                maintenanceHistory: [...currentHistory, reworkData]
             };
         }
 
@@ -446,6 +489,7 @@ const RepairProposalPage = () => {
                         >
                             <Tab label="Đang Xử Lý" icon={<BuildIcon fontSize="small" />} iconPosition="start" />
                             <Tab label="Lịch Sử" icon={<HistoryIcon fontSize="small" />} iconPosition="start" />
+                            <Tab label="Hậu Kiểm" icon={<PendingIcon fontSize="small" />} iconPosition="start" />
                         </Tabs>
 
                         {/* Filters Row - Desktop Only */}
@@ -600,7 +644,17 @@ const RepairProposalPage = () => {
                 )}
 
                 {/* Content */}
-                {isMobile ? (
+                {tabIndex === 2 ? (
+                    /* Hậu kiểm Tab */
+                    <PostInspectionTab
+                        proposals={proposals}
+                        isMaintenanceLeadForDepartment={isMaintenanceLeadForDepartment}
+                        isViceDirector={isViceDirector}
+                        isAdmin={isAdmin}
+                        onViewProposal={handleViewDetails}
+                        user={user}
+                    />
+                ) : isMobile ? (
                     <Stack
                         spacing={2}
                         sx={{ pb: 10, minHeight: '60vh' }}
@@ -713,6 +767,8 @@ const RepairProposalPage = () => {
                         onClose={() => setDetailDialog({ open: false, proposal: null })}
                         proposal={detailDialog.proposal ? proposals.find(p => p.id === detailDialog.proposal.id) || detailDialog.proposal : null}
                         setPreviewImage={setPreviewImage}
+                        onAddComment={handleAddComment}
+                        user={user}
                     />
                 </Suspense>
 
