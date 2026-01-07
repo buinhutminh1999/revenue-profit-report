@@ -3,7 +3,9 @@ import React, {
     useState,
     useCallback,
     useMemo,
+    useRef,
 } from "react";
+import { useReactToPrint } from "react-to-print";
 import {
     Box,
     Card,
@@ -32,6 +34,7 @@ import {
     AssessmentOutlined as AssessmentIcon,
     FilterList as FilterListIcon,
     ContentCopy as ContentCopyIcon,
+    Print as PrintIcon,
 } from "@mui/icons-material";
 import toast from "react-hot-toast";
 import debounce from "lodash/debounce";
@@ -43,6 +46,7 @@ import { useChartOfAccounts, getAccountAndAllChildren } from "../../hooks/useCha
 import { useAccountBalances } from "../../hooks/useAccountBalances";
 import { useInterestExpenses } from "../../hooks/useInterestExpenses";
 import { formatCurrency } from "../../utils/numberUtils";
+import CapitalUtilizationPrintTemplate from "../../components/finance/CapitalUtilizationPrintTemplate";
 
 const CapitalUtilizationReport = () => {
     const theme = useTheme();
@@ -55,6 +59,14 @@ const CapitalUtilizationReport = () => {
     const [reportData, setReportData] = useState(null);
     const [copyLoading, setCopyLoading] = useState(false);
     const [prevQuarterInvestment, setPrevQuarterInvestment] = useState(null);
+
+    // Print functionality
+    const printRef = useRef(null);
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `SuDungVon_Q${quarter}_${year}`,
+    });
+
 
     // Use Shared Hooks
     const {
@@ -613,6 +625,17 @@ const CapitalUtilizationReport = () => {
                             Sao chép từ Quý trước
                         </Button>
                     </Grid>
+                    <Grid size="auto">
+                        <Button
+                            variant="contained"
+                            color="secondary"
+                            startIcon={<PrintIcon />}
+                            onClick={handlePrint}
+                            disabled={isReportLoading || !reportData}
+                        >
+                            In Báo Cáo
+                        </Button>
+                    </Grid>
                 </Grid>
             </Paper>
 
@@ -969,6 +992,34 @@ const CapitalUtilizationReport = () => {
                     </Table>
                 </TableContainer>
             </Card>
+
+            {/* Hidden Print Template */}
+            <Box sx={{ display: 'none' }}>
+                <CapitalUtilizationPrintTemplate
+                    ref={printRef}
+                    year={year}
+                    quarter={quarter}
+                    production={reportData?.production}
+                    construction={reportData?.construction}
+                    investment={calculatedInvestmentData || reportData?.investment?.projectDetails}
+                    showNewInvestmentColumns={showNewInvestmentColumns}
+                    totals={{
+                        productionPlan: totalProdPlan,
+                        productionActual: totalProdActual,
+                        constructionUsagePlan: totalConsUsagePlan,
+                        constructionUsageActual: totalConsUsageActual,
+                        constructionRevenuePlan: totalConsRevenuePlan,
+                        constructionRevenueActual: totalConsRevenueActual,
+                        investmentCost: investmentTotals.cost,
+                        investmentAccrued: investmentTotals.accrued,
+                        investmentAllocatedProfit: investmentTotals.allocatedProfit,
+                        investmentProfit: investmentTotals.profit,
+                        investmentValue: investmentTotals.investmentValue,
+                        investmentLessProfit: investmentTotals.lessProfit,
+                        investmentRemaining: investmentTotals.remaining,
+                    }}
+                />
+            </Box>
         </Container>
     );
 };

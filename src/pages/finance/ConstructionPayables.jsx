@@ -517,6 +517,11 @@ const ConstructionPayables = () => {
             let dauKyNo = toNum(item.debt);
             let dauKyCo = toNum(item.openingCredit);
 
+            // ✅ MỚI: Với type "Thi công" và "KH-ĐT" có mã -CP, lấy Đầu Kỳ Có từ carryoverEnd
+            if ((projectType === 'Thi công' || projectType === 'KH-ĐT') && projectCode.includes('-CP')) {
+                dauKyCo = toNum(item.carryoverEnd);
+            }
+
             // ✅ THAY ĐỔI: Lọc bỏ hoàn toàn -VT và -NC đối với công trình Nhà máy (cho Bảng Tổng Hợp)
             if (
                 projectType === 'Nhà máy' &&
@@ -870,6 +875,12 @@ const ConstructionPayables = () => {
                     let dauKyNo = toNum(item.debt);
                     let dauKyCo = toNum(item.openingCredit);
 
+                    // ✅ MỚI: Với type "Thi công" và "KH-ĐT" có mã -CP, lấy Đầu Kỳ Có từ carryoverEnd
+                    const itemProjectCode = (item.project || '').toUpperCase();
+                    if ((projectType === 'Thi công' || projectType === 'KH-ĐT') && itemProjectCode.includes('-CP')) {
+                        dauKyCo = toNum(item.carryoverEnd);
+                    }
+
                     const psNoValue = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
                     // Giữ nguyên công thức PS Giảm theo logic cũ của bạn
                     const psGiamValue = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
@@ -936,6 +947,12 @@ const ConstructionPayables = () => {
                 // (Đã bỏ logic set về 0 cho -VT/-NC vì đã lọc ở trên)
                 let dauKyNo = toNum(singleItem.debt);
                 let dauKyCo = toNum(singleItem.openingCredit);
+
+                // ✅ MỚI: Với type "Thi công" và "KH-ĐT" có mã -CP, lấy Đầu Kỳ Có từ carryoverEnd
+                const singleItemProjectCode = (singleItem.project || '').toUpperCase();
+                if ((projectType === 'Thi công' || projectType === 'KH-ĐT') && singleItemProjectCode.includes('-CP')) {
+                    dauKyCo = toNum(singleItem.carryoverEnd);
+                }
 
                 const psNoValue = grandTotalRevenue > 0 ? toNum(singleItem.noPhaiTraCK) : 0;
                 const psGiamValue = grandTotalRevenue === 0 ? toNum(singleItem.directCost) : toNum(singleItem.debt);

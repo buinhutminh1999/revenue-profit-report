@@ -350,6 +350,12 @@ const ConstructionPayablesDetail = () => {
 
             let dauKyNo = toNum(item.debt);
             let dauKyCo = toNum(item.openingCredit);
+
+            // ✅ MỚI: Với type "Thi công" và "KH-ĐT" có mã -CP, lấy Đầu Kỳ Có từ carryoverEnd
+            if ((projectType === 'Thi công' || projectType === 'KH-ĐT') && projectCode.includes('-CP')) {
+                dauKyCo = toNum(item.carryoverEnd);
+            }
+
             const psNo = grandTotalRevenue > 0 ? toNum(item.noPhaiTraCK) : 0;
             const psGiam = grandTotalRevenue === 0 ? toNum(item.directCost) : toNum(item.debt);
 
