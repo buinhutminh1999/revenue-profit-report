@@ -17,9 +17,9 @@ const ProfitReportYearPrintTemplate = React.forwardRef(({ rows, year, summaryTar
 
     const commonCellStyle = {
         border: '1px solid black',
-        padding: '2px 4px',
+        padding: '4px 6px',
         fontFamily: '"Times New Roman", Times, serif',
-        fontSize: '7pt',
+        fontSize: '9pt',
         verticalAlign: 'middle'
     };
 
@@ -28,7 +28,7 @@ const ProfitReportYearPrintTemplate = React.forwardRef(({ rows, year, summaryTar
         fontWeight: 700,
         bgcolor: '#f5f5f5',
         textAlign: 'center',
-        fontSize: '7pt'
+        fontSize: '9pt'
     };
 
     const isGroupHeader = (name) => {
@@ -77,8 +77,8 @@ const ProfitReportYearPrintTemplate = React.forwardRef(({ rows, year, summaryTar
         ];
 
         return (
-            <TableContainer sx={{ mb: 2 }}>
-                <Typography sx={{ fontWeight: 700, mb: 0.5, fontSize: '9pt', fontFamily: '"Times New Roman", Times, serif' }}>
+            <TableContainer sx={{ mb: 4 }}>
+                <Typography sx={{ fontWeight: 700, mb: 1, fontSize: '11pt', fontFamily: '"Times New Roman", Times, serif' }}>
                     A. TỔNG HỢP CHỈ TIÊU
                 </Typography>
                 <Table size="small" sx={{
@@ -89,7 +89,7 @@ const ProfitReportYearPrintTemplate = React.forwardRef(({ rows, year, summaryTar
                 }}>
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ ...headerCellStyle, width: '20%' }}></TableCell>
+                            <TableCell sx={{ ...headerCellStyle, width: '25%' }}></TableCell>
                             <TableCell sx={headerCellStyle}>CHỈ TIÊU</TableCell>
                             <TableCell sx={headerCellStyle}>THỰC TẾ</TableCell>
                             <TableCell sx={headerCellStyle}>ĐÁNH GIÁ (+/-)</TableCell>
@@ -153,34 +153,34 @@ const ProfitReportYearPrintTemplate = React.forwardRef(({ rows, year, summaryTar
         <Box
             ref={ref}
             sx={{
-                p: 2,
+                p: 3,
                 bgcolor: 'white',
                 color: 'black',
                 width: '100%',
                 fontFamily: '"Times New Roman", Times, serif',
-                fontSize: '9pt',
+                fontSize: '10pt',
                 '@media print': {
-                    p: 1,
+                    p: 2,
                     '@page': {
                         size: 'A4 landscape',
-                        margin: '6mm'
+                        margin: '10mm'
                     }
                 }
             }}
         >
             {/* Header */}
-            <Box sx={{ mb: 1 }}>
-                <Typography sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 0.5, fontSize: '10pt', fontFamily: 'inherit' }}>
+            <Box sx={{ mb: 2 }}>
+                <Typography sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 0.5, fontSize: '11pt', fontFamily: 'inherit' }}>
                     CÔNG TY CỔ PHẦN XÂY DỰNG BÁCH KHOA
                 </Typography>
-                <Typography sx={{ fontSize: '8pt', fontFamily: 'inherit' }}>
+                <Typography sx={{ fontSize: '10pt', fontFamily: 'inherit' }}>
                     Địa chỉ: Số 39 Trần Hưng Đạo, Phường Long Xuyên, An Giang
                 </Typography>
             </Box>
 
             {/* Title */}
-            <Box sx={{ textAlign: 'center', mb: 1 }}>
-                <Typography sx={{ fontWeight: 800, textTransform: 'uppercase', mb: 0.5, fontSize: '12pt', fontFamily: 'inherit' }}>
+            <Box sx={{ textAlign: 'center', mb: 3 }}>
+                <Typography sx={{ fontWeight: 800, textTransform: 'uppercase', mb: 0.5, fontSize: '14pt', fontFamily: 'inherit' }}>
                     BÁO CÁO LỢI NHUẬN NĂM {year}
                 </Typography>
             </Box>
@@ -188,12 +188,12 @@ const ProfitReportYearPrintTemplate = React.forwardRef(({ rows, year, summaryTar
             {/* BẢNG 1: Tổng hợp chỉ tiêu */}
             {renderSummaryTable()}
 
-            <Typography sx={{ fontWeight: 700, mb: 0.5, fontSize: '9pt', fontFamily: '"Times New Roman", Times, serif' }}>
+            <Typography sx={{ fontWeight: 700, mb: 1, fontSize: '11pt', fontFamily: '"Times New Roman", Times, serif' }}>
                 B. CHI TIẾT CÁC CÔNG TRÌNH - SẢN PHẨM
             </Typography>
 
             {/* Table */}
-            <TableContainer sx={{ mb: 1 }}>
+            <TableContainer sx={{ mb: 2 }}>
                 <Table size="small" sx={{
                     tableLayout: 'auto',
                     width: '100%',
@@ -202,30 +202,12 @@ const ProfitReportYearPrintTemplate = React.forwardRef(({ rows, year, summaryTar
                 }}>
                     <TableHead>
                         <TableRow>
-                            <TableCell rowSpan={2} sx={{ ...headerCellStyle, width: '3%' }}>STT</TableCell>
-                            <TableCell rowSpan={2} sx={{ ...headerCellStyle, width: '20%' }}>CHỈ TIÊU</TableCell>
-                            <TableCell colSpan={5} sx={{ ...headerCellStyle }}>DOANH THU</TableCell>
-                            <TableCell colSpan={5} sx={{ ...headerCellStyle }}>CHI PHÍ</TableCell>
-                            <TableCell colSpan={6} sx={{ ...headerCellStyle }}>LỢI NHUẬN</TableCell>
-                            <TableCell rowSpan={2} sx={{ ...headerCellStyle, width: '5%' }}>% LN</TableCell>
-                        </TableRow>
-                        <TableRow>
-                            <TableCell sx={{ ...headerCellStyle }}>CẢ NĂM</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q1</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q2</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q3</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q4</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>CẢ NĂM</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q1</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q2</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q3</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q4</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>CẢ NĂM</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q1</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q2</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q3</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>Q4</TableCell>
-                            <TableCell sx={{ ...headerCellStyle }}>LŨY KẾ</TableCell>
+                            <TableCell sx={{ ...headerCellStyle, width: '5%' }}>STT</TableCell>
+                            <TableCell sx={{ ...headerCellStyle, width: '45%' }}>KHOẢN MỤC / CÔNG TRÌNH</TableCell>
+                            <TableCell sx={{ ...headerCellStyle, width: '15%' }}>DOANH THU</TableCell>
+                            <TableCell sx={{ ...headerCellStyle, width: '15%' }}>CHI PHÍ</TableCell>
+                            <TableCell sx={{ ...headerCellStyle, width: '15%' }}>LỢI NHUẬN</TableCell>
+                            <TableCell sx={{ ...headerCellStyle, width: '5%' }}>% LN</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -238,29 +220,18 @@ const ProfitReportYearPrintTemplate = React.forwardRef(({ rows, year, summaryTar
                                     <TableCell sx={{ textAlign: 'center', fontWeight: cellWeight, bgcolor: cellBg }}>
                                         {isHeader ? '' : index + 1}
                                     </TableCell>
-                                    <TableCell sx={{ fontWeight: cellWeight, bgcolor: cellBg, fontSize: '7pt' }}>
+                                    <TableCell sx={{ fontWeight: cellWeight, bgcolor: cellBg }}>
                                         {row.name}
                                     </TableCell>
-                                    {/* Doanh thu */}
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.revenue)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.revenueQ1)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.revenueQ2)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.revenueQ3)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.revenueQ4)}</TableCell>
-                                    {/* Chi phí */}
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.cost)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.costQ1)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.costQ2)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.costQ3)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.costQ4)}</TableCell>
-                                    {/* Lợi nhuận */}
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.profit)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.profitQ1)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.profitQ2)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.profitQ3)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.profitQ4)}</TableCell>
-                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>{formatNumber(row.costOverCumulative)}</TableCell>
-                                    {/* % LN */}
+                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>
+                                        {formatNumber(row.revenue)}
+                                    </TableCell>
+                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>
+                                        {formatNumber(row.cost)}
+                                    </TableCell>
+                                    <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>
+                                        {formatNumber(row.profit)}
+                                    </TableCell>
                                     <TableCell sx={{ textAlign: 'right', fontWeight: cellWeight, bgcolor: cellBg }}>
                                         {row.percent != null ? formatPercent(row.percent) : ''}
                                     </TableCell>
@@ -272,33 +243,33 @@ const ProfitReportYearPrintTemplate = React.forwardRef(({ rows, year, summaryTar
             </TableContainer>
 
             {/* Date */}
-            <Box sx={{ textAlign: 'right', mb: 1, pr: 4 }}>
-                <Typography sx={{ fontSize: '8pt', fontStyle: 'italic', fontFamily: 'inherit' }}>
+            <Box sx={{ textAlign: 'right', mb: 4, pr: 6 }}>
+                <Typography sx={{ fontSize: '10pt', fontStyle: 'italic', fontFamily: 'inherit' }}>
                     ……….., ngày …… tháng …… năm 20……
                 </Typography>
             </Box>
 
             {/* Signatures - 4 người ký */}
-            <Stack direction="row" sx={{ justifyContent: 'space-between', px: 2, textAlign: 'center' }}>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', px: 4, textAlign: 'center' }}>
                 <Box sx={{ width: '23%' }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: '8pt', fontFamily: 'inherit' }}>NGƯỜI LẬP BIỂU</Typography>
-                    <Typography sx={{ fontStyle: 'italic', fontSize: '7pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
-                    <Box sx={{ height: '50px' }}></Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>NGƯỜI LẬP BIỂU</Typography>
+                    <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
+                    <Box sx={{ height: '80px' }}></Box>
                 </Box>
                 <Box sx={{ width: '23%' }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: '8pt', fontFamily: 'inherit' }}>TP. KẾ TOÁN</Typography>
-                    <Typography sx={{ fontStyle: 'italic', fontSize: '7pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
-                    <Box sx={{ height: '50px' }}></Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>TP. KẾ TOÁN</Typography>
+                    <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
+                    <Box sx={{ height: '80px' }}></Box>
                 </Box>
                 <Box sx={{ width: '23%' }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: '8pt', fontFamily: 'inherit' }}>QL. TÀI CHÍNH</Typography>
-                    <Typography sx={{ fontStyle: 'italic', fontSize: '7pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
-                    <Box sx={{ height: '50px' }}></Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>QL. TÀI CHÍNH</Typography>
+                    <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên)</Typography>
+                    <Box sx={{ height: '80px' }}></Box>
                 </Box>
                 <Box sx={{ width: '23%' }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: '8pt', fontFamily: 'inherit' }}>TỔNG GIÁM ĐỐC</Typography>
-                    <Typography sx={{ fontStyle: 'italic', fontSize: '7pt', fontFamily: 'inherit' }}>(Ký, họ tên, đóng dấu)</Typography>
-                    <Box sx={{ height: '50px' }}></Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '10pt', fontFamily: 'inherit' }}>TỔNG GIÁM ĐỐC</Typography>
+                    <Typography sx={{ fontStyle: 'italic', fontSize: '9pt', fontFamily: 'inherit' }}>(Ký, họ tên, đóng dấu)</Typography>
+                    <Box sx={{ height: '80px' }}></Box>
                 </Box>
             </Stack>
         </Box>
