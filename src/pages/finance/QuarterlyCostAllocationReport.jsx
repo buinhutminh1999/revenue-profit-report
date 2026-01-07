@@ -28,6 +28,7 @@ import {
     InputAdornment,
     FormHelperText,
     Divider,
+    Tooltip,
 } from '@mui/material';
 import { Save as SaveIcon, Check as CheckIcon, Print as PrintIcon, ContentCopy as ContentCopyIcon } from '@mui/icons-material';
 import { useReactToPrint } from 'react-to-print';
@@ -221,7 +222,8 @@ const LimitDialog = ({
     cellInfo,
     initialData,
     calculationData,
-    prevQuarterDeficit
+    prevQuarterDeficit,
+    totalCostFromActual // [THÊM MỚI] Tổng chi phí từ ActualCostsTab
 }) => {
     const [limit, setLimit] = useState(100);
     const [mode, setMode] = useState("limitOnly");
@@ -265,8 +267,26 @@ const LimitDialog = ({
     const isDeficitOnly = calculationData?.isDeficitOnly || false;
     const demandFromPct = isDeficitOnly ? 0 : (initialDemand - (prevQuarterDeficit || 0));
 
+    // [CẢI TIẾN] Tính toán % gợi ý để Chi phí nhận được = Tổng chi phí từ ActualCostsTab
+    const hasTotalCost = typeof totalCostFromActual === 'number' && totalCostFromActual > 0;
+    const isExceeding = hasTotalCost && finalCost > totalCostFromActual;
+    const isBelow = hasTotalCost && finalCost < totalCostFromActual;
+    const diffAmount = hasTotalCost ? (finalCost - totalCostFromActual) : 0;
+
+    // [CẢI TIẾN] Công thức: suggestedLimit = currentLimit * (target / current)
+    // Cho phép > 100% để tăng chi phí lên bằng Tổng CP
+    let suggestedLimit = null;
+    if (hasTotalCost && finalCost > 0 && Math.abs(diffAmount) > 1) { // Chỉ gợi ý khi chênh lệch > 1đ
+        const currentLimit = (typeof initialData?.limit === 'number') ? initialData.limit : 100;
+        // Tính limit mới dựa trên tỷ lệ target/current
+        // [CẢI TIẾN] Tăng độ chính xác lên 10 số thập phân để đạt độ chính xác cao nhất có thể
+        suggestedLimit = Math.round(currentLimit * (totalCostFromActual / finalCost) * 10000000000) / 10000000000;
+        if (suggestedLimit < 0) suggestedLimit = 0;
+        // KHÔNG giới hạn max 100% - cho phép > 100%
+    }
+
     return (
-        <Dialog open={open} onClose={onClose} PaperProps={{ sx: { borderRadius: 3, width: 450 } }}>
+        <Dialog open={open} onClose={onClose} PaperProps={{ sx: { borderRadius: 3, width: 500 } }}>
             <DialogTitle fontWeight="700">Điều chỉnh & Chi tiết Phân bổ</DialogTitle>
             <DialogContent>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -283,10 +303,52 @@ const LimitDialog = ({
                     onChange={(e) => {
                         const n = Number.parseFloat(e.target.value);
                         if (!Number.isFinite(n)) return setLimit(0);
-                        setLimit(Math.max(0, n));
+                        setLimit(Math.max(0, n)); // Cho phép > 100%
                     }}
-                    InputProps={{ endAdornment: (<InputAdornment position="end">%</InputAdornment>), }}
+                    InputProps={{
+                        endAdornment: (<InputAdornment position="end">%</InputAdornment>),
+                        inputProps: { step: "any" }
+                    }}
                 />
+
+                {/* [CẢI TIẾN] Hiển thị gợi ý % cho mọi trường hợp Chi phí ≠ Tổng CP */}
+                {hasTotalCost && suggestedLimit !== null && (
+                    <Box sx={{
+                        mt: 1.5,
+                        p: 1.5,
+                        bgcolor: isExceeding ? 'error.lighter' : (isBelow ? 'warning.lighter' : 'success.lighter'),
+                        borderRadius: 2,
+                        border: 1,
+                        borderColor: isExceeding ? 'error.light' : (isBelow ? 'warning.light' : 'success.light')
+                    }}>
+                        <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, color: isExceeding ? 'error.dark' : (isBelow ? 'warning.dark' : 'success.dark'), mb: 0.5 }}>
+                            📊 So sánh với Tổng Chi Phí:
+                        </Typography>
+                        <Typography variant="caption" sx={{ display: 'block' }}>
+                            • Tổng Chi Phí: <b>{formatValue(totalCostFromActual)}</b>
+                        </Typography>
+                        <Typography variant="caption" sx={{ display: 'block' }}>
+                            • Chi phí nhận được: <b>{formatValue(finalCost)}</b>
+                        </Typography>
+                        <Typography variant="caption" sx={{ display: 'block', color: isExceeding ? 'error.main' : 'warning.main', fontWeight: 600 }}>
+                            • {isExceeding ? 'Vượt' : 'Thiếu'}: {formatValue(Math.abs(diffAmount))}
+                        </Typography>
+                        <Divider sx={{ my: 1 }} />
+                        <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+                            💡 Gợi ý: Đặt giới hạn = <b>{suggestedLimit}%</b> để chi phí = Tổng CP
+                        </Typography>
+                        <Button
+                            size="small"
+                            variant="outlined"
+                            color={isExceeding ? "error" : "warning"}
+                            sx={{ mt: 1 }}
+                            onClick={() => setLimit(suggestedLimit)}
+                        >
+                            Áp dụng {suggestedLimit}%
+                        </Button>
+                    </Box>
+                )}
+
                 <TextField
                     select margin="dense" label="Hành động" value={mode} onChange={(e) => setMode(e.target.value)} fullWidth sx={{ mt: 2 }}
                 >
@@ -298,6 +360,7 @@ const LimitDialog = ({
                         ? "Phần chi phí không sử dụng sẽ được cộng dồn (bao gồm cả phần bị giới hạn)."
                         : "Chỉ dồn phần chi phí bị scale và nợ cũ. Phần bị giới hạn (limit %) sẽ không dồn."}
                 </FormHelperText>
+
 
                 {/* --- SỬA PHẦN NÀY --- */}
                 <Divider sx={{ my: 2 }} />
@@ -342,14 +405,15 @@ const LimitDialog = ({
                     />
                 </Box>
 
-            </DialogContent>
+            </DialogContent >
             <DialogActions sx={{ p: "0 24px 16px", pt: 2 }}>
                 <Button onClick={onClose}>Hủy</Button>
                 <Button onClick={handleSave} variant="contained" startIcon={<CheckIcon />}>Lưu</Button>
             </DialogActions>
-        </Dialog>
+        </Dialog >
     );
 };
+
 
 // Component con EditablePercentCell (giữ nguyên)
 function EditablePercentCell({ value, rowId, pctKey, onChange, disabled = false }) {
@@ -941,6 +1005,25 @@ export default function QuarterlyCostAllocationReport() {
         valKey
     ]);
     const showSnack = useCallback((msg, sev = "success") => { setSnack({ open: true, msg, sev }); }, []);
+
+    // [THÊM MỚI] Map totalCost từ ActualCostsTab cho mỗi (itemLabel, projectId)
+    // Dùng để so sánh với "Chi phí nhận được (sau điều chỉnh)" và tô màu nếu lớn hơn
+    const totalCostMap = useMemo(() => {
+        const map = {}; // { [itemLabel]: { [projectId]: totalCost } }
+        visibleProjects.forEach(project => {
+            const projectDetail = projData[project.id];
+            if (projectDetail && Array.isArray(projectDetail.items)) {
+                projectDetail.items.forEach(item => {
+                    if (item.description) {
+                        const key = item.description; // Dùng description làm key
+                        if (!map[key]) map[key] = {};
+                        map[key][project.id] = toNum(item.totalCost);
+                    }
+                });
+            }
+        });
+        return map;
+    }, [projData, visibleProjects]);
 
     // Hàm lấy Chi phí trực tiếp (Giữ nguyên)
     const getDC = useCallback((projectId, itemLabel) => {
@@ -1625,7 +1708,35 @@ export default function QuarterlyCostAllocationReport() {
                                                 } else {
                                                     if (isProjectCol) {
                                                         cellValue = rowDataFromState?.[col.field];
-                                                        return (
+
+                                                        // [THÊM MỚI] Kiểm tra nếu Chi phí nhận được > Tổng chi phí (từ Q3 2025 trở đi)
+                                                        // const isQ3_2025 = (year === 2025 && quarter === 3);
+                                                        const isApplicablePeriod = (year > 2025) || (year === 2025 && quarter >= 3);
+                                                        const totalCostForComparison = totalCostMap[itemRow.item]?.[col.field] || 0;
+                                                        const isExceedingTotalCost = isApplicablePeriod &&
+                                                            typeof cellValue === 'number' &&
+                                                            cellValue > 0 &&
+                                                            totalCostForComparison > 0 &&
+                                                            cellValue > totalCostForComparison;
+
+                                                        const tooltipContent = isExceedingTotalCost ? (
+                                                            <Box sx={{ p: 0.5 }}>
+                                                                <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+                                                                    ⚠️ Chi phí nhận được vượt Tổng CP
+                                                                </Typography>
+                                                                <Typography variant="caption" sx={{ display: 'block' }}>
+                                                                    • Nhận được: {formatValue(cellValue)}
+                                                                </Typography>
+                                                                <Typography variant="caption" sx={{ display: 'block' }}>
+                                                                    • Tổng CP: {formatValue(totalCostForComparison)}
+                                                                </Typography>
+                                                                <Typography variant="caption" sx={{ display: 'block', color: 'error.light' }}>
+                                                                    • Vượt: {formatValue(cellValue - totalCostForComparison)}
+                                                                </Typography>
+                                                            </Box>
+                                                        ) : '';
+
+                                                        const cellContent = (
                                                             <TableCell
                                                                 key={col.field}
                                                                 align="right"
@@ -1641,6 +1752,12 @@ export default function QuarterlyCostAllocationReport() {
                                                                     }),
                                                                     ...(projectsOnlyWithDeficit.has(col.field) && {
                                                                         backgroundColor: alpha(theme.palette.warning.light, 0.15),
+                                                                    }),
+                                                                    // [THÊM MỚI] Tô màu khi Chi phí nhận được > Tổng chi phí
+                                                                    ...(isExceedingTotalCost && {
+                                                                        backgroundColor: alpha(theme.palette.error.light, 0.25),
+                                                                        color: theme.palette.error.dark,
+                                                                        fontWeight: 600,
                                                                     })
                                                                 }}
                                                                 onClick={() => {
@@ -1658,7 +1775,13 @@ export default function QuarterlyCostAllocationReport() {
                                                             >
                                                                 {renderCell(cellValue, cellType)}
                                                             </TableCell>
-                                                        )
+                                                        );
+
+                                                        return isExceedingTotalCost ? (
+                                                            <Tooltip key={col.field} title={tooltipContent} arrow placement="top">
+                                                                {cellContent}
+                                                            </Tooltip>
+                                                        ) : cellContent;
                                                     } else if (col.field === 'allocated') {
                                                         // [SỬA] Tính "Phân bổ Khả Dụng"
                                                         // Dòng "const originalAllocated = ..." đã được dời lên trên
@@ -1725,6 +1848,7 @@ export default function QuarterlyCostAllocationReport() {
                     isDeficitOnly: projectsOnlyWithDeficit.has(currentLimitCell.projectId)
                 } : null}
                 prevQuarterDeficit={currentLimitCell ? (prevQuarterDetails[currentLimitCell.rowId]?.projectDeficits?.[currentLimitCell.projectId] || prevQuarterDetails[currentLimitCell.rowId]?.[currentLimitCell.projectId] || 0) : 0}
+                totalCostFromActual={currentLimitCell ? (totalCostMap[items.find(i => i.id === currentLimitCell.rowId)?.item]?.[currentLimitCell.projectId] || 0) : 0}
             />
 
             {/* Snackbar (Giữ nguyên) */}
