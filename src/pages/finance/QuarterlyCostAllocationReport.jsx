@@ -771,7 +771,17 @@ export default function QuarterlyCostAllocationReport() {
                 const savedPercent = savedRow?.byType?.[typeFilter]?.[pctKey];
                 const percent = (typeof savedPercent === 'number') ? savedPercent : null;
 
-                const carryOver = prevCumCurrent;
+                // [SỬA] Logic carryOver: Q3-2025 ưu tiên dùng giá trị đã lưu, từ Q4-2025 trở đi tự động
+                const isManualCarryOverQuarter = (year === 2025 && quarter === 3);
+                let carryOver;
+                if (isManualCarryOverQuarter) {
+                    // Q3-2025: Ưu tiên dùng giá trị đã lưu trong database
+                    const savedCarryOver = savedRow?.byType?.[typeFilter]?.carryOver;
+                    carryOver = (typeof savedCarryOver === 'number') ? savedCarryOver : 0;
+                } else {
+                    // Từ Q4-2025 trở đi: Tự động lấy từ cột "Thiếu LK" quý trước
+                    carryOver = prevCumCurrent;
+                }
 
                 // [SỬA] Lấy TOÀN BỘ byType đã lưu (nếu có)
                 const existingByType = savedRow?.byType || {};
@@ -1662,7 +1672,11 @@ export default function QuarterlyCostAllocationReport() {
                                                         // [SỬA] Dùng giá trị đã tính toán trước
                                                         cellValue = carryOverValue;
 
-                                                        // Trả về component có thể chỉnh sửa
+                                                        // [SỬA] Chỉ cho phép nhập Vượt kỳ trước ở Q3-2025
+                                                        // Từ Q4-2025 trở đi, cột này tự động lấy từ quý trước
+                                                        const isCarryOverEditable = (year === 2025 && quarter === 3);
+
+                                                        // Trả về component có thể chỉnh sửa (nếu được phép)
                                                         return (
                                                             <EditableNumberCell
                                                                 key={col.field}
@@ -1670,7 +1684,7 @@ export default function QuarterlyCostAllocationReport() {
                                                                 rowId={itemRow.id}
                                                                 fieldKey={col.field}
                                                                 onChange={handleCarryOverChange}
-                                                                disabled={isSummaryRow}
+                                                                disabled={isSummaryRow || !isCarryOverEditable}
                                                             />
                                                         );
                                                     } else if (col.field === 'percentDT') {
