@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useReactToPrint } from "react-to-print";
 import {
     Box,
     Typography,
@@ -28,8 +29,10 @@ import ProfitSummaryTable from "../../reports/ProfitSummaryTable";
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
 // ✅ THAY THẾ COMPONENT RESIZABLEHEADER CŨ BẰNG COMPONENT NÀY
-import { ViewColumn as ViewColumnIcon, Tv as TvIcon, Computer as ComputerIcon } from '@mui/icons-material'; // ✅ Thêm import icon
+import { ViewColumn as ViewColumnIcon, Tv as TvIcon, Computer as ComputerIcon, Print as PrintIcon } from '@mui/icons-material'; // ✅ Thêm import icon
+import PrintIcon2 from '@mui/icons-material/Print'; // Alias nếu cần
 import { useTheme } from '@mui/material/styles'; // ✅ Thêm useTheme
+import ProfitReportYearPrintTemplate from "../../components/finance/ProfitReportYearPrintTemplate";
 
 const ResizableHeader = ({ onResize, width, children, ...restProps }) => {
     if (!width) {
@@ -1733,6 +1736,13 @@ export default function ProfitReportYear() {
     };
     // ... trước câu lệnh return
 
+    // Print functionality
+    const printRef = useRef(null);
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `BaoCaoLoiNhuanNam_${selectedYear}`,
+    });
+
     const visibleRevenueCols = Object.keys(columnVisibility).filter(k => k.startsWith('revenueQ') && columnVisibility[k]).length;
     const visibleCostCols = Object.keys(columnVisibility).filter(k => k.startsWith('costQ') && columnVisibility[k]).length;
     const visibleProfitCols = Object.keys(columnVisibility).filter(k => k.startsWith('profitQ') && columnVisibility[k]).length;
@@ -1870,6 +1880,23 @@ export default function ProfitReportYear() {
                                 {tvMode ? "Chế độ TV" : "Chế độ PC"}
                             </Button>
                         </Tooltip>
+                        {/* ✅ NÚT IN */}
+                        <Button
+                            variant="outlined"
+                            color="secondary"
+                            size={tvMode ? "large" : "medium"}
+                            onClick={handlePrint}
+                            startIcon={<PrintIcon sx={{ fontSize: tvMode ? 24 : undefined }} />}
+                            sx={{
+                                fontSize: tvMode ? "1.1rem" : undefined,
+                                px: tvMode ? 3 : undefined,
+                                py: tvMode ? 1.5 : undefined,
+                                fontWeight: tvMode ? 600 : undefined,
+                            }}
+                        >
+                            In
+                        </Button>
+
                         {/* ✅ 3. THÊM NÚT VÀ MENU TẠI ĐÂY */}
                         <Tooltip title="Ẩn/Hiện cột">
                             <Button
@@ -2109,6 +2136,15 @@ export default function ProfitReportYear() {
                     </Table>
                 </TableContainer>
             </Paper>
+            {/* Hidden Print Template */}
+            <div style={{ display: "none" }}>
+                <ProfitReportYearPrintTemplate
+                    ref={printRef}
+                    rows={rows} // Chú ý: rows ở đây là rows sau khi xử lý (được trả về từ useProfitReportData)
+                    year={selectedYear}
+                    summaryTargets={initialSummaryTargets}
+                />
+            </div>
         </Box>
     );
 }

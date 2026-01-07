@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useReactToPrint } from "react-to-print";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import {
@@ -33,7 +34,7 @@ import {
     Switch,
     FormControlLabel,
 } from "@mui/material";
-import { ViewColumn as ViewColumnIcon, Tv as TvIcon, Computer as ComputerIcon, Edit as EditIcon, Delete as DeleteIcon, Check as CheckIcon, Close as CloseIcon } from '@mui/icons-material';
+import { ViewColumn as ViewColumnIcon, Tv as TvIcon, Computer as ComputerIcon, Edit as EditIcon, Delete as DeleteIcon, Check as CheckIcon, Close as CloseIcon, Print as PrintIcon } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles'; // ✅ Thêm useTheme
 import SaveIcon from "@mui/icons-material/Save";
 import { collection, getDocs, setDoc, doc, getDoc, collectionGroup, onSnapshot } from "firebase/firestore";
@@ -49,6 +50,7 @@ import {
     updateXayDungRow, updateSanXuatRow, updateGroupII1, calculateTotals,
     updateVuotCPRows, updateLoiNhuanRongRow
 } from "../../utils/profitReportCalculations";
+import ProfitReportQuarterPrintTemplate from "../../components/finance/ProfitReportQuarterPrintTemplate";
 
 export default function ProfitReportQuarter() {
     const theme = useTheme(); // ✅ Thêm useTheme để đảm bảo theme được load
@@ -74,6 +76,13 @@ export default function ProfitReportQuarter() {
         profitTargetDauTu: 0,
     });
     const [formulaDialogOpen, setFormulaDialogOpen] = useState(false); // <-- THÊM DÒNG NÀY
+
+    // Print functionality
+    const printRef = useRef(null);
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `BaoCaoLoiNhuan_${selectedQuarter}_${selectedYear}`,
+    });
     // ======================================================================
     // ✅ BẮT ĐẦU: DÁN TOÀN BỘ KHỐI CODE NÀY VÀO ĐÂY
     // ======================================================================
@@ -1688,6 +1697,23 @@ export default function ProfitReportQuarter() {
                                 Các cột
                             </Button>
                         </Tooltip>
+                        {/* Nút In */}
+                        <Button
+                            variant="contained"
+                            color="secondary"
+                            startIcon={<PrintIcon />}
+                            onClick={handlePrint}
+                            size={tvMode ? "large" : "medium"}
+                            sx={{
+                                fontSize: tvMode ? "1.1rem" : undefined,
+                                px: tvMode ? 3 : undefined,
+                                py: tvMode ? 1.5 : undefined,
+                                fontWeight: tvMode ? 600 : undefined,
+                                minWidth: tvMode ? 140 : 100,
+                            }}
+                        >
+                            In
+                        </Button>
                         <Menu
                             anchorEl={anchorEl}
                             open={open}
@@ -2118,11 +2144,21 @@ export default function ProfitReportQuarter() {
                         </Button>
                     </DialogActions>
                 </Dialog>
-            </Paper>
+            </Paper >
             <ProfitReportFormulaGuide
                 open={formulaDialogOpen}
                 onClose={() => setFormulaDialogOpen(false)}
             />
+            {/* Hidden Print Template */}
+            <div style={{ display: "none" }}>
+                <ProfitReportQuarterPrintTemplate
+                    ref={printRef}
+                    rows={rows}
+                    year={selectedYear}
+                    quarter={selectedQuarter}
+                    summaryTargets={summaryTargets}
+                />
+            </div>
         </Box>
     );
 }
