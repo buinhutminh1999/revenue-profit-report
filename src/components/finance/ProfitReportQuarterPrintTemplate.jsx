@@ -190,7 +190,7 @@ const ProfitReportQuarterPrintTemplate = React.forwardRef(({ rows, year, quarter
 
             {/* BẢNG 2: Chi tiết */}
             <Typography sx={{ fontWeight: 700, mb: 0.5, fontSize: '9pt', fontFamily: '"Times New Roman", Times, serif' }}>
-                B. CHI TIẾT CÁC CÔNG TRÌNH - SẢN PHẨM
+                B. CHI TIẾT CÁC CÔNG TRÌNH
             </Typography>
             <TableContainer sx={{ mb: 2 }}>
                 <Table size="small" sx={{
@@ -201,15 +201,14 @@ const ProfitReportQuarterPrintTemplate = React.forwardRef(({ rows, year, quarter
                 }}>
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ ...headerCellStyle, width: '4%' }}>STT</TableCell>
-                            <TableCell sx={{ ...headerCellStyle, width: '28%' }}>KHOẢN MỤC / CÔNG TRÌNH</TableCell>
+                            <TableCell sx={{ ...headerCellStyle, width: '32%' }}>KHOẢN MỤC / CÔNG TRÌNH</TableCell>
                             <TableCell sx={{ ...headerCellStyle, width: '11%' }}>DOANH THU</TableCell>
                             <TableCell sx={{ ...headerCellStyle, width: '11%' }}>CHI PHÍ</TableCell>
                             <TableCell sx={{ ...headerCellStyle, width: '11%' }}>LỢI NHUẬN</TableCell>
-                            <TableCell sx={{ ...headerCellStyle, width: '7%' }}>% LN</TableCell>
+                            <TableCell sx={{ ...headerCellStyle, width: '8%' }}>% LN</TableCell>
                             <TableCell sx={{ ...headerCellStyle, width: '10%' }}>CP VƯỢT {quarter}</TableCell>
                             <TableCell sx={{ ...headerCellStyle, width: '9%' }}>CHỈ TIÊU</TableCell>
-                            <TableCell sx={{ ...headerCellStyle, width: '9%' }}>GHI CHÚ</TableCell>
+                            <TableCell sx={{ ...headerCellStyle, width: '8%' }}>GHI CHÚ</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -217,9 +216,6 @@ const ProfitReportQuarterPrintTemplate = React.forwardRef(({ rows, year, quarter
                             const isHeader = isGroupHeader(row.name);
                             return (
                                 <TableRow key={index}>
-                                    <TableCell sx={{ textAlign: 'center', fontWeight: isHeader ? 700 : 400, bgcolor: isHeader ? '#f0f0f0' : 'white' }}>
-                                        {isHeader ? '' : index + 1}
-                                    </TableCell>
                                     <TableCell sx={{ fontWeight: isHeader ? 700 : 400, bgcolor: isHeader ? '#f0f0f0' : 'white' }}>
                                         {row.name}
                                     </TableCell>

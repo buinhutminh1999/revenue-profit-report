@@ -60,6 +60,8 @@ export const createDefaultRow = () => ({
     hskh: "0",
     cpSauQuyetToan: 0,
     baseForNptck: null,
+    phaiTra: "0",
+    chenhLech: "0",
 });
 
 // Backward compatibility export
@@ -278,6 +280,8 @@ const numericFields = [
     "revenue",
     "hskh",
     "cpSauQuyetToan",
+    "phaiTra",
+    "chenhLech",
 ];
 const validateRow = (row) =>
     numericFields.every((key) => {
@@ -409,15 +413,21 @@ export default function ActualCostsTab({ projectId }) {
                 label: "CP Sau Quyết Toán",
                 editable: false,
             },
+            // 2 cột mới cho kế toán nhập - không in ra
+            { key: "phaiTra", label: "Phải Trả", editable: true },
+            { key: "chenhLech", label: "Chênh Lệch", editable: true },
         ],
         []
     );
 
-    const [columnsVisibility, setColumnsVisibility] = useState(
-        () =>
-            JSON.parse(localStorage.getItem("columnsVisibility")) ||
-            columnsAll.reduce((acc, col) => ({ ...acc, [col.key]: true }), {})
-    );
+    const [columnsVisibility, setColumnsVisibility] = useState(() => {
+        const saved = JSON.parse(localStorage.getItem("columnsVisibility")) || {};
+        // Merge: dùng saved nếu có, nếu không thì mặc định true cho cột mới
+        return columnsAll.reduce((acc, col) => ({
+            ...acc,
+            [col.key]: saved[col.key] !== undefined ? saved[col.key] : true
+        }), {});
+    });
 
     const displayedColumns = useMemo(() => {
         const isNhaMayType = projectData?.type === "Nhà máy";

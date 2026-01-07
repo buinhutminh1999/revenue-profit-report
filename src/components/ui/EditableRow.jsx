@@ -4,6 +4,7 @@ import {
     TableRow, TableCell, TextField, Typography, IconButton, Tooltip, useTheme, alpha,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import { NumericFormat } from 'react-number-format';
 import { formatNumber, parseNumber } from "../../utils/numberUtils";
 import { getHiddenColumnsForProject } from "../../utils/calcUtils";
 
@@ -126,38 +127,71 @@ const EditableCell = React.memo(({
                     transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
             >
-                <TextField
-                    inputRef={inputRef}
-                    variant="standard"
-                    size="small"
-                    fullWidth
-                    value={localValue}
-                    autoFocus
-                    onChange={(e) => {
-                        const newVal = e.target.value;
-                        setLocalValue(newVal);
-                        // Chỉ update local state, không tính toán ngay để tránh lag
-                    }}
-                    onBlur={handleBlur}
-                    inputProps={{
-                        inputMode: isNumeric ? "decimal" : "text",
-                        style: {
-                            textAlign: alignment === "right" ? "right" : "left",
-                            fontSize: "0.875rem",
-                            padding: "4px 0",
-                            fontWeight: 500,
-                        },
-                    }}
-                    onKeyDown={handleKeyDown}
-                    sx={{
-                        "& .MuiInput-underline:before": { borderBottom: "none" },
-                        "& .MuiInput-underline:hover:before": { borderBottom: "none" },
-                        "& .MuiInput-underline:after": {
-                            borderBottom: (theme) => `2px solid ${theme.palette.primary.main}`,
-                            transition: "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                        },
-                    }}
-                />
+                {isNumeric ? (
+                    <NumericFormat
+                        getInputRef={inputRef}
+                        value={localValue}
+                        thousandSeparator=","
+                        decimalSeparator="."
+                        allowNegative={true}
+                        onValueChange={(values) => {
+                            setLocalValue(values.value);
+                        }}
+                        onBlur={handleBlur}
+                        onKeyDown={handleKeyDown}
+                        autoFocus
+                        customInput={TextField}
+                        variant="standard"
+                        size="small"
+                        fullWidth
+                        inputProps={{
+                            style: {
+                                textAlign: "right",
+                                fontSize: "0.875rem",
+                                padding: "4px 0",
+                                fontWeight: 500,
+                            },
+                        }}
+                        sx={{
+                            "& .MuiInput-underline:before": { borderBottom: "none" },
+                            "& .MuiInput-underline:hover:before": { borderBottom: "none" },
+                            "& .MuiInput-underline:after": {
+                                borderBottom: (theme) => `2px solid ${theme.palette.primary.main}`,
+                                transition: "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                            },
+                        }}
+                    />
+                ) : (
+                    <TextField
+                        inputRef={inputRef}
+                        variant="standard"
+                        size="small"
+                        fullWidth
+                        value={localValue}
+                        autoFocus
+                        onChange={(e) => {
+                            setLocalValue(e.target.value);
+                        }}
+                        onBlur={handleBlur}
+                        inputProps={{
+                            style: {
+                                textAlign: "left",
+                                fontSize: "0.875rem",
+                                padding: "4px 0",
+                                fontWeight: 500,
+                            },
+                        }}
+                        onKeyDown={handleKeyDown}
+                        sx={{
+                            "& .MuiInput-underline:before": { borderBottom: "none" },
+                            "& .MuiInput-underline:hover:before": { borderBottom: "none" },
+                            "& .MuiInput-underline:after": {
+                                borderBottom: (theme) => `2px solid ${theme.palette.primary.main}`,
+                                transition: "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                            },
+                        }}
+                    />
+                )}
             </TableCell>
         );
     }
