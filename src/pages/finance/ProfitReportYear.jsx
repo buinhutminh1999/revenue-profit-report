@@ -20,7 +20,7 @@ import {
     Checkbox,
     ListItemText,
 } from "@mui/material";
-import { collection, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
 import { toNum, formatNumber } from "../../utils/numberUtils";
 import { FileDown, Save } from "lucide-react";
@@ -1381,6 +1381,30 @@ const useProfitReportData = (selectedYear) => {
         };
 
         fetchData();
+
+        // ✅ REALTIME: Lắng nghe thay đổi từ các báo cáo quý
+        const quarters = ["Q1", "Q2", "Q3", "Q4"];
+        const isInitial = { Q1: true, Q2: true, Q3: true, Q4: true };
+
+        const unsubscribers = quarters.map(q =>
+            onSnapshot(doc(db, "profitReports", `${selectedYear}_${q}`), (docSnap) => {
+                // Skip lần đầu (initial snapshot) để tránh fetch trùng lặp
+                if (isInitial[q]) {
+                    isInitial[q] = false;
+                    return;
+                }
+                // Khi có thay đổi từ báo cáo quý, refetch lại toàn bộ dữ liệu
+                console.log(`[Realtime] Báo cáo quý ${q}/${selectedYear} đã thay đổi`);
+                fetchData();
+            }, (error) => {
+                console.error(`Lỗi realtime listener quý ${q}:`, error);
+            })
+        );
+
+        // Cleanup listeners khi unmount hoặc selectedYear thay đổi
+        return () => {
+            unsubscribers.forEach(unsub => unsub());
+        };
     }, [selectedYear, runAllCalculations]);
 
     // UseEffect riêng để cập nhật rows khi editableRows thay đổi

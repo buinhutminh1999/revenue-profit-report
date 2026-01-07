@@ -121,6 +121,18 @@ const calcCpVuot = (row) => {
     return String(Math.max(0, result));
 };
 
+// Công thức tính Chênh Lệch cho "Thi công" và "KH-ĐT"
+// DOANH THU - (DOANH THU - PHẢI TRẢ - CHUYỂN TIẾP ĐK + NỢ PHẢI TRẢ ĐK - CHI PHÍ TRỰC TIẾP)
+// = PHẢI TRẢ + CHUYỂN TIẾP ĐK - NỢ PHẢI TRẢ ĐK + CHI PHÍ TRỰC TIẾP
+const calcChenhLech = (row) => {
+    const phaiTra = Number(parseNumber(row.phaiTra || "0"));
+    const carryover = Number(parseNumber(row.carryover || "0"));
+    const debt = Number(parseNumber(row.debt || "0"));
+    const directCost = Number(parseNumber(row.directCost || "0"));
+
+    return String(phaiTra + carryover - debt + directCost);
+};
+
 export const calcAllFields = (
     row,
     {
@@ -128,6 +140,8 @@ export const calcAllFields = (
         overallRevenue = "0",
         projectTotalAmount = "0",
         projectType = "",
+        year = "",
+        quarter = "",
     } = {}
 ) => {
     // ✅ LOGIC MỚI: Áp dụng công thức VT/NC cho TẤT CẢ công trình KHÔNG có đuôi -CP
@@ -165,6 +179,37 @@ export const calcAllFields = (
             const orv = Number(parseNumber(overallRevenue));
             const pta = Number(parseNumber(projectTotalAmount));
             row.revenue = pta === 0 ? "0" : String((hskh * orv) / pta);
+        }
+    }
+
+    // Công thức tính Chênh Lệch tự động cho "Thi công" và "KH-ĐT"
+    if (projectType === "Thi công" || projectType === "KH-ĐT") {
+        row.chenhLech = calcChenhLech(row);
+
+        // Từ Q4/2025 trở đi: Nếu Chênh Lệch != 0, Doanh Thu = Chênh Lệch
+        const yearNum = Number(year);
+        // Parse quarter: "Q4" -> 4, "4" -> 4
+        const quarterStr = String(quarter).replace(/[Qq]/g, '');
+        const quarterNum = Number(quarterStr);
+        const isQ4_2025OrLater = (yearNum > 2025) || (yearNum === 2025 && quarterNum >= 4);
+
+        // DEBUG: Log để kiểm tra
+        console.log('DEBUG ChenhLech Override:', {
+            project: row.project,
+            projectType,
+            year, quarter,
+            yearNum, quarterNum,
+            isQ4_2025OrLater,
+            isCpProject,
+            chenhLech: row.chenhLech,
+        });
+
+        if (isQ4_2025OrLater && isCpProject) {
+            const chenhLechValue = Number(parseNumber(row.chenhLech || "0"));
+            if (chenhLechValue !== 0) {
+                row.revenue = String(chenhLechValue);
+                console.log('DEBUG: Revenue overridden to', row.revenue);
+            }
         }
     }
 
@@ -222,7 +267,7 @@ export const getHiddenColumnsForProject = (project) => {
     const proj = (project || "").toUpperCase();
     const isCpProject = proj.includes("-CP");
     return !isCpProject
-        ? ["allocated", "carryover", "carryoverMinus", "carryoverEnd", "hskh", "revenue", "cpVuot"]
+        ? ["allocated", "carryover", "carryoverMinus", "carryoverEnd", "hskh", "revenue", "cpVuot", "phaiTra", "chenhLech"]
         : [];
 };
 

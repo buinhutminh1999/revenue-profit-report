@@ -132,7 +132,9 @@ export const useActualCosts = (projectId, year, quarter) => {
                         overallRevenue: revenueForCalc,
                         projectTotalAmount,
                         projectType: projectData?.type,
-                        isUserEditingNoPhaiTraCK: false
+                        isUserEditingNoPhaiTraCK: false,
+                        year,
+                        quarter,
                     });
 
                     // ✅ KHÔI PHỤC LẠI GIÁ TRỊ TỪ FIRESTORE
@@ -200,7 +202,9 @@ export const useActualCosts = (projectId, year, quarter) => {
                 overallRevenue: revenueForCalc,
                 projectTotalAmount,
                 projectType: projectData?.type,
-                isUserEditingNoPhaiTraCK: false
+                isUserEditingNoPhaiTraCK: false,
+                year,
+                quarter,
             });
 
             // Khôi phục giá trị

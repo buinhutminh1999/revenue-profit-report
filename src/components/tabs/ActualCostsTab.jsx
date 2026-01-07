@@ -415,7 +415,18 @@ export default function ActualCostsTab({ projectId }) {
             },
             // 2 cột mới cho kế toán nhập - không in ra
             { key: "phaiTra", label: "Phải Trả", editable: true },
-            { key: "chenhLech", label: "Chênh Lệch", editable: true },
+            {
+                key: "chenhLech",
+                label: "Chênh Lệch",
+                // Chỉ editable với Nhà máy, tự động tính cho Thi công và KH-ĐT
+                isCellEditable: (row) => {
+                    // Với -CP projects thuộc Thi công hoặc KH-ĐT, chenhLech được tính tự động
+                    // Nhưng chúng ta cần check projectType từ context, không có trong row
+                    // Vì vậy, chúng ta để editable = false cho tất cả để an toàn
+                    // và chỉ Nhà máy mới cần nhập thủ công
+                    return false; // Luôn read-only vì được tính tự động hoặc không dùng
+                },
+            },
         ],
         []
     );
@@ -441,6 +452,11 @@ export default function ActualCostsTab({ projectId }) {
 
             if (isNhaMayOnlyColumn && !isNhaMayType) {
                 return acc; // Bỏ qua cột này
+            }
+
+            // Ẩn phaiTra và chenhLech cho type "Nhà máy"
+            if (isNhaMayType && (col.key === "phaiTra" || col.key === "chenhLech")) {
+                return acc; // Bỏ qua cột này cho Nhà máy
             }
 
             // Nếu cột được hiển thị, tiến hành kiểm tra và đổi tên nếu cần
@@ -594,6 +610,8 @@ export default function ActualCostsTab({ projectId }) {
                     overallRevenue,
                     projectTotalAmount,
                     projectType: projectData?.type,
+                    year,
+                    quarter,
                 });
 
                 const newItems = [...prev];
@@ -601,7 +619,7 @@ export default function ActualCostsTab({ projectId }) {
                 return newItems;
             });
         },
-        [overallRevenue, projectTotalAmount, projectData]
+        [overallRevenue, projectTotalAmount, projectData, year, quarter]
     );
 
     // Wrapper function để backward compatibility
@@ -641,6 +659,8 @@ export default function ActualCostsTab({ projectId }) {
                     overallRevenue,
                     projectTotalAmount,
                     projectType: projectData?.type,
+                    year,
+                    quarter,
                 });
 
                 const newItems = [...prev];
@@ -648,7 +668,7 @@ export default function ActualCostsTab({ projectId }) {
                 return newItems;
             });
         },
-        [overallRevenue, projectTotalAmount, projectData]
+        [overallRevenue, projectTotalAmount, projectData, year, quarter]
     );
 
     const handleRemoveRow = useCallback(
@@ -673,6 +693,8 @@ export default function ActualCostsTab({ projectId }) {
                                 overallRevenue,
                                 projectTotalAmount,
                                 projectType: projectData?.type,
+                                year,
+                                quarter,
                             });
                         }
                         return newRow;
@@ -681,7 +703,7 @@ export default function ActualCostsTab({ projectId }) {
                 })
             );
         },
-        [overallRevenue, projectTotalAmount, projectData]
+        [overallRevenue, projectTotalAmount, projectData, year, quarter]
     );
 
     // =================================================================
@@ -697,11 +719,13 @@ export default function ActualCostsTab({ projectId }) {
                     overallRevenue,
                     projectTotalAmount,
                     projectType: projectData?.type,
+                    year,
+                    quarter,
                 });
                 return newRow;
             })
         );
-    }, [overallRevenue, projectTotalAmount, projectData]);
+    }, [overallRevenue, projectTotalAmount, projectData, year, quarter]);
 
     // Phần 1: Hàm mở Dialog (sẽ được gọi bởi nút bấm)
     const handleOpenResetRevenueDialog = () => {
