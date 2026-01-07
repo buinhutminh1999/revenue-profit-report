@@ -552,7 +552,8 @@ const useProfitReportData = (selectedYear) => {
                 editableDoc,
                 projectsSnapshot,
                 savedReportDoc,
-                costAllocationDoc,
+                // [SỬA] Load cost allocation cho TẤT CẢ 4 quý thay vì chỉ quý cuối
+                costAllocationDocs,
                 sanXuatDoc
             ] = await Promise.all([
                 // Load tất cả 4 báo cáo quý song song
@@ -571,9 +572,22 @@ const useProfitReportData = (selectedYear) => {
                 // Load báo cáo năm đã lưu
                 getDoc(doc(db, "profitReports", `${selectedYear}`))
                     .catch(() => ({ exists: () => false })),
-                // Load cost allocation
-                getDoc(doc(db, "costAllocationsQuarter", `${targetYear}_${targetQuarter}`))
-                    .catch(() => ({ exists: () => false })),
+                // [SỬA] Load cost allocation cho TẤT CẢ 4 quý (ưu tiên reportAdjustments, fallback costAllocationsQuarter)
+                Promise.all(quarters.map(async q => {
+                    // Ưu tiên reportAdjustments (trang /quarterly-cost-allocation mới)
+                    const reportSnap = await getDoc(doc(db, "reportAdjustments", `${selectedYear}_${q}`))
+                        .catch(() => ({ exists: () => false }));
+                    if (reportSnap.exists && reportSnap.exists()) {
+                        return { quarter: q, source: 'reportAdjustments', data: reportSnap.data() };
+                    }
+                    // Fallback về costAllocationsQuarter (trang cũ)
+                    const costSnap = await getDoc(doc(db, "costAllocationsQuarter", `${selectedYear}_${q}`))
+                        .catch(() => ({ exists: () => false }));
+                    if (costSnap.exists && costSnap.exists()) {
+                        return { quarter: q, source: 'costAllocationsQuarter', data: costSnap.data() };
+                    }
+                    return { quarter: q, source: null, data: null };
+                })),
                 // Load sanXuatDoc
                 getDoc(doc(db, `projects/HKZyMDRhyXJzJiOauzVe/years/${targetYear}/quarters/${targetQuarter}`))
                     .catch(() => ({ exists: () => false }))
@@ -618,20 +632,45 @@ const useProfitReportData = (selectedYear) => {
                 setEditableRows(editableDoc.data().rows || {});
             }
 
-            // ✅ Xử lý cost allocation và sanXuatDoc (đã load song song ở trên)
+            // ✅ [SỬA] Xử lý cost allocation - TỔNG TẤT CẢ 4 QUÝ
             let costAddedForGroupI = 0;
             let costOverForGroupI = 0;
             let costAddedForGroupII = 0;
             let costOverForGroupII = 0;
             let costOverForGroupIII = 0;
 
-            if (costAllocationDoc.exists && costAllocationDoc.exists()) {
-                const data = costAllocationDoc.data();
-                costAddedForGroupI = toNum(data.totalSurplusThiCong);
-                costOverForGroupI = toNum(data.totalDeficitThiCong);
-                costAddedForGroupII = toNum(data.totalSurplusNhaMay);
-                costOverForGroupIII = toNum(data.totalDeficitKHDT);
-            }
+            // Tính tổng CHI PHÍ VƯỢT từ tất cả 4 quý cho Thi công và KH-ĐT
+            costAllocationDocs.forEach(({ quarter, source, data }) => {
+                if (!data) return;
+
+                if (source === 'reportAdjustments') {
+                    // Từ reportAdjustments: tính tổng cumQuarterOnly từ mainRows
+                    if (Array.isArray(data.mainRows)) {
+                        data.mainRows.forEach(row => {
+                            if (row.id !== 'DOANH_THU' && row.id !== 'TONG_CHI_PHI') {
+                                // Cộng dồn cho Thi công
+                                costOverForGroupI += toNum(row.byType?.['Thi công']?.cumQuarterOnly || 0);
+                                // Cộng dồn cho KH-ĐT
+                                costOverForGroupIII += toNum(row.byType?.['KH-ĐT']?.cumQuarterOnly || 0);
+                            }
+                        });
+                    }
+                    // Lấy thặng dư nếu có (chỉ quý cuối cùng có data)
+                    if (quarter === 'Q4' || !costAddedForGroupI) {
+                        costAddedForGroupI = toNum(data.totalSurplusThiCong || 0);
+                        costAddedForGroupII = toNum(data.totalSurplusNhaMay || 0);
+                    }
+                } else if (source === 'costAllocationsQuarter') {
+                    // Từ costAllocationsQuarter (trang cũ): cộng dồn các field tổng
+                    costOverForGroupI += toNum(data.totalThiCongCumQuarterOnly || 0);
+                    costOverForGroupIII += toNum(data.totalKhdtCumQuarterOnly || 0);
+                    // Lấy thặng dư nếu có
+                    if (quarter === 'Q4' || !costAddedForGroupI) {
+                        costAddedForGroupI = toNum(data.totalSurplusThiCong || 0);
+                        costAddedForGroupII = toNum(data.totalSurplusNhaMay || 0);
+                    }
+                }
+            });
 
             if (sanXuatDoc.exists && sanXuatDoc.exists()) {
                 const data = sanXuatDoc.data();

@@ -159,13 +159,43 @@ export default function ProfitReportQuarter() {
             setLoading(true);
 
             // ✅ BƯỚC 1: ĐIỀN LẠI LOGIC VÀO 2 HÀM NÀY
-            const getCostOverQuarter = async (fieldName) => {
+            // Lấy CHI PHÍ VƯỢT từ trang quarterly-cost-allocation (reportAdjustments)
+            // Fallback về costAllocationsQuarter nếu không có dữ liệu
+            const getCostOverQuarter = async (typeFilter) => {
                 try {
-                    const snap = await getDoc(
-                        doc(db, "costAllocationsQuarter", `${selectedYear}_${selectedQuarter}`)
+                    // Ưu tiên lấy từ reportAdjustments (trang /quarterly-cost-allocation)
+                    const reportSnap = await getDoc(
+                        doc(db, "reportAdjustments", `${selectedYear}_${selectedQuarter}`)
                     );
-                    if (snap.exists()) return toNum(snap.data()[fieldName]);
-                } catch { }
+                    if (reportSnap.exists()) {
+                        const data = reportSnap.data();
+                        // Tính tổng cumQuarterOnly từ mainRows cho loại dự án cụ thể
+                        if (Array.isArray(data.mainRows)) {
+                            const total = data.mainRows
+                                .filter(row => row.id !== 'DOANH_THU' && row.id !== 'TONG_CHI_PHI')
+                                .reduce((sum, row) => {
+                                    const typeData = row.byType?.[typeFilter] || {};
+                                    return sum + toNum(typeData.cumQuarterOnly || 0);
+                                }, 0);
+                            return total;
+                        }
+                    }
+
+                    // Fallback về costAllocationsQuarter (trang /cost-allocation cũ)
+                    const fieldMap = {
+                        'Thi công': 'totalThiCongCumQuarterOnly',
+                        'KH-ĐT': 'totalKhdtCumQuarterOnly'
+                    };
+                    const fieldName = fieldMap[typeFilter];
+                    if (fieldName) {
+                        const snap = await getDoc(
+                            doc(db, "costAllocationsQuarter", `${selectedYear}_${selectedQuarter}`)
+                        );
+                        if (snap.exists()) return toNum(snap.data()[fieldName]);
+                    }
+                } catch (e) {
+                    console.error("Error fetching cost over quarter:", e);
+                }
                 return 0;
             };
 
@@ -196,9 +226,9 @@ export default function ProfitReportQuarter() {
                 profitChangesDoc,
             ] = await Promise.all([
                 getDocs(collection(db, "projects")),
-                getCostOverQuarter("totalThiCongCumQuarterOnly"),
+                getCostOverQuarter("Thi công"),
                 getCpVuotSanXuat(),
-                getCostOverQuarter("totalKhdtCumQuarterOnly"),
+                getCostOverQuarter("KH-ĐT"),
                 getDoc(doc(db, "profitChanges", `${selectedYear}_${selectedQuarter}`)),
             ]);
 

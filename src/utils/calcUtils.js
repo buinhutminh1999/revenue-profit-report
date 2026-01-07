@@ -126,6 +126,12 @@ const calcCpVuot = (row) => {
 // = PHẢI TRẢ + CHUYỂN TIẾP ĐK - NỢ PHẢI TRẢ ĐK + CHI PHÍ TRỰC TIẾP
 const calcChenhLech = (row) => {
     const phaiTra = Number(parseNumber(row.phaiTra || "0"));
+
+    // Nếu Phải Trả = 0 thì Chênh Lệch = 0
+    if (phaiTra === 0) {
+        return "0";
+    }
+
     const carryover = Number(parseNumber(row.carryover || "0"));
     const debt = Number(parseNumber(row.debt || "0"));
     const directCost = Number(parseNumber(row.directCost || "0"));
