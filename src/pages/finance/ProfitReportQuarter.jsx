@@ -2157,6 +2157,7 @@ export default function ProfitReportQuarter() {
                     year={selectedYear}
                     quarter={selectedQuarter}
                     summaryTargets={summaryTargets}
+                    summaryData={summaryData}
                 />
             </div>
         </Box>

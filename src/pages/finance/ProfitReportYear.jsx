@@ -2142,7 +2142,8 @@ export default function ProfitReportYear() {
                     ref={printRef}
                     rows={rows} // Chú ý: rows ở đây là rows sau khi xử lý (được trả về từ useProfitReportData)
                     year={selectedYear}
-                    summaryTargets={initialSummaryTargets}
+                    summaryTargets={summaryTargets}
+                    summaryData={summaryData}
                 />
             </div>
         </Box>
