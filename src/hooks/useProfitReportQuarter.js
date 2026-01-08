@@ -232,6 +232,8 @@ export const useProfitReportQuarter = (selectedYear, selectedQuarter) => {
                         );
                     }
 
+
+
                     const profit = revenue - cost;
                     const plannedProfitMargin =
                         data.estimatedProfitMargin || null;

@@ -48,6 +48,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '../../services/firebase-config'; // Đảm bảo đường dẫn này đúng
+import { useInterestExpenses } from '../../hooks/useInterestExpenses';
 
 // ----------------------------------------------------------------------
 // --- BẮT ĐẦU PHẦN CODE ĐƯỢC GỘP TỪ CÁC FILE BÊN NGOÀI ---
@@ -640,6 +641,36 @@ export default function QuarterlyCostAllocationReport() {
         return { whereField: 'isThiCong', sortField: 'orderThiCong' };
     }, [projectType]);
 
+    // [AUTO-SYNC] Fetch interest expenses data for override
+    const { data: interestData } = useInterestExpenses(year, quarter);
+
+    // [AUTO-SYNC] Helper to override interest expense values (same logic as CostAllocation.jsx)
+    const getOverrideValue = useCallback((rowName, valKeyType) => {
+        // Condition: From Q4 2025 onwards
+        if (year < 2025) return null;
+        if (year === 2025 && quarter < 4) return null;
+        if (!interestData) return null;
+
+        const nameLower = (rowName || "").toLowerCase();
+
+        // Thi Công: "vốn lưu động 18 tỷ"
+        if (valKeyType === 'thiCongValue' && nameLower.includes("vốn lưu động 18 tỷ") && nameLower.includes("chi phí lãi vay")) {
+            return interestData.allocationThiCong || 0;
+        }
+
+        // Nhà Máy: "giá trị xd cuối năm 2024"
+        if (valKeyType === 'nhaMayValue' && nameLower.includes("giá trị xd cuối năm 2024") && nameLower.includes("chi phí lãi vay")) {
+            return interestData.allocationNhaMay || 0;
+        }
+
+        // KH-ĐT: "chi phí lãi vay kh-đt"
+        if (valKeyType === 'khdtValue' && nameLower.includes("chi phí lãi vay kh-đt")) {
+            return interestData.allocationDauTu || 0;
+        }
+
+        return null;
+    }, [year, quarter, interestData]);
+
     // Load danh sách khoản mục (Giữ nguyên)
     useEffect(() => {
         const fetchItems = async () => {
@@ -985,8 +1016,10 @@ export default function QuarterlyCostAllocationReport() {
             if (!visibleRowIds.has(row.id) || row.id === 'DOANH_THU' || row.id === 'TONG_CHI_PHI') {
                 return;
             }
-            // Giờ nó sẽ chỉ cộng các hàng bạn thấy
-            allocatedOriginalTotal += toNum(row[valKey]);
+            // [AUTO-SYNC] Áp dụng override cho chi phí lãi vay
+            const overrideVal = getOverrideValue(row.name || '', valKey);
+            const allocValue = (overrideVal !== null) ? overrideVal : toNum(row[valKey]);
+            allocatedOriginalTotal += allocValue;
         });
 
         // --- BƯỚC 3: Gán các giá trị cuối cùng ---
@@ -1002,7 +1035,8 @@ export default function QuarterlyCostAllocationReport() {
         visibleProjects,
         items, // <-- Thêm 'items' vào dependencies
         typeFilter,
-        valKey
+        valKey,
+        getOverrideValue // <-- [AUTO-SYNC] Thêm dependency cho override
     ]);
     const showSnack = useCallback((msg, sev = "success") => { setSnack({ open: true, msg, sev }); }, []);
 
@@ -1663,8 +1697,11 @@ export default function QuarterlyCostAllocationReport() {
                                         carryOverValue = rowDataOriginal ? toNum(rowDataOriginal.byType?.[typeFilter]?.carryOver || 0) : 0;
                                     }
 
-                                    // [SỬA] Tính Phân bổ GỐC (đã di chuyển lên đây)
-                                    const originalAllocated = rowDataOriginal ? toNum(rowDataOriginal[valKey]) : 0;
+                                    // [AUTO-SYNC] Tính Phân bổ GỐC với override
+                                    const overrideVal = getOverrideValue(itemRow.item, valKey);
+                                    const originalAllocated = (overrideVal !== null)
+                                        ? overrideVal
+                                        : (rowDataOriginal ? toNum(rowDataOriginal[valKey]) : 0);
 
                                     const isSummaryRow = itemRow.id === 'DOANH_THU' || itemRow.id === 'TONG_CHI_PHI';
                                     const isDoanhThuRow = itemRow.id === 'DOANH_THU';

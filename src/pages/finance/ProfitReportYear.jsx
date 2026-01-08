@@ -1421,28 +1421,53 @@ const useProfitReportData = (selectedYear) => {
 
         fetchData();
 
-        // ✅ REALTIME: Lắng nghe thay đổi từ các báo cáo quý
+        // ✅ REALTIME: Lắng nghe thay đổi từ các nguồn dữ liệu
         const quarters = ["Q1", "Q2", "Q3", "Q4"];
-        const isInitial = { Q1: true, Q2: true, Q3: true, Q4: true };
+        const isInitialProfitReports = { Q1: true, Q2: true, Q3: true, Q4: true };
+        const isInitialReportAdjustments = { Q1: true, Q2: true, Q3: true, Q4: true };
+        let isInitialEditable = true;
 
-        const unsubscribers = quarters.map(q =>
+        // 1. Listeners cho profitReports (4 quý)
+        const profitReportsListeners = quarters.map(q =>
             onSnapshot(doc(db, "profitReports", `${selectedYear}_${q}`), (docSnap) => {
-                // Skip lần đầu (initial snapshot) để tránh fetch trùng lặp
-                if (isInitial[q]) {
-                    isInitial[q] = false;
+                if (isInitialProfitReports[q]) {
+                    isInitialProfitReports[q] = false;
                     return;
                 }
-                // Khi có thay đổi từ báo cáo quý, refetch lại toàn bộ dữ liệu
-                console.log(`[Realtime] Báo cáo quý ${q}/${selectedYear} đã thay đổi`);
+                console.log(`[Realtime] profitReports Q${q}/${selectedYear} đã thay đổi`);
                 fetchData();
-            }, (error) => {
-                console.error(`Lỗi realtime listener quý ${q}:`, error);
-            })
+            }, (error) => console.error(`Lỗi listener profitReports Q${q}:`, error))
         );
 
-        // Cleanup listeners khi unmount hoặc selectedYear thay đổi
+        // 2. Listeners cho reportAdjustments (4 quý) - từ /quarterly-cost-allocation
+        const reportAdjustmentsListeners = quarters.map(q =>
+            onSnapshot(doc(db, "reportAdjustments", `${selectedYear}_${q}`), (docSnap) => {
+                if (isInitialReportAdjustments[q]) {
+                    isInitialReportAdjustments[q] = false;
+                    return;
+                }
+                console.log(`[Realtime] reportAdjustments Q${q}/${selectedYear} đã thay đổi`);
+                fetchData();
+            }, (error) => console.error(`Lỗi listener reportAdjustments Q${q}:`, error))
+        );
+
+        // 3. Listener cho editableProfitRows
+        const editableListener = onSnapshot(doc(db, "editableProfitRows", `${selectedYear}`), (docSnap) => {
+            if (isInitialEditable) {
+                isInitialEditable = false;
+                return;
+            }
+            console.log(`[Realtime] editableProfitRows ${selectedYear} đã thay đổi`);
+            if (docSnap.exists()) {
+                setEditableRows(docSnap.data().rows || {});
+            }
+        }, (error) => console.error(`Lỗi listener editableProfitRows:`, error));
+
+        // Cleanup tất cả listeners khi unmount hoặc selectedYear thay đổi
         return () => {
-            unsubscribers.forEach(unsub => unsub());
+            profitReportsListeners.forEach(unsub => unsub());
+            reportAdjustmentsListeners.forEach(unsub => unsub());
+            editableListener();
         };
     }, [selectedYear, runAllCalculations]);
 
@@ -2124,77 +2149,110 @@ export default function ProfitReportYear() {
                                 } else {
                                     return true;
                                 }
-                            }).map((r, idx) => (
-                                <TableRow key={`${r.name}-${idx}`} sx={{
-                                    backgroundColor: r.name === "IV. TỔNG"
-                                        ? (tvMode ? "#c8e6c9" : "#e8f5e9")
-                                        : r.name?.match(/^[IVX]+\./)
-                                            ? (tvMode ? "#fff59d" : "#fff9c4")
-                                            : isEditableRow(r.name)
-                                                ? (tvMode ? "#e1bee7" : "#f3e5f5")
-                                                : idx % 2 === 0
-                                                    ? "#ffffff"
-                                                    : (tvMode ? "#f5f5f5" : "#f9f9f9"),
-                                    "&:hover": {
-                                        bgcolor: tvMode ? "#e3f2fd" : "#f0f4ff",
-                                        ...(tvMode ? {} : { transition: "background-color 0.2s" }), // ✅ Bỏ transition trong TV mode
-                                    },
-                                    borderBottom: tvMode ? "2px solid #e0e0e0" : "1px solid #e0e0e0",
-                                }}>
-                                    <TableCell sx={{
-                                        ...cellStyle,
-                                        fontWeight: r.name?.match(/^[IVX]+\./) || r.name?.includes("LỢI NHUẬN")
-                                            ? (tvMode ? 800 : 700)
-                                            : (tvMode ? 500 : 400),
-                                        width: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth,
-                                        minWidth: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth,
-                                        backgroundColor: "inherit",
-                                        position: "sticky",
-                                        left: 0,
-                                        zIndex: 99,
-                                        borderRight: tvMode ? "3px solid #1565c0" : "2px solid #ccc",
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        fontSize: tvMode ? "1.15rem" : cellStyle.fontSize,
+                            }).map((r, idx) => {
+                                // ✅ LOGIC TÔ MÀU HÀNG CẢI TIẾN
+                                const isMainHeader = r.name?.match(/^[IVX]+\./); // I., II., III., IV., V., VI.
+                                const isTotalRow = r.name === "IV. TỔNG";
+                                const isResultRow = r.name?.includes("=>") || r.name?.startsWith("A.") || r.name?.startsWith("B.");
+                                const isSummaryRow = r.name?.includes("TỔNG LỢI NHUẬN") || r.name?.includes("LỢI NHUẬN RÒNG");
+                                const isSubSection = r.name?.match(/^[a-d]\./i) || r.name?.match(/^[1-4]\./);
+                                const isEditable = isEditableRow(r.name);
+
+                                // Màu nền
+                                let bgColor;
+                                if (isTotalRow) {
+                                    bgColor = tvMode ? "#a5d6a7" : "#c8e6c9"; // Xanh lá đậm cho IV. TỔNG
+                                } else if (isSummaryRow || isResultRow) {
+                                    bgColor = tvMode ? "#90caf9" : "#bbdefb"; // Xanh dương nhạt cho hàng kết quả
+                                } else if (isMainHeader) {
+                                    bgColor = tvMode ? "#fff59d" : "#fff9c4"; // Vàng cho header chính
+                                } else if (isEditable) {
+                                    bgColor = tvMode ? "#e1bee7" : "#f3e5f5"; // Tím nhạt cho editable
+                                } else {
+                                    bgColor = idx % 2 === 0 ? "#ffffff" : (tvMode ? "#f5f5f5" : "#fafafa");
+                                }
+
+                                // Độ đậm chữ cho cột tên
+                                let nameFontWeight;
+                                if (isTotalRow || isSummaryRow || isResultRow) {
+                                    nameFontWeight = tvMode ? 800 : 700; // Rất đậm
+                                } else if (isMainHeader) {
+                                    nameFontWeight = tvMode ? 700 : 600; // Đậm
+                                } else if (isSubSection) {
+                                    nameFontWeight = tvMode ? 500 : 400; // Bình thường
+                                } else {
+                                    nameFontWeight = tvMode ? 500 : 400;
+                                }
+
+                                return (
+                                    <TableRow key={`${r.name}-${idx}`} sx={{
+                                        backgroundColor: bgColor,
+                                        "&:hover": {
+                                            bgcolor: tvMode ? "#e3f2fd" : "#f0f4ff",
+                                            ...(tvMode ? {} : { transition: "background-color 0.2s" }),
+                                        },
+                                        borderBottom: tvMode ? "2px solid #e0e0e0" : "1px solid #e0e0e0",
+                                        // Thêm viền đậm cho các hàng quan trọng
+                                        ...(isTotalRow || isSummaryRow || isResultRow ? {
+                                            borderTop: tvMode ? "3px solid #1565c0" : "2px solid #1565c0",
+                                            borderBottom: tvMode ? "3px solid #1565c0" : "2px solid #1565c0",
+                                        } : {}),
                                     }}>
-                                        {r.name}
-                                    </TableCell>
-                                    {/* DỮ LIỆU DOANH THU */}
-                                    {columnVisibility.revenueQ1 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ1)}</TableCell>}
-                                    {columnVisibility.revenueQ2 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ2)}</TableCell>}
-                                    {columnVisibility.revenueQ3 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ3)}</TableCell>}
-                                    {columnVisibility.revenueQ4 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ4)}</TableCell>}
-                                    {columnVisibility.totalRevenue && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd" }}>{format(r.revenue)}</TableCell>}
+                                        <TableCell sx={{
+                                            ...cellStyle,
+                                            fontWeight: nameFontWeight,
+                                            width: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth,
+                                            minWidth: tvMode ? Math.max(congTrinhColWidth, 400) : congTrinhColWidth,
+                                            backgroundColor: "inherit",
+                                            position: "sticky",
+                                            left: 0,
+                                            zIndex: 99,
+                                            borderRight: tvMode ? "3px solid #1565c0" : "2px solid #ccc",
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            fontSize: tvMode ? "1.15rem" : cellStyle.fontSize,
+                                            // Thêm màu chữ đặc biệt cho hàng kết quả
+                                            color: (isTotalRow || isSummaryRow) ? "#1565c0" : "inherit",
+                                        }}>
+                                            {r.name}
+                                        </TableCell>
+                                        {/* DỮ LIỆU DOANH THU */}
+                                        {columnVisibility.revenueQ1 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ1)}</TableCell>}
+                                        {columnVisibility.revenueQ2 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ2)}</TableCell>}
+                                        {columnVisibility.revenueQ3 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ3)}</TableCell>}
+                                        {columnVisibility.revenueQ4 && <TableCell align="right" sx={cellStyle}>{format(r.revenueQ4)}</TableCell>}
+                                        {columnVisibility.totalRevenue && <TableCell align="right" sx={{ ...cellStyle, fontWeight: (isMainHeader || isTotalRow || isSummaryRow || isResultRow) ? "bold" : "normal", backgroundColor: "#e3f2fd" }}>{format(r.revenue)}</TableCell>}
 
-                                    {/* DỮ LIỆU CHI PHÍ */}
-                                    {columnVisibility.costQ1 && <TableCell align="right" sx={cellStyle}>{format(r.costQ1)}</TableCell>}
-                                    {columnVisibility.costQ2 && <TableCell align="right" sx={cellStyle}>{format(r.costQ2)}</TableCell>}
-                                    {columnVisibility.costQ3 && <TableCell align="right" sx={cellStyle}>{format(r.costQ3)}</TableCell>}
-                                    {columnVisibility.costQ4 && <TableCell align="right" sx={cellStyle}>{format(r.costQ4)}</TableCell>}
-                                    {columnVisibility.totalCost && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold", backgroundColor: "#e3f2fd" }}>{format(r.cost)}</TableCell>}
+                                        {/* DỮ LIỆU CHI PHÍ */}
+                                        {columnVisibility.costQ1 && <TableCell align="right" sx={cellStyle}>{format(r.costQ1)}</TableCell>}
+                                        {columnVisibility.costQ2 && <TableCell align="right" sx={cellStyle}>{format(r.costQ2)}</TableCell>}
+                                        {columnVisibility.costQ3 && <TableCell align="right" sx={cellStyle}>{format(r.costQ3)}</TableCell>}
+                                        {columnVisibility.costQ4 && <TableCell align="right" sx={cellStyle}>{format(r.costQ4)}</TableCell>}
+                                        {columnVisibility.totalCost && <TableCell align="right" sx={{ ...cellStyle, fontWeight: (isMainHeader || isTotalRow || isSummaryRow || isResultRow) ? "bold" : "normal", backgroundColor: "#e3f2fd" }}>{format(r.cost)}</TableCell>}
 
-                                    {/* DỮ LIỆU LỢI NHUẬN */}
-                                    {columnVisibility.profitQ1 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ1)}</TableCell>}
-                                    {columnVisibility.profitQ2 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ2)}</TableCell>}
-                                    {columnVisibility.profitQ3 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ3)}</TableCell>}
-                                    {columnVisibility.profitQ4 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: "bold" }}>{format(r.profitQ4)}</TableCell>}
-                                    {columnVisibility.totalProfit && <TableCell align="right" sx={{
-                                        ...cellStyle,
-                                        fontWeight: tvMode ? 700 : "bold",
-                                        backgroundColor: tvMode ? "#b39ddb" : "#d1c4e9",
-                                        padding: tvMode ? "12px 16px" : "4px 8px",
-                                        fontSize: tvMode ? "1.2rem" : cellStyle.fontSize,
-                                    }}>{isEditableRow(r.name) ? <ClickableEditCell rowName={r.name} field="profit" value={editableRows[r.name]?.profit || r.profit || 0} /> : format(r.profit)}</TableCell>}
+                                        {/* DỮ LIỆU LỢI NHUẬN - Chỉ bold cho hàng quan trọng */}
+                                        {columnVisibility.profitQ1 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: (isMainHeader || isTotalRow || isSummaryRow || isResultRow) ? "bold" : "normal" }}>{format(r.profitQ1)}</TableCell>}
+                                        {columnVisibility.profitQ2 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: (isMainHeader || isTotalRow || isSummaryRow || isResultRow) ? "bold" : "normal" }}>{format(r.profitQ2)}</TableCell>}
+                                        {columnVisibility.profitQ3 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: (isMainHeader || isTotalRow || isSummaryRow || isResultRow) ? "bold" : "normal" }}>{format(r.profitQ3)}</TableCell>}
+                                        {columnVisibility.profitQ4 && <TableCell align="right" sx={{ ...cellStyle, fontWeight: (isMainHeader || isTotalRow || isSummaryRow || isResultRow) ? "bold" : "normal" }}>{format(r.profitQ4)}</TableCell>}
+                                        {columnVisibility.totalProfit && <TableCell align="right" sx={{
+                                            ...cellStyle,
+                                            fontWeight: (isMainHeader || isTotalRow || isSummaryRow || isResultRow) ? (tvMode ? 700 : "bold") : "normal",
+                                            backgroundColor: (isMainHeader || isTotalRow || isSummaryRow || isResultRow) ? (tvMode ? "#b39ddb" : "#d1c4e9") : undefined,
+                                            padding: tvMode ? "12px 16px" : "4px 8px",
+                                            fontSize: tvMode ? "1.2rem" : cellStyle.fontSize,
+                                        }}>{isEditableRow(r.name) ? <ClickableEditCell rowName={r.name} field="profit" value={editableRows[r.name]?.profit || r.profit || 0} /> : format(r.profit)}</TableCell>}
 
-                                    {/* DỮ LIỆU CÁC CỘT ĐẶC BIỆT */}
-                                    {columnVisibility.plannedProfitMargin && <TableCell align="center" sx={cellStyle}>{format(r.plannedProfitMargin, "percent")}</TableCell>}
-                                    {columnVisibility.actualProfitMargin && <TableCell align="center" sx={cellStyle}>{r.projectId && r.revenue ? format((r.profit / r.revenue) * 100, "percent") : ''}</TableCell>}
-                                    {columnVisibility.costOverCumulative && <TableCell align="right" sx={cellStyle}>{format(r.costOverCumulative)}</TableCell>}
-                                    {columnVisibility.costAddedToProfit && <TableCell align="right" sx={cellStyle}>{format(r.costAddedToProfit)}</TableCell>}
-                                    {columnVisibility.note && <TableCell align="left" sx={cellStyle}>{format(r.note)}</TableCell>}
-                                </TableRow>
-                            ))}
+                                        {/* DỮ LIỆU CÁC CỘT ĐẶC BIỆT */}
+                                        {columnVisibility.plannedProfitMargin && <TableCell align="center" sx={cellStyle}>{format(r.plannedProfitMargin, "percent")}</TableCell>}
+                                        {columnVisibility.actualProfitMargin && <TableCell align="center" sx={cellStyle}>{r.projectId && r.revenue ? format((r.profit / r.revenue) * 100, "percent") : ''}</TableCell>}
+                                        {columnVisibility.costOverCumulative && <TableCell align="right" sx={cellStyle}>{format(r.costOverCumulative)}</TableCell>}
+                                        {columnVisibility.costAddedToProfit && <TableCell align="right" sx={cellStyle}>{format(r.costAddedToProfit)}</TableCell>}
+                                        {columnVisibility.note && <TableCell align="left" sx={cellStyle}>{format(r.note)}</TableCell>}
+                                    </TableRow>
+                                )
+                            })}
                         </TableBody>
                     </Table>
                 </TableContainer>
@@ -2209,6 +2267,6 @@ export default function ProfitReportYear() {
                     summaryData={summaryData}
                 />
             </div>
-        </Box>
+        </Box >
     );
 }

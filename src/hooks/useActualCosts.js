@@ -13,6 +13,7 @@ import { parseNumber } from "../utils/numberUtils";
 import { generateUniqueId } from "../utils/idUtils";
 import { calcAllFields } from "../utils/calcUtils";
 import { useCategories } from "./useCategories";
+import { useInterestExpenses } from "./useInterestExpenses";
 
 export const useActualCosts = (projectId, year, quarter) => {
     const [costItems, setCostItems] = useState([]);
@@ -30,6 +31,27 @@ export const useActualCosts = (projectId, year, quarter) => {
     // Dynamic sortKey for categories
     const [sortKey, setSortKey] = useState("order");
     const { categories, isLoading: isCategoriesLoading } = useCategories(sortKey);
+
+    // [AUTO-SYNC] Fetch interest expenses for Nhà máy override
+    const quarterNumber = parseInt(quarter?.replace('Q', '') || '1', 10);
+    const { data: interestData } = useInterestExpenses(parseInt(year, 10), quarterNumber);
+
+    // [AUTO-SYNC] Helper to override interest expense values for Nhà máy
+    const getOverrideNhaMayValue = (rowName) => {
+        // Condition: From Q4 2025 onwards
+        if (parseInt(year, 10) < 2025) return null;
+        if (parseInt(year, 10) === 2025 && quarterNumber < 4) return null;
+        if (!interestData) return null;
+
+        const nameLower = (rowName || "").toLowerCase();
+
+        // Nhà Máy: "giá trị xd cuối năm 2024"
+        if (nameLower.includes("giá trị xd cuối năm 2024") && nameLower.includes("chi phí lãi vay")) {
+            return interestData.allocationNhaMay || 0;
+        }
+
+        return null;
+    };
 
     // 1. Fetch Project Data
     useEffect(() => {
@@ -59,23 +81,25 @@ export const useActualCosts = (projectId, year, quarter) => {
         fetchProject();
     }, [projectId]);
 
-    // 2. Fetch Cost Allocations
+    // 2. Fetch Cost Allocations (REALTIME)
     useEffect(() => {
         if (!year || !quarter) return;
-        const fetchAllocations = async () => {
-            try {
-                const docId = `${year}_${quarter}`;
-                const docSnap = await getDoc(doc(db, "costAllocations", docId));
-                if (docSnap.exists()) {
-                    setCostAllocations(docSnap.data().mainRows || []);
-                } else {
-                    setCostAllocations([]);
-                }
-            } catch (err) {
-                console.error("Error fetching allocations:", err);
+
+        const docId = `${year}_${quarter}`;
+        const docRef = doc(db, "costAllocations", docId);
+
+        // Use onSnapshot for realtime updates from /allocations page
+        const unsubscribe = onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setCostAllocations(docSnap.data().mainRows || []);
+            } else {
+                setCostAllocations([]);
             }
-        };
-        fetchAllocations();
+        }, (err) => {
+            console.error("Error fetching allocations:", err);
+        });
+
+        return () => unsubscribe();
     }, [year, quarter]);
 
     // 3. Main Data Listener
@@ -135,6 +159,7 @@ export const useActualCosts = (projectId, year, quarter) => {
                         isUserEditingNoPhaiTraCK: false,
                         year,
                         quarter,
+                        isProjectFinalized: isFinalized, // ✅ Use local isFinalized from snapshot
                     });
 
                     // ✅ KHÔI PHỤC LẠI GIÁ TRỊ TỪ FIRESTORE
@@ -205,6 +230,7 @@ export const useActualCosts = (projectId, year, quarter) => {
                 isUserEditingNoPhaiTraCK: false,
                 year,
                 quarter,
+                isProjectFinalized, // ✅ Use state
             });
 
             // Khôi phục giá trị
@@ -221,7 +247,7 @@ export const useActualCosts = (projectId, year, quarter) => {
         });
 
         setCostItems(recalculated);
-    }, [useActualRevenueForCalc, actualRevenue, overallRevenue, initialDbLoadComplete, projectData, projectTotalAmount]);
+    }, [useActualRevenueForCalc, actualRevenue, overallRevenue, initialDbLoadComplete, projectData, projectTotalAmount, isProjectFinalized]); // ✅ Add isProjectFinalized dependence
 
     // 5. Synchronization Logic
     useEffect(() => {
@@ -261,21 +287,35 @@ export const useActualCosts = (projectId, year, quarter) => {
             if (!isAllowed && item.allocated !== "0") {
                 hasChanges = true;
                 const newItem = { ...item, allocated: "0" };
-                calcAllFields(newItem, { overallRevenue, projectTotalAmount, projectType: projectData?.type });
+                calcAllFields(newItem, { overallRevenue, projectTotalAmount, projectType: projectData?.type, isProjectFinalized });
+
                 return newItem;
             }
 
             if (projectData.type === "Nhà máy" && costAllocations.length > 0) {
                 const allocationData = costAllocations.find(a => a.name === item.description);
                 if (allocationData && allocationData.nhaMayValue !== undefined) {
-                    const sourceVal = Number(parseNumber(allocationData.nhaMayValue || "0"));
-                    const direct = Number(parseNumber(item.directCost || "0"));
-                    const newAlloc = String(sourceVal - direct);
+                    // [AUTO-SYNC] Áp dụng override cho chi phí lãi vay Nhà máy
+                    const overrideVal = getOverrideNhaMayValue(item.description);
+                    const sourceVal = (overrideVal !== null)
+                        ? overrideVal
+                        : Number(parseNumber(allocationData.nhaMayValue || "0"));
+
+                    // FIXED: Chỉ trừ directCost khi sourceVal > 0
+                    // Nếu sourceVal = 0 (từ /allocations), thì PHÂN BỔ = 0
+                    let newAlloc;
+                    if (sourceVal === 0) {
+                        newAlloc = "0";
+                    } else {
+                        const direct = Number(parseNumber(item.directCost || "0"));
+                        newAlloc = String(sourceVal - direct);
+                    }
 
                     if (item.allocated !== newAlloc) {
                         hasChanges = true;
                         const newItem = { ...item, allocated: newAlloc };
-                        calcAllFields(newItem, { overallRevenue, projectTotalAmount, projectType: projectData?.type });
+                        calcAllFields(newItem, { overallRevenue, projectTotalAmount, projectType: projectData?.type, isProjectFinalized });
+
                         return newItem;
                     }
                 }
@@ -287,7 +327,8 @@ export const useActualCosts = (projectId, year, quarter) => {
             setCostItems([...updatedItems, ...newItemsToAdd]);
         }
 
-    }, [initialDbLoadComplete, costItems, costAllocations, categories, projectData, overallRevenue, projectTotalAmount]);
+    }, [initialDbLoadComplete, costItems, costAllocations, categories, projectData, overallRevenue, projectTotalAmount, interestData, isProjectFinalized]); // [AUTO-SYNC] Added interestData & isProjectFinalized
+
 
     const saveItems = async (itemsToSave = costItems, revenueToSave = overallRevenue, actualRevenueToSave = actualRevenue, useActualForCalc = useActualRevenueForCalc) => {
         try {

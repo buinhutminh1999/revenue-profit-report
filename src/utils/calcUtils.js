@@ -148,6 +148,7 @@ export const calcAllFields = (
         projectType = "",
         year = "",
         quarter = "",
+        isProjectFinalized = false, // ✅ MỚI: Thêm cờ đã quyết toán
     } = {}
 ) => {
     // ✅ LOGIC MỚI: Áp dụng công thức VT/NC cho TẤT CẢ công trình KHÔNG có đuôi -CP
@@ -236,7 +237,8 @@ export const calcAllFields = (
     row.carryoverEnd = calcCarryoverEnd(row, projectType);
 
     // Chỉ tính NPT CK tự động cho các dự án -CP (không phải VT/NC)
-    if (!isUserEditingNoPhaiTraCK && !isVtNcProject && row.project.includes("-CP")) {
+    // ✅ FIX: Bỏ qua khi đã quyết toán để giữ giá trị đã lưu
+    if (!isUserEditingNoPhaiTraCK && !isVtNcProject && row.project.includes("-CP") && !isProjectFinalized) {
         row.noPhaiTraCK = calcNoPhaiTraCK(row, projectType);
     }
 
@@ -262,9 +264,18 @@ export const calcAllFields = (
     row.noPhaiTraCK = String(noPhaiTraCK);
 
     // Dòng 232: Công thức tính CP Sau Quyết Toán
-    row.cpSauQuyetToan = String(
-        directCost + allocated + noPhaiTraCK - carryoverEnd - debt - inventory
-    );
+    // ✅ MỚI: Chỉ tính toán nếu đã Quyết toán (isProjectFinalized = true)
+    // ✅ Công thức chung cho TẤT CẢ loại dự án (-CP, -NC, KH-ĐT, Nhà máy, etc.):
+    // CP Sau Quyết Toán = Nợ phải trả ĐK - CPTT - Nợ phải trả CK - Phân bổ - Chuyển tiếp DK + Doanh thu
+    if (!isProjectFinalized) {
+        row.cpSauQuyetToan = "0";
+    } else {
+        const carryover = parseNumber(row.carryover || "0");
+        const revenue = parseNumber(row.revenue || "0");
+        row.cpSauQuyetToan = String(
+            debt - directCost - noPhaiTraCK - allocated - carryover + revenue
+        );
+    }
 };
 
 // ---------- Hidden Columns Helper ----------

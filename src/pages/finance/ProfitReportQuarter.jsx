@@ -33,6 +33,7 @@ import {
     Button,
     Switch,
     FormControlLabel,
+    IconButton,
 } from "@mui/material";
 import { ViewColumn as ViewColumnIcon, Tv as TvIcon, Computer as ComputerIcon, Edit as EditIcon, Delete as DeleteIcon, Check as CheckIcon, Close as CloseIcon, Print as PrintIcon } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles'; // ✅ Thêm useTheme
@@ -155,7 +156,7 @@ export default function ProfitReportQuarter() {
     useEffect(() => {
         // Hàm này chứa toàn bộ logic lấy và xử lý dữ liệu của bạn
         const processData = async () => {
-            console.log("Realtime update triggered! Reprocessing data...");
+            // Hàm xử lý dữ liệu
             setLoading(true);
 
             // ✅ BƯỚC 1: ĐIỀN LẠI LOGIC VÀO 2 HÀM NÀY
@@ -333,27 +334,7 @@ export default function ProfitReportQuarter() {
             // ✅ KẾT THÚC KHỐI CODE THAY THẾ
             // =================================================================
 
-            // 🔍 DEBUG: Tìm project THOẠI SƠN
-            const thoaiSonProject = projects.find(p =>
-                (p.name || '').toUpperCase().includes('THOẠI SƠN') ||
-                (p.name || '').toUpperCase().includes('THOAI SON')
-            );
-            if (thoaiSonProject) {
-                console.log(`🔍 DEBUG ProfitReportQuarter [${selectedYear}/${selectedQuarter}]: Tìm thấy project THOẠI SƠN:`);
-                console.log(`    name: ${thoaiSonProject.name}`);
-                console.log(`    type: "${thoaiSonProject.type}"`);
-                console.log(`    revenue: ${thoaiSonProject.revenue}`);
-                console.log(`    cost: ${thoaiSonProject.cost}`);
-                console.log(`    profit: ${thoaiSonProject.profit}`);
-                // Kiểm tra điều kiện lọc
-                const isThiCong = thoaiSonProject.type === "Thi cong" || thoaiSonProject.type === "Thi công";
-                const hasData = thoaiSonProject.revenue !== 0 || thoaiSonProject.cost !== 0;
-                const isKe = (thoaiSonProject.name || "").toUpperCase().includes("KÈ");
-                console.log(`    Điều kiện lọc: isThiCong=${isThiCong}, hasData=${hasData}, isKe=${isKe}`);
-                console.log(`    ➜ Sẽ vào groupI1: ${isThiCong && hasData && !isKe}`);
-            } else {
-                console.log(`🔍 DEBUG ProfitReportQuarter [${selectedYear}/${selectedQuarter}]: KHÔNG tìm thấy project THOẠI SƠN!`);
-            }
+
 
             const finalProfitRowName = `=> LỢI NHUẬN SAU GIẢM TRỪ ${selectedQuarter}.${selectedYear}`;
             const saved = await getDoc(
@@ -389,9 +370,7 @@ export default function ProfitReportQuarter() {
                     .data()
                     .rows.filter((savedRow) => !savedRow.projectId || savedRow.addedFromForm === true);
 
-                // 🔍 DEBUG: Kiểm tra các rows addedFromForm
-                const addedFromFormRows = processedRows.filter(r => r.addedFromForm === true);
-                console.log(`🔍 DEBUG: Tìm thấy ${addedFromFormRows.length} hàng addedFromForm:`, addedFromFormRows.map(r => r.name));
+
                 // --- BẮT ĐẦU SỬA LỖI ---
                 // Kiểm tra xem hàng "LỢI NHUẬN RÒNG" đã tồn tại trong dữ liệu đã lưu chưa
                 const loiNhuanRongExists = processedRows.some(
@@ -812,15 +791,7 @@ export default function ProfitReportQuarter() {
 
             let finalRows = processedRows;
 
-            // 🔍 DEBUG: Kiểm tra THOẠI SƠN có trong finalRows không
-            const thoaiSonInFinalRows = finalRows.find(r =>
-                (r.name || '').toUpperCase().includes('THOẠI SƠN') ||
-                (r.name || '').toUpperCase().includes('THOAI SON')
-            );
-            console.log(`🔍 DEBUG: THOẠI SƠN trong finalRows:`, thoaiSonInFinalRows ? 'CÓ' : 'KHÔNG');
-            if (thoaiSonInFinalRows) {
-                console.log(`    ➜ Row:`, JSON.stringify(thoaiSonInFinalRows));
-            }
+
 
             let totalDecreaseProfit = 0;
             let totalIncreaseProfit = 0;
@@ -1015,32 +986,27 @@ export default function ProfitReportQuarter() {
 
         // Listener 1: Lắng nghe thay đổi trên collection `projects` (thêm/xóa dự án)
         unsubscribes.push(onSnapshot(collection(db, "projects"), () => {
-            console.log("Change detected in 'projects' collection.");
             debouncedProcess();
         }));
 
         // Listener 2: Lắng nghe thay đổi trên TẤT CẢ các collection con `quarters`
         unsubscribes.push(onSnapshot(collectionGroup(db, 'quarters'), () => {
-            console.log("Change detected in a 'quarters' sub-collection.");
             debouncedProcess();
         }));
 
         // ✅ THÊM MỚI - Listener 3: Lắng nghe thay đổi của file costAllocationsQuarter
         unsubscribes.push(onSnapshot(doc(db, "costAllocationsQuarter", `${selectedYear}_${selectedQuarter}`), () => {
-            console.log("Change detected in 'costAllocationsQuarter'.");
             debouncedProcess();
         }));
 
         // ✅ THÊM MỚI - Listener 4: Lắng nghe thay đổi của file profitChanges
         unsubscribes.push(onSnapshot(doc(db, "profitChanges", `${selectedYear}_${selectedQuarter}`), () => {
-            console.log("Change detected in 'profitChanges'.");
             debouncedProcess();
         }));
 
 
         // Hàm dọn dẹp: sẽ chạy khi component unmount hoặc khi year/quarter thay đổi
         return () => {
-            console.log("Cleaning up all listeners for quarter report.");
             unsubscribes.forEach(unsub => unsub());
             clearTimeout(window.reportDebounceTimeout);
         };
@@ -1050,9 +1016,7 @@ export default function ProfitReportQuarter() {
     const handleSave = async (rowsToSave) => {
         const rowsData = Array.isArray(rowsToSave) ? rowsToSave : rows;
 
-        // 🔍 DEBUG: Kiểm tra xem có hàng addedFromForm nào được lưu không
-        const addedFromFormRows = rowsData.filter(r => r.addedFromForm === true);
-        console.log(`🔍 DEBUG SAVE: Đang lưu ${addedFromFormRows.length} hàng addedFromForm:`, addedFromFormRows.map(r => r.name));
+
 
         const dataToSave = {
             rows: rowsData,
@@ -1961,17 +1925,20 @@ export default function ProfitReportQuarter() {
                                                         />
                                                     </Tooltip>
                                                     <Tooltip title="Xóa dòng">
-                                                        <DeleteIcon
-                                                            fontSize="small"
+                                                        <IconButton
+                                                            size="small"
                                                             color="error"
-                                                            sx={{ cursor: 'pointer', opacity: 0.7, '&:hover': { opacity: 1 } }}
-                                                            onClick={() => {
-                                                                if (window.confirm(`Bạn có chắc muốn xóa "${r.name}"?`)) {
-                                                                    const newRows = rows.filter((_, i) => i !== idx);
-                                                                    setRows(newRows);
-                                                                }
+                                                            sx={{ p: 0.25 }}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                // Xóa trực tiếp thay vì dùng window.confirm (bị browser chặn)
+                                                                const newRows = rows.filter((_, i) => i !== idx);
+                                                                setRows(newRows);
+                                                                handleSave(newRows);
                                                             }}
-                                                        />
+                                                        >
+                                                            <DeleteIcon fontSize="small" />
+                                                        </IconButton>
                                                     </Tooltip>
                                                 </Box>
                                             )}
