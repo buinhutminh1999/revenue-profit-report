@@ -262,8 +262,8 @@ export default function ProfitReportQuarter() {
                                             0
                                         );
                                 }
-                            } else if (projectType === "kh-đt") {
-                                // ✅ TRƯỜNG HỢP ĐẶC BIỆT: KH-ĐT (III. ĐẦU TƯ)
+                            } else if (projectType === "kh-đt" || projectType === "thi công" || projectType === "thi cong") {
+                                // ✅ TRƯỜNG HỢP ĐẶC BIỆT: KH-ĐT và THI CÔNG
                                 // -> Nếu cpSauQuyetToan có giá trị thì dùng cho CHI PHÍ ĐÃ CHI
                                 if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
                                     const totalCpSauQuyetToan = qSnap
