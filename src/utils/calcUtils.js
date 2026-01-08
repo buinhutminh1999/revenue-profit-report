@@ -225,7 +225,38 @@ export const calcAllFields = (
     }
 
     row.carryoverMinus = calcCarryoverMinus(row);
-    row.totalCost = calcTotalCost(row);
+
+    // ✅ ĐẶC BIỆT: Công thức TỔNG CHI PHÍ cho -VT, -NC thuộc THI CÔNG
+    // Điều kiện 1: Nếu CPTT > 0 → dùng công thức (debt - directCost - noPhaiTraCK), nếu âm lấy 0
+    // Điều kiện 2: Nếu CPTT <= 0 → lấy -directCost (trừ chính nó)
+    if (isVtNcProject && projectType === "Thi công") {
+        const dc = Number(parseNumber(row.directCost || "0"));
+        const debt = Number(parseNumber(row.debt || "0"));
+        const noCK = Number(parseNumber(row.noPhaiTraCK || "0"));
+
+        if (dc > 0) {
+            const result = debt - dc - noCK;
+            row.totalCost = String(Math.max(0, result));
+        } else {
+            row.totalCost = String(-dc);
+        }
+    } else if (!isVtNcProject && projectType === "Thi công") {
+        // ✅ ĐẶC BIỆT: Công thức TỔNG CHI PHÍ cho -CP thuộc THI CÔNG
+        // IF(DOANH THU = 0, NỢ PHẢI TRẢ ĐK - CPTT - NỢ PHẢI TRẢ CK + CUỐI KỲ, DOANH THU)
+        const dc = Number(parseNumber(row.directCost || "0"));
+        const debt = Number(parseNumber(row.debt || "0"));
+        const noCK = Number(parseNumber(row.noPhaiTraCK || "0"));
+        const carryoverEnd = Number(parseNumber(row.carryoverEnd || "0"));
+        const rev = Number(parseNumber(row.revenue || "0"));
+
+        if (rev === 0) {
+            row.totalCost = String(debt - dc - noCK + carryoverEnd);
+        } else {
+            row.totalCost = String(rev);
+        }
+    } else {
+        row.totalCost = calcTotalCost(row);
+    }
 
     if (isVtNcProject) {
         row.cpVuot = "0";
@@ -265,16 +296,31 @@ export const calcAllFields = (
 
     // Dòng 232: Công thức tính CP Sau Quyết Toán
     // ✅ MỚI: Chỉ tính toán nếu đã Quyết toán (isProjectFinalized = true)
-    // ✅ Công thức chung cho TẤT CẢ loại dự án (-CP, -NC, KH-ĐT, Nhà máy, etc.):
-    // CP Sau Quyết Toán = Nợ phải trả ĐK - CPTT - Nợ phải trả CK - Phân bổ - Chuyển tiếp DK + Doanh thu
     if (!isProjectFinalized) {
         row.cpSauQuyetToan = "0";
     } else {
-        const carryover = parseNumber(row.carryover || "0");
-        const revenue = parseNumber(row.revenue || "0");
-        row.cpSauQuyetToan = String(
-            debt - directCost - noPhaiTraCK - allocated - carryover + revenue
-        );
+        // ✅ ĐẶC BIỆT: Công thức cho -VT, -NC (VT/NC projects) thuộc THI CÔNG
+        // Điều kiện 1: Nếu CPTT > 0 → dùng công thức (debt - directCost - noPhaiTraCK), nếu âm lấy 0
+        // Điều kiện 2: Nếu CPTT <= 0 → lấy -directCost (trừ chính nó)
+        if (isVtNcProject && projectType === "Thi công") {
+            if (directCost > 0) {
+                const result = debt - directCost - noPhaiTraCK;
+                row.cpSauQuyetToan = String(Math.max(0, result));
+            } else {
+                row.cpSauQuyetToan = String(-directCost);
+            }
+        } else if (!isVtNcProject && projectType === "Thi công") {
+            // ✅ ĐẶC BIỆT: -CP thuộc THI CÔNG → cpSauQuyetToan = totalCost
+            row.cpSauQuyetToan = row.totalCost;
+        } else {
+            // Công thức chung cho các loại khác:
+            // CP Sau Quyết Toán = Nợ phải trả ĐK - CPTT - Nợ phải trả CK - Phân bổ - Chuyển tiếp DK + Doanh thu
+            const carryover = parseNumber(row.carryover || "0");
+            const revenue = parseNumber(row.revenue || "0");
+            row.cpSauQuyetToan = String(
+                debt - directCost - noPhaiTraCK - allocated - carryover + revenue
+            );
+        }
     }
 };
 
