@@ -262,6 +262,30 @@ export default function ProfitReportQuarter() {
                                             0
                                         );
                                 }
+                            } else if (projectType === "kh-đt") {
+                                // ✅ TRƯỜNG HỢP ĐẶC BIỆT: KH-ĐT (III. ĐẦU TƯ)
+                                // -> Nếu cpSauQuyetToan có giá trị thì dùng cho CHI PHÍ ĐÃ CHI
+                                if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
+                                    const totalCpSauQuyetToan = qSnap
+                                        .data()
+                                        .items.reduce(
+                                            (sum, item) => sum + toNum(item.cpSauQuyetToan || 0),
+                                            0
+                                        );
+
+                                    if (totalCpSauQuyetToan !== 0) {
+                                        // Nếu có giá trị cpSauQuyetToan -> dùng nó
+                                        cost = totalCpSauQuyetToan;
+                                    } else {
+                                        // Nếu không có -> fallback về totalCost
+                                        cost = qSnap
+                                            .data()
+                                            .items.reduce(
+                                                (sum, item) => sum + toNum(item.totalCost || 0),
+                                                0
+                                            );
+                                    }
+                                }
                             } else {
                                 // TRƯỜNG HỢP 2: CÁC LOẠI CÔNG TRÌNH CÒN LẠI (Dân dụng, Kè, CĐT, v.v.)
                                 // -> Áp dụng logic tính toán phức tạp
