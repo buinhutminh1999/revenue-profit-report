@@ -1457,21 +1457,40 @@ const useProfitReportData = (selectedYear) => {
                 rowTemplate.splice(idxI1 + 1, 0, ...danDungProjects);
             }
 
-            // Bước 3: Tạo một danh sách tổng hợp cuối cùng
-            // (Chỉ còn lại các dự án KHÁC nếu có, vì I.1, I.2(Ke), I.3, I.4, II.1, III đều đã xử lý riêng?)
-            // I.2 KÈ? Projects filtered skips 'Thi công'. Ke IS Thi cong. So Ke is skipped too?
-            // Wait, Ke projects need to be handled!
+            // ✅ I.2. KÈ - Lấy dữ liệu từ profitReports (manualGroupsData), không phải từ DB
+            const manualKeData = Object.fromEntries(
+                Object.entries(manualGroupsData).filter(([, data]) => data.type === "Thi công" && data.name && (data.name || "").toUpperCase().includes("KÈ"))
+            );
+            const manualKeNames = Object.keys(manualKeData);
+            const keProjects = []; // ✅ Mảng chứa tất cả dự án I.2 (KÈ)
 
-            // Logic cũ: I.2 KÈ handled in 'allProjects' loop.
-            // But we skipped 'Thi công'.
-            // So we need to handle Kè projects explicitly too if they are skipped.
+            manualKeNames.forEach(name => {
+                const manualData = manualKeData[name];
+                const newKeProject = {
+                    name: name, type: "Thi công", revenue: 0, cost: 0, profit: 0,
+                    revenueQ1: 0, costQ1: 0, profitQ1: 0, revenueQ2: 0, costQ2: 0, profitQ2: 0,
+                    revenueQ3: 0, costQ3: 0, profitQ3: 0, revenueQ4: 0, costQ4: 0, profitQ4: 0,
+                };
+                for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+                    if (manualData[quarter]) {
+                        const qData = manualData[quarter];
+                        newKeProject[`revenue${quarter}`] = qData.revenue;
+                        newKeProject[`cost${quarter}`] = qData.cost;
+                        newKeProject[`profit${quarter}`] = qData.profit;
+                    }
+                }
+                newKeProject.revenue = newKeProject.revenueQ1 + newKeProject.revenueQ2 + newKeProject.revenueQ3 + newKeProject.revenueQ4;
+                newKeProject.cost = newKeProject.costQ1 + newKeProject.costQ2 + newKeProject.costQ3 + newKeProject.costQ4;
+                newKeProject.profit = newKeProject.profitQ1 + newKeProject.profitQ2 + newKeProject.profitQ3 + newKeProject.profitQ4;
+                keProjects.push(newKeProject);
+            });
 
-            const allKeProjects = projects.filter(p => p.type === "Thi công" && (p.name || "").toUpperCase().includes("KÈ"));
-            allKeProjects.sort((a, b) => a.name.localeCompare(b.name));
+            // ✅ Sort I.2 KÈ projects A-Z
+            keProjects.sort((a, b) => a.name.localeCompare(b.name));
 
             const idxI2 = rowTemplate.findIndex(r => r.name === "I.2. KÈ");
             if (idxI2 !== -1) {
-                rowTemplate.splice(idxI2 + 1, 0, ...allKeProjects);
+                rowTemplate.splice(idxI2 + 1, 0, ...keProjects);
             }
 
             // const projectsFiltered = projects.filter(p => { ... }); // Still useful for anything else?
