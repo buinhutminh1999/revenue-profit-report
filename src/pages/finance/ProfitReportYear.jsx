@@ -206,7 +206,7 @@ const useProfitReportData = (selectedYear) => {
                     (r) => r.name === groupName
                 );
                 if (groupHeaderIndex === -1) return;
-                const childRows = [];
+                let childRows = [];
                 let i = groupHeaderIndex + 1;
                 while (
                     i < updatedRows.length &&
@@ -215,6 +215,12 @@ const useProfitReportData = (selectedYear) => {
                     childRows.push(updatedRows[i]);
                     i++;
                 }
+
+                // ✅ LOGIC MỚI: Nếu là nhóm I.1, lọc bỏ các hàng có doanh thu = 0 trước khi tính tổng
+                if (groupName === "I.1. Dân Dụng + Giao Thông") {
+                    childRows = childRows.filter(r => toNum(r.revenue) !== 0);
+                }
+
                 updatedRows[groupHeaderIndex] = {
                     ...updatedRows[groupHeaderIndex],
                     ...sumGroup(childRows),
