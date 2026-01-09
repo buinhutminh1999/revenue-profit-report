@@ -1318,8 +1318,13 @@ const useProfitReportData = (selectedYear) => {
                     //     );
                     // }
 
-                    // ✅ LOGIC MỚI: BỎ QUA các dự án I.1 từ DB (chỉ lấy từ báo cáo quý)
-                    if (p.type === "Thi công" && !(p.name || "").toUpperCase().includes("KÈ")) {
+                    // ✅ LOGIC MỚI: BỎ QUA các dự án thuộc các nhóm này từ DB (chỉ lấy từ báo cáo quý)
+                    const isSkippedType =
+                        (p.type === "Thi công") || // I.1 và I.2 (KÈ là Thi công)
+                        (p.type === "XNII") ||     // I.4
+                        (p.type === "KH-ĐT");      // III
+
+                    if (isSkippedType) {
                         // Không chèn vào rowTemplate
                     } else if (insertIndex > -1) {
                         rowTemplate.splice(insertIndex, 0, p);
@@ -1330,50 +1335,65 @@ const useProfitReportData = (selectedYear) => {
             // ✅ BẮT ĐẦU: KHỐI CODE HỢP NHẤT VÀ CHÈN DỮ LIỆU HOÀN CHỈNH
             // ======================================================================
 
-            // Object để tổng hợp dữ liệu thủ công chỉ từ nhóm I.1
-            const manualI1Data = {};
+            // Object để tổng hợp dữ liệu từ các nhóm cần lấy từ báo cáo
+            const manualGroupsData = {};
+            const targetGroups = [
+                { name: "I.1. DÂN DỤNG + GIAO THÔNG", type: "Thi công" },
+                { name: "I.2. KÈ", type: "Thi công" },
+                { name: "I.4. XÍ NGHIỆP XD II", type: "XNII" },
+                { name: "III. ĐẦU TƯ", type: "KH-ĐT" }
+            ];
 
             // ✅ TỐI ƯU: Sử dụng cache thay vì đọc lại từ Firestore
             quarters.forEach(quarter => {
                 const reportData = quarterlyReportsCache[quarter];
                 if (reportData) {
                     const quarterlyRows = reportData.rows || [];
-                    const groupI1Index = quarterlyRows.findIndex(r => (r.name || "").trim().toUpperCase() === "I.1. DÂN DỤNG + GIAO THÔNG");
 
-                    if (groupI1Index === -1) return;
+                    targetGroups.forEach(group => {
+                        const groupIndex = quarterlyRows.findIndex(r => (r.name || "").trim().toUpperCase() === group.name);
+                        if (groupIndex === -1) return;
 
-                    let endIndex = quarterlyRows.findIndex((r, idx) => idx > groupI1Index && (r.name || "").trim().toUpperCase().startsWith("I.2"));
-                    if (endIndex === -1) endIndex = quarterlyRows.findIndex((r, idx) => idx > groupI1Index && r.name && r.name.match(/^[IVX]+\./));
-                    if (endIndex === -1) endIndex = quarterlyRows.length;
+                        let endIndex = quarterlyRows.findIndex((r, idx) => idx > groupIndex && r.name && r.name.match(/^[IVX]+\./));
+                        if (endIndex === -1) endIndex = quarterlyRows.length;
 
-                    const childRows = quarterlyRows.slice(groupI1Index + 1, endIndex);
-                    const manualRowsInGroup = childRows; // ✅ Lấy TẤT CẢ các hàng trong nhóm I.1 (không lọc row.projectId nữa)
+                        const childRows = quarterlyRows.slice(groupIndex + 1, endIndex);
+                        // Lấy tất cả các hàng, trừ các hàng tổng con/tiêu đề con nếu có (nhưng thường là lấy hết project)
+                        childRows.forEach(row => {
+                            // Bỏ qua nếu là các dòng tổng hoặc ko có tên
+                            if (!row.name || (row.name || "").trim().toUpperCase().includes("TỔNG")) return;
 
-                    manualRowsInGroup.forEach(row => {
-                        if (row.name) { // Chỉ cần có tên là lấy
-                            if (!manualI1Data[row.name]) {
-                                manualI1Data[row.name] = { name: row.name, type: "Thi công" };
+                            if (!manualGroupsData[row.name]) {
+                                manualGroupsData[row.name] = { name: row.name, type: group.type };
                             }
-                            manualI1Data[row.name][quarter] = {
+                            // Nếu là nhóm I.1, I.2, I.4, III thì ghi đè logic type dựa theo nhóm tìm thấy
+                            // Tuy nhiên logic gán type ở trên đã cover. 
+                            // Chỉ cần lưu ý tên công trình là unique key.
+
+                            if (!manualGroupsData[row.name][quarter]) manualGroupsData[row.name][quarter] = {};
+
+                            manualGroupsData[row.name][quarter] = {
                                 revenue: toNum(row.revenue),
                                 cost: toNum(row.cost),
                                 profit: toNum(row.profit),
                             };
-                        }
+                        });
                     });
                 }
             });
 
-            // Bước 2: Hợp nhất dữ liệu thủ công vào danh sách `projects` gốc
-            const manualI1Names = Object.keys(manualI1Data);
-            const purelyManualI1Projects = [];
+            // Bước 2: Hợp nhất dữ liệu thủ công vào danh sách
+            const manualNames = Object.keys(manualGroupsData);
+            const purelyManualProjects = [];
 
-            manualI1Names.forEach(name => {
-                const manualData = manualI1Data[name];
+            manualNames.forEach(name => {
+                const manualData = manualGroupsData[name];
 
-                // ✅ LOGIC MỚI: LUÔN COI LÀ DỰ ÁN TỪ BÁO CÁO (Không check baseProject nữa)
+                // ✅ LOGIC MỚI: LUÔN COI LÀ DỰ ÁN TỪ BÁO CÁO
                 const newManualProject = {
-                    name: name, type: "Thi công", revenue: 0, cost: 0, profit: 0,
+                    name: name,
+                    type: manualData.type, // Sử dụng type đã xác định từ nhóm
+                    revenue: 0, cost: 0, profit: 0,
                     revenueQ1: 0, costQ1: 0, profitQ1: 0, revenueQ2: 0, costQ2: 0, profitQ2: 0,
                     revenueQ3: 0, costQ3: 0, profitQ3: 0, revenueQ4: 0, costQ4: 0, profitQ4: 0,
                     fromProfitReport: true, // ✅ Đánh dấu là có dữ liệu từ báo cáo
@@ -1389,13 +1409,16 @@ const useProfitReportData = (selectedYear) => {
                 newManualProject.revenue = newManualProject.revenueQ1 + newManualProject.revenueQ2 + newManualProject.revenueQ3 + newManualProject.revenueQ4;
                 newManualProject.cost = newManualProject.costQ1 + newManualProject.costQ2 + newManualProject.costQ3 + newManualProject.costQ4;
                 newManualProject.profit = newManualProject.profitQ1 + newManualProject.profitQ2 + newManualProject.profitQ3 + newManualProject.profitQ4;
-                purelyManualI1Projects.push(newManualProject);
+                purelyManualProjects.push(newManualProject);
             });
 
             // Bước 3: Tạo một danh sách tổng hợp cuối cùng
-            // Lọc bỏ danh sách project DB nếu nó là I.1 (để tránh trùng lặp nếu có logic sót)
-            const projectsNotI1 = projects.filter(p => !(p.type === "Thi công" && !(p.name || "").toUpperCase().includes("KÈ")));
-            const allProjects = [...projectsNotI1, ...purelyManualI1Projects];
+            // Lọc bỏ danh sách project DB nếu nó thuộc các nhóm đã lấy từ báo cáo (Thi công, XNII, KH-ĐT)
+            const projectsFiltered = projects.filter(p => {
+                const isSkipped = (p.type === "Thi công") || (p.type === "XNII") || (p.type === "KH-ĐT");
+                return !isSkipped;
+            });
+            const allProjects = [...projectsFiltered, ...purelyManualProjects];
 
             // Bước 4: Dùng vòng lặp duy nhất để chèn TOÀN BỘ công trình vào `rowTemplate`
             allProjects.forEach((p) => {

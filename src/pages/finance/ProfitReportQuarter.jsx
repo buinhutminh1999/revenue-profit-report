@@ -418,9 +418,14 @@ export default function ProfitReportQuarter() {
                 saved.data().rows.length > 0
             ) {
                 // BƯỚC 1: Giữ lại các hàng hệ thống (không có projectId) VÀ các hàng thêm thủ công (addedFromForm)
+                // ✅ NGOẠI LỆ: Giữ lại "NÂNG CẤP CẢI TẠO BẾN XE TÀU" nếu đã lưu trước đó
                 processedRows = saved
                     .data()
-                    .rows.filter((savedRow) => !savedRow.projectId || savedRow.addedFromForm === true);
+                    .rows.filter((savedRow) =>
+                        !savedRow.projectId ||
+                        savedRow.addedFromForm === true ||
+                        (savedRow.name || "").trim().toUpperCase() === "NÂNG CẤP CẢI TẠO BẾN XE TÀU"
+                    );
 
 
                 // --- BẮT ĐẦU SỬA LỖI ---
@@ -443,7 +448,15 @@ export default function ProfitReportQuarter() {
                 // --- KẾT THÚC SỬA LỖI ---
 
                 // BƯỚC 2: Coi TẤT CẢ công trình từ database là "dự án mới" cần được chèn lại.
-                const newProjects = projects; // Lấy toàn bộ danh sách công trình mới nhất
+                // ✅ SỬA: Loại bỏ "NÂNG CẤP CẢI TẠO BẾN XE TÀU" nếu nó đã có trong danh sách đã lưu (processedRows) để ưu tiên số liệu nhập tay đã lưu
+                const newProjects = projects.filter(p => {
+                    const isSpecialProject = (p.name || "").trim().toUpperCase() === "NÂNG CẤP CẢI TẠO BẾN XE TÀU";
+                    if (isSpecialProject) {
+                        const alreadyExists = processedRows.some(r => (r.name || "").trim().toUpperCase() === "NÂNG CẤP CẢI TẠO BẾN XE TÀU");
+                        if (alreadyExists) return false; // Nếu đã có trong báo cáo lưu, không lấy lại từ DB
+                    }
+                    return true;
+                });
 
                 // BƯỚC 3: Chạy lại logic chèn công trình vào các nhóm tương ứng.
                 // (Giữ nguyên đoạn code này như cũ)
@@ -1309,6 +1322,10 @@ export default function ProfitReportQuarter() {
             // Đối với các cột còn lại (revenue, cost, profit):
             // Chỉ cho phép sửa nếu hàng đó được đánh dấu là "editable" VÀ không phải là hàng chi tiết của dự án.
             if (["revenue", "cost", "profit"].includes(field)) {
+                // ✅ NGOẠI LỆ: Cho phép sửa "NÂNG CẤP CẢI TẠO BẾN XE TÀU" dù có projectId
+                if ((r.name || "").trim().toUpperCase() === "NÂNG CẤP CẢI TẠO BẾN XE TÀU") {
+                    return true;
+                }
                 return r.editable && !isProjectDetailRow;
             }
             // Mặc định không cho sửa
