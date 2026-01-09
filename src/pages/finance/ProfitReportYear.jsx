@@ -1880,6 +1880,11 @@ export default function ProfitReportYear() {
     const visibleRevenueCols = Object.keys(columnVisibility).filter(k => k.startsWith('revenueQ') && columnVisibility[k]).length;
     const visibleCostCols = Object.keys(columnVisibility).filter(k => k.startsWith('costQ') && columnVisibility[k]).length;
     const visibleProfitCols = Object.keys(columnVisibility).filter(k => k.startsWith('profitQ') && columnVisibility[k]).length;
+
+    // ✅ Tìm vị trí của nhóm I.1 và I.2 để áp dụng bộ lọc riêng
+    const i1Index = rows.findIndex(r => r.name === "I.1. Dân Dụng + Giao Thông");
+    const i2Index = rows.findIndex(r => r.name === "I.2. KÈ");
+
     return (
         <Box sx={{
             p: tvMode ? 4 : 3,
@@ -2186,9 +2191,15 @@ export default function ProfitReportYear() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {rows.filter(r => {
+                            {rows.filter((r, idx) => {
                                 const isSpecialHeaderRow = r.name?.match(/^[IVX]+\./) || r.name?.toUpperCase().includes("LỢI NHUẬN") || r.name?.toUpperCase().includes("=>");
                                 if (isSpecialHeaderRow) return true;
+
+                                // ✅ LỌC RIÊNG CHO I.1: Ẩn nếu doanh thu = 0 (Chỉ hiện các dòng có doanh thu)
+                                if (i1Index !== -1 && i2Index !== -1 && idx > i1Index && idx < i2Index) {
+                                    if (toNum(r.revenue) === 0) return false;
+                                }
+
                                 if (r.projectId) {
                                     const hasFinancialData = toNum(r.revenue) !== 0 || toNum(r.cost) !== 0 || toNum(r.costOverCumulative) !== 0 || toNum(r.costAddedToProfit) !== 0;
                                     return hasFinancialData;
