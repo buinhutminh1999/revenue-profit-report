@@ -738,6 +738,52 @@ const useProfitReportData = (selectedYear) => {
                                         0
                                     );
                                 }
+                            } else if (projectType === "thi công" || projectType === "thi cong") {
+                                // ✅ TRƯỜNG HỢP: THI CÔNG (I.1)
+                                if (Array.isArray(qData.items) && qData.items.length > 0) {
+                                    // 1. Tính tổng doanh thu thực tế
+                                    const totalActualRevenue = qData.items.reduce((s, i) => s + toNum(i.revenue || 0), 0);
+
+                                    // 2. Logic kiểm tra điều kiện
+                                    if (totalActualRevenue === 0) {
+                                        // ✅ NẾU DOANH THU = 0 -> CHỈ LẤY TỔNG CHI PHÍ CỦA -VT, -NC (không phải -CP)
+                                        cost = qData.items
+                                            .filter(i => !(i.project || "").toUpperCase().includes("-CP"))
+                                            .reduce((s, i) => s + toNum(i.totalCost || 0), 0);
+                                    } else {
+                                        // ✅ NẾU CÓ DOANH THU -> Logic cũ (ưu tiên cpSauQuyetToan)
+                                        const totalCpSauQuyetToan = qData.items.reduce(
+                                            (sum, item) => sum + toNum(item.cpSauQuyetToan || 0),
+                                            0
+                                        );
+
+                                        if (totalCpSauQuyetToan !== 0) {
+                                            cost = totalCpSauQuyetToan;
+                                        } else {
+                                            cost = qData.items.reduce(
+                                                (sum, item) => sum + toNum(item.totalCost || 0),
+                                                0
+                                            );
+                                        }
+                                    }
+                                }
+                            } else if (projectType === "kh-đt") {
+                                // ✅ TRƯỜNG HỢP: KH-ĐT (III)
+                                if (Array.isArray(qData.items) && qData.items.length > 0) {
+                                    const totalCpSauQuyetToan = qData.items.reduce(
+                                        (sum, item) => sum + toNum(item.cpSauQuyetToan || 0),
+                                        0
+                                    );
+
+                                    if (totalCpSauQuyetToan !== 0) {
+                                        cost = totalCpSauQuyetToan;
+                                    } else {
+                                        cost = qData.items.reduce(
+                                            (sum, item) => sum + toNum(item.totalCost || 0),
+                                            0
+                                        );
+                                    }
+                                }
                             } else {
                                 if (Array.isArray(qData.items) && qData.items.length > 0) {
                                     const totalItemsRevenue = qData.items.reduce(
