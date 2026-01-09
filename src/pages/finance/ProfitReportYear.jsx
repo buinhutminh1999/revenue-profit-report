@@ -216,9 +216,9 @@ const useProfitReportData = (selectedYear) => {
                     i++;
                 }
 
-                // ✅ LOGIC MỚI: Nếu là nhóm I.1, lọc bỏ các hàng có doanh thu = 0 trước khi tính tổng
+                // ✅ LOGIC MỚI: Nếu là nhóm I.1, lọc bỏ các hàng có doanh thu = 0 (TRỪ KHI có dữ liệu từ báo cáo)
                 if (groupName === "I.1. Dân Dụng + Giao Thông") {
-                    childRows = childRows.filter(r => toNum(r.revenue) !== 0);
+                    childRows = childRows.filter(r => r.fromProfitReport || toNum(r.revenue) !== 0);
                 }
 
                 updatedRows[groupHeaderIndex] = {
@@ -436,19 +436,20 @@ const useProfitReportData = (selectedYear) => {
                 const totalsLoiNhuan = {};
 
                 fieldsToCalculateTotal.forEach((field) => {
-                    if (field === "profit") {
-                        const valueA = toNum(updatedRows[idxRowA]["profit"]);
+                    if (field.startsWith("profit")) {
+                        // ✅ SỬA LỖI: Áp dụng công thức trừ cho cả profit vả profitQ1-4
+                        const valueA = toNum(updatedRows[idxRowA][field]);
                         const valueGiamGia = toNum(
-                            updatedRows[idxGiamGiaTaiSan]["profit"]
+                            updatedRows[idxGiamGiaTaiSan][field]
                         );
                         const valuePhucLoi = toNum(
-                            updatedRows[idxQuyPhucLoi]["profit"]
+                            updatedRows[idxQuyPhucLoi][field]
                         );
                         const valueLaiDuAn = toNum(
-                            updatedRows[idxTrichLaiDuAn]["profit"]
+                            updatedRows[idxTrichLaiDuAn][field]
                         );
 
-                        totalsLoiNhuan["profit"] =
+                        totalsLoiNhuan[field] =
                             valueA - valueGiamGia - valuePhucLoi - valueLaiDuAn;
                     } else if (field === "costOverCumulative") {
                         const valueA = toNum(
@@ -460,6 +461,7 @@ const useProfitReportData = (selectedYear) => {
                         const valuePhucLoi = toNum(
                             updatedRows[idxQuyPhucLoi]["costOverCumulative"]
                         );
+                        // Không trừ lãi dự án ở cột này (theo logic cũ)
 
                         totalsLoiNhuan["costOverCumulative"] =
                             valueA - valueGiamGia - valuePhucLoi;
@@ -1316,7 +1318,10 @@ const useProfitReportData = (selectedYear) => {
                     //     );
                     // }
 
-                    if (insertIndex > -1) {
+                    // ✅ LOGIC MỚI: BỎ QUA các dự án I.1 từ DB (chỉ lấy từ báo cáo quý)
+                    if (p.type === "Thi công" && !(p.name || "").toUpperCase().includes("KÈ")) {
+                        // Không chèn vào rowTemplate
+                    } else if (insertIndex > -1) {
                         rowTemplate.splice(insertIndex, 0, p);
                     }
                 }
@@ -1342,17 +1347,19 @@ const useProfitReportData = (selectedYear) => {
                     if (endIndex === -1) endIndex = quarterlyRows.length;
 
                     const childRows = quarterlyRows.slice(groupI1Index + 1, endIndex);
-                    const manualRowsInGroup = childRows.filter(row => !row.projectId && row.name);
+                    const manualRowsInGroup = childRows; // ✅ Lấy TẤT CẢ các hàng trong nhóm I.1 (không lọc row.projectId nữa)
 
                     manualRowsInGroup.forEach(row => {
-                        if (!manualI1Data[row.name]) {
-                            manualI1Data[row.name] = { name: row.name, type: "Thi công" };
+                        if (row.name) { // Chỉ cần có tên là lấy
+                            if (!manualI1Data[row.name]) {
+                                manualI1Data[row.name] = { name: row.name, type: "Thi công" };
+                            }
+                            manualI1Data[row.name][quarter] = {
+                                revenue: toNum(row.revenue),
+                                cost: toNum(row.cost),
+                                profit: toNum(row.profit),
+                            };
                         }
-                        manualI1Data[row.name][quarter] = {
-                            revenue: toNum(row.revenue),
-                            cost: toNum(row.cost),
-                            profit: toNum(row.profit),
-                        };
                     });
                 }
             });
@@ -1363,44 +1370,32 @@ const useProfitReportData = (selectedYear) => {
 
             manualI1Names.forEach(name => {
                 const manualData = manualI1Data[name];
-                const baseProject = projects.find(p => p.name === name);
 
-                if (baseProject) {
-                    // Nếu TÌM THẤY dự án gốc, tiến hành ghi đè dữ liệu quý
-                    for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                        if (manualData[quarter]) {
-                            baseProject[`revenue${quarter}`] = manualData[quarter].revenue;
-                            baseProject[`cost${quarter}`] = manualData[quarter].cost;
-                            baseProject[`profit${quarter}`] = manualData[quarter].profit;
-                        }
+                // ✅ LOGIC MỚI: LUÔN COI LÀ DỰ ÁN TỪ BÁO CÁO (Không check baseProject nữa)
+                const newManualProject = {
+                    name: name, type: "Thi công", revenue: 0, cost: 0, profit: 0,
+                    revenueQ1: 0, costQ1: 0, profitQ1: 0, revenueQ2: 0, costQ2: 0, profitQ2: 0,
+                    revenueQ3: 0, costQ3: 0, profitQ3: 0, revenueQ4: 0, costQ4: 0, profitQ4: 0,
+                    fromProfitReport: true, // ✅ Đánh dấu là có dữ liệu từ báo cáo
+                };
+                for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
+                    if (manualData[quarter]) {
+                        const qData = manualData[quarter];
+                        newManualProject[`revenue${quarter}`] = qData.revenue;
+                        newManualProject[`cost${quarter}`] = qData.cost;
+                        newManualProject[`profit${quarter}`] = qData.profit;
                     }
-                    baseProject.revenue = (baseProject.revenueQ1 || 0) + (baseProject.revenueQ2 || 0) + (baseProject.revenueQ3 || 0) + (baseProject.revenueQ4 || 0);
-                    baseProject.cost = (baseProject.costQ1 || 0) + (baseProject.costQ2 || 0) + (baseProject.costQ3 || 0) + (baseProject.costQ4 || 0);
-                    baseProject.profit = (baseProject.profitQ1 || 0) + (baseProject.profitQ2 || 0) + (baseProject.profitQ3 || 0) + (baseProject.profitQ4 || 0);
-                } else {
-                    // Nếu KHÔNG TÌM THẤY, đây là dự án mới 100% từ thêm tay
-                    const newManualProject = {
-                        name: name, type: "Thi công", revenue: 0, cost: 0, profit: 0,
-                        revenueQ1: 0, costQ1: 0, profitQ1: 0, revenueQ2: 0, costQ2: 0, profitQ2: 0,
-                        revenueQ3: 0, costQ3: 0, profitQ3: 0, revenueQ4: 0, costQ4: 0, profitQ4: 0,
-                    };
-                    for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                        if (manualData[quarter]) {
-                            const qData = manualData[quarter];
-                            newManualProject[`revenue${quarter}`] = qData.revenue;
-                            newManualProject[`cost${quarter}`] = qData.cost;
-                            newManualProject[`profit${quarter}`] = qData.profit;
-                        }
-                    }
-                    newManualProject.revenue = newManualProject.revenueQ1 + newManualProject.revenueQ2 + newManualProject.revenueQ3 + newManualProject.revenueQ4;
-                    newManualProject.cost = newManualProject.costQ1 + newManualProject.costQ2 + newManualProject.costQ3 + newManualProject.costQ4;
-                    newManualProject.profit = newManualProject.profitQ1 + newManualProject.profitQ2 + newManualProject.profitQ3 + newManualProject.profitQ4;
-                    purelyManualI1Projects.push(newManualProject);
                 }
+                newManualProject.revenue = newManualProject.revenueQ1 + newManualProject.revenueQ2 + newManualProject.revenueQ3 + newManualProject.revenueQ4;
+                newManualProject.cost = newManualProject.costQ1 + newManualProject.costQ2 + newManualProject.costQ3 + newManualProject.costQ4;
+                newManualProject.profit = newManualProject.profitQ1 + newManualProject.profitQ2 + newManualProject.profitQ3 + newManualProject.profitQ4;
+                purelyManualI1Projects.push(newManualProject);
             });
 
             // Bước 3: Tạo một danh sách tổng hợp cuối cùng
-            const allProjects = [...projects, ...purelyManualI1Projects];
+            // Lọc bỏ danh sách project DB nếu nó là I.1 (để tránh trùng lặp nếu có logic sót)
+            const projectsNotI1 = projects.filter(p => !(p.type === "Thi công" && !(p.name || "").toUpperCase().includes("KÈ")));
+            const allProjects = [...projectsNotI1, ...purelyManualI1Projects];
 
             // Bước 4: Dùng vòng lặp duy nhất để chèn TOÀN BỘ công trình vào `rowTemplate`
             allProjects.forEach((p) => {
@@ -2201,9 +2196,9 @@ export default function ProfitReportYear() {
                                 const isSpecialHeaderRow = r.name?.match(/^[IVX]+\./) || r.name?.toUpperCase().includes("LỢI NHUẬN") || r.name?.toUpperCase().includes("=>");
                                 if (isSpecialHeaderRow) return true;
 
-                                // ✅ LỌC RIÊNG CHO I.1: Ẩn nếu doanh thu = 0 (Chỉ hiện các dòng có doanh thu)
+                                // ✅ LỌC RIÊNG CHO I.1: Ẩn nếu doanh thu = 0 (TRỪ KHI có dữ liệu từ báo cáo: nhập tay/sửa tay)
                                 if (i1Index !== -1 && i2Index !== -1 && idx > i1Index && idx < i2Index) {
-                                    if (toNum(r.revenue) === 0) return false;
+                                    if (!r.fromProfitReport && toNum(r.revenue) === 0) return false;
                                 }
 
                                 if (r.projectId) {
