@@ -250,11 +250,21 @@ const WhitelistManager = () => {
                                                                 return (
                                                                     <Chip
                                                                         key={email}
-                                                                        avatar={<Avatar>{userDetails?.displayName?.[0]}</Avatar>}
-                                                                        label={userDetails?.displayName || email}
+                                                                        avatar={<Avatar>{userDetails?.displayName?.[0] || email?.[0]?.toUpperCase()}</Avatar>}
+                                                                        label={
+                                                                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                                                                <Typography variant="body2" fontWeight={500}>
+                                                                                    {userDetails?.displayName || 'Chưa đặt tên'}
+                                                                                </Typography>
+                                                                                <Typography variant="caption" color="text.secondary">
+                                                                                    ({email})
+                                                                                </Typography>
+                                                                            </Stack>
+                                                                        }
                                                                         onDelete={() => handleRemoveEmail(route.path, email)}
                                                                         deleteIcon={<Trash2 sx={{ fontSize: 16 }} />}
                                                                         variant="outlined"
+                                                                        sx={{ height: 'auto', py: 0.5 }}
                                                                     />
                                                                 )
                                                             })

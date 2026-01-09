@@ -79,8 +79,7 @@ export default function ProfitReportQuarter() {
     });
     const [formulaDialogOpen, setFormulaDialogOpen] = useState(false); // <-- THÊM DÒNG NÀY
     const [showZeroRevenue, setShowZeroRevenue] = useState(false); // ✅ Toggle để hiện/ẩn hàng doanh thu = 0
-    const [hideDialogOpen, setHideDialogOpen] = useState(false); // ✅ Dialog chọn công trình cần ẩn
-    const [hiddenRowNames, setHiddenRowNames] = useState(new Set()); // ✅ Set chứa tên các hàng bị ẩn
+
 
     // Print functionality
     const printRef = useRef(null);
@@ -954,7 +953,13 @@ export default function ProfitReportQuarter() {
                 const profit = toNum(r.profit);
                 const nameUpper = (r.name || "").trim().toUpperCase();
 
-                // ✅ Giữ I.1 nếu có dữ liệu HOẶC có hàng addedFromForm
+                // ✅ LOGIC MỚI: Với I.1 (Dân Dụng + Giao Thông), chỉ hiện các công trình (có projectId) nếu Doanh Thu # 0
+                // Các hàng này sẽ bị ẩn nếu Rev == 0, bất kể Cost là bao nhiêu.
+                if (r.projectId && (r.type === "Thi cong" || r.type === "Thi công") && !nameUpper.includes("KÈ")) {
+                    return rev !== 0;
+                }
+
+                // ✅ Giữ I.1 header nếu có dữ liệu HOẶC có hàng addedFromForm
                 if (nameUpper === "I.1. DÂN DỤNG + GIAO THÔNG") {
                     return rev !== 0 || cost !== 0 || profit !== 0 || hasAddedFromFormInI1;
                 }
@@ -1803,25 +1808,7 @@ export default function ProfitReportQuarter() {
                         >
                             + Thêm
                         </Button>
-                        {/* ✅ NÚT MỞ DIALOG CHỌN CÔNG TRÌNH ẨN */}
-                        <Tooltip title="Chọn công trình muốn ẩn/hiện">
-                            <Button
-                                variant={hiddenRowNames.size > 0 ? "contained" : "outlined"}
-                                color="warning"
-                                size={tvMode ? "large" : "medium"}
-                                onClick={() => setHideDialogOpen(true)}
-                                sx={{
-                                    borderRadius: 2,
-                                    minWidth: tvMode ? 180 : 140,
-                                    fontSize: tvMode ? "1.1rem" : undefined,
-                                    px: tvMode ? 3 : undefined,
-                                    py: tvMode ? 1.5 : undefined,
-                                    fontWeight: tvMode ? 600 : undefined,
-                                }}
-                            >
-                                {hiddenRowNames.size > 0 ? `Đang ẩn ${hiddenRowNames.size}` : "Ẩn hàng"}
-                            </Button>
-                        </Tooltip>
+
                         {/* ✅ BẮT ĐẦU: DÁN KHỐI CODE NÀY VÀO SAU NÚT "THÊM" */}
                         <Tooltip title="Ẩn/Hiện cột">
                             <Button
@@ -1952,16 +1939,7 @@ export default function ProfitReportQuarter() {
                         </TableHead>
                         <TableBody>
                             {rows
-                                .filter((r) => {
-                                    // ✅ Luôn hiện các hàng tổng hợp (TỔNG, tiêu đề nhóm I., II., III., ...)
-                                    const isSummaryRow = r.name?.includes("TỔNG") ||
-                                        r.name?.match(/^[IVX]+\./) ||
-                                        r.name?.toUpperCase().includes("LỢI NHUẬN");
-                                    if (isSummaryRow) return true;
 
-                                    // ✅ Ẩn nếu tên hàng nằm trong danh sách bị ẩn
-                                    return !hiddenRowNames.has(r.name);
-                                })
                                 .map((r, idx) => (
                                     <TableRow
                                         key={idx}
@@ -2318,106 +2296,7 @@ export default function ProfitReportQuarter() {
                 />
             </div>
 
-            {/* ✅ DIALOG CHỌN CÔNG TRÌNH CẦN ẨN */}
-            <Dialog
-                open={hideDialogOpen}
-                onClose={() => setHideDialogOpen(false)}
-                maxWidth="sm"
-                fullWidth
-                PaperProps={{ sx: { borderRadius: 3 } }}
-            >
-                <DialogTitle sx={{ fontWeight: 700 }}>
-                    Chọn công trình muốn ẩn
-                </DialogTitle>
-                <DialogContent>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Tick vào các công trình bạn muốn <strong>ẩn</strong>. Các công trình không tick sẽ được hiện.
-                    </Typography>
-                    <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
-                        {rows
-                            .filter(r => {
-                                // Chỉ hiện các hàng có doanh thu = 0 và không phải hàng tổng hợp
-                                const isSummaryRow = r.name?.includes("TỔNG") ||
-                                    r.name?.match(/^[IVX]+\./) ||
-                                    r.name?.toUpperCase().includes("LỢI NHUẬN");
-                                return !isSummaryRow && toNum(r.revenue) === 0;
-                            })
-                            .map((r, index) => (
-                                <Box
-                                    key={index}
-                                    sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        p: 1,
-                                        borderBottom: '1px solid #eee',
-                                        '&:hover': { bgcolor: '#f5f5f5' }
-                                    }}
-                                >
-                                    <Checkbox
-                                        checked={hiddenRowNames.has(r.name)}
-                                        onChange={(e) => {
-                                            const newSet = new Set(hiddenRowNames);
-                                            if (e.target.checked) {
-                                                newSet.add(r.name);
-                                            } else {
-                                                newSet.delete(r.name);
-                                            }
-                                            setHiddenRowNames(newSet);
-                                        }}
-                                    />
-                                    <Box>
-                                        <Typography variant="body2" fontWeight={500}>
-                                            {r.name}
-                                        </Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            DT: {formatNumber(r.revenue)} | CP: {formatNumber(r.cost)}
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                            ))
-                        }
-                        {rows.filter(r => {
-                            const isSummaryRow = r.name?.includes("TỔNG") ||
-                                r.name?.match(/^[IVX]+\./) ||
-                                r.name?.toUpperCase().includes("LỢI NHUẬN");
-                            return !isSummaryRow && toNum(r.revenue) === 0;
-                        }).length === 0 && (
-                                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
-                                    Không có công trình nào có doanh thu = 0
-                                </Typography>
-                            )}
-                    </Box>
-                </DialogContent>
-                <DialogActions sx={{ p: 2, gap: 1 }}>
-                    <Button
-                        onClick={() => {
-                            // Ẩn tất cả các hàng doanh thu = 0
-                            const allZeroRevNames = rows
-                                .filter(r => {
-                                    const isSummaryRow = r.name?.includes("TỔNG") ||
-                                        r.name?.match(/^[IVX]+\./) ||
-                                        r.name?.toUpperCase().includes("LỢI NHUẬN");
-                                    return !isSummaryRow && toNum(r.revenue) === 0;
-                                })
-                                .map(r => r.name);
-                            setHiddenRowNames(new Set(allZeroRevNames));
-                        }}
-                        color="warning"
-                    >
-                        Ẩn tất cả DT=0
-                    </Button>
-                    <Button
-                        onClick={() => setHiddenRowNames(new Set())}
-                        color="info"
-                    >
-                        Hiện tất cả
-                    </Button>
-                    <Box sx={{ flex: 1 }} />
-                    <Button onClick={() => setHideDialogOpen(false)} variant="contained">
-                        Đóng
-                    </Button>
-                </DialogActions>
-            </Dialog>
+
         </Box>
     );
 }

@@ -221,7 +221,20 @@ export const updateGroupI1 = (rows) => {
     ) {
         // Chỉ thêm vào các hàng con không phải là tiêu đề nhóm
         if (rows[i].name && !rows[i].name.match(/^[IVX]+\./)) {
-            childRows.push(rows[i]);
+            // ✅ LOGIC MỚI: Chỉ tính tổng các hàng HIỂN THỊ được (Revenue > 0 hoặc hàng thủ công)
+            // Logic này phải KHỚP với logic lọc trong ProfitReportQuarter.jsx
+            const r = rows[i];
+            const rev = toNum(r.revenue);
+            const nameUpper = (r.name || "").trim().toUpperCase();
+
+            let isVisible = true;
+            if (r.projectId && (r.type === "Thi cong" || r.type === "Thi công") && !nameUpper.includes("KÈ") && r.addedFromForm !== true) {
+                isVisible = rev !== 0;
+            }
+
+            if (isVisible) {
+                childRows.push(rows[i]);
+            }
         }
         i++;
     }
