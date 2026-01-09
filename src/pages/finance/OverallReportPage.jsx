@@ -5,6 +5,7 @@ import React, {
     useRef,
     useCallback,
 } from "react";
+import { useReactToPrint } from "react-to-print";
 import {
     Container,
     Box,
@@ -46,6 +47,7 @@ import {
     Save as SaveIcon,
     CloudDone as CloudDoneIcon,
     ContentCopy as ContentCopyIcon,
+    Print as PrintIcon,
 } from "@mui/icons-material";
 import SkeletonTable from "../../components/common/SkeletonTable";
 import ErrorState from "../../components/common/ErrorState";
@@ -68,6 +70,7 @@ import {
 import { db } from "../../services/firebase-config";
 import debounce from "lodash/debounce";
 import toast from "react-hot-toast";
+import OverallReportPrintTemplate from "../../components/finance/OverallReportPrintTemplate";
 
 // --- Cấu hình React Query Client ---
 const queryClient = new QueryClient();
@@ -501,6 +504,13 @@ const OverallReportPageContent = () => {
     );
     const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
+    // Print functionality
+    const printRef = useRef(null);
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `BaoCaoTongQuan_Q${quarter}_${year}`,
+    });
+
     const { previousYear, previousQuarter } = useMemo(() => {
         if (quarter === 1) {
             return { previousYear: year - 1, previousQuarter: 4 };
@@ -625,8 +635,8 @@ const OverallReportPageContent = () => {
 
     // -------- BƯỚC 2: DÁN KHỐI MÃ MỚI NÀY VÀO --------
     useEffect(() => {
-        // Nếu dữ liệu chính của báo cáo chưa tải xong, không làm gì cả.
-        if (isReportLoading) {
+        // Nếu dữ liệu chính của báo cáo hoặc quý trước chưa tải xong, không làm gì cả.
+        if (isReportLoading || isPrevCapitalReportLoading) {
             return;
         }
 
@@ -636,24 +646,19 @@ const OverallReportPageContent = () => {
         const userEdited = savedData1?._userEdited || {};
 
         // --- QUY TẮC ƯU TIÊN MỚI ---
-        // 1. Ưu tiên số đã lưu trong savedData1.
-        // 2. Nếu số đã lưu không tồn tại (undefined), MỚI lấy số cuối kỳ của quý trước.
-        // 3. Nếu cả hai đều không có, giá trị là 0.
-        const finalDauKyNhaMay = savedData1.vonNhaMay_dauKy !== undefined
-            ? savedData1.vonNhaMay_dauKy
-            : previousCapitalReportData?.productionTotalActual ?? 0;
+        // 1. Nếu user đã chỉnh sửa thủ công → dùng giá trị đã lưu
+        // ĐẦU KỲ luôn tự động lấy từ CUỐI KỲ quý trước (không cho sửa)
+        const prevNhaMay = previousCapitalReportData?.productionTotalActual ?? 0;
+        const prevThiCong = previousCapitalReportData?.constructionGrandTotalActual ?? 0;
 
-        const finalDauKyThiCong = savedData1.vonThiCong_dauKy !== undefined
-            ? savedData1.vonThiCong_dauKy
-            : previousCapitalReportData?.constructionGrandTotalActual ?? 0;
+        console.log('[OverallReportPage] Auto đầu kỳ từ quý trước:', { prevNhaMay, prevThiCong, previousYear, previousQuarter });
 
         // Cập nhật state một cách an toàn
         setData1(prev => ({
             ...getInitialData1(), // Bắt đầu với cấu trúc mặc định
             ...savedData1,         // Ghi đè bằng tất cả dữ liệu đã lưu
-            _userEdited: userEdited, // Đảm bảo cờ chỉnh sửa được giữ lại
-            vonNhaMay_dauKy: finalDauKyNhaMay,   // Gán giá trị cuối cùng đã được xác định
-            vonThiCong_dauKy: finalDauKyThiCong, // Gán giá trị cuối cùng đã được xác định
+            vonNhaMay_dauKy: prevNhaMay,   // Luôn lấy từ cuối kỳ quý trước
+            vonThiCong_dauKy: prevThiCong, // Luôn lấy từ cuối kỳ quý trước
         }));
 
         setData2({
@@ -661,41 +666,56 @@ const OverallReportPageContent = () => {
             ...savedData2,
         });
 
-    }, [fetchedReportData, previousCapitalReportData, isReportLoading]); // Sửa lại dependency array cho gọn hơn
+    }, [fetchedReportData, previousCapitalReportData, isReportLoading, isPrevCapitalReportLoading]);
     useEffect(() => {
         if (!balances || !chartOfAccounts) return;
         // ... logic tính toán dauKy/hienTai
     }, [balances, chartOfAccounts, data1.accountCodes]);
 
     // 👉 Đặt đoạn useEffect auto carry-over ngay sau các useEffect trên
+    // Tự động cập nhật ĐẦU KỲ của quý sau = CUỐI KỲ của quý hiện tại
     useEffect(() => {
         if (!capitalReportData) return;
+
+        const vonNhaMay_cuoiKy = Number(capitalReportData?.productionTotalActual) || 0;
+        const vonThiCong_cuoiKy = Number(capitalReportData?.constructionGrandTotalActual) || 0;
+
+        // Chỉ thực hiện carry-over nếu có giá trị cuối kỳ > 0
+        if (vonNhaMay_cuoiKy === 0 && vonThiCong_cuoiKy === 0) return;
 
         const { year: ny, quarter: nq } = getNextQuarter(year, quarter);
         (async () => {
             const nextRef = doc(db, OVERALL_REPORTS_COLLECTION, `${ny}_Q${nq}`);
             const nextSnap = await getDoc(nextRef);
             const nextData = nextSnap.exists() ? nextSnap.data() : null;
-            const hasDauKy =
-                nextData?.data1?.vonNhaMay_dauKy !== undefined ||
-                nextData?.data1?.vonThiCong_dauKy !== undefined;
 
-            if (!hasDauKy) {
+            // Kiểm tra xem user có chỉnh sửa thủ công đầu kỳ của quý sau không
+            const userEditedNhaMay = nextData?.data1?._userEdited?.vonNhaMay_dauKy === true;
+            const userEditedThiCong = nextData?.data1?._userEdited?.vonThiCong_dauKy === true;
+
+            // Chỉ cập nhật nếu user chưa chỉnh sửa thủ công
+            const updates = {};
+            if (!userEditedNhaMay && vonNhaMay_cuoiKy > 0) {
+                updates.vonNhaMay_dauKy = vonNhaMay_cuoiKy;
+            }
+            if (!userEditedThiCong && vonThiCong_cuoiKy > 0) {
+                updates.vonThiCong_dauKy = vonThiCong_cuoiKy;
+            }
+
+            if (Object.keys(updates).length > 0) {
                 await setDoc(
                     nextRef,
                     {
-                        data1: {
-                            vonNhaMay_dauKy: Number(capitalReportData?.productionTotalActual) || 0,
-                            vonThiCong_dauKy: Number(capitalReportData?.constructionGrandTotalActual) || 0,
-                        },
+                        data1: updates,
                         _carryoverMeta: {
                             from: `${year}_Q${quarter}`,
                             at: new Date().toISOString(),
-                            mode: "auto-on-next-open",
+                            mode: "auto-on-view",
                         },
                     },
                     { merge: true }
                 );
+                console.log(`[Carry-over] Đã cập nhật đầu kỳ Q${nq}/${ny}:`, updates);
             }
         })();
     }, [capitalReportData, year, quarter]);
@@ -707,7 +727,6 @@ const OverallReportPageContent = () => {
         }, 2000),
         [year, quarter, saveReport]
     );
-
 
     const isInitialLoad = useRef(true);
     useEffect(() => {
@@ -1293,6 +1312,19 @@ const OverallReportPageContent = () => {
                                     </Select>
                                 </FormControl>
                             </Grid>
+                            <Grid size={{ xs: 12, sm: 3, md: 2 }}>
+                                <Button
+                                    fullWidth
+                                    variant="contained"
+                                    color="secondary"
+                                    startIcon={<PrintIcon />}
+                                    onClick={handlePrint}
+                                >
+                                    In Báo Cáo
+                                </Button>
+                            </Grid>
+
+
                         </Grid>
                     </CardContent>
                 </Card>
@@ -1580,14 +1612,7 @@ const OverallReportPageContent = () => {
                                     stt="1"
                                     label="Nhà Máy sử dụng (vốn lưu động 25 TỶ)"
                                     showAccountSelect={false}
-                                    isDauKyEditable={true}
                                     dauKy={data1.vonNhaMay_dauKy}
-                                    onSaveDauKy={(v) =>
-                                        handleUpdate1_Numeric(
-                                            "vonNhaMay_dauKy",
-                                            v
-                                        )
-                                    }
                                     hienTai={
                                         capitalReportData?.productionTotalActual ||
                                         0
@@ -1612,14 +1637,7 @@ const OverallReportPageContent = () => {
                                     stt="2"
                                     label="Thi Công sử Dụng (vốn lưu động 20 TỶ)"
                                     showAccountSelect={false}
-                                    isDauKyEditable={true}
                                     dauKy={data1.vonThiCong_dauKy}
-                                    onSaveDauKy={(v) =>
-                                        handleUpdate1_Numeric(
-                                            "vonThiCong_dauKy",
-                                            v
-                                        )
-                                    }
                                     hienTai={
                                         capitalReportData?.constructionGrandTotalActual ||
                                         0
@@ -2062,6 +2080,20 @@ const OverallReportPageContent = () => {
                     </TableContainer>
                 </Card>
             </Stack>
+
+            {/* Hidden Print Template */}
+            <div style={{ display: "none" }}>
+                <OverallReportPrintTemplate
+                    ref={printRef}
+                    data1={data1}
+                    data2={data2}
+                    totals1={totals1}
+                    totals2={totals2}
+                    year={year}
+                    quarter={quarter}
+                    capitalReportData={capitalReportData}
+                />
+            </div>
         </Container>
     );
 };
