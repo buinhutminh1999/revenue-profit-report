@@ -90,6 +90,8 @@ const useProfitReportData = (selectedYear) => {
     const [initialSummaryTargets, setInitialSummaryTargets] = useState({});
 
     const [editableRows, setEditableRows] = useState({});
+    const [manualCostOver, setManualCostOver] = useState({}); // ✅ State lưu chi phí vượt nhập tay
+    const isInitialLoad = useRef(true); // ✅ Flag để ngăn auto-save khi vừa load dữ liệu
 
     // Danh sách các hàng có thể chỉnh sửa
     const editableRowNames = [
@@ -103,9 +105,6 @@ const useProfitReportData = (selectedYear) => {
         "3. GIÁ TRỊ CHIA CỔ TỨC 30% GIÁ TRỊ LỢI NHUẬN RÒNG",
         `4. CỔ TỨC GIỮ LẠI NĂM ${selectedYear} (70%)`,
     ];
-
-    // ✅ State lưu chi phí vượt nhập tay cho Báo cáo Năm (Được chuyển lên đây để tránh lỗi ReferenceError)
-    const [manualCostOver, setManualCostOver] = useState({});
 
     // Hàm lưu dữ liệu các hàng có thể chỉnh sửa
     const saveEditableData = useCallback(async () => {
@@ -121,7 +120,6 @@ const useProfitReportData = (selectedYear) => {
                 }
             });
 
-
             await setDoc(doc(db, "editableProfitRows", `${selectedYear}`), {
                 rows: editableData,
                 manualCostOver: manualCostOver, // ✅ Lưu chi phí vượt nhập tay
@@ -132,7 +130,7 @@ const useProfitReportData = (selectedYear) => {
         } catch (error) {
             console.error("Lỗi khi lưu dữ liệu:", error);
         }
-    }, [editableRows, manualCostOver, selectedYear, editableRowNames]); // ✅ Thêm manualCostOver và dependencies
+    }, [editableRows, manualCostOver, selectedYear, editableRowNames]); // ✅ Thêm manualCostOver
 
     // Hàm cập nhật giá trị cho hàng có thể chỉnh sửa
     const updateEditableRow = useCallback((rowName, field, value) => {
@@ -145,10 +143,13 @@ const useProfitReportData = (selectedYear) => {
         }));
     }, []);
 
-
-
     // Auto-save khi editableRows hoặc manualCostOver thay đổi
     useEffect(() => {
+        // ✅ Bỏ qua auto-save khi vừa load dữ liệu từ Firestore
+        if (isInitialLoad.current) {
+            return;
+        }
+
         const timeoutId = setTimeout(() => {
             if (Object.keys(editableRows).length > 0 || Object.keys(manualCostOver).length > 0) {
                 saveEditableData();
@@ -540,6 +541,7 @@ const useProfitReportData = (selectedYear) => {
 
     useEffect(() => {
         const fetchData = async () => {
+            isInitialLoad.current = true; // ✅ Reset flag khi bắt đầu load dữ liệu mới
             setLoading(true);
 
             const quarters = ["Q1", "Q2", "Q3", "Q4"];
@@ -643,15 +645,18 @@ const useProfitReportData = (selectedYear) => {
             setInitialSummaryTargets(summedTargets);
 
             // Load dữ liệu các hàng có thể chỉnh sửa
-            let loadedManualCostOver = {};
             if (editableDoc.exists()) {
                 setEditableRows(editableDoc.data().rows || {});
-                // 2. Update `fetchData` to load `manualCostOver`.
+                // ✅ Load manualCostOver (Chi phí vượt nhập tay)
                 if (editableDoc.data().manualCostOver) {
-                    loadedManualCostOver = editableDoc.data().manualCostOver;
-                    setManualCostOver(loadedManualCostOver);
+                    setManualCostOver(editableDoc.data().manualCostOver);
                 }
             }
+
+            // ✅ Đánh dấu đã load xong, cho phép auto-save từ thao tác user
+            setTimeout(() => {
+                isInitialLoad.current = false;
+            }, 2000); // Chờ 2 giây sau khi load xong
 
             // ✅ [SỬA] Xử lý cost allocation - TỔNG TẤT CẢ 4 QUÝ
             let costAddedForGroupI = 0;
@@ -1105,7 +1110,6 @@ const useProfitReportData = (selectedYear) => {
             });
 
             // Tính tổng cả năm cho từng dự án
-            xiNghiepXD2Projects.sort((a, b) => a.name.localeCompare(b.name)); // ✅ Sort A-Z
             xiNghiepXD2Projects.forEach((project) => {
                 project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce(
                     (sum, q) => sum + (project[`revenue${q}`] || 0),
@@ -1170,7 +1174,6 @@ const useProfitReportData = (selectedYear) => {
             });
 
             // Tính tổng cả năm cho từng dự án
-            nhaMayProjects.sort((a, b) => a.name.localeCompare(b.name)); // ✅ Sort A-Z
             nhaMayProjects.forEach((project) => {
                 project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce(
                     (sum, q) => sum + (project[`revenue${q}`] || 0),
@@ -1238,7 +1241,6 @@ const useProfitReportData = (selectedYear) => {
             });
 
             // Tính tổng năm cho từng dự án
-            dauTuProjects.sort((a, b) => a.name.localeCompare(b.name)); // ✅ Sort A-Z
             dauTuProjects.forEach((project) => {
                 project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`revenue${q}`] || 0), 0);
                 project.cost = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`cost${q}`] || 0), 0);
@@ -1287,7 +1289,6 @@ const useProfitReportData = (selectedYear) => {
             });
 
             // Tính tổng cả năm cho từng dự án CĐT
-            cdtProjects.sort((a, b) => a.name.localeCompare(b.name)); // ✅ Sort A-Z
             cdtProjects.forEach((project) => {
                 project.revenue = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`revenue${q}`] || 0), 0);
                 project.cost = ["Q1", "Q2", "Q3", "Q4"].reduce((s, q) => s + (project[`cost${q}`] || 0), 0);
@@ -1384,7 +1385,7 @@ const useProfitReportData = (selectedYear) => {
                                 manualGroupsData[row.name] = { name: row.name, type: group.type };
                             }
                             // Nếu là nhóm I.1, I.2, I.4, III thì ghi đè logic type dựa theo nhóm tìm thấy
-                            // Tuy nhiên logic gán type ở trên đã cover.
+                            // Tuy nhiên logic gán type ở trên đã cover. 
                             // Chỉ cần lưu ý tên công trình là unique key.
 
                             if (!manualGroupsData[row.name][quarter]) manualGroupsData[row.name][quarter] = {};
@@ -1399,125 +1400,76 @@ const useProfitReportData = (selectedYear) => {
                 }
             });
 
-            // Bước 2: Hợp nhất dữ liệu thủ công vào danh sách `projects` gốc
-            const manualI1Data = Object.fromEntries(
-                Object.entries(manualGroupsData).filter(([, data]) => data.type === "Thi công" && data.name && !(data.name || "").toUpperCase().includes("KÈ"))
-            );
-            const manualI1Names = Object.keys(manualI1Data);
-            const danDungProjects = []; // ✅ Mảng chứa tất cả dự án I.1 (Dân dụng + GT)
+            // Bước 2: Hợp nhất dữ liệu thủ công vào danh sách
+            const manualNames = Object.keys(manualGroupsData);
+            const purelyManualProjects = [];
 
-            manualI1Names.forEach(name => {
-                const manualData = manualI1Data[name];
-                const baseProject = projects.find(p => p.name === name);
+            manualNames.forEach(name => {
+                const manualData = manualGroupsData[name];
 
-                if (baseProject) {
-                    // Nếu TÌM THẤY dự án gốc, tiến hành ghi đè dữ liệu quý
-                    for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                        if (manualData[quarter]) {
-                            baseProject[`revenue${quarter}`] = manualData[quarter].revenue;
-                            baseProject[`cost${quarter}`] = manualData[quarter].cost;
-                            baseProject[`profit${quarter}`] = manualData[quarter].profit;
-                        }
-                    }
-                    baseProject.revenue = (baseProject.revenueQ1 || 0) + (baseProject.revenueQ2 || 0) + (baseProject.revenueQ3 || 0) + (baseProject.revenueQ4 || 0);
-                    baseProject.cost = (baseProject.costQ1 || 0) + (baseProject.costQ2 || 0) + (baseProject.costQ3 || 0) + (baseProject.costQ4 || 0);
-                    baseProject.profit = (baseProject.profitQ1 || 0) + (baseProject.profitQ2 || 0) + (baseProject.profitQ3 || 0) + (baseProject.profitQ4 || 0);
-                    danDungProjects.push(baseProject); // ✅ Add to list
-                } else {
-                    // Nếu KHÔNG TÌM THẤY, đây là dự án mới 100% từ thêm tay
-                    const newManualProject = {
-                        name: name, type: "Thi công", revenue: 0, cost: 0, profit: 0,
-                        revenueQ1: 0, costQ1: 0, profitQ1: 0, revenueQ2: 0, costQ2: 0, profitQ2: 0,
-                        revenueQ3: 0, costQ3: 0, profitQ3: 0, revenueQ4: 0, costQ4: 0, profitQ4: 0,
-                    };
-                    for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
-                        if (manualData[quarter]) {
-                            const qData = manualData[quarter];
-                            newManualProject[`revenue${quarter}`] = qData.revenue;
-                            newManualProject[`cost${quarter}`] = qData.cost;
-                            newManualProject[`profit${quarter}`] = qData.profit;
-                        }
-                    }
-                    newManualProject.revenue = newManualProject.revenueQ1 + newManualProject.revenueQ2 + newManualProject.revenueQ3 + newManualProject.revenueQ4;
-                    newManualProject.cost = newManualProject.costQ1 + newManualProject.costQ2 + newManualProject.costQ3 + newManualProject.costQ4;
-                    newManualProject.profit = newManualProject.profitQ1 + newManualProject.profitQ2 + newManualProject.profitQ3 + newManualProject.profitQ4;
-                    danDungProjects.push(newManualProject); // ✅ Add to list
-                }
-            });
-
-            // ✅ Sort I.1 projects A-Z
-            danDungProjects.sort((a, b) => a.name.localeCompare(b.name));
-
-            // ✅ Insert I.1 projects into rowTemplate
-            const idxI1 = rowTemplate.findIndex(r => r.name === "I.1. Dân Dụng + Giao Thông");
-            if (idxI1 !== -1) {
-                // Remove existing projects under this header if any (optional but safer)
-                // (Logic này giả định rowTemplate chỉ chứa headers ban đầu hoặc dữ liệu cũ cần overwrite/move)
-                // Tuy nhiên ta cứ insert sau header
-                rowTemplate.splice(idxI1 + 1, 0, ...danDungProjects);
-            }
-
-            // ✅ I.2. KÈ - Lấy dữ liệu từ profitReports (manualGroupsData), không phải từ DB
-            const manualKeData = Object.fromEntries(
-                Object.entries(manualGroupsData).filter(([, data]) => data.type === "Thi công" && data.name && (data.name || "").toUpperCase().includes("KÈ"))
-            );
-            const manualKeNames = Object.keys(manualKeData);
-            const keProjects = []; // ✅ Mảng chứa tất cả dự án I.2 (KÈ)
-
-            manualKeNames.forEach(name => {
-                const manualData = manualKeData[name];
-                const newKeProject = {
-                    name: name, type: "Thi công", revenue: 0, cost: 0, profit: 0,
+                // ✅ LOGIC MỚI: LUÔN COI LÀ DỰ ÁN TỪ BÁO CÁO
+                const newManualProject = {
+                    name: name,
+                    type: manualData.type, // Sử dụng type đã xác định từ nhóm
+                    revenue: 0, cost: 0, profit: 0,
                     revenueQ1: 0, costQ1: 0, profitQ1: 0, revenueQ2: 0, costQ2: 0, profitQ2: 0,
                     revenueQ3: 0, costQ3: 0, profitQ3: 0, revenueQ4: 0, costQ4: 0, profitQ4: 0,
+                    fromProfitReport: true, // ✅ Đánh dấu là có dữ liệu từ báo cáo
                 };
                 for (const quarter of ["Q1", "Q2", "Q3", "Q4"]) {
                     if (manualData[quarter]) {
                         const qData = manualData[quarter];
-                        newKeProject[`revenue${quarter}`] = qData.revenue;
-                        newKeProject[`cost${quarter}`] = qData.cost;
-                        newKeProject[`profit${quarter}`] = qData.profit;
+                        newManualProject[`revenue${quarter}`] = qData.revenue;
+                        newManualProject[`cost${quarter}`] = qData.cost;
+                        newManualProject[`profit${quarter}`] = qData.profit;
                     }
                 }
-                newKeProject.revenue = newKeProject.revenueQ1 + newKeProject.revenueQ2 + newKeProject.revenueQ3 + newKeProject.revenueQ4;
-                newKeProject.cost = newKeProject.costQ1 + newKeProject.costQ2 + newKeProject.costQ3 + newKeProject.costQ4;
-                newKeProject.profit = newKeProject.profitQ1 + newKeProject.profitQ2 + newKeProject.profitQ3 + newKeProject.profitQ4;
-                keProjects.push(newKeProject);
+                newManualProject.revenue = newManualProject.revenueQ1 + newManualProject.revenueQ2 + newManualProject.revenueQ3 + newManualProject.revenueQ4;
+                newManualProject.cost = newManualProject.costQ1 + newManualProject.costQ2 + newManualProject.costQ3 + newManualProject.costQ4;
+                newManualProject.profit = newManualProject.profitQ1 + newManualProject.profitQ2 + newManualProject.profitQ3 + newManualProject.profitQ4;
+                purelyManualProjects.push(newManualProject);
             });
 
-            // ✅ Sort I.2 KÈ projects A-Z
-            keProjects.sort((a, b) => a.name.localeCompare(b.name));
-
-            const idxI2 = rowTemplate.findIndex(r => r.name === "I.2. KÈ");
-            if (idxI2 !== -1) {
-                rowTemplate.splice(idxI2 + 1, 0, ...keProjects);
-            }
-
-            // const projectsFiltered = projects.filter(p => { ... }); // Still useful for anything else?
-            // "Thi công" (I.1, I.2) -> Handled.
-            // "XNII" (I.4) -> Handled.
-            // "KH-ĐT" (III) -> Handled.
-            // "Nhà máy" (II.1) -> Handled.
-            // "CĐT" (I.3) -> Handled.
-
-            // So seemingly NOTHING left in projectsFiltered that matters for these groups.
-            // We can simplify the final merge.
-
-            const remainingProjects = projects.filter(p => {
-                const type = (p.type || "").toLowerCase();
-                return type !== "thi công" && type !== "xnii" && type !== "kh-đt" && !type.includes("nhà máy") && type !== "cđt";
+            // Bước 3: Tạo một danh sách tổng hợp cuối cùng
+            // Lọc bỏ danh sách project DB nếu nó thuộc các nhóm đã lấy từ báo cáo (Thi công, XNII, KH-ĐT)
+            const projectsFiltered = projects.filter(p => {
+                const isSkipped = (p.type === "Thi công") || (p.type === "XNII") || (p.type === "KH-ĐT");
+                return !isSkipped;
             });
-            remainingProjects.sort((a, b) => a.name.localeCompare(b.name));
+            const allProjects = [...projectsFiltered, ...purelyManualProjects];
 
-            // Bước 4: Chèn các dự án còn lại (nếu có - backup)
-            remainingProjects.forEach((p) => {
+            // Bước 4: Dùng vòng lặp duy nhất để chèn TOÀN BỘ công trình vào `rowTemplate`
+            allProjects.forEach((p) => {
                 const index = rowTemplate.findIndex((r) => r.name === p.name);
                 if (index > -1) {
+                    // Ghi đè nếu đã tồn tại (dành cho trường hợp load từ báo cáo đã lưu)
                     rowTemplate[index] = { ...rowTemplate[index], ...p };
                 } else {
-                    // Default insertion?
-                    // Maybe put at end of I.1 if defined? Or warn?
-                    // For now just skip as we handled all known types.
+                    // Chèn mới vào đúng vị trí theo logic nguyên bản
+                    let insertIndex = -1;
+                    if (p.type === "Thi công") {
+                        if ((p.name || "").toUpperCase().includes("KÈ")) {
+                            insertIndex = rowTemplate.findIndex(
+                                (r) => r.name === `I.3. CÔNG TRÌNH CÔNG TY CĐT`
+                            );
+                        } else {
+                            insertIndex = rowTemplate.findIndex(
+                                (r) => r.name === `I.2. KÈ`
+                            );
+                        }
+                    } else if (p.type.toLowerCase().includes("nhà máy")) {
+                        insertIndex = rowTemplate.findIndex(
+                            (r) => r.name === `II.2. DT + LN ĐƯỢC CHIA TỪ LDX`
+                        );
+                    } else if (p.type === "KH-ĐT") {
+                        insertIndex = rowTemplate.findIndex(
+                            (r) => r.name === "IV. TỔNG"
+                        );
+                    }
+
+                    if (insertIndex > -1) {
+                        rowTemplate.splice(insertIndex, 0, p);
+                    }
                 }
             });
 
@@ -1528,10 +1480,10 @@ const useProfitReportData = (selectedYear) => {
             const finalRows = runAllCalculations(
                 rowTemplate,
                 costAddedForGroupI,
-                loadedManualCostOver["I"] !== undefined ? loadedManualCostOver["I"] : costOverForGroupI, // ✅ Override using local variable
+                costOverForGroupI,
                 costAddedForGroupII,
-                loadedManualCostOver["II"] !== undefined ? loadedManualCostOver["II"] : costOverForGroupII, // ✅ Override using local variable
-                loadedManualCostOver["III"] !== undefined ? loadedManualCostOver["III"] : costOverForGroupIII // ✅ Override using local variable
+                costOverForGroupII,
+                costOverForGroupIII
             );
 
             // Cập nhật dữ liệu cho các hàng có thể chỉnh sửa sau khi tính toán
@@ -1692,11 +1644,10 @@ const useProfitReportData = (selectedYear) => {
 
     return {
         rows,
+        setRows, // ✅ Return setRows để có thể cập nhật từ component
         loading,
         initialSummaryTargets,
         editableRows,
-        updateEditableRow,
-        saveEditableData,
         updateEditableRow,
         saveEditableData,
         editableRowNames,
@@ -1715,12 +1666,13 @@ export default function ProfitReportYear() {
     // ✅ SỬA LẠI PHẦN NÀY: LẤY `initialSummaryTargets` từ hook
     const {
         rows,
+        setRows, // ✅ Lấy setRows để có thể cập nhật từ component
         loading,
         initialSummaryTargets, // Lấy dữ liệu chỉ tiêu ban đầu từ hook
         editableRows,
-        editableRowNames,
         updateEditableRow,
         saveEditableData,
+        editableRowNames,
         manualCostOver, // ✅ Lấy state
         setManualCostOver, // ✅ Lấy setter
     } = useProfitReportData(selectedYear);
@@ -1805,14 +1757,33 @@ export default function ProfitReportYear() {
         // Ví dụ: saveTargetsToFirestore(selectedYear, { ...summaryTargets, [key]: value });
     };
 
-    // ✅ Hàm xử lý khi nhập tay Chi phí vượt (Năm)
-    const handleSummaryCostOverChange = (id, value) => {
+    // ✅ Hàm xử lý khi nhập tay Chi phí vượt trong BẢNG TÓM TẮT (Summary Table)
+    // id: "I", "II", "III" -> tương ứng với hàng I. XÂY DỰNG, II. SẢN XUẤT, III. ĐẦU TƯ
+    const handleSummaryCostOverChange = useCallback((id, value) => {
+        const rowNameMap = {
+            "I": "I. XÂY DỰNG",
+            "II": "II. SẢN XUẤT",
+            "III": "III. ĐẦU TƯ",
+        };
+        const rowName = rowNameMap[id];
+        if (!rowName) return;
+
+        // ✅ Cập nhật state manualCostOver để lưu và ưu tiên giá trị nhập tay
         setManualCostOver((prev) => ({
             ...prev,
-            [id]: value,
+            [id]: toNum(value),
         }));
-    };
 
+        // ✅ Cập nhật luôn vào rows để hiển thị ngay
+        setRows((prevRows) => {
+            return prevRows.map((row) => {
+                if (row.name === rowName) {
+                    return { ...row, costOverCumulative: toNum(value) };
+                }
+                return row;
+            });
+        });
+    }, [setManualCostOver, setRows]);
     // ✅ BƯỚC 1: THÊM ĐOẠN CODE NÀY ĐỂ CHUẨN BỊ DỮ LIỆU
     const summaryData = React.useMemo(() => {
         const constructionRow =
@@ -1823,13 +1794,14 @@ export default function ProfitReportYear() {
         return {
             revenueXayDung: constructionRow.revenue,
             profitXayDung: constructionRow.profit,
-            costOverXayDung: manualCostOver["I"] !== undefined ? manualCostOver["I"] : constructionRow.costOverCumulative, // ✅ Ưu tiên nhập tay
+            // ✅ Ưu tiên giá trị nhập tay từ manualCostOver
+            costOverXayDung: manualCostOver["I"] !== undefined ? manualCostOver["I"] : constructionRow.costOverCumulative,
             revenueSanXuat: productionRow.revenue,
             profitSanXuat: productionRow.profit,
-            costOverSanXuat: manualCostOver["II"] !== undefined ? manualCostOver["II"] : productionRow.costOverCumulative, // ✅ Ưu tiên nhập tay
+            costOverSanXuat: manualCostOver["II"] !== undefined ? manualCostOver["II"] : productionRow.costOverCumulative,
             revenueDauTu: investmentRow.revenue,
             profitDauTu: investmentRow.profit,
-            costOverDauTu: manualCostOver["III"] !== undefined ? manualCostOver["III"] : investmentRow.costOverCumulative, // ✅ Ưu tiên nhập tay
+            costOverDauTu: manualCostOver["III"] !== undefined ? manualCostOver["III"] : investmentRow.costOverCumulative,
         };
     }, [rows, manualCostOver]); // ✅ Thêm manualCostOver vào dep array
     // ✅ TỐI ƯU CHO TV MÀN HÌNH LỚN
@@ -1868,38 +1840,37 @@ export default function ProfitReportYear() {
         });
     };
 
-    // Component cho ô có thể chỉnh sửa - Click để hiện input
-    const ClickableEditCell = ({ rowName, field, value }) => {
-        const [isEditing, setIsEditing] = useState(false);
-        const [localValue, setLocalValue] = useState(value || 0);
+    // ✅ State để track ô đang được edit (tránh mất state khi re-render)
+    const [editingCell, setEditingCell] = useState(null); // { rowName, field }
+    const [editingValue, setEditingValue] = useState('');
 
-        useEffect(() => {
-            setLocalValue(value || 0);
-        }, [value]);
+    // Component cho ô có thể chỉnh sửa - Click để hiện input
+    const ClickableEditCell = React.memo(({ rowName, field, value }) => {
+        const isEditing = editingCell?.rowName === rowName && editingCell?.field === field;
 
         const handleClick = () => {
-            setIsEditing(true);
+            setEditingCell({ rowName, field });
+            setEditingValue(value || 0);
         };
 
         const handleBlur = () => {
-            setIsEditing(false);
-            updateEditableRow(rowName, field, localValue);
+            setEditingCell(null);
+            updateEditableRow(rowName, field, editingValue);
         };
 
         const handleKeyPress = (e) => {
             if (e.key === "Enter") {
-                setIsEditing(false);
-                updateEditableRow(rowName, field, localValue);
+                setEditingCell(null);
+                updateEditableRow(rowName, field, editingValue);
             }
             if (e.key === "Escape") {
-                setIsEditing(false);
-                setLocalValue(value || 0);
+                setEditingCell(null);
             }
         };
 
         const handleChange = (e) => {
             const newValue = e.target.value.replace(/,/g, ""); // Remove commas for calculation
-            setLocalValue(newValue);
+            setEditingValue(newValue);
         };
 
         // Format number with commas
@@ -1913,7 +1884,7 @@ export default function ProfitReportYear() {
                 <TextField
                     size="small"
                     type="text"
-                    value={localValue}
+                    value={editingValue}
                     onChange={handleChange}
                     onBlur={handleBlur}
                     onKeyDown={handleKeyPress}
@@ -1947,22 +1918,22 @@ export default function ProfitReportYear() {
                     "&:hover": {
                         backgroundColor: "rgba(0, 0, 0, 0.04)",
                         borderRadius: "4px",
-                        ...(tvMode ? {} : { transition: "background-color 0.2s" }), // ✅ Bỏ transition trong TV mode
+                        ...(tvMode ? {} : { transition: "background-color 0.2s" }),
                     },
                     border: "1px dashed transparent",
                     "&:hover .edit-hint": {
                         opacity: 1,
-                        ...(tvMode ? {} : { transition: "opacity 0.2s" }), // ✅ Bỏ transition trong TV mode
+                        ...(tvMode ? {} : { transition: "opacity 0.2s" }),
                     },
                     fontSize: tvMode ? "1.1rem" : undefined,
                 }}
             >
-                {formatDisplayValue(localValue)}
+                {formatDisplayValue(value)}
                 <Box
                     className="edit-hint"
                     sx={{
                         opacity: 0,
-                        transition: tvMode ? "none" : "opacity 0.2s", // ✅ Bỏ transition trong TV mode, giữ hover
+                        transition: tvMode ? "none" : "opacity 0.2s",
                         fontSize: tvMode ? "14px" : "10px",
                         color: "#666",
                         ml: 1,
@@ -1972,7 +1943,7 @@ export default function ProfitReportYear() {
                 </Box>
             </Box>
         );
-    };
+    });
     // ... trước câu lệnh return
 
     // Print functionality
@@ -2196,7 +2167,7 @@ export default function ProfitReportYear() {
                     data={summaryData}
                     targets={summaryTargets}
                     onTargetChange={handleTargetChange}
-                    onCostOverChange={handleSummaryCostOverChange} // ✅ Truyền hàm xử lý nhập tay
+                    onCostOverChange={handleSummaryCostOverChange} // ✅ Cho phép nhập CHI PHÍ VƯỢT ở bảng tóm tắt
                     isYearlyReport={true}
                     tvMode={tvMode} // ✅ Truyền tvMode vào component
                 />
@@ -2409,7 +2380,7 @@ export default function ProfitReportYear() {
 
                                         {/* DỮ LIỆU CÁC CỘT ĐẶC BIỆT */}
                                         {columnVisibility.plannedProfitMargin && <TableCell align="center" sx={cellStyle}>{format(r.plannedProfitMargin, "percent")}</TableCell>}
-                                        {columnVisibility.actualProfitMargin && <TableCell align="center" sx={cellStyle}>{r.revenue ? format((r.profit / r.revenue) * 100, "percent") : ''}</TableCell>}
+                                        {columnVisibility.actualProfitMargin && <TableCell align="center" sx={cellStyle}>{r.projectId && r.revenue ? format((r.profit / r.revenue) * 100, "percent") : ''}</TableCell>}
                                         {columnVisibility.costOverCumulative && <TableCell align="right" sx={cellStyle}>{format(r.costOverCumulative)}</TableCell>}
                                         {columnVisibility.costAddedToProfit && <TableCell align="right" sx={cellStyle}>{format(r.costAddedToProfit)}</TableCell>}
                                         {columnVisibility.note && <TableCell align="left" sx={cellStyle}>{format(r.note)}</TableCell>}
