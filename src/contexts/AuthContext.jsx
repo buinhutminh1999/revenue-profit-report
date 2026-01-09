@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase-config';
 
 // Tạo Context
@@ -21,14 +21,37 @@ export function AuthProvider({ children }) {
       if (firebaseUser) {
         setUser(firebaseUser);
 
-        // Cập nhật lastLogin vào Firestore
+        // Kiểm tra và tạo user document nếu chưa tồn tại (cho Google login)
         try {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
-          await updateDoc(userDocRef, {
-            lastLogin: serverTimestamp(),
-          });
+          const userDocSnap = await getDoc(userDocRef);
+
+          if (!userDocSnap.exists()) {
+            // Tạo mới document cho user đăng nhập Google lần đầu
+            await setDoc(userDocRef, {
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName || '',
+              photoURL: firebaseUser.photoURL || '',
+              role: 'nhan-vien', // Role mặc định
+              primaryDepartmentId: null,
+              managedDepartmentIds: [],
+              locked: false,
+              emailVerified: firebaseUser.emailVerified || false,
+              createdAt: serverTimestamp(),
+              lastLogin: serverTimestamp(),
+            });
+            console.log('Created new user document for Google login:', firebaseUser.email);
+          } else {
+            // Cập nhật lastLogin cho user đã tồn tại
+            await updateDoc(userDocRef, {
+              lastLogin: serverTimestamp(),
+              // Cập nhật thêm các field từ Google nếu có thay đổi
+              ...(firebaseUser.photoURL && { photoURL: firebaseUser.photoURL }),
+              ...(firebaseUser.emailVerified && { emailVerified: firebaseUser.emailVerified }),
+            });
+          }
         } catch (err) {
-          console.warn('Could not update lastLogin:', err.message);
+          console.warn('Could not update/create user document:', err.message);
         }
 
         // Lấy thông tin user từ Firestore

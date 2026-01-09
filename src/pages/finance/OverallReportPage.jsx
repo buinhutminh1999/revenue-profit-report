@@ -96,7 +96,7 @@ const useCapitalUtilizationReportData = (year, quarter) => {
             const docSnap = await getDoc(docRef);
             return docSnap.exists() ? docSnap.data() : null;
         },
-        staleTime: 1000 * 60 * 5,
+        staleTime: 0,
         placeholderData: (previousData) => previousData,
     });
 };

@@ -43,6 +43,10 @@ import {
     InputAdornment,
     Alert,
     Skeleton,
+    DialogContentText,
+    List,
+    ListItem,
+    ListItemText,
 } from "@mui/material";
 import {
     Search,
@@ -379,6 +383,8 @@ export default function ConstructionPlan() {
     const [settlementYear, setSettlementYear] = useState(String(new Date().getFullYear()));
     const [settlementQuarter, setSettlementQuarter] = useState(`Q${Math.floor(new Date().getMonth() / 3) + 1}`);
     const [showSettlementConfirm, setShowSettlementConfirm] = useState(false);
+    const [showRefinalizeConfirm, setShowRefinalizeConfirm] = useState(false); // ✅ State cho dialog hỏi lại
+    const [projectsToRefinalize, setProjectsToRefinalize] = useState([]); // ✅ Danh sách cần hỏi lại
     const [showProgressDialog, setShowProgressDialog] = useState(false);
     const { executeBatchSettlement, isProcessing, progress, results, resetResults } = useBatchSettlement();
 
@@ -515,14 +521,54 @@ export default function ConstructionPlan() {
         const result = await executeBatchSettlement(selectedProjectIds, settlementYear, settlementQuarter);
 
         if (result) {
-            if (result.success.length > 0) {
-                toast.success(`Quyết toán thành công ${result.success.length} công trình!`);
+            const successCount = result.success.length;
+            const failedItems = result.failed;
+
+            // ✅ Check for re-finalization candidates (error contains "đã được quyết toán rồi")
+            const refinalizeCandidates = failedItems.filter(item =>
+                item.error && item.error.includes("đã được quyết toán rồi")
+            );
+
+            if (refinalizeCandidates.length > 0) {
+                setProjectsToRefinalize(refinalizeCandidates);
+                setShowRefinalizeConfirm(true);
+                // Note: We don't toast error here yet, wait for user decision
             }
-            if (result.failed.length > 0) {
-                toast.error(`${result.failed.length} công trình gặp lỗi khi quyết toán.`);
+
+            if (successCount > 0) {
+                toast.success(`Quyết toán thành công ${successCount} công trình!`);
+            }
+
+            // Toast other errors
+            const otherFailures = failedItems.filter(item =>
+                !item.error || !item.error.includes("đã được quyết toán rồi")
+            );
+
+            if (otherFailures.length > 0) {
+                toast.error(`${otherFailures.length} công trình gặp lỗi khi quyết toán.`);
             }
         }
     }, [selectedProjectIds, settlementYear, settlementQuarter, executeBatchSettlement]);
+
+    const handleRefinalize = useCallback(async () => {
+        setShowRefinalizeConfirm(false);
+        setShowProgressDialog(true);
+
+        const idsToRefinalize = projectsToRefinalize.map(p => p.projectId);
+
+        // Force execution
+        const result = await executeBatchSettlement(idsToRefinalize, settlementYear, settlementQuarter, true);
+
+        if (result) {
+            if (result.success.length > 0) {
+                toast.success(`Đã quyết toán lại ${result.success.length} công trình!`);
+            }
+            if (result.failed.length > 0) {
+                toast.error(`${result.failed.length} công trình vẫn lỗi.`);
+            }
+        }
+        setProjectsToRefinalize([]);
+    }, [projectsToRefinalize, settlementYear, settlementQuarter, executeBatchSettlement]);
 
     const handleCloseProgressDialog = useCallback(() => {
         setShowProgressDialog(false);
@@ -1223,6 +1269,45 @@ export default function ConstructionPlan() {
                         variant="contained"
                     >
                         {isProcessing ? "Đang xử lý..." : "Đóng"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* === RE-FINALIZE CONFIRMATION DIALOG === */}
+            <Dialog
+                open={showRefinalizeConfirm}
+                onClose={() => setShowRefinalizeConfirm(false)}
+                PaperProps={{ sx: { borderRadius: 3, maxWidth: 500 } }}
+            >
+                <DialogTitle fontWeight="700" color="error">⚠️ Cảnh Báo Quyết Toán Lại</DialogTitle>
+                <DialogContent>
+                    <DialogContentText paragraph>
+                        Các công trình sau đây <strong>đã được quyết toán</strong> trong quý này rồi:
+                    </DialogContentText>
+                    <List dense sx={{ maxHeight: 200, overflow: 'auto', bgcolor: 'rgba(0,0,0,0.03)', my: 1, borderRadius: 1 }}>
+                        {projectsToRefinalize.map((item, index) => (
+                            <ListItem key={index}>
+                                <ListItemText
+                                    primary={<strong>{item.projectId}</strong>} // We might want project name if available, but projectId is what we have in error obj for now unless we enrich it. The hook returns {projectId, error}. But logic actually logged project name in executeBatchSettlement? No, logic pushes {projectId, error}. Wait, executeBatchSettlement logic: failedResults.push({ projectId, error }). It doesn't push name. The hook *has* name in loop, but pushes id. Use ID for now.
+                                    secondary={item.error}
+                                    primaryTypographyProps={{ variant: 'body2' }}
+                                    secondaryTypographyProps={{ variant: 'caption', color: 'error' }}
+                                />
+                            </ListItem>
+                        ))}
+                    </List>
+                    <Alert severity="warning">
+                        Bạn có muốn <strong>Quyết Toán Lại (Ghi Đè)</strong> không? Dữ liệu cũ sẽ bị thay thế.
+                    </Alert>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={() => setShowRefinalizeConfirm(false)}>Hủy</Button>
+                    <Button
+                        onClick={handleRefinalize}
+                        color="error"
+                        variant="contained"
+                    >
+                        Đồng Ý Ghi Đè
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -41,6 +41,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import { collection, getDocs, setDoc, doc, getDoc, collectionGroup, onSnapshot } from "firebase/firestore";
 import { db } from "../../services/firebase-config";
 import { toNum, formatNumber } from "../../utils/numberUtils";
+import { calcAllFields } from "../../utils/calcUtils"; // ✅ Import calcAllFields
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import ProfitSummaryTable from "../../reports/ProfitSummaryTable";
 import FunctionsIcon from '@mui/icons-material/Functions';
@@ -77,6 +78,9 @@ export default function ProfitReportQuarter() {
         profitTargetDauTu: 0,
     });
     const [formulaDialogOpen, setFormulaDialogOpen] = useState(false); // <-- THÊM DÒNG NÀY
+    const [showZeroRevenue, setShowZeroRevenue] = useState(false); // ✅ Toggle để hiện/ẩn hàng doanh thu = 0
+    const [hideDialogOpen, setHideDialogOpen] = useState(false); // ✅ Dialog chọn công trình cần ẩn
+    const [hiddenRowNames, setHiddenRowNames] = useState(new Set()); // ✅ Set chứa tên các hàng bị ẩn
 
     // Print functionality
     const printRef = useRef(null);
@@ -1502,6 +1506,88 @@ export default function ProfitReportQuarter() {
         costOverDauTu: getValueByName("III. ĐẦU TƯ", "costOverQuarter"),
     };
 
+
+    // =================================================================
+    // NEW: TÍNH TOÁN LẠI TOÀN BỘ DỮ LIỆU
+    // =================================================================
+    const handleRecalculateAll = async () => {
+        if (!window.confirm("Bạn có chắc chắn muốn cập nhật lại toàn bộ dữ liệu theo công thức mới không? Quá trình này có thể mất vài phút.")) return;
+
+        setLoading(true);
+        try {
+            // 1. Lấy danh sách toàn bộ dự án
+            const projectsSnap = await getDocs(collection(db, "projects"));
+            const projects = projectsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            console.log(`Bắt đầu cập nhật ${projects.length} dự án...`);
+            let updatedCount = 0;
+
+            // 2. Duyệt qua từng dự án
+            for (const project of projects) {
+                const projectId = project.id;
+                const projectType = project.type;
+                // Lấy projectTotalAmount từ data dự án cha
+                const projectTotalAmount = project.totalAmount || "0";
+
+                // Đường dẫn đến quý hiện tại
+                const qPath = `projects/${projectId}/years/${selectedYear}/quarters/${selectedQuarter}`;
+                const qRef = doc(db, qPath);
+                const qSnap = await getDoc(qRef);
+
+                if (qSnap.exists()) {
+                    const qData = qSnap.data();
+                    let items = qData.items || [];
+                    const overallRevenue = qData.overallRevenue || "0";
+                    const actualRevenue = qData.actualRevenue || "0";
+                    const useActualRevenueForCalc = qData.useActualRevenueForCalc || false;
+                    const isFinalized = qData.isFinalized || false;
+
+                    // Sử dụng doanh thu thực tế nếu được cấu hình (đặc biệt cho Nhà máy)
+                    const revenueForCalc = (useActualRevenueForCalc && projectType === "Nhà máy") ? actualRevenue : overallRevenue;
+
+                    // 3. Tính toán lại từng row trong bảng Actual Costs
+                    const newItems = items.map(item => {
+                        const newItem = { ...item };
+
+                        // Gọi hàm tính toán tập trung từ calcUtils
+                        // Lưu ý: calcAllFields thay đổi trực tiếp object được truyền vào (newItem)
+                        calcAllFields(newItem, {
+                            isUserEditingNoPhaiTraCK: false,
+                            overallRevenue: revenueForCalc,
+                            projectTotalAmount: projectTotalAmount,
+                            projectType: projectType,
+                            year: String(selectedYear),
+                            quarter: selectedQuarter,
+                            isProjectFinalized: isFinalized
+                        });
+                        return newItem;
+                    });
+
+                    // 4. Lưu lại vào Firestore
+                    await setDoc(qRef, {
+                        ...qData,
+                        items: newItems,
+                        updated_at: new Date().toISOString() // Đánh dấu thời gian cập nhật
+                    }, { merge: true });
+
+                    updatedCount++;
+                }
+            }
+
+            console.log(`Đã cập nhật xong ${updatedCount} dự án.`);
+            alert("Đã cập nhật dữ liệu thành công! Báo cáo sẽ được tải lại.");
+
+            // Reload lại trang để thấy dữ liệu mới
+            window.location.reload();
+
+        } catch (error) {
+            console.error("Lỗi khi cập nhật dữ liệu:", error);
+            alert("Có lỗi xảy ra: " + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <Box sx={{ minHeight: "100vh", bgcolor: "#f7faff", py: 4 }}>
             {loading && (
@@ -1568,8 +1654,28 @@ export default function ProfitReportQuarter() {
                         flexWrap="wrap"
                     >
                         <Button
+                            variant="contained"
+                            color="success" // Màu khác biệt
+                            size={tvMode ? "large" : "medium"}
+                            startIcon={<FunctionsIcon sx={{ fontSize: tvMode ? 24 : undefined }} />}
+                            onClick={handleRecalculateAll}
+                            disabled={loading}
+                            sx={{
+                                borderRadius: 2,
+                                minWidth: tvMode ? 140 : 100,
+                                fontSize: tvMode ? "1.1rem" : undefined,
+                                px: tvMode ? 3 : undefined,
+                                py: tvMode ? 1.5 : undefined,
+                                fontWeight: tvMode ? 600 : undefined,
+                            }}
+                        >
+                            Cập nhật số liệu
+                        </Button>
+
+                        <Button
                             variant="outlined"
                             color="secondary"
+
                             size={tvMode ? "large" : "medium"}
                             startIcon={<FunctionsIcon sx={{ fontSize: tvMode ? 24 : undefined }} />}
                             onClick={() => setFormulaDialogOpen(true)}
@@ -1697,6 +1803,25 @@ export default function ProfitReportQuarter() {
                         >
                             + Thêm
                         </Button>
+                        {/* ✅ NÚT MỞ DIALOG CHỌN CÔNG TRÌNH ẨN */}
+                        <Tooltip title="Chọn công trình muốn ẩn/hiện">
+                            <Button
+                                variant={hiddenRowNames.size > 0 ? "contained" : "outlined"}
+                                color="warning"
+                                size={tvMode ? "large" : "medium"}
+                                onClick={() => setHideDialogOpen(true)}
+                                sx={{
+                                    borderRadius: 2,
+                                    minWidth: tvMode ? 180 : 140,
+                                    fontSize: tvMode ? "1.1rem" : undefined,
+                                    px: tvMode ? 3 : undefined,
+                                    py: tvMode ? 1.5 : undefined,
+                                    fontWeight: tvMode ? 600 : undefined,
+                                }}
+                            >
+                                {hiddenRowNames.size > 0 ? `Đang ẩn ${hiddenRowNames.size}` : "Ẩn hàng"}
+                            </Button>
+                        </Tooltip>
                         {/* ✅ BẮT ĐẦU: DÁN KHỐI CODE NÀY VÀO SAU NÚT "THÊM" */}
                         <Tooltip title="Ẩn/Hiện cột">
                             <Button
@@ -1826,195 +1951,206 @@ export default function ProfitReportQuarter() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {rows.map((r, idx) => (
-                                <TableRow
-                                    key={idx}
-                                    sx={{
-                                        height: tvMode ? { xs: 64, md: 72 } : { xs: 48, md: 56 },
-                                        bgcolor: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
-                                            ? (tvMode ? "#e1bee7" : "#f3e5f5")
-                                            : r.name?.includes("TỔNG")
-                                                ? (tvMode ? "#c8e6c9" : "#e8f5e9")
-                                                : r.name?.match(/^[IVX]+\./)
-                                                    ? (tvMode ? "#fff59d" : "#fff9c4")
-                                                    : idx % 2 === 0
-                                                        ? "#ffffff"
-                                                        : (tvMode ? "#f5f5f5" : "#f9f9f9"),
-                                        "&:hover": {
-                                            bgcolor: tvMode ? "#e3f2fd" : "#f5f5f5",
-                                            ...(tvMode ? {} : { transition: "background-color 0.2s" }), // ✅ Bỏ transition trong TV mode
-                                        },
-                                        borderBottom: tvMode ? "2px solid #e0e0e0" : "1px solid #e0e0e0",
-                                        fontWeight: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
-                                            ? (tvMode ? 900 : 900)
-                                            : r.name?.includes("TỔNG")
-                                                ? (tvMode ? 800 : 800)
-                                                : r.name?.match(/^[IVX]+\./)
-                                                    ? (tvMode ? 700 : 700)
-                                                    : (tvMode ? 500 : 400),
-                                        fontSize: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
-                                            ? (tvMode ? "1.4rem" : 20)
-                                            : r.name?.match(/^[IVX]+\./)
-                                                ? (tvMode ? "1.3rem" : 18)
-                                                : (tvMode ? "1.2rem" : "inherit"),
-                                    }}
-                                >
-                                    {/* Cột 1: CÔNG TRÌNH (Luôn hiển thị) */}
-                                    <TableCell
+                            {rows
+                                .filter((r) => {
+                                    // ✅ Luôn hiện các hàng tổng hợp (TỔNG, tiêu đề nhóm I., II., III., ...)
+                                    const isSummaryRow = r.name?.includes("TỔNG") ||
+                                        r.name?.match(/^[IVX]+\./) ||
+                                        r.name?.toUpperCase().includes("LỢI NHUẬN");
+                                    if (isSummaryRow) return true;
+
+                                    // ✅ Ẩn nếu tên hàng nằm trong danh sách bị ẩn
+                                    return !hiddenRowNames.has(r.name);
+                                })
+                                .map((r, idx) => (
+                                    <TableRow
+                                        key={idx}
                                         sx={{
-                                            minWidth: 300,
-                                            maxWidth: 400,
-                                            whiteSpace: "normal",
-                                            wordBreak: "break-word",
-                                            px: 2,
-                                            py: 1,
-                                            position: "sticky",
-                                            left: 0,
-                                            zIndex: 1,
-                                            backgroundColor: 'inherit',
+                                            height: tvMode ? { xs: 64, md: 72 } : { xs: 48, md: 56 },
+                                            bgcolor: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
+                                                ? (tvMode ? "#e1bee7" : "#f3e5f5")
+                                                : r.name?.includes("TỔNG")
+                                                    ? (tvMode ? "#c8e6c9" : "#e8f5e9")
+                                                    : r.name?.match(/^[IVX]+\./)
+                                                        ? (tvMode ? "#fff59d" : "#fff9c4")
+                                                        : idx % 2 === 0
+                                                            ? "#ffffff"
+                                                            : (tvMode ? "#f5f5f5" : "#f9f9f9"),
+                                            "&:hover": {
+                                                bgcolor: tvMode ? "#e3f2fd" : "#f5f5f5",
+                                                ...(tvMode ? {} : { transition: "background-color 0.2s" }), // ✅ Bỏ transition trong TV mode
+                                            },
+                                            borderBottom: tvMode ? "2px solid #e0e0e0" : "1px solid #e0e0e0",
+                                            fontWeight: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
+                                                ? (tvMode ? 900 : 900)
+                                                : r.name?.includes("TỔNG")
+                                                    ? (tvMode ? 800 : 800)
+                                                    : r.name?.match(/^[IVX]+\./)
+                                                        ? (tvMode ? 700 : 700)
+                                                        : (tvMode ? 500 : 400),
+                                            fontSize: r.name?.toUpperCase().includes("LỢI NHUẬN SAU GIẢM TRỪ")
+                                                ? (tvMode ? "1.4rem" : 20)
+                                                : r.name?.match(/^[IVX]+\./)
+                                                    ? (tvMode ? "1.3rem" : 18)
+                                                    : (tvMode ? "1.2rem" : "inherit"),
                                         }}
-                                        title={r.name}
                                     >
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                                                {r.name?.match(/^[IVX]+\./) && (
-                                                    <KeyboardArrowRightIcon
-                                                        fontSize={tvMode ? "medium" : "small"}
-                                                        sx={{ verticalAlign: "middle", mr: 0.5, flexShrink: 0 }}
-                                                    />
-                                                )}
-                                                {/* Nếu đang editing tên của dòng này */}
-                                                {editingRowName.idx === idx ? (
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
-                                                        <TextField
-                                                            size="small"
-                                                            variant="standard"
-                                                            value={editingRowName.value}
-                                                            onChange={(e) => setEditingRowName(prev => ({ ...prev, value: e.target.value }))}
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter') {
-                                                                    const newRows = [...rows];
-                                                                    newRows[idx].name = editingRowName.value;
-                                                                    setRows(newRows);
-                                                                    setEditingRowName({ idx: -1, value: "" });
-                                                                } else if (e.key === 'Escape') {
-                                                                    setEditingRowName({ idx: -1, value: "" });
-                                                                }
-                                                            }}
-                                                            autoFocus
-                                                            sx={{ flex: 1 }}
+                                        {/* Cột 1: CÔNG TRÌNH (Luôn hiển thị) */}
+                                        <TableCell
+                                            sx={{
+                                                minWidth: 300,
+                                                maxWidth: 400,
+                                                whiteSpace: "normal",
+                                                wordBreak: "break-word",
+                                                px: 2,
+                                                py: 1,
+                                                position: "sticky",
+                                                left: 0,
+                                                zIndex: 1,
+                                                backgroundColor: 'inherit',
+                                            }}
+                                            title={r.name}
+                                        >
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                                                    {r.name?.match(/^[IVX]+\./) && (
+                                                        <KeyboardArrowRightIcon
+                                                            fontSize={tvMode ? "medium" : "small"}
+                                                            sx={{ verticalAlign: "middle", mr: 0.5, flexShrink: 0 }}
                                                         />
-                                                        <Tooltip title="Lưu">
-                                                            <CheckIcon
-                                                                fontSize="small"
-                                                                color="success"
-                                                                sx={{ cursor: 'pointer' }}
-                                                                onClick={() => {
-                                                                    const newRows = [...rows];
-                                                                    newRows[idx].name = editingRowName.value;
-                                                                    setRows(newRows);
-                                                                    setEditingRowName({ idx: -1, value: "" });
+                                                    )}
+                                                    {/* Nếu đang editing tên của dòng này */}
+                                                    {editingRowName.idx === idx ? (
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
+                                                            <TextField
+                                                                size="small"
+                                                                variant="standard"
+                                                                value={editingRowName.value}
+                                                                onChange={(e) => setEditingRowName(prev => ({ ...prev, value: e.target.value }))}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        const newRows = [...rows];
+                                                                        newRows[idx].name = editingRowName.value;
+                                                                        setRows(newRows);
+                                                                        setEditingRowName({ idx: -1, value: "" });
+                                                                    } else if (e.key === 'Escape') {
+                                                                        setEditingRowName({ idx: -1, value: "" });
+                                                                    }
                                                                 }}
+                                                                autoFocus
+                                                                sx={{ flex: 1 }}
                                                             />
-                                                        </Tooltip>
-                                                        <Tooltip title="Hủy">
-                                                            <CloseIcon
-                                                                fontSize="small"
-                                                                color="error"
-                                                                sx={{ cursor: 'pointer' }}
-                                                                onClick={() => setEditingRowName({ idx: -1, value: "" })}
-                                                            />
-                                                        </Tooltip>
-                                                    </Box>
-                                                ) : (
-                                                    <Typography
-                                                        sx={{
-                                                            overflow: 'hidden',
-                                                            textOverflow: 'ellipsis',
-                                                        }}
-                                                    >
-                                                        {r.name}
-                                                    </Typography>
-                                                )}
-                                            </Box>
-                                            {/* Hiển thị nút Edit/Delete CHỈ cho các hàng được thêm thủ công từ form */}
-                                            {r.addedFromForm === true && editingRowName.idx !== idx && (
-                                                <Box sx={{ display: 'flex', gap: 0.5, ml: 1, flexShrink: 0 }}>
-                                                    <Tooltip title="Sửa tên">
-                                                        <EditIcon
-                                                            fontSize="small"
-                                                            color="primary"
-                                                            sx={{ cursor: 'pointer', opacity: 0.7, '&:hover': { opacity: 1 } }}
-                                                            onClick={() => setEditingRowName({ idx, value: r.name || "" })}
-                                                        />
-                                                    </Tooltip>
-                                                    <Tooltip title="Xóa dòng">
-                                                        <IconButton
-                                                            size="small"
-                                                            color="error"
-                                                            sx={{ p: 0.25 }}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                // Xóa trực tiếp thay vì dùng window.confirm (bị browser chặn)
-                                                                const newRows = rows.filter((_, i) => i !== idx);
-                                                                setRows(newRows);
-                                                                handleSave(newRows);
+                                                            <Tooltip title="Lưu">
+                                                                <CheckIcon
+                                                                    fontSize="small"
+                                                                    color="success"
+                                                                    sx={{ cursor: 'pointer' }}
+                                                                    onClick={() => {
+                                                                        const newRows = [...rows];
+                                                                        newRows[idx].name = editingRowName.value;
+                                                                        setRows(newRows);
+                                                                        setEditingRowName({ idx: -1, value: "" });
+                                                                    }}
+                                                                />
+                                                            </Tooltip>
+                                                            <Tooltip title="Hủy">
+                                                                <CloseIcon
+                                                                    fontSize="small"
+                                                                    color="error"
+                                                                    sx={{ cursor: 'pointer' }}
+                                                                    onClick={() => setEditingRowName({ idx: -1, value: "" })}
+                                                                />
+                                                            </Tooltip>
+                                                        </Box>
+                                                    ) : (
+                                                        <Typography
+                                                            sx={{
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis',
                                                             }}
                                                         >
-                                                            <DeleteIcon fontSize="small" />
-                                                        </IconButton>
-                                                    </Tooltip>
+                                                            {r.name}
+                                                        </Typography>
+                                                    )}
                                                 </Box>
-                                            )}
-                                        </Box>
-                                    </TableCell>
-
-                                    {/* ✅ Bọc các cột còn lại trong điều kiện hiển thị */}
-                                    {columnVisibility.revenue && renderEditableCell(r, idx, "revenue")}
-                                    {columnVisibility.cost && renderEditableCell(r, idx, "cost")}
-                                    {columnVisibility.profit && renderEditableCell(r, idx, "profit")}
-
-                                    {columnVisibility.profitMarginOnCost && (
-                                        <TableCell align="center" sx={cellStyle}>
-                                            {
-                                                isDetailUnderI1(idx) || isDetailUnderII1(idx)
-                                                    ? "–"
-                                                    : r.projectId && toNum(r.cost) > 0
-                                                        ? `${((toNum(r.profit) / toNum(r.cost)) * 100).toFixed(2)}%`
-                                                        : "–"
-                                            }
+                                                {/* Hiển thị nút Edit/Delete CHỈ cho các hàng được thêm thủ công từ form */}
+                                                {r.addedFromForm === true && editingRowName.idx !== idx && (
+                                                    <Box sx={{ display: 'flex', gap: 0.5, ml: 1, flexShrink: 0 }}>
+                                                        <Tooltip title="Sửa tên">
+                                                            <EditIcon
+                                                                fontSize="small"
+                                                                color="primary"
+                                                                sx={{ cursor: 'pointer', opacity: 0.7, '&:hover': { opacity: 1 } }}
+                                                                onClick={() => setEditingRowName({ idx, value: r.name || "" })}
+                                                            />
+                                                        </Tooltip>
+                                                        <Tooltip title="Xóa dòng">
+                                                            <IconButton
+                                                                size="small"
+                                                                color="error"
+                                                                sx={{ p: 0.25 }}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    // Xóa trực tiếp thay vì dùng window.confirm (bị browser chặn)
+                                                                    const newRows = rows.filter((_, i) => i !== idx);
+                                                                    setRows(newRows);
+                                                                    handleSave(newRows);
+                                                                }}
+                                                            >
+                                                                <DeleteIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    </Box>
+                                                )}
+                                            </Box>
                                         </TableCell>
-                                    )}
 
-                                    {columnVisibility.plannedProfitMargin && (
-                                        isDTLNLDX(r) ? (
-                                            <TableCell align="center" sx={{ ...cellStyle, px: 2, py: 1 }}>
-                                                <Typography sx={{ fontStyle: "italic", color: "#757575" }}>–</Typography>
+                                        {/* ✅ Bọc các cột còn lại trong điều kiện hiển thị */}
+                                        {columnVisibility.revenue && renderEditableCell(r, idx, "revenue")}
+                                        {columnVisibility.cost && renderEditableCell(r, idx, "cost")}
+                                        {columnVisibility.profit && renderEditableCell(r, idx, "profit")}
+
+                                        {columnVisibility.profitMarginOnCost && (
+                                            <TableCell align="center" sx={cellStyle}>
+                                                {
+                                                    isDetailUnderI1(idx) || isDetailUnderII1(idx)
+                                                        ? "–"
+                                                        : r.projectId && toNum(r.cost) > 0
+                                                            ? `${((toNum(r.profit) / toNum(r.cost)) * 100).toFixed(2)}%`
+                                                            : "–"
+                                                }
                                             </TableCell>
-                                        ) : (
-                                            renderEditableCell(r, idx, "percent", "center")
-                                        )
-                                    )}
+                                        )}
 
-                                    {columnVisibility.quarterlyProfitMargin && (
-                                        <TableCell align="center" sx={{ ...cellStyle, px: 2, py: 1 }}>
-                                            {isDTLNLDX(r) ||
-                                                (r.name || "").trim().toUpperCase() === "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY" ||
-                                                (r.name || "").trim().toUpperCase() === "I.2. KÈ" ||
-                                                (r.name || "").trim().toUpperCase() === "TỔNG" ? (
-                                                <Typography sx={{ fontStyle: "italic", color: "#757575" }}>–</Typography>
+                                        {columnVisibility.plannedProfitMargin && (
+                                            isDTLNLDX(r) ? (
+                                                <TableCell align="center" sx={{ ...cellStyle, px: 2, py: 1 }}>
+                                                    <Typography sx={{ fontStyle: "italic", color: "#757575" }}>–</Typography>
+                                                </TableCell>
                                             ) : (
-                                                format(r.revenue ? (r.profit / r.revenue) * 100 : null, "percent", r)
-                                            )}
-                                        </TableCell>
-                                    )}
+                                                renderEditableCell(r, idx, "percent", "center")
+                                            )
+                                        )}
 
-                                    {columnVisibility.costOverQuarter && renderEditableCell(r, idx, "costOverQuarter")}
-                                    {columnVisibility.target && renderEditableCell(r, idx, "target")}
-                                    {columnVisibility.note && renderEditableCell(r, idx, "note", "center")}
-                                    {columnVisibility.suggest && renderEditableCell(r, idx, "suggest", "center")}
-                                </TableRow>
-                            ))}
+                                        {columnVisibility.quarterlyProfitMargin && (
+                                            <TableCell align="center" sx={{ ...cellStyle, px: 2, py: 1 }}>
+                                                {isDTLNLDX(r) ||
+                                                    (r.name || "").trim().toUpperCase() === "II.4. THU NHẬP KHÁC CỦA NHÀ MÁY" ||
+                                                    (r.name || "").trim().toUpperCase() === "I.2. KÈ" ||
+                                                    (r.name || "").trim().toUpperCase() === "TỔNG" ? (
+                                                    <Typography sx={{ fontStyle: "italic", color: "#757575" }}>–</Typography>
+                                                ) : (
+                                                    format(r.revenue ? (r.profit / r.revenue) * 100 : null, "percent", r)
+                                                )}
+                                            </TableCell>
+                                        )}
+
+                                        {columnVisibility.costOverQuarter && renderEditableCell(r, idx, "costOverQuarter")}
+                                        {columnVisibility.target && renderEditableCell(r, idx, "target")}
+                                        {columnVisibility.note && renderEditableCell(r, idx, "note", "center")}
+                                        {columnVisibility.suggest && renderEditableCell(r, idx, "suggest", "center")}
+                                    </TableRow>
+                                ))}
                         </TableBody>
                     </Table>
                 </TableContainer>
@@ -2181,6 +2317,107 @@ export default function ProfitReportQuarter() {
                     summaryData={summaryData}
                 />
             </div>
+
+            {/* ✅ DIALOG CHỌN CÔNG TRÌNH CẦN ẨN */}
+            <Dialog
+                open={hideDialogOpen}
+                onClose={() => setHideDialogOpen(false)}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 3 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>
+                    Chọn công trình muốn ẩn
+                </DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Tick vào các công trình bạn muốn <strong>ẩn</strong>. Các công trình không tick sẽ được hiện.
+                    </Typography>
+                    <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+                        {rows
+                            .filter(r => {
+                                // Chỉ hiện các hàng có doanh thu = 0 và không phải hàng tổng hợp
+                                const isSummaryRow = r.name?.includes("TỔNG") ||
+                                    r.name?.match(/^[IVX]+\./) ||
+                                    r.name?.toUpperCase().includes("LỢI NHUẬN");
+                                return !isSummaryRow && toNum(r.revenue) === 0;
+                            })
+                            .map((r, index) => (
+                                <Box
+                                    key={index}
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        p: 1,
+                                        borderBottom: '1px solid #eee',
+                                        '&:hover': { bgcolor: '#f5f5f5' }
+                                    }}
+                                >
+                                    <Checkbox
+                                        checked={hiddenRowNames.has(r.name)}
+                                        onChange={(e) => {
+                                            const newSet = new Set(hiddenRowNames);
+                                            if (e.target.checked) {
+                                                newSet.add(r.name);
+                                            } else {
+                                                newSet.delete(r.name);
+                                            }
+                                            setHiddenRowNames(newSet);
+                                        }}
+                                    />
+                                    <Box>
+                                        <Typography variant="body2" fontWeight={500}>
+                                            {r.name}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            DT: {formatNumber(r.revenue)} | CP: {formatNumber(r.cost)}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            ))
+                        }
+                        {rows.filter(r => {
+                            const isSummaryRow = r.name?.includes("TỔNG") ||
+                                r.name?.match(/^[IVX]+\./) ||
+                                r.name?.toUpperCase().includes("LỢI NHUẬN");
+                            return !isSummaryRow && toNum(r.revenue) === 0;
+                        }).length === 0 && (
+                                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
+                                    Không có công trình nào có doanh thu = 0
+                                </Typography>
+                            )}
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ p: 2, gap: 1 }}>
+                    <Button
+                        onClick={() => {
+                            // Ẩn tất cả các hàng doanh thu = 0
+                            const allZeroRevNames = rows
+                                .filter(r => {
+                                    const isSummaryRow = r.name?.includes("TỔNG") ||
+                                        r.name?.match(/^[IVX]+\./) ||
+                                        r.name?.toUpperCase().includes("LỢI NHUẬN");
+                                    return !isSummaryRow && toNum(r.revenue) === 0;
+                                })
+                                .map(r => r.name);
+                            setHiddenRowNames(new Set(allZeroRevNames));
+                        }}
+                        color="warning"
+                    >
+                        Ẩn tất cả DT=0
+                    </Button>
+                    <Button
+                        onClick={() => setHiddenRowNames(new Set())}
+                        color="info"
+                    >
+                        Hiện tất cả
+                    </Button>
+                    <Box sx={{ flex: 1 }} />
+                    <Button onClick={() => setHideDialogOpen(false)} variant="contained">
+                        Đóng
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

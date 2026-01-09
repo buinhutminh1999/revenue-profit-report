@@ -40,7 +40,7 @@ export function useBatchSettlement() {
     /**
      * Execute settlement for a single project
      */
-    const executeSettlementForProject = async (projectId, year, quarter) => {
+    const executeSettlementForProject = async (projectId, year, quarter, force = false) => {
         // 1. Fetch project data
         const projectDocSnap = await getDoc(doc(db, 'projects', projectId));
         if (!projectDocSnap.exists()) {
@@ -66,7 +66,7 @@ export function useBatchSettlement() {
             quarterData.isFinalized === "true" ||
             costItems.some(i => i.isFinalized === true || i.isFinalized === "true");
 
-        if (isAlreadyFinalized) {
+        if (isAlreadyFinalized && !force) {
             throw new Error(`${quarter}/${year} đã được quyết toán rồi`);
         }
 
@@ -222,8 +222,9 @@ export function useBatchSettlement() {
      * @param {string[]} projectIds - Array of project IDs to settle
      * @param {string} year - Year to settle (e.g., "2024")
      * @param {string} quarter - Quarter to settle (e.g., "Q4")
+     * @param {boolean} force - Whether to force re-settlement if already finalized
      */
-    const executeBatchSettlement = useCallback(async (projectIds, year, quarter) => {
+    const executeBatchSettlement = useCallback(async (projectIds, year, quarter, force = false) => {
         if (!projectIds || projectIds.length === 0) return;
 
         setIsProcessing(true);
@@ -249,7 +250,7 @@ export function useBatchSettlement() {
                     currentProject: projectName,
                 });
 
-                const result = await executeSettlementForProject(projectId, year, quarter);
+                const result = await executeSettlementForProject(projectId, year, quarter, force);
                 successResults.push(result);
             } catch (error) {
                 console.error(`Error settling project ${projectId}:`, error);
