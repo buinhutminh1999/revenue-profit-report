@@ -36,6 +36,8 @@ import {
     ListItemText,
     CircularProgress,
     CardContent,
+    Button,
+    Tooltip,
 } from "@mui/material";
 import {
     Assessment as AssessmentIcon,
@@ -43,6 +45,7 @@ import {
     Search as SearchIcon,
     Save as SaveIcon,
     CloudDone as CloudDoneIcon,
+    ContentCopy as ContentCopyIcon,
 } from "@mui/icons-material";
 import SkeletonTable from "../../components/common/SkeletonTable";
 import ErrorState from "../../components/common/ErrorState";
@@ -525,6 +528,9 @@ const OverallReportPageContent = () => {
         error: prevCapitalError,
     } = useCapitalUtilizationReportData(previousYear, previousQuarter);
     const { data: profitReportData, isLoading: isProfitReportLoading, isError: isProfitError, error: profitError } = useProfitReport(year, quarter);
+
+    // Fetch báo cáo quý trước để sao chép SỐ HIỆU TK
+    const { data: previousReportData } = useOverallReport(previousYear, previousQuarter);
 
     const getInitialData1 = () => ({
         dauKyCalculated: {},
@@ -1298,6 +1304,27 @@ const OverallReportPageContent = () => {
                             variant: "h6",
                             fontWeight: 600,
                         }}
+                        action={
+                            <Tooltip title={`Sao chép SỐ HIỆU TK từ Q${previousQuarter}/${previousYear}`}>
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<ContentCopyIcon />}
+                                    disabled={!previousReportData?.data1?.accountCodes}
+                                    onClick={() => {
+                                        if (previousReportData?.data1?.accountCodes) {
+                                            setData1(prev => ({
+                                                ...prev,
+                                                accountCodes: { ...previousReportData.data1.accountCodes }
+                                            }));
+                                            toast.success(`Đã sao chép SỐ HIỆU TK từ Q${previousQuarter}/${previousYear}`);
+                                        }
+                                    }}
+                                >
+                                    Sao chép TK quý trước
+                                </Button>
+                            </Tooltip>
+                        }
                         sx={{
                             borderBottom: "1px solid",
                             borderColor: "divider",
@@ -1333,8 +1360,7 @@ const OverallReportPageContent = () => {
                                         align="right"
                                         sx={{ width: "10%" }}
                                     >
-                                        ĐẾN{" "}
-                                        {new Date().toLocaleDateString("vi-VN")}
+                                        CUỐI KỲ
                                     </TableCell>
                                     <TableCell sx={{ width: "15%" }}>
                                         KHÓ KHĂN & THUẬN LỢI
