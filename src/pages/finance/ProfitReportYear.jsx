@@ -366,8 +366,8 @@ const useProfitReportData = (selectedYear) => {
                 const profitTotals = {};
                 profitFields.forEach((field) => {
                     profitTotals[field] =
-                        toNum(updatedRows[idxGiam][field]) -
-                        toNum(updatedRows[idxTang][field]);
+                        toNum(updatedRows[idxTang][field]) -
+                        toNum(updatedRows[idxGiam][field]);
                 });
                 updatedRows[idxRowVI] = {
                     ...updatedRows[idxRowVI],

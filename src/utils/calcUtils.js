@@ -99,11 +99,20 @@ const calcTotalCost = (row) => {
         ton = Number(parseNumber(row.tonKhoUngKH)),
         noCK = Number(parseNumber(row.noPhaiTraCK)),
         proj = (row.project || "").toUpperCase();
+
     // ✅ LOGIC MỚI: Tất cả công trình KHÔNG có -CP được xử lý như VT/NC
     const isCpProject = proj.includes("-CP");
-    return !isCpProject
-        ? String(inv - debt + dc + al + noCK - ton)
-        : String(rev === 0 ? dc + al : rev);
+
+    if (isCpProject) {
+        // Đối với công trình -CP (Thi công chính)
+        // Nếu Doanh Thu (của dòng) = 0: Tổng CP = CPTT + Phân Bổ
+        // Nếu Doanh Thu (của dòng) # 0: Tổng CP = Doanh Thu
+        return String(rev === 0 ? dc + al : rev);
+    } else {
+        // Đối với VT/NC (hoặc không có -CP)
+        // Tổng CP = Tồn ĐK - Nợ Phải Trả ĐK + CPTT + Phân Bổ + Nợ Phải Trả CK - Tồn Kho/Ứng KH
+        return String(inv - debt + dc + al + noCK - ton);
+    }
 };
 
 const calcCpVuot = (row) => {

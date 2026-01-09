@@ -265,28 +265,53 @@ export default function ProfitReportQuarter() {
                                             0
                                         );
                                 }
-                            } else if (projectType === "kh-đt" || projectType === "thi công" || projectType === "thi cong") {
-                                // ✅ TRƯỜNG HỢP ĐẶC BIỆT: KH-ĐT và THI CÔNG
-                                // -> Nếu cpSauQuyetToan có giá trị thì dùng cho CHI PHÍ ĐÃ CHI
+                            } else if (projectType === "thi công" || projectType === "thi cong") {
+                                // ✅ TRƯỜNG HỢP: THI CÔNG (I.1)
                                 if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
-                                    const totalCpSauQuyetToan = qSnap
-                                        .data()
-                                        .items.reduce(
+                                    const items = qSnap.data().items;
+
+                                    // 1. Tính tổng doanh thu thực tế
+                                    const totalActualRevenue = items.reduce((s, i) => s + toNum(i.revenue || 0), 0);
+
+                                    // 2. Logic kiểm tra điều kiện
+                                    if (totalActualRevenue === 0) {
+                                        // ✅ NẾU DOANH THU = 0 -> CHỈ LẤY TỔNG CHI PHÍ CỦA -VT, -NC (không phải -CP)
+                                        cost = items
+                                            .filter(i => !(i.project || "").toUpperCase().includes("-CP"))
+                                            .reduce((s, i) => s + toNum(i.totalCost || 0), 0);
+                                    } else {
+                                        // ✅ NẾU CÓ DOANH THU -> Logic cũ (ưu tiên cpSauQuyetToan)
+                                        const totalCpSauQuyetToan = items.reduce(
                                             (sum, item) => sum + toNum(item.cpSauQuyetToan || 0),
                                             0
                                         );
 
-                                    if (totalCpSauQuyetToan !== 0) {
-                                        // Nếu có giá trị cpSauQuyetToan -> dùng nó
-                                        cost = totalCpSauQuyetToan;
-                                    } else {
-                                        // Nếu không có -> fallback về totalCost
-                                        cost = qSnap
-                                            .data()
-                                            .items.reduce(
+                                        if (totalCpSauQuyetToan !== 0) {
+                                            cost = totalCpSauQuyetToan;
+                                        } else {
+                                            cost = items.reduce(
                                                 (sum, item) => sum + toNum(item.totalCost || 0),
                                                 0
                                             );
+                                        }
+                                    }
+                                }
+                            } else if (projectType === "kh-đt") {
+                                // ✅ TRƯỜNG HỢP: KH-ĐT (III)
+                                if (Array.isArray(qSnap.data().items) && qSnap.data().items.length > 0) {
+                                    const items = qSnap.data().items;
+                                    const totalCpSauQuyetToan = items.reduce(
+                                        (sum, item) => sum + toNum(item.cpSauQuyetToan || 0),
+                                        0
+                                    );
+
+                                    if (totalCpSauQuyetToan !== 0) {
+                                        cost = totalCpSauQuyetToan;
+                                    } else {
+                                        cost = items.reduce(
+                                            (sum, item) => sum + toNum(item.totalCost || 0),
+                                            0
+                                        );
                                     }
                                 }
                             } else {
