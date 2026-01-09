@@ -77,6 +77,7 @@ export default function ProfitReportQuarter() {
         revenueTargetDauTu: 0,
         profitTargetDauTu: 0,
     });
+    const [manualCostOver, setManualCostOver] = useState({}); // ✅ State lưu chi phí vượt nhập tay
     const [formulaDialogOpen, setFormulaDialogOpen] = useState(false); // <-- THÊM DÒNG NÀY
     const [showZeroRevenue, setShowZeroRevenue] = useState(false); // ✅ Toggle để hiện/ẩn hàng doanh thu = 0
 
@@ -129,10 +130,18 @@ export default function ProfitReportQuarter() {
             [columnKey]: !prev[columnKey],
         }));
     };
-    const handleSummaryTargetChange = (targetKey, value) => {
-        setSummaryTargets((prevTargets) => ({
-            ...prevTargets,
-            [targetKey]: value,
+    const handleSummaryTargetChange = (field, value) => {
+        setSummaryTargets((prev) => ({
+            ...prev,
+            [field]: value,
+        }));
+    };
+
+    // ✅ Hàm xử lý khi nhập tay Chi phí vượt
+    const handleSummaryCostOverChange = (id, value) => {
+        setManualCostOver((prev) => ({
+            ...prev,
+            [id]: value,
         }));
     };
 
@@ -410,6 +419,15 @@ export default function ProfitReportQuarter() {
                 setSummaryTargets(defaultTargets);
             }
 
+            // ✅ Load manualCostOver (Chi phí vượt nhập tay)
+            let loadedManualCostOver = {};
+            if (saved.exists() && saved.data().manualCostOver) {
+                loadedManualCostOver = saved.data().manualCostOver;
+                setManualCostOver(loadedManualCostOver);
+            } else {
+                setManualCostOver({});
+            }
+
             let processedRows; // Khai báo biến ở ngoài để có thể truy cập trong cả if/else
 
             if (
@@ -467,9 +485,9 @@ export default function ProfitReportQuarter() {
                     // ====================== BẮT ĐẦU CODE MỚI ======================
 
                     // 1. Tách các dự án có tên chứa "KÈ" ra một nhóm riêng
-                    const keProjects = newProjects.filter((p) =>
-                        (p.name || "").toUpperCase().includes("KÈ")
-                    );
+                    const keProjects = newProjects
+                        .filter((p) => (p.name || "").toUpperCase().includes("KÈ"))
+                        .sort((a, b) => a.name.localeCompare(b.name)); // ✅ Sort A-Z
                     // Các dự án còn lại không chứa "KÈ"
                     const otherProjects = newProjects.filter(
                         (p) => !(p.name || "").toUpperCase().includes("KÈ")
@@ -840,19 +858,19 @@ export default function ProfitReportQuarter() {
                 (r) => (r.name || "").trim().toUpperCase() === "I. XÂY DỰNG"
             );
             if (idxXD !== -1)
-                processedRows[idxXD].costOverQuarter = cpVuotCurr || 0;
+                processedRows[idxXD].costOverQuarter = loadedManualCostOver["I"] !== undefined ? loadedManualCostOver["I"] : (cpVuotCurr || 0);
 
             const idxSX = processedRows.findIndex(
                 (r) => (r.name || "").trim().toUpperCase() === "II. SẢN XUẤT"
             );
             if (idxSX !== -1)
-                processedRows[idxSX].costOverQuarter = -toNum(cpVuotNhaMay) || 0;
+                processedRows[idxSX].costOverQuarter = loadedManualCostOver["II"] !== undefined ? loadedManualCostOver["II"] : (-toNum(cpVuotNhaMay) || 0);
 
             const idxDT = processedRows.findIndex(
                 (r) => (r.name || "").trim().toUpperCase() === "III. ĐẦU TƯ"
             );
             if (idxDT !== -1)
-                processedRows[idxDT].costOverQuarter = cpVuotKhdt || 0;
+                processedRows[idxDT].costOverQuarter = loadedManualCostOver["III"] !== undefined ? loadedManualCostOver["III"] : (cpVuotKhdt || 0);
 
             let finalRows = processedRows;
 
@@ -1084,6 +1102,38 @@ export default function ProfitReportQuarter() {
 
     }, [selectedYear, selectedQuarter]);
 
+    // ✅ UseEffect mới: Cập nhật rows khi manualCostOver thay đổi (không load lại dữ liệu)
+    useEffect(() => {
+        if (rows.length === 0) return;
+        let newRows = [...rows];
+        let changed = false;
+
+        const groups = [
+            { id: "I", name: "I. XÂY DỰNG" },
+            { id: "II", name: "II. SẢN XUẤT" },
+            { id: "III", name: "III. ĐẦU TƯ" }
+        ];
+
+        groups.forEach(g => {
+            // Chỉ update nếu manualCostOver có giá trị (không undefined)
+            // Nếu manualCostOver[g.id] là undefined thì giữ nguyên (hoặc could reset to calculated... nhưng ở đây ta chỉ override)
+            if (manualCostOver[g.id] !== undefined) {
+                const idx = newRows.findIndex(r => (r.name || "").trim().toUpperCase() === g.name);
+                if (idx !== -1 && newRows[idx].costOverQuarter !== manualCostOver[g.id]) {
+                    newRows[idx] = { ...newRows[idx], costOverQuarter: manualCostOver[g.id] };
+                    changed = true;
+                }
+            }
+        });
+
+        if (changed) {
+            // Tính lại các hàng phụ thuộc
+            newRows = updateVuotCPRows(newRows, selectedQuarter);
+            newRows = updateLoiNhuanRongRow(newRows, selectedQuarter, selectedYear);
+            setRows(newRows);
+        }
+    }, [manualCostOver, rows, selectedQuarter, selectedYear]);
+
     const handleSave = async (rowsToSave) => {
         const rowsData = Array.isArray(rowsToSave) ? rowsToSave : rows;
 
@@ -1092,6 +1142,7 @@ export default function ProfitReportQuarter() {
         const dataToSave = {
             rows: rowsData,
             summaryTargets: summaryTargets,
+            manualCostOver: manualCostOver, // ✅ Lưu chi phí vượt nhập tay
             updatedAt: new Date().toISOString(),
         };
         await setDoc(
@@ -1544,13 +1595,13 @@ export default function ProfitReportQuarter() {
     const summaryData = {
         revenueXayDung: getValueByName("I. XÂY DỰNG", "revenue"),
         profitXayDung: getValueByName("I. XÂY DỰNG", "profit"),
-        costOverXayDung: getValueByName("I. XÂY DỰNG", "costOverQuarter"),
+        costOverXayDung: manualCostOver["I"] !== undefined ? manualCostOver["I"] : getValueByName("I. XÂY DỰNG", "costOverQuarter"), // ✅ Ưu tiên nhập tay
         revenueSanXuat: getValueByName("II.1. SẢN XUẤT", "revenue"),
         profitSanXuat: getValueByName("II. SẢN XUẤT", "profit"),
-        costOverSanXuat: getValueByName("II. SẢN XUẤT", "costOverQuarter"),
+        costOverSanXuat: manualCostOver["II"] !== undefined ? manualCostOver["II"] : getValueByName("II. SẢN XUẤT", "costOverQuarter"), // ✅ Ưu tiên nhập tay
         revenueDauTu: getValueByName("III. ĐẦU TƯ", "revenue"),
         profitDauTu: getValueByName("III. ĐẦU TƯ", "profit"),
-        costOverDauTu: getValueByName("III. ĐẦU TƯ", "costOverQuarter"),
+        costOverDauTu: manualCostOver["III"] !== undefined ? manualCostOver["III"] : getValueByName("III. ĐẦU TƯ", "costOverQuarter"), // ✅ Ưu tiên nhập tay
     };
 
 
@@ -1918,6 +1969,7 @@ export default function ProfitReportQuarter() {
                     data={summaryData}
                     targets={summaryTargets}
                     onTargetChange={handleSummaryTargetChange}
+                    onCostOverChange={handleSummaryCostOverChange} // ✅ Truyền hàm xử lý nhập tay
                     tvMode={tvMode} // ✅ Truyền tvMode vào component
                 />
                 <TableContainer
