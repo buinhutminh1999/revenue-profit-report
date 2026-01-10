@@ -174,83 +174,91 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                         border: `1px solid ${alpha(theme.palette.divider, 0.5)}`
                     }}
                 >
-                    {/* Status Strip - Gradient & Modern */}
-                    <Box sx={{
-                        background: `linear-gradient(90deg, ${alpha(theme.palette[statusColor].main, 0.08)} 0%, ${alpha(theme.palette[statusColor].main, 0.02)} 100%)`,
-                        pl: 2, pr: 1, py: 1.5,
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        borderBottom: `1px solid ${alpha(theme.palette[statusColor].main, 0.1)}`
-                    }}>
-                        <Stack direction="row" spacing={1.5} alignItems="center">
+                    {/* Main Content Area - Hierarchy Swapped */}
+                    <Box sx={{ p: 2, pb: 1 }} onClick={(e) => { e.stopPropagation(); onViewDetails(item); }}>
+                        {/* Header Row: Content & Actions */}
+                        <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start" mb={1}>
+                            <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.05rem', lineHeight: 1.4, flex: 1, color: 'text.primary' }}>
+                                {item.content}
+                            </Typography>
+
+                            {/* Actions Menu */}
+                            <Stack direction="row" spacing={0} alignItems="center">
+                                {(canEdit || canDelete || canResubmit) && (
+                                    <IconButton onClick={handleMenuOpen} size="small" sx={{ p: 0.5, mt: -0.5, color: 'text.secondary' }}>
+                                        <MoreVertIcon fontSize="small" />
+                                    </IconButton>
+                                )}
+                                <Menu
+                                    anchorEl={anchorEl}
+                                    open={Boolean(anchorEl)}
+                                    onClose={handleMenuClose}
+                                    PaperProps={{
+                                        elevation: 0,
+                                        sx: {
+                                            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                                            borderRadius: 3,
+                                            minWidth: 180,
+                                            border: '1px solid #f0f0f0',
+                                            mt: 1
+                                        },
+                                    }}
+                                >
+                                    {canResubmit && (
+                                        <MenuItem onClick={() => { handleMenuClose(); vibrate(50); setActionDialog({ open: true, type: 'resubmit', item, title: 'Xin duyệt lại' }); }} sx={{ py: 1.5 }}>
+                                            <LoopIcon fontSize="small" sx={{ mr: 1.5, color: 'warning.main' }} /> <Typography variant="body2" fontWeight={600}>Gửi lại</Typography>
+                                        </MenuItem>
+                                    )}
+                                    {canEdit && (
+                                        <MenuItem onClick={() => { handleMenuClose(); vibrate(50); setEditData(item); setDialogOpen(true); }} sx={{ py: 1.5 }}>
+                                            <EditIcon fontSize="small" sx={{ mr: 1.5, color: 'primary.main' }} /> <Typography variant="body2" fontWeight={600}>Chỉnh sửa</Typography>
+                                        </MenuItem>
+                                    )}
+                                    {canDelete && (
+                                        <MenuItem onClick={() => { handleMenuClose(); vibrate(50); setActionDialog({ open: true, type: 'delete', item, title: 'Xác nhận xóa' }); }} sx={{ py: 1.5 }}>
+                                            <DeleteIcon fontSize="small" sx={{ mr: 1.5, color: 'error.main' }} /> <Typography variant="body2" fontWeight={600} color="error">Xóa đề xuất</Typography>
+                                        </MenuItem>
+                                    )}
+                                </Menu>
+                            </Stack>
+                        </Stack>
+
+                        {/* Secondary Row: Code | Status */}
+                        <Stack direction="row" spacing={1} alignItems="center" mb={2} flexWrap="wrap" gap={0.5}>
                             <Chip
-                                label={item.code}
+                                label={`#${item.code}`}
                                 size="small"
                                 sx={{
-                                    bgcolor: 'white',
-                                    fontWeight: 800,
-                                    color: theme.palette[statusColor].main,
-                                    height: 24,
-                                    fontSize: '0.75rem',
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                                    border: `1px solid ${alpha(theme.palette[statusColor].main, 0.2)}`
+                                    height: 20, fontSize: '0.65rem', fontWeight: 700,
+                                    bgcolor: alpha(theme.palette.text.secondary, 0.1), color: 'text.secondary',
+                                    borderRadius: 1
                                 }}
                             />
-                            <Typography variant="caption" fontWeight="800" sx={{ color: theme.palette[statusColor].main, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                {statusText}
+                            <Chip
+                                label={statusText}
+                                size="small"
+                                sx={{
+                                    height: 20, fontSize: '0.65rem', fontWeight: 700,
+                                    bgcolor: alpha(theme.palette[statusColor].main, 0.1),
+                                    color: theme.palette[statusColor].main,
+                                    borderRadius: 1
+                                }}
+                            />
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', ml: 'auto !important' }}>
+                                <AccessTimeIcon sx={{ fontSize: 14, mr: 0.5 }} />
+                                {step === 6 && item.confirmations?.viceDirector?.time ? (
+                                    <Box component="span" sx={{ color: 'success.main', fontWeight: 'bold' }}>
+                                        Xong: {formatDateSafe(item.confirmations.viceDirector.time).split(' ')[2]}
+                                    </Box>
+                                ) : item.estimatedCompletion ? (
+                                    <Box component="span" sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+                                        Dự kiến: {formatDateSafe(item.estimatedCompletion).split(' ')[2]}
+                                    </Box>
+                                ) : (
+                                    formatDateSafe(item.proposalTime).split(' ')[0]
+                                )}
                             </Typography>
                         </Stack>
-
-                        <Stack direction="row" spacing={0} alignItems="center">
-                            <IconButton onClick={(e) => { e.stopPropagation(); onViewDetails(item); }} size="small" sx={{ color: 'text.secondary' }}>
-                                <Badge badgeContent={item.comments?.length || 0} color="error" sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: 16, minWidth: 16 } }}>
-                                    <CommentIcon fontSize="small" />
-                                </Badge>
-                            </IconButton>
-
-                            {(canEdit || canDelete || canResubmit) && (
-                                <IconButton onClick={handleMenuOpen} size="small" sx={{ ml: 0.5, color: 'text.secondary' }}>
-                                    <MoreVertIcon fontSize="small" />
-                                </IconButton>
-                            )}
-                            <Menu
-                                anchorEl={anchorEl}
-                                open={Boolean(anchorEl)}
-                                onClose={handleMenuClose}
-                                PaperProps={{
-                                    elevation: 0,
-                                    sx: {
-                                        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                                        borderRadius: 3,
-                                        minWidth: 180,
-                                        border: '1px solid #f0f0f0',
-                                        mt: 1
-                                    },
-                                }}
-                            >
-                                {canResubmit && (
-                                    <MenuItem onClick={() => { handleMenuClose(); vibrate(50); setActionDialog({ open: true, type: 'resubmit', item, title: 'Xin duyệt lại' }); }} sx={{ py: 1.5 }}>
-                                        <LoopIcon fontSize="small" sx={{ mr: 1.5, color: 'warning.main' }} /> <Typography variant="body2" fontWeight={600}>Gửi lại</Typography>
-                                    </MenuItem>
-                                )}
-                                {canEdit && (
-                                    <MenuItem onClick={() => { handleMenuClose(); vibrate(50); setEditData(item); setDialogOpen(true); }} sx={{ py: 1.5 }}>
-                                        <EditIcon fontSize="small" sx={{ mr: 1.5, color: 'primary.main' }} /> <Typography variant="body2" fontWeight={600}>Chỉnh sửa</Typography>
-                                    </MenuItem>
-                                )}
-                                {canDelete && (
-                                    <MenuItem onClick={() => { handleMenuClose(); vibrate(50); setActionDialog({ open: true, type: 'delete', item, title: 'Xác nhận xóa' }); }} sx={{ py: 1.5 }}>
-                                        <DeleteIcon fontSize="small" sx={{ mr: 1.5, color: 'error.main' }} /> <Typography variant="body2" fontWeight={600} color="error">Xóa đề xuất</Typography>
-                                    </MenuItem>
-                                )}
-                            </Menu>
-                        </Stack>
-                    </Box>
-
-                    {/* Main Content Area */}
-                    <Box sx={{ p: 2, pb: 1 }} onClick={(e) => { e.stopPropagation(); onViewDetails(item); }}>
-                        <Typography variant="body1" sx={{ fontWeight: 600, mb: 1.5, fontSize: '1.05rem', lineHeight: 1.5 }}>
-                            {item.content}
-                        </Typography>
 
                         <Grid container spacing={2}>
                             {/* Info Column */}
@@ -345,16 +353,15 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                             )}
                         </Grid>
 
-                        <Stack direction="row" spacing={1} mt={1.5} alignItems="center">
-                            <AccessTimeIcon color="action" sx={{ fontSize: 16, opacity: 0.7 }} />
-                            <Typography variant="caption" color="text.secondary" fontWeight={500}>
-                                {formatDateSafe(item.proposalTime)}
-                            </Typography>
-                            {/* Separator dot */}
-                            <Typography variant="caption" color="text.disabled">•</Typography>
-                            {/* Tap to view hint */}
+                        <Stack direction="row" spacing={1} mt={1.5} alignItems="center" justifyContent="space-between">
+                            <Stack direction="row" spacing={1}>
+                                <Badge badgeContent={item.comments?.length || 0} color="error" sx={{ '& .MuiBadge-badge': { fontSize: '0.6rem', height: 16, minWidth: 16 } }}>
+                                    <CommentIcon fontSize="small" color="action" sx={{ fontSize: 18 }} />
+                                </Badge>
+                            </Stack>
+
                             <Typography variant="caption" color="primary" fontWeight={600}>
-                                Xem chi tiết
+                                Xem chi tiết →
                             </Typography>
                         </Stack>
                     </Box>
@@ -369,6 +376,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                             userEmail={userEmail}
                             isMaintenance={isMaintenance}
                             isViceDirector={isViceDirector}
+                            isList={true}
                         />
                     </Box>
                 </Card >

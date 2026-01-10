@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-    Box, Typography, Stack, Tabs, Tab, CircularProgress, alpha, useTheme,
+    Box, Typography, Stack, Tabs, Tab, CircularProgress, alpha, useTheme, useMediaQuery,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
     Table, TableHead, TableBody, TableRow, TableCell, TableContainer, Paper,
     Chip, IconButton, Tooltip
@@ -19,6 +19,7 @@ import { vi } from 'date-fns/locale';
 
 const PostInspectionTab = ({ proposals, isMaintenanceLeadForDepartment, isViceDirector, isAdmin, onViewProposal, user }) => {
     const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const { inspections, isLoading, updateInspection } = usePostInspections();
     const [filterTab, setFilterTab] = useState(0);
     const [confirmDialog, setConfirmDialog] = useState({ open: false, inspection: null, type: null });
@@ -199,66 +200,63 @@ const PostInspectionTab = ({ proposals, isMaintenanceLeadForDepartment, isViceDi
                     <Typography variant="body2">Các phiếu sẽ xuất hiện ở đây sau khi đề xuất hoàn thành</Typography>
                 </Box>
             ) : (
-                <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
-                                <TableCell sx={{ fontWeight: 700 }}>Mã phiếu</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Phân xưởng</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Nội dung</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Hạn hậu kiểm</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Trạng thái</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Tiến độ & Ghi chú</TableCell>
-                                <TableCell align="center" sx={{ fontWeight: 700 }}>Thao tác</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {filteredInspections.map(inspection => {
-                                const scheduledDate = inspection.scheduledDate?.toDate?.() || new Date(inspection.scheduledDate);
-                                const isOverdue = isPast(scheduledDate) && inspection.status === 'pending';
-                                const canMaintConfirm = (isMaintenanceLeadForDepartment(inspection.department) || isAdmin) && inspection.status === 'pending' && isPast(scheduledDate);
-                                const canVDConfirm = (isViceDirector || isAdmin) && inspection.status === 'maintenance_confirmed';
+                isMobile ? (
+                    <Stack spacing={2} sx={{ mb: 2 }}>
+                        {filteredInspections.map(inspection => {
+                            const scheduledDate = inspection.scheduledDate?.toDate?.() || new Date(inspection.scheduledDate);
+                            const isOverdue = isPast(scheduledDate) && inspection.status === 'pending';
+                            const canMaintConfirm = (isMaintenanceLeadForDepartment(inspection.department) || isAdmin) && inspection.status === 'pending' && isPast(scheduledDate);
+                            const canVDConfirm = (isViceDirector || isAdmin) && inspection.status === 'maintenance_confirmed';
 
-                                return (
-                                    <TableRow key={inspection.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
-                                        <TableCell>
-                                            <Typography variant="body2" fontWeight={600} color="primary">
-                                                {inspection.originalCode}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2">{inspection.department}</Typography>
-                                            <Typography variant="caption" color="text.secondary">{inspection.proposer}</Typography>
-                                        </TableCell>
-                                        <TableCell sx={{ maxWidth: 200 }}>
-                                            <Typography variant="body2" sx={{
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                display: '-webkit-box',
-                                                WebkitLineClamp: 2,
-                                                WebkitBoxOrient: 'vertical'
-                                            }}>
-                                                {inspection.originalContent}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2" color={isOverdue ? 'error' : 'text.primary'} fontWeight={isOverdue ? 600 : 400}>
-                                                {format(scheduledDate, 'dd/MM/yyyy', { locale: vi })}
+                            return (
+                                <Paper key={inspection.id} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                                    <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                                        <Typography variant="subtitle1" fontWeight={700} color="primary">
+                                            {inspection.originalCode}
+                                        </Typography>
+                                        {getStatusChip(inspection)}
+                                    </Stack>
+
+                                    <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 600 }}>
+                                        {inspection.department}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                        Người đề xuất: {inspection.proposer}
+                                    </Typography>
+
+                                    <Typography variant="body2" sx={{
+                                        mb: 1.5,
+                                        color: 'text.secondary',
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden'
+                                    }}>
+                                        {inspection.originalContent}
+                                    </Typography>
+
+                                    <Stack direction="row" spacing={1} alignItems="center" mb={2} sx={{ bgcolor: alpha(theme.palette.action.hover, 0.05), p: 1, borderRadius: 1 }}>
+                                        <ScheduleIcon fontSize="small" color="action" />
+                                        <Box>
+                                            <Typography variant="body2" fontWeight={isOverdue ? 700 : 400} color={isOverdue ? 'error' : 'text.primary'}>
+                                                Hạn: {format(scheduledDate, 'dd/MM/yyyy', { locale: vi })}
                                             </Typography>
                                             {!isPast(scheduledDate) && (
                                                 <Typography variant="caption" color="text.secondary">
                                                     Còn {formatDistanceToNow(scheduledDate, { locale: vi })}
                                                 </Typography>
                                             )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {getStatusChip(inspection)}
-                                        </TableCell>
-                                        <TableCell sx={{ maxWidth: 250 }}>
-                                            {/* Tổ trưởng BT xác nhận */}
+                                        </Box>
+                                    </Stack>
+
+                                    {/* Confirmations */}
+                                    {(inspection.maintenanceConfirmation || inspection.viceDirectorConfirmation) && (
+                                        <Stack spacing={1} mb={2}>
                                             {inspection.maintenanceConfirmation && (
-                                                <Box sx={{ mb: 1 }}>
-                                                    <Chip size="small" label="Tổ trưởng BT ✓" color="warning" variant="outlined" sx={{ mb: 0.5 }} />
+                                                <Box sx={{ borderLeft: '3px solid', borderColor: 'warning.main', pl: 1 }}>
+                                                    <Typography variant="caption" fontWeight={600} color="warning.main">
+                                                        Tổ trưởng BT đã xác nhận
+                                                    </Typography>
                                                     <Typography variant="caption" display="block" color="text.secondary">
                                                         {formatDate(inspection.maintenanceConfirmation.time)} - {inspection.maintenanceConfirmation.user}
                                                     </Typography>
@@ -269,10 +267,11 @@ const PostInspectionTab = ({ proposals, isMaintenanceLeadForDepartment, isViceDi
                                                     )}
                                                 </Box>
                                             )}
-                                            {/* PGĐ xác nhận */}
                                             {inspection.viceDirectorConfirmation && (
-                                                <Box>
-                                                    <Chip size="small" label="P.GĐ ✓" color="success" variant="outlined" sx={{ mb: 0.5 }} />
+                                                <Box sx={{ borderLeft: '3px solid', borderColor: 'success.main', pl: 1 }}>
+                                                    <Typography variant="caption" fontWeight={600} color="success.main">
+                                                        P.GĐ đã duyệt
+                                                    </Typography>
                                                     <Typography variant="caption" display="block" color="text.secondary">
                                                         {formatDate(inspection.viceDirectorConfirmation.time)} - {inspection.viceDirectorConfirmation.user}
                                                     </Typography>
@@ -283,36 +282,161 @@ const PostInspectionTab = ({ proposals, isMaintenanceLeadForDepartment, isViceDi
                                                     )}
                                                 </Box>
                                             )}
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Stack direction="row" spacing={0.5} justifyContent="center">
-                                                <Tooltip title="Xem phiếu gốc">
-                                                    <IconButton size="small" onClick={() => handleViewOriginal(inspection.originalProposalId)}>
-                                                        <VisibilityIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                                {canMaintConfirm && (
-                                                    <Tooltip title="Xác nhận hậu kiểm">
-                                                        <IconButton size="small" color="warning" onClick={() => handleConfirmMaintenance(inspection)}>
-                                                            <BuildIcon fontSize="small" />
+                                        </Stack>
+                                    )}
+
+                                    <Stack direction="row" spacing={1}>
+                                        <Button
+                                            variant="outlined"
+                                            size="small"
+                                            fullWidth
+                                            onClick={() => handleViewOriginal(inspection.originalProposalId)}
+                                        >
+                                            Xem
+                                        </Button>
+                                        {canMaintConfirm && (
+                                            <Button
+                                                variant="contained"
+                                                color="warning"
+                                                size="small"
+                                                fullWidth
+                                                onClick={() => handleConfirmMaintenance(inspection)}
+                                            >
+                                                Xác nhận
+                                            </Button>
+                                        )}
+                                        {canVDConfirm && (
+                                            <Button
+                                                variant="contained"
+                                                color="success"
+                                                size="small"
+                                                fullWidth
+                                                onClick={() => handleConfirmViceDirector(inspection)}
+                                            >
+                                                Duyệt
+                                            </Button>
+                                        )}
+                                    </Stack>
+                                </Paper>
+                            );
+                        })}
+                    </Stack>
+                ) : (
+                    <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                                    <TableCell sx={{ fontWeight: 700 }}>Mã phiếu</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Phân xưởng</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Nội dung</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Hạn hậu kiểm</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Trạng thái</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>Tiến độ & Ghi chú</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 700 }}>Thao tác</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {filteredInspections.map(inspection => {
+                                    const scheduledDate = inspection.scheduledDate?.toDate?.() || new Date(inspection.scheduledDate);
+                                    const isOverdue = isPast(scheduledDate) && inspection.status === 'pending';
+                                    const canMaintConfirm = (isMaintenanceLeadForDepartment(inspection.department) || isAdmin) && inspection.status === 'pending' && isPast(scheduledDate);
+                                    const canVDConfirm = (isViceDirector || isAdmin) && inspection.status === 'maintenance_confirmed';
+
+                                    return (
+                                        <TableRow key={inspection.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
+                                            <TableCell>
+                                                <Typography variant="body2" fontWeight={600} color="primary">
+                                                    {inspection.originalCode}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="body2">{inspection.department}</Typography>
+                                                <Typography variant="caption" color="text.secondary">{inspection.proposer}</Typography>
+                                            </TableCell>
+                                            <TableCell sx={{ maxWidth: 200 }}>
+                                                <Typography variant="body2" sx={{
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical'
+                                                }}>
+                                                    {inspection.originalContent}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="body2" color={isOverdue ? 'error' : 'text.primary'} fontWeight={isOverdue ? 600 : 400}>
+                                                    {format(scheduledDate, 'dd/MM/yyyy', { locale: vi })}
+                                                </Typography>
+                                                {!isPast(scheduledDate) && (
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        Còn {formatDistanceToNow(scheduledDate, { locale: vi })}
+                                                    </Typography>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {getStatusChip(inspection)}
+                                            </TableCell>
+                                            <TableCell sx={{ maxWidth: 250 }}>
+                                                {/* Tổ trưởng BT xác nhận */}
+                                                {inspection.maintenanceConfirmation && (
+                                                    <Box sx={{ mb: 1 }}>
+                                                        <Chip size="small" label="Tổ trưởng BT ✓" color="warning" variant="outlined" sx={{ mb: 0.5 }} />
+                                                        <Typography variant="caption" display="block" color="text.secondary">
+                                                            {formatDate(inspection.maintenanceConfirmation.time)} - {inspection.maintenanceConfirmation.user}
+                                                        </Typography>
+                                                        {inspection.maintenanceConfirmation.comment && (
+                                                            <Typography variant="caption" fontStyle="italic" color="text.secondary">
+                                                                "{inspection.maintenanceConfirmation.comment}"
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                )}
+                                                {/* PGĐ xác nhận */}
+                                                {inspection.viceDirectorConfirmation && (
+                                                    <Box>
+                                                        <Chip size="small" label="P.GĐ ✓" color="success" variant="outlined" sx={{ mb: 0.5 }} />
+                                                        <Typography variant="caption" display="block" color="text.secondary">
+                                                            {formatDate(inspection.viceDirectorConfirmation.time)} - {inspection.viceDirectorConfirmation.user}
+                                                        </Typography>
+                                                        {inspection.viceDirectorConfirmation.comment && (
+                                                            <Typography variant="caption" fontStyle="italic" color="text.secondary">
+                                                                "{inspection.viceDirectorConfirmation.comment}"
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                )}
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Stack direction="row" spacing={0.5} justifyContent="center">
+                                                    <Tooltip title="Xem phiếu gốc">
+                                                        <IconButton size="small" onClick={() => handleViewOriginal(inspection.originalProposalId)}>
+                                                            <VisibilityIcon fontSize="small" />
                                                         </IconButton>
                                                     </Tooltip>
-                                                )}
-                                                {canVDConfirm && (
-                                                    <Tooltip title="Duyệt hoàn thành">
-                                                        <IconButton size="small" color="success" onClick={() => handleConfirmViceDirector(inspection)}>
-                                                            <CheckCircleIcon fontSize="small" />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                )}
-                                            </Stack>
-                                        </TableCell>
-                                    </TableRow>
-                                );
-                            })}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
+                                                    {canMaintConfirm && (
+                                                        <Tooltip title="Xác nhận hậu kiểm">
+                                                            <IconButton size="small" color="warning" onClick={() => handleConfirmMaintenance(inspection)}>
+                                                                <BuildIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    )}
+                                                    {canVDConfirm && (
+                                                        <Tooltip title="Duyệt hoàn thành">
+                                                            <IconButton size="small" color="success" onClick={() => handleConfirmViceDirector(inspection)}>
+                                                                <CheckCircleIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    )}
+                                                </Stack>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                )
             )}
 
             {/* Confirm Dialog */}

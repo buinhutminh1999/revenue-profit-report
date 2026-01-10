@@ -15,6 +15,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { vi } from 'date-fns/locale';
 import { format } from 'date-fns';
 import { useSearchParams } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 // Note: react-window virtualization deferred - MobileProposalCard has variable heights
 
 // Hooks
@@ -28,17 +29,16 @@ import { useDebounce } from '../../hooks/useDebounce';
 const ProposalDialog = lazy(() => import('../../components/dialogs/ProposalDialog'));
 const ActionDialog = lazy(() => import('../../components/dialogs/ActionDialog'));
 const CommentDialog = lazy(() => import('../../components/dialogs/CommentDialog'));
-const ProposalDetailDialog = lazy(() => import('../../components/dialogs/ProposalDetailDialog'));
 
-// Components (Keep sync import for critical UI)
 import MobileProposalCard from '../../components/cards/MobileProposalCard';
+import ProposalSkeleton from '../../components/cards/ProposalSkeleton';
+import ProposalDetailDialog from '../../components/dialogs/ProposalDetailDialog';
 import PostInspectionTab from '../../components/proposals/PostInspectionTab';
 import {
+    DesktopProposalTable,
     StatsPanel,
-    ProposalSkeleton,
     EmptyProposalState,
-    ImagePreviewDialog,
-    DesktopProposalTable
+    ImagePreviewDialog
 } from '../../components/proposals';
 
 // Utils
@@ -449,7 +449,11 @@ const RepairProposalPage = () => {
                         borderRadius: 3,
                         bgcolor: 'background.paper',
                         boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
-                        overflow: 'hidden'
+                        overflow: 'hidden',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 100,
+                        transition: 'box-shadow 0.3s'
                     }}
                 >
                     <Stack
@@ -600,47 +604,53 @@ const RepairProposalPage = () => {
                 </Paper>
 
                 {/* Mobile: Prominent Action Filter - Large, Easy to Tap */}
+                {/* Mobile: Filter Segmented Control */}
                 {isMobile && (
-                    <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                        <Button
-                            variant={!myActionOnly ? "contained" : "outlined"}
-                            color="primary"
-                            onClick={() => setMyActionOnly(false)}
-                            fullWidth
-                            sx={{
-                                py: 1.5,
-                                fontSize: '0.95rem',
-                                fontWeight: 'bold',
-                                borderRadius: 2,
-                            }}
-                        >
-                            Tất cả
-                        </Button>
-                        <Button
-                            variant={myActionOnly ? "contained" : (myActionCount > 0 ? "contained" : "outlined")}
-                            color={myActionOnly ? "warning" : (myActionCount > 0 ? "error" : "inherit")}
-                            onClick={() => setMyActionOnly(true)}
-                            fullWidth
-                            startIcon={<CheckCircleIcon />}
-                            sx={{
-                                py: 1.5,
-                                fontSize: '0.95rem',
-                                fontWeight: 'bold',
-                                borderRadius: 2,
-                                ...(myActionCount > 0 && !myActionOnly && {
-                                    animation: 'pulse 1.5s infinite',
-                                    boxShadow: 4,
-                                }),
-                                '@keyframes pulse': {
-                                    '0%': { transform: 'scale(1)' },
-                                    '50%': { transform: 'scale(1.02)' },
-                                    '100%': { transform: 'scale(1)' },
-                                }
-                            }}
-                        >
-                            Cần xử lý ({myActionCount})
-                        </Button>
-                    </Stack>
+                    <Box sx={{ mb: 2, p: 0.5, bgcolor: alpha(theme.palette.divider, 0.1), borderRadius: 3 }}>
+                        <Stack direction="row" spacing={0.5}>
+                            <Button
+                                disableElevation
+                                variant={!myActionOnly ? "contained" : "text"}
+                                color={!myActionOnly ? "primary" : "inherit"}
+                                onClick={() => setMyActionOnly(false)}
+                                fullWidth
+                                sx={{
+                                    py: 1,
+                                    borderRadius: 2.5,
+                                    fontSize: '0.9rem',
+                                    fontWeight: 600,
+                                    color: !myActionOnly ? '#fff' : 'text.secondary',
+                                    bgcolor: !myActionOnly ? 'primary.main' : 'transparent',
+                                    '&:hover': {
+                                        bgcolor: !myActionOnly ? 'primary.dark' : alpha(theme.palette.text.primary, 0.05)
+                                    }
+                                }}
+                            >
+                                Tất cả
+                            </Button>
+                            <Button
+                                disableElevation
+                                variant={myActionOnly ? "contained" : "text"}
+                                color={myActionOnly ? "warning" : "inherit"}
+                                onClick={() => setMyActionOnly(true)}
+                                fullWidth
+                                startIcon={myActionCount > 0 ? <PendingIcon fontSize="small" /> : null}
+                                sx={{
+                                    py: 1,
+                                    borderRadius: 2.5,
+                                    fontSize: '0.9rem',
+                                    fontWeight: 600,
+                                    color: myActionOnly ? '#fff' : (myActionCount > 0 ? 'error.main' : 'text.secondary'),
+                                    bgcolor: myActionOnly ? 'warning.main' : 'transparent',
+                                    '&:hover': {
+                                        bgcolor: myActionOnly ? 'warning.dark' : alpha(theme.palette.text.primary, 0.05)
+                                    }
+                                }}
+                            >
+                                Cần xử lý {myActionCount > 0 && `(${myActionCount})`}
+                            </Button>
+                        </Stack>
+                    </Box>
                 )}
 
                 {/* Content */}
@@ -691,31 +701,59 @@ const RepairProposalPage = () => {
                             )}
                         </Box>
 
-                        {isLoading ? (
-                            Array.from(new Array(3)).map((_, index) => (
-                                <ProposalSkeleton key={index} />
-                            ))
-                        ) : filteredProposals.length > 0 ? (
-                            filteredProposals.map(item => (
-                                <MobileProposalCard
-                                    key={item.id}
-                                    item={item}
-                                    canDoAction={canDoAction}
-                                    setActionDialog={setActionDialog}
-                                    setEditData={setEditData}
-                                    setDialogOpen={setDialogOpen}
-                                    setPreviewImage={setPreviewImage}
-                                    user={user}
-                                    userEmail={userEmail}
-                                    isMaintenance={isMaintenance}
-                                    isViceDirector={isViceDirector}
-                                    setCommentDialog={setCommentDialog}
-                                    onViewDetails={handleViewDetails}
-                                />
-                            ))
-                        ) : (
-                            <EmptyProposalState onAdd={handleOpenAdd} />
-                        )}
+                        {/* Proposal List */}
+                        <Box sx={{ pb: 10 }}>
+                            {isLoading ? (
+                                Array.from({ length: 3 }).map((_, index) => (
+                                    <ProposalSkeleton key={index} />
+                                ))
+                            ) : (
+                                isMobile ? (
+                                    <Stack spacing={0}>
+                                        <AnimatePresence mode="popLayout">
+                                            {filteredProposals.map((item) => (
+                                                <MobileProposalCard
+                                                    key={item.id}
+                                                    item={item}
+                                                    canDoAction={canDoAction}
+                                                    setActionDialog={setActionDialog}
+                                                    setEditData={setEditData}
+                                                    setDialogOpen={setDialogOpen}
+                                                    setPreviewImage={setPreviewImage}
+                                                    setCommentDialog={setCommentDialog}
+                                                    onViewDetails={handleViewDetails}
+                                                    user={user}
+                                                    userEmail={user.email}
+                                                    isMaintenance={isMaintenance}
+                                                    isViceDirector={isViceDirector}
+                                                />
+                                            ))}
+                                        </AnimatePresence>
+                                        {filteredProposals.length === 0 && (
+                                            <Box textAlign="center" py={5} bgcolor="background.paper" borderRadius={3}>
+                                                <img
+                                                    src="https://img.freepik.com/free-vector/no-data-concept-illustration_114360-536.jpg"
+                                                    alt="No data"
+                                                    style={{ width: 120, marginBottom: 16, mixBlendMode: 'multiply' }}
+                                                />
+                                                <Typography color="text.secondary">Không có đề xuất nào.</Typography>
+                                            </Box>
+                                        )}
+                                    </Stack>
+                                ) : (
+                                    <DesktopProposalTable
+                                        proposals={filteredProposals}
+                                        canDoAction={canDoAction}
+                                        setActionDialog={setActionDialog}
+                                        setEditData={setEditData}
+                                        setDialogOpen={setDialogOpen}
+                                        setPreviewImage={setPreviewImage}
+                                        onViewDetails={handleViewDetails}
+                                        user={user}
+                                    />
+                                )
+                            )}
+                        </Box>
                     </Stack>
                 ) : (
                     <DesktopProposalTable
@@ -769,6 +807,10 @@ const RepairProposalPage = () => {
                         setPreviewImage={setPreviewImage}
                         onAddComment={handleAddComment}
                         user={user}
+                        canDoAction={canDoAction}
+                        setActionDialog={setActionDialog}
+                        isMaintenance={isMaintenance}
+                        isViceDirector={isViceDirector}
                     />
                 </Suspense>
 

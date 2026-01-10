@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
     Box, Typography, Avatar, Stack, IconButton, CircularProgress,
-    TextField, Button, Paper
+    InputBase, Paper, Fade, Tooltip
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
-import { Send as SendIcon, Close as CloseIcon, Comment as CommentIcon } from '@mui/icons-material';
+import { alpha, useTheme } from '@mui/material/styles';
+import { Send as SendIcon, Close as CloseIcon, Comment as CommentIcon, Reply as ReplyIcon } from '@mui/icons-material';
 import { formatDateSafe } from '../../utils/proposalUtils';
 
 const ProposalDiscussion = ({ proposal, onAddComment, user }) => {
+    const theme = useTheme();
     const [newComment, setNewComment] = useState('');
     const [sending, setSending] = useState(false);
     const [replyTo, setReplyTo] = useState(null);
@@ -16,6 +17,10 @@ const ProposalDiscussion = ({ proposal, onAddComment, user }) => {
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [proposal?.comments]);
 
     const handleSend = async () => {
         if (!newComment.trim()) return;
@@ -57,50 +62,114 @@ const ProposalDiscussion = ({ proposal, onAddComment, user }) => {
         const isMe = msg.userEmail === user?.email;
         const replyingTo = msg.replyToId ? proposal.comments.find(c => c.id === msg.replyToId) : null;
 
+        // Dynamic colors for avatar
+        const stringToColor = (string) => {
+            let hash = 0;
+            for (let i = 0; i < string.length; i++) {
+                hash = string.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            let color = '#';
+            for (let i = 0; i < 3; i++) {
+                const value = (hash >> (i * 8)) & 0xFF;
+                color += ('00' + value.toString(16)).substr(-2);
+            }
+            return color;
+        }
+        const avatarColor = stringToColor(msg.userName || 'User');
+
         return (
-            <Box key={msg.id || Math.random()} sx={{ display: 'flex', gap: 1, mb: 1, flexDirection: isMe && !isReply ? 'row-reverse' : 'row' }}>
+            <Box key={msg.id || Math.random()}
+                sx={{
+                    display: 'flex',
+                    gap: 1, // Reduced gap
+                    mb: 1.5,
+                    flexDirection: isMe ? 'row-reverse' : 'row',
+                    alignItems: 'flex-end', // Align avatar to bottom
+                    pl: isMe ? 5 : 0,
+                    pr: isMe ? 0 : 5
+                }}
+            >
                 {!isMe && (
-                    <Avatar sx={{ width: isReply ? 24 : 32, height: isReply ? 24 : 32, fontSize: 12, bgcolor: 'secondary.main' }}>
-                        {msg.userName?.charAt(0) || '?'}
-                    </Avatar>
+                    <Tooltip title={msg.userName}>
+                        <Avatar
+                            sx={{
+                                width: 28, height: 28,
+                                fontSize: '0.75rem',
+                                bgcolor: avatarColor,
+                                mb: 0.5,
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            }}
+                        >
+                            {msg.userName?.charAt(0) || '?'}
+                        </Avatar>
+                    </Tooltip>
                 )}
-                <Box sx={{ maxWidth: '85%' }}>
+
+                <Box sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: isMe ? 'flex-end' : 'flex-start',
+                    maxWidth: '100%'
+                }}>
+                    {/* Name (Only for others) */}
+                    {!isMe && !isReply && (
+                        <Typography variant="caption" sx={{ ml: 1, mb: 0.5, color: 'text.secondary', fontSize: '0.7rem' }}>
+                            {msg.userName}
+                        </Typography>
+                    )}
+
+                    {/* Chat Bubble */}
                     <Box
                         sx={{
-                            bgcolor: isMe ? 'primary.light' : '#f0f2f5',
-                            color: isMe ? 'primary.contrastText' : 'text.primary',
-                            p: 1.5, borderRadius: 3,
-                            borderTopLeftRadius: !isMe && !isReply ? 4 : 16,
-                            borderTopRightRadius: isMe && !isReply ? 4 : 16,
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            position: 'relative',
+                            bgcolor: isMe ? 'primary.main' : '#f0f2f5', // Modern gray
+                            color: isMe ? '#fff' : 'text.primary',
+                            px: 2, py: 1.25,
+                            borderRadius: 2.5,
+                            borderBottomRightRadius: isMe ? 4 : 20,
+                            borderBottomLeftRadius: !isMe ? 4 : 20,
+                            boxShadow: isMe ? '0 2px 8px rgba(33, 150, 243, 0.2)' : '0 1px 2px rgba(0,0,0,0.05)',
+                            transition: 'all 0.2s'
                         }}
                     >
-                        <Stack spacing={0.5}>
-                            <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                                <Typography variant="caption" fontWeight="bold" sx={{ opacity: 0.9 }}>{msg.userName}</Typography>
-                                <Typography variant="caption" sx={{ opacity: 0.7, fontSize: '0.65rem' }}>{formatDateSafe(msg.time)}</Typography>
-                            </Stack>
-                            {replyingTo && (
-                                <Typography variant="caption" sx={{ opacity: 0.8, fontStyle: 'italic', fontSize: '0.7rem' }}>
-                                    Trả lời <b>{replyingTo.userName}</b>
+                        {/* Reply Context */}
+                        {replyingTo && (
+                            <Box sx={{
+                                mb: 0.5, pl: 1, borderLeft: '2px solid',
+                                borderColor: isMe ? 'rgba(255,255,255,0.5)' : 'primary.main',
+                                fontSize: '0.75rem', opacity: 0.8
+                            }}>
+                                <Typography variant="caption" display="block" fontWeight="bold">
+                                    {replyingTo.userName}
                                 </Typography>
-                            )}
-                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.9rem' }}>
-                                {msg.content}
-                            </Typography>
-                        </Stack>
+                                <Typography variant="caption" noWrap sx={{ maxWidth: 150, display: 'block' }}>
+                                    {replyingTo.content}
+                                </Typography>
+                            </Box>
+                        )}
+
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.92rem', lineHeight: 1.4 }}>
+                            {msg.content}
+                        </Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start', px: 1, mt: 0.5 }}>
+
+                    {/* Meta: Time & Reply Action */}
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5, px: 0.5, opacity: 0.7 }}>
+                        <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>
+                            {formatDateSafe(msg.time)}
+                        </Typography>
                         <Typography
                             variant="caption"
-                            fontWeight="bold"
-                            color="text.secondary"
-                            sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline', color: 'primary.main' } }}
-                            onClick={() => setReplyTo({ id: msg.id, userName: msg.userName })}
+                            fontWeight="600"
+                            sx={{
+                                cursor: 'pointer', fontSize: '0.65rem',
+                                '&:hover': { textDecoration: 'underline', color: 'primary.main', opacity: 1 }
+                            }}
+                            onClick={() => setReplyTo({ id: msg.id, userName: msg.userName, content: msg.content })}
                         >
                             Trả lời
                         </Typography>
-                    </Box>
+                    </Stack>
                 </Box>
             </Box>
         );
@@ -109,87 +178,122 @@ const ProposalDiscussion = ({ proposal, onAddComment, user }) => {
     return (
         <Paper
             elevation={0}
-            variant="outlined"
             sx={{
-                p: 2,
-                borderRadius: 3,
-                bgcolor: 'background.paper',
-                borderColor: 'divider',
+                height: 480, // Fixed height or max height
                 display: 'flex',
-                flexDirection: 'column'
+                flexDirection: 'column',
+                borderRadius: 3,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: '#fff',
+                overflow: 'hidden'
             }}
         >
-            <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
-                <Avatar sx={{ bgcolor: (theme) => alpha(theme.palette.secondary.main, 0.1), color: 'secondary.main', width: 32, height: 32 }}>
-                    <CommentIcon fontSize="small" />
-                </Avatar>
-                <Typography variant="subtitle2" fontWeight={700} textTransform="uppercase" letterSpacing={0.5}>
-                    Thảo luận / Góp ý
-                </Typography>
-            </Stack>
-
-            <Box sx={{ flexGrow: 1, overflowY: 'auto', maxHeight: 400, mb: 2, pr: 1 }}>
-                {!threads || threads.length === 0 ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 150, color: 'text.secondary', opacity: 0.7 }}>
-                        <CommentIcon sx={{ fontSize: 40, mb: 1, color: 'action.disabled' }} />
-                        <Typography variant="body2" fontStyle="italic">Chưa có thảo luận nào.</Typography>
-                        <Typography variant="caption">Hãy để lại ý kiến của bạn!</Typography>
+            {/* Messages Area */}
+            <Box sx={{
+                flexGrow: 1,
+                overflowY: 'auto',
+                p: 2,
+                bgcolor: '#fff',
+                backgroundImage: 'radial-gradient(#f0f2f5 1px, transparent 1px)',
+                backgroundSize: '20px 20px'
+            }}>
+                {(!threads || threads.length === 0) ? (
+                    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', opacity: 0.6 }}>
+                        <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: '50%', mb: 2 }}>
+                            <CommentIcon sx={{ fontSize: 32, color: 'text.disabled' }} />
+                        </Box>
+                        <Typography variant="body2" fontWeight={500}>Chưa có thảo luận nào</Typography>
+                        <Typography variant="caption">Bắt đầu cuộc trò chuyện ngay!</Typography>
                     </Box>
                 ) : (
-                    <Stack spacing={2}>
+                    <Box>
                         {threads.map((thread) => (
                             <Box key={thread.id || Math.random()}>
                                 {renderCommentItem(thread)}
                                 {thread.replies && thread.replies.length > 0 && (
-                                    <Box sx={{ ml: 5, mt: 1, pl: 1, borderLeft: '2px solid #f0f2f5' }}>
+                                    <Box sx={{ mt: 0.5 }}>
                                         {thread.replies.map(reply => renderCommentItem(reply, true))}
                                     </Box>
                                 )}
                             </Box>
                         ))}
                         <div ref={messagesEndRef} />
-                    </Stack>
+                    </Box>
                 )}
             </Box>
 
-            <Box sx={{ pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+            {/* Input Area */}
+            <Box sx={{ p: 1.5, borderTop: '1px solid', borderColor: 'divider', bgcolor: '#fff' }}>
                 {replyTo && (
-                    <Box sx={{ mb: 1, p: 1, bgcolor: '#f0f2f5', borderRadius: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="caption" color="text.secondary">
-                            Đang trả lời <b>{replyTo.userName}</b>...
-                        </Typography>
-                        <IconButton size="small" onClick={() => setReplyTo(null)}>
-                            <CloseIcon fontSize="small" />
-                        </IconButton>
-                    </Box>
+                    <Fade in={true}>
+                        <Box sx={{
+                            mb: 1, p: 1, pl: 1.5,
+                            bgcolor: alpha(theme.palette.primary.main, 0.05),
+                            borderRadius: 2,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            borderLeft: `3px solid ${theme.palette.primary.main}`
+                        }}>
+                            <Box sx={{ overflow: 'hidden' }}>
+                                <Typography variant="caption" color="primary" fontWeight="bold" display="flex" alignItems="center">
+                                    <ReplyIcon sx={{ fontSize: 14, mr: 0.5 }} />
+                                    Trả lời {replyTo.userName}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" noWrap display="block">
+                                    {replyTo.content}
+                                </Typography>
+                            </Box>
+                            <IconButton size="small" onClick={() => setReplyTo(null)}>
+                                <CloseIcon fontSize="small" />
+                            </IconButton>
+                        </Box>
+                    </Fade>
                 )}
-                <Stack direction="row" spacing={1}>
-                    <TextField
-                        fullWidth
-                        size="small"
-                        placeholder={replyTo ? `Trả lời ${replyTo.userName}...` : "Nhập nội dung..."}
+
+                <Paper
+                    elevation={0}
+                    component="form"
+                    sx={{
+                        p: '4px 8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        bgcolor: '#f5f7f9', // Light gray background for input
+                        borderRadius: 3,
+                        border: '1px solid transparent',
+                        transition: 'all 0.2s',
+                        '&:focus-within': {
+                            bgcolor: '#fff',
+                            borderColor: 'primary.main',
+                            boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)'
+                        }
+                    }}
+                >
+                    <InputBase
+                        sx={{ ml: 1, flex: 1, fontSize: '0.95rem' }}
+                        placeholder="Nhập bình luận..."
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
                         onKeyPress={handleKeyPress}
                         multiline
                         maxRows={3}
                         disabled={sending}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                     />
                     <IconButton
                         color="primary"
                         onClick={handleSend}
                         disabled={!newComment.trim() || sending}
                         sx={{
-                            bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
-                            color: 'primary.main',
-                            '&:hover': { bgcolor: (theme) => alpha(theme.palette.primary.main, 0.2) },
-                            width: 40, height: 40
+                            p: 1,
+                            transition: 'all 0.2s',
+                            transform: newComment.trim() ? 'scale(1)' : 'scale(0.9)',
+                            opacity: newComment.trim() ? 1 : 0.6
                         }}
                     >
-                        {sending ? <CircularProgress size={20} color="inherit" /> : <SendIcon fontSize="small" />}
+                        {sending ? <CircularProgress size={24} /> : <SendIcon />}
                     </IconButton>
-                </Stack>
+                </Paper>
             </Box>
         </Paper>
     );

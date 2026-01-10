@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Stack, Paper, Typography, useTheme, alpha } from '@mui/material';
+import { Box, Stack, Paper, Typography, useTheme, alpha, Grid } from '@mui/material';
 import {
     Assignment as AssignmentIcon,
     BuildCircle as BuildIcon,
@@ -85,44 +85,40 @@ const StatsPanel = React.memo(({ proposals }) => {
     const working = proposals.filter(p => p.approval?.status === 'approved' && !p.confirmations?.maintenance).length;
 
     return (
-        <Stack
-            direction="row"
-            spacing={{ xs: 2, md: 3 }}
-            mb={4}
-            sx={{
-                overflowX: { xs: 'auto', md: 'visible' },
-                pb: 2, // Spacing for hover effect
-                scrollSnapType: { xs: 'x mandatory', md: 'none' },
-                '&::-webkit-scrollbar': { display: 'none' },
-                px: { xs: 2, md: 0 },
-                mx: { xs: -2, md: 0 }
-            }}
-        >
-            <MetricCard
-                title="Tổng Phiếu"
-                value={total}
-                icon={<AssignmentIcon />}
-                gradient="linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" // Blue
-            />
-            <MetricCard
-                title="Chờ Bảo Trì"
-                value={pending}
-                icon={<BuildIcon />}
-                gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" // Amber
-            />
-            <MetricCard
-                title="Chờ Duyệt"
-                value={approving}
-                icon={<PendingIcon />}
-                gradient="linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)" // Purple
-            />
-            <MetricCard
-                title="Đang Sửa"
-                value={working}
-                icon={<CheckIcon />}
-                gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)" // Emerald
-            />
-        </Stack>
+        <Grid container spacing={2} mb={3}>
+            <Grid size={{ xs: 6, md: 3 }}>
+                <MetricCard
+                    title="Tổng Phiếu"
+                    value={total}
+                    icon={<AssignmentIcon />}
+                    gradient="linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" // Blue
+                />
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+                <MetricCard
+                    title="Chờ Bảo Trì"
+                    value={pending}
+                    icon={<BuildIcon />}
+                    gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" // Amber
+                />
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+                <MetricCard
+                    title="Chờ Duyệt"
+                    value={approving}
+                    icon={<PendingIcon />}
+                    gradient="linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)" // Purple
+                />
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+                <MetricCard
+                    title="Đang Sửa"
+                    value={working}
+                    icon={<CheckIcon />}
+                    gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)" // Emerald
+                />
+            </Grid>
+        </Grid>
     );
 });
 

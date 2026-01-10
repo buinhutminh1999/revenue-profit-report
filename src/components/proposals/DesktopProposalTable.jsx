@@ -85,10 +85,11 @@ const DesktopProposalTable = React.memo(({
                 <TableHead>
                     <TableRow>
                         <HeaderCell width={100} sx={{ pl: 3, borderTopLeftRadius: 10, borderBottomLeftRadius: 10 }}>MÃ PHIẾU</HeaderCell>
-                        <HeaderCell width={180}>NGƯỜI ĐỀ XUẤT</HeaderCell>
-                        <HeaderCell width={300}>NỘI DUNG</HeaderCell>
-                        <HeaderCell width={250}>THÔNG TIN BẢO TRÌ</HeaderCell>
-                        <HeaderCell width={350}>TIẾN ĐỘ & HÀNH ĐỘNG</HeaderCell>
+                        <HeaderCell width={150}>NGƯỜI ĐỀ XUẤT</HeaderCell>
+                        <HeaderCell width={250}>NỘI DUNG</HeaderCell>
+                        <HeaderCell width={200}>THÔNG TIN BẢO TRÌ</HeaderCell>
+                        <HeaderCell width={250}>TIẾN ĐỘ & HÀNH ĐỘNG</HeaderCell>
+                        <HeaderCell width={150}>NGÀY XONG / DỰ KIẾN</HeaderCell>
                         <HeaderCell width={100} align="center" sx={{ borderTopRightRadius: 10, borderBottomRightRadius: 10 }}>CÔNG CỤ</HeaderCell>
                     </TableRow>
                 </TableHead>

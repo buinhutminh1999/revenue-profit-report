@@ -3,7 +3,7 @@ import {
     Dialog, DialogTitle, DialogContent, DialogActions,
     Button, Box, Typography, Stepper, Step, StepLabel,
     Chip, Grid, Paper, IconButton, Stack, useTheme, useMediaQuery, alpha,
-    Avatar, Slide, Tabs, Tab, Badge, Tooltip
+    Avatar, Slide, Tabs, Tab, Badge, Collapse, Tooltip
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -15,7 +15,9 @@ import {
     Description as DescriptionIcon,
     Comment as CommentIcon,
     Print as PrintIcon,
-    Info as InfoIcon
+    Info as InfoIcon,
+    ExpandLess,
+    ExpandMore
 } from '@mui/icons-material';
 import {
     Timeline, TimelineItem, TimelineSeparator, TimelineConnector,
@@ -24,6 +26,7 @@ import {
 import { formatDateSafe, getActiveStep, STEPS } from '../../utils/proposalUtils';
 import { QontoConnector, QontoStepIcon } from '../proposals/QontoStepper';
 import ProposalDiscussion from '../proposals/ProposalDiscussion';
+import ProposalActions from '../cards/ProposalActions';
 
 // Transition for Dialog
 const Transition = React.forwardRef(function Transition(props, ref) {
@@ -79,10 +82,13 @@ const TabPanel = ({ children, value, index, ...other }) => (
     </Box>
 );
 
-const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddComment, user }) => {
+const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddComment, user, canDoAction, setActionDialog, isMaintenance, isViceDirector }) => {
     const theme = useTheme();
+    // ... (lines 85-645)
+
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const [tabValue, setTabValue] = useState(0);
+    const [showStepper, setShowStepper] = useState(false); // Mobile collapsible stepper
     const printRef = useRef(null);
 
     // Memoize status for header color
@@ -213,7 +219,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                 </Typography>
                 <Grid container spacing={1}>
                     {images.map((img, index) => (
-                        <Grid item xs={4} sm={3} key={index}>
+                        <Grid size={{ xs: 4, sm: 3 }} key={index}>
                             <Box
                                 component="img"
                                 src={img}
@@ -271,27 +277,19 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
             {/* Basic Info */}
             <InfoCard title="Thông tin chung" icon={<PersonIcon />}>
                 <Grid container spacing={2}>
-                    <Grid item xs={6}>
+                    <Grid size={{ xs: 6 }}>
                         <Typography variant="caption" color="text.secondary">Người đề xuất</Typography>
                         <Typography variant="body2" fontWeight={600}>{proposal.proposer}</Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={{ xs: 6 }}>
                         <Typography variant="caption" color="text.secondary">Bộ phận</Typography>
                         <Typography variant="body2" fontWeight={600}>{proposal.department}</Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={{ xs: 6 }}>
                         <Typography variant="caption" color="text.secondary">Ngày tạo</Typography>
                         <Typography variant="body2" fontWeight={600}>{formatDateSafe(proposal.proposalTime)}</Typography>
                     </Grid>
-                    <Grid item xs={6}>
-                        <Typography variant="caption" color="text.secondary">Trạng thái</Typography>
-                        <Chip
-                            label={STEPS[activeStep - 1]?.label || 'Hoàn tất'}
-                            color={activeStep === 5 || activeStep === 6 ? 'success' : 'primary'}
-                            size="small"
-                            sx={{ height: 24, fontSize: '0.7rem', fontWeight: 600 }}
-                        />
-                    </Grid>
+
                 </Grid>
             </InfoCard>
 
@@ -304,25 +302,27 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
             </InfoCard>
 
             {/* Maintenance Info */}
-            {proposal.maintenanceOpinion && (
-                <InfoCard title="Phương án bảo trì" icon={<BuildIcon />}>
-                    <Typography variant="body2" gutterBottom>
-                        <strong>Phương án:</strong> {proposal.maintenanceOpinion}
-                    </Typography>
-                    {proposal.estimatedCompletion && (
-                        <Typography variant="caption" color="primary.main" fontWeight={600} display="block" gutterBottom>
-                            ⏱️ Dự kiến xong: {formatDateSafe(proposal.estimatedCompletion)}
+            {
+                proposal.maintenanceOpinion && (
+                    <InfoCard title="Phương án bảo trì" icon={<BuildIcon />}>
+                        <Typography variant="body2" gutterBottom>
+                            <strong>Phương án:</strong> {proposal.maintenanceOpinion}
                         </Typography>
-                    )}
-                    {proposal.confirmations?.maintenance?.time && (
-                        <Typography variant="caption" color="success.main" fontWeight={600} display="block">
-                            ✅ Hoàn thành lúc: {formatDateSafe(proposal.confirmations.maintenance.time)}
-                        </Typography>
-                    )}
-                    {renderImages(proposal.confirmations?.maintenance?.images, "📸 Ảnh bảo trì")}
-                </InfoCard>
-            )}
-        </Stack>
+                        {proposal.estimatedCompletion && (
+                            <Typography variant="caption" color="primary.main" fontWeight={600} display="block" gutterBottom>
+                                ⏱️ Dự kiến xong: {formatDateSafe(proposal.estimatedCompletion)}
+                            </Typography>
+                        )}
+                        {proposal.confirmations?.maintenance?.time && (
+                            <Typography variant="caption" color="success.main" fontWeight={600} display="block">
+                                ✅ Hoàn thành lúc: {formatDateSafe(proposal.confirmations.maintenance.time)}
+                            </Typography>
+                        )}
+                        {renderImages(proposal.confirmations?.maintenance?.images, "📸 Ảnh bảo trì")}
+                    </InfoCard>
+                )
+            }
+        </Stack >
     );
 
     // Tab: Lịch sử
@@ -562,15 +562,65 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
 
             {/* Tab Content */}
             <DialogContent dividers sx={{ bgcolor: '#f8f9fa', p: 0 }} ref={printRef}>
-                {/* Progress Stepper (Always visible) */}
-                <Box sx={{ bgcolor: '#fff', py: 3, px: 2, boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
-                    <Stepper alternativeLabel activeStep={activeStep - 1} connector={<QontoConnector />}>
-                        {STEPS.map((step, index) => (
-                            <Step key={step.label} completed={activeStep > index + 1 || (activeStep === 6 && index === 5)}>
-                                <StepLabel StepIconComponent={QontoStepIcon}>{step.label}</StepLabel>
-                            </Step>
-                        ))}
-                    </Stepper>
+                {/* Progress Stepper (Collapsible on Mobile) */}
+                <Box sx={{ bgcolor: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
+                    {isMobile ? (
+                        <Box>
+                            <Box
+                                onClick={() => setShowStepper(!showStepper)}
+                                sx={{
+                                    p: 2,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    cursor: 'pointer',
+                                    bgcolor: alpha(theme.palette.primary.main, 0.05)
+                                }}
+                            >
+                                <Box>
+                                    <Typography variant="subtitle2" color="text.secondary">
+                                        Trạng thái hiện tại ({activeStep}/{STEPS.length})
+                                    </Typography>
+                                    <Typography variant="body2" fontWeight={700} color="primary.main">
+                                        {STEPS[activeStep - 1]?.label || 'Đã hoàn thành'}
+                                    </Typography>
+                                </Box>
+                                <IconButton size="small">
+                                    {showStepper ? <ExpandLess /> : <ExpandMore />}
+                                </IconButton>
+                            </Box>
+                            <Collapse in={showStepper}>
+                                <Box sx={{ py: 2, px: 2 }}>
+                                    <Stepper
+                                        activeStep={activeStep - 1}
+                                        connector={<QontoConnector />}
+                                        orientation="vertical"
+                                        sx={{
+                                            '& .MuiStepLabel-label': { fontSize: '0.85rem', fontWeight: 500 },
+                                            '& .MuiStepContent-root': { paddingLeft: 2.5, borderLeft: '1px solid #e0e0e0', marginLeft: 1.5 },
+                                            '& .MuiStepConnector-line': { minHeight: 16 }
+                                        }}
+                                    >
+                                        {STEPS.map((step, index) => (
+                                            <Step key={step.label} completed={activeStep > index + 1 || (activeStep === 6 && index === 5)} sx={{ mb: 0 }}>
+                                                <StepLabel StepIconComponent={QontoStepIcon} sx={{ py: 0.5 }}>{step.label}</StepLabel>
+                                            </Step>
+                                        ))}
+                                    </Stepper>
+                                </Box>
+                            </Collapse>
+                        </Box>
+                    ) : (
+                        <Box sx={{ py: 3, px: 2 }}>
+                            <Stepper alternativeLabel activeStep={activeStep - 1} connector={<QontoConnector />}>
+                                {STEPS.map((step, index) => (
+                                    <Step key={step.label} completed={activeStep > index + 1 || (activeStep === 6 && index === 5)}>
+                                        <StepLabel StepIconComponent={QontoStepIcon}>{step.label}</StepLabel>
+                                    </Step>
+                                ))}
+                            </Stepper>
+                        </Box>
+                    )}
                 </Box>
 
                 <TabPanel value={tabValue} index={0}>
@@ -591,21 +641,44 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
             </DialogContent>
 
             {/* Sticky Footer with Actions */}
-            <DialogActions sx={{ p: 2, bgcolor: '#fff', borderTop: '1px solid', borderColor: 'divider', justifyContent: 'space-between' }}>
-                <Tooltip title="In phiếu đề xuất">
+            <DialogActions sx={{ p: 2, bgcolor: '#fff', borderTop: '1px solid', borderColor: 'divider', justifyContent: 'space-between', gap: 1, flexDirection: isMobile ? 'column-reverse' : 'row' }}>
+                {/* Print & Close (Grouped on Desktop, separated on mobile) */}
+                <Stack direction="row" spacing={1} width={isMobile ? '100%' : 'auto'} justifyContent="space-between">
+                    {!isMobile && (
+                        <Tooltip title="In phiếu đề xuất">
+                            <Button
+                                variant="outlined"
+                                color="inherit"
+                                startIcon={<PrintIcon />}
+                                onClick={handlePrint}
+                                sx={{ borderRadius: 2 }}
+                            >
+                                In phiếu
+                            </Button>
+                        </Tooltip>
+                    )}
                     <Button
-                        variant="outlined"
+                        onClick={onClose}
+                        variant="text"
                         color="inherit"
-                        startIcon={<PrintIcon />}
-                        onClick={handlePrint}
-                        sx={{ borderRadius: 2 }}
+                        fullWidth={isMobile}
+                        sx={{ borderRadius: 2, minWidth: 'auto', bgcolor: isMobile ? '#f5f5f5' : 'transparent' }}
                     >
-                        In phiếu
+                        Đóng
                     </Button>
-                </Tooltip>
-                <Button onClick={onClose} variant="contained" color="primary" sx={{ borderRadius: 2, px: 4 }}>
-                    Đóng
-                </Button>
+                </Stack>
+
+                {/* Main Actions (Full width on mobile) */}
+                <Box sx={{ flex: 1, width: '100%' }}>
+                    <ProposalActions
+                        item={proposal}
+                        canDoAction={canDoAction}
+                        setActionDialog={setActionDialog}
+                        user={user}
+                        isMaintenance={isMaintenance}
+                        isViceDirector={isViceDirector}
+                    />
+                </Box>
             </DialogActions>
         </Dialog>
     );

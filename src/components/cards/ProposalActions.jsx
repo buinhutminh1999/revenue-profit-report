@@ -12,9 +12,10 @@ import { vibrate, getActiveStep } from '../../utils/proposalUtils';
  * ProposalActions - Hiển thị các action buttons theo step hiện tại
  * Được memo hóa để tránh re-render không cần thiết
  */
-const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, userEmail, isMaintenance, isViceDirector }) => {
+const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, userEmail, isMaintenance, isViceDirector, isList = false }) => {
     // Cache step calculation
     const step = useMemo(() => getActiveStep(item), [item]);
+    const buttonVariant = isList ? "outlined" : "contained";
 
     return (
         <Box sx={{ width: '100%' }}>
@@ -22,12 +23,16 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
             {step === 1 && canDoAction('maintenance_opinion') && (
                 <Button
                     size="medium"
-                    variant="contained"
+                    variant={buttonVariant}
                     color="primary"
                     startIcon={<BuildIcon />}
-                    onClick={() => { vibrate(); setActionDialog({ open: true, type: 'maintenance_opinion', item, title: 'Ý kiến bảo trì' }); }}
+                    onClick={(e) => {
+                        if (isList) e.stopPropagation();
+                        vibrate();
+                        setActionDialog({ open: true, type: 'maintenance_opinion', item, title: 'Ý kiến bảo trì' });
+                    }}
                     fullWidth
-                    sx={{ boxShadow: 2 }}
+                    sx={{ boxShadow: isList ? 0 : 2, bgcolor: isList ? 'white' : undefined }}
                 >
                     Nhập ý kiến bảo trì
                 </Button>
@@ -40,11 +45,15 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
             {step === 2 && canDoAction('approve') && (
                 <Button
                     size="medium"
-                    variant="contained"
+                    variant={buttonVariant}
                     color="warning"
-                    onClick={() => { vibrate(); setActionDialog({ open: true, type: 'approval', item, title: 'Phê duyệt đề xuất' }); }}
+                    onClick={(e) => {
+                        if (isList) e.stopPropagation();
+                        vibrate();
+                        setActionDialog({ open: true, type: 'approval', item, title: 'Phê duyệt đề xuất' });
+                    }}
                     fullWidth
-                    sx={{ boxShadow: 2 }}
+                    sx={{ boxShadow: isList ? 0 : 2, bgcolor: isList ? 'white' : undefined }}
                 >
                     Phê Duyệt
                 </Button>
@@ -58,12 +67,16 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
                 <Stack spacing={1} width="100%">
                     <Button
                         size="medium"
-                        variant="contained"
+                        variant={buttonVariant}
                         color="info"
                         startIcon={<BuildIcon />}
-                        onClick={() => { vibrate(); setActionDialog({ open: true, type: 'confirm_maintenance', item, title: 'Xác nhận Bảo Trì Xong' }); }}
+                        onClick={(e) => {
+                            if (isList) e.stopPropagation();
+                            vibrate();
+                            setActionDialog({ open: true, type: 'confirm_maintenance', item, title: 'Xác nhận Bảo Trì Xong' });
+                        }}
                         fullWidth
-                        sx={{ boxShadow: 2 }}
+                        sx={{ boxShadow: isList ? 0 : 2, bgcolor: isList ? 'white' : undefined }}
                     >
                         Tổ bảo trì
                     </Button>
@@ -81,12 +94,16 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
                     <Stack direction="row" spacing={1} width="100%">
                         <Button
                             size="medium"
-                            variant="contained"
+                            variant={buttonVariant}
                             color="primary"
                             startIcon={<CheckCircleIcon />}
-                            onClick={() => { vibrate(); setActionDialog({ open: true, type: 'confirm_proposer', item, title: 'Nghiệm thu sửa chữa' }); }}
+                            onClick={(e) => {
+                                if (isList) e.stopPropagation();
+                                vibrate();
+                                setActionDialog({ open: true, type: 'confirm_proposer', item, title: 'Nghiệm thu sửa chữa' });
+                            }}
                             fullWidth
-                            sx={{ flex: 2, boxShadow: 2 }}
+                            sx={{ flex: 2, boxShadow: isList ? 0 : 2, bgcolor: isList ? 'white' : undefined }}
                         >
                             Nghiệm Thu
                         </Button>
@@ -95,7 +112,7 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
                             variant="outlined"
                             color="error"
                             startIcon={<LoopIcon />}
-                            onClick={() => setActionDialog({ open: true, type: 'reject_maintenance', item, title: 'Yêu cầu làm lại' })}
+                            onClick={(e) => { if (isList) e.stopPropagation(); setActionDialog({ open: true, type: 'reject_maintenance', item, title: 'Yêu cầu làm lại' }) }}
                             sx={{ flex: 1, bgcolor: 'white' }}
                         >
                             Chưa đạt
@@ -115,12 +132,16 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
                     <Stack direction="row" spacing={1} width="100%">
                         <Button
                             size="medium"
-                            variant="contained"
+                            variant={buttonVariant}
                             color="success"
                             startIcon={<CheckCircleIcon />}
-                            onClick={() => { vibrate(); setActionDialog({ open: true, type: 'confirm_vice_director', item, title: 'Nghiệm thu và hoàn tất' }); }}
+                            onClick={(e) => {
+                                if (isList) e.stopPropagation();
+                                vibrate();
+                                setActionDialog({ open: true, type: 'confirm_vice_director', item, title: 'Nghiệm thu và hoàn tất' });
+                            }}
                             fullWidth
-                            sx={{ flex: 2, boxShadow: 2 }}
+                            sx={{ flex: 2, boxShadow: isList ? 0 : 2, bgcolor: isList ? 'white' : undefined }}
                         >
                             Nghiệm Thu
                         </Button>
@@ -129,7 +150,7 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
                             variant="outlined"
                             color="error"
                             startIcon={<LoopIcon />}
-                            onClick={() => setActionDialog({ open: true, type: 'reject_final', item, title: 'Yêu cầu làm lại' })}
+                            onClick={(e) => { if (isList) e.stopPropagation(); setActionDialog({ open: true, type: 'reject_final', item, title: 'Yêu cầu làm lại' }) }}
                             sx={{ flex: 1, bgcolor: 'white' }}
                         >
                             Chưa đạt

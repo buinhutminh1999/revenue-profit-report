@@ -223,7 +223,15 @@ const ProposalDialog = ({ open, onClose, onSubmit, initialData }) => {
             maxWidth="md"
             fullScreen={fullScreen}
             PaperProps={{
-                sx: { borderRadius: fullScreen ? 0 : 3, overflow: 'hidden' }
+                component: 'form',
+                onSubmit: handleSubmit(onFormSubmit),
+                sx: {
+                    borderRadius: fullScreen ? 0 : 3,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    maxHeight: fullScreen ? '100%' : 'calc(100% - 64px)'
+                }
             }}
         >
             {/* Header */}
@@ -233,7 +241,8 @@ const ProposalDialog = ({ open, onClose, onSubmit, initialData }) => {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                py: 2
+                py: 2,
+                flexShrink: 0
             }}>
                 <Box>
                     <Typography variant="h6" fontWeight="bold">
@@ -248,198 +257,208 @@ const ProposalDialog = ({ open, onClose, onSubmit, initialData }) => {
                 </IconButton>
             </DialogTitle>
 
-            <form onSubmit={handleSubmit(onFormSubmit)}>
-                <DialogContent dividers sx={{ p: 3, bgcolor: '#f8f9fa' }}>
-                    <Stack spacing={3}>
-                        {/* Basic Info Section */}
-                        <TextField
-                            label="Người đề xuất"
-                            fullWidth
-                            variant="outlined"
-                            {...register('proposer', { required: true })}
-                            InputProps={{ readOnly: true }}
-                            sx={{ bgcolor: 'white' }}
-                        />
+            <DialogContent dividers sx={{
+                p: 3,
+                bgcolor: '#f8f9fa',
+                flex: 1,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column'
+            }}>
+                <Stack spacing={3}>
+                    {/* Basic Info Section */}
+                    <TextField
+                        label="Người đề xuất"
+                        fullWidth
+                        variant="outlined"
+                        {...register('proposer', { required: true })}
+                        InputProps={{ readOnly: true }}
+                        sx={{ bgcolor: 'white' }}
+                    />
 
-                        <Controller
-                            control={control}
-                            name="department"
-                            rules={{ required: true }}
-                            render={({ field }) => (
-                                <Autocomplete
-                                    options={DEPARTMENTS}
-                                    value={field.value || ''}
-                                    onChange={(e, newValue) => field.onChange(newValue || '')}
-                                    freeSolo
-                                    renderInput={(params) => (
-                                        <TextField {...params} label="Phân xưởng" fullWidth required variant="outlined" sx={{ bgcolor: 'white' }} />
-                                    )}
-                                />
-                            )}
-                        />
-
-                        {initialData?.id && (
-                            <Controller
-                                control={control}
-                                name="proposalTime"
-                                render={({ field }) => (
-                                    <DateTimePicker
-                                        label="Thời gian đề xuất"
-                                        value={field.value ? new Date(field.value) : null}
-                                        onChange={(newValue) => field.onChange(newValue)}
-                                        readOnly={!initialData?.id}
-                                        viewRenderers={{
-                                            hours: renderTimeViewClock,
-                                            minutes: renderTimeViewClock,
-                                            seconds: renderTimeViewClock,
-                                        }}
-                                        slotProps={{ textField: { fullWidth: true, variant: "outlined", sx: { bgcolor: 'white' } } }}
-                                    />
+                    <Controller
+                        control={control}
+                        name="department"
+                        rules={{ required: true }}
+                        render={({ field }) => (
+                            <Autocomplete
+                                options={DEPARTMENTS}
+                                value={field.value || ''}
+                                onChange={(e, newValue) => field.onChange(newValue || '')}
+                                freeSolo
+                                renderInput={(params) => (
+                                    <TextField {...params} label="Phân xưởng" fullWidth required variant="outlined" sx={{ bgcolor: 'white' }} />
                                 )}
                             />
                         )}
+                    />
 
-                        {/* Content Section */}
-                        <TextField
-                            label="Nội dung đề xuất"
-                            fullWidth
-                            multiline
-                            rows={4}
-                            variant="outlined"
-                            placeholder="Mô tả chi tiết sự cố hoặc yêu cầu sửa chữa..."
-                            {...register('content', { required: true })}
-                            sx={{ bgcolor: 'white' }}
-                        />
-
-                        {/* Image Upload Section */}
-                        <Box>
-                            <Typography variant="subtitle2" gutterBottom fontWeight="bold" color="text.secondary">
-                                Hình ảnh/Video đính kèm
-                            </Typography>
-                            <Box sx={{
-                                border: '2px dashed',
-                                borderColor: uploading ? 'primary.main' : '#e0e0e0',
-                                p: 3,
-                                borderRadius: 2,
-                                bgcolor: 'white',
-                                textAlign: 'center',
-                                transition: 'all 0.2s',
-                                '&:hover': {
-                                    borderColor: 'primary.main',
-                                    bgcolor: alpha(theme.palette.primary.main, 0.02)
-                                }
-                            }}>
-                                {!previewUrl ? (
-                                    <Button
-                                        component="label"
-                                        variant="text"
-                                        fullWidth
-                                        sx={{ height: 100, flexDirection: 'column', color: 'text.secondary' }}
-                                        disabled={uploading}
-                                    >
-                                        <CloudUploadIcon sx={{ fontSize: 40, mb: 1, color: 'primary.main' }} />
-                                        <Typography variant="body2">Nhấn để tải ảnh hoặc video lên</Typography>
-                                        <input
-                                            type="file"
-                                            hidden
-                                            accept="image/*,video/*"
-                                            onChange={handleFileChange}
-                                        />
-                                    </Button>
-                                ) : (
-                                    <Box sx={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
-                                        {/* Preview Container */}
-                                        <Box sx={{
-                                            position: 'relative',
-                                            borderRadius: 2,
-                                            overflow: 'hidden',
-                                            boxShadow: 3,
-                                            maxHeight: 250
-                                        }}>
-                                            {isVideo(imageFile) || isVideo(previewUrl) ? (
-                                                <video
-                                                    src={previewUrl}
-                                                    controls
-                                                    style={{ maxWidth: '100%', maxHeight: 250, display: 'block' }}
-                                                />
-                                            ) : (
-                                                <img
-                                                    src={previewUrl}
-                                                    alt="Preview"
-                                                    style={{ maxWidth: '100%', maxHeight: 250, display: 'block' }}
-                                                />
-                                            )}
-                                        </Box>
-
-                                        {/* Remove Button */}
-                                        <IconButton
-                                            size="small"
-                                            onClick={handleRemoveImage}
-                                            disabled={uploading}
-                                            sx={{
-                                                position: 'absolute',
-                                                top: 8,
-                                                right: 8,
-                                                bgcolor: 'rgba(0,0,0,0.6)',
-                                                color: 'white',
-                                                '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' }
-                                            }}
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
-                                    </Box>
-                                )}
-
-                                {/* Progress Indicator */}
-                                {uploading && (
-                                    <Box sx={{ mt: 2, width: '100%', maxWidth: 400, mx: 'auto' }}>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                                            <Typography variant="caption" color="primary">{statusMessage}</Typography>
-                                            <Typography variant="caption" color="text.secondary">{compressProgress > 0 ? `${compressProgress}%` : ''}</Typography>
-                                        </Box>
-                                        <LinearProgress
-                                            variant={compressProgress > 0 ? "determinate" : "indeterminate"}
-                                            value={compressProgress}
-                                            sx={{ borderRadius: 1, height: 6 }}
-                                        />
-                                    </Box>
-                                )}
-                            </Box>
-                        </Box>
-                    </Stack>
-                </DialogContent>
-
-                <DialogActions sx={{ p: 2.5, bgcolor: '#f8f9fa', borderTop: '1px solid #eee' }}>
                     {initialData?.id && (
-                        <Button
-                            onClick={handlePrint}
-                            color="inherit"
-                            startIcon={<PrintIcon />}
-                            sx={{ mr: 'auto', textTransform: 'none' }}
-                        >
-                            In Phiếu
-                        </Button>
+                        <Controller
+                            control={control}
+                            name="proposalTime"
+                            render={({ field }) => (
+                                <DateTimePicker
+                                    label="Thời gian đề xuất"
+                                    value={field.value ? new Date(field.value) : null}
+                                    onChange={(newValue) => field.onChange(newValue)}
+                                    readOnly={!initialData?.id}
+                                    viewRenderers={{
+                                        hours: renderTimeViewClock,
+                                        minutes: renderTimeViewClock,
+                                        seconds: renderTimeViewClock,
+                                    }}
+                                    slotProps={{ textField: { fullWidth: true, variant: "outlined", sx: { bgcolor: 'white' } } }}
+                                />
+                            )}
+                        />
                     )}
-                    <Button onClick={onClose} disabled={uploading} sx={{ textTransform: 'none', px: 3 }}>
-                        Hủy bỏ
-                    </Button>
+
+                    {/* Content Section */}
+                    <TextField
+                        label="Nội dung đề xuất"
+                        fullWidth
+                        multiline
+                        rows={4}
+                        variant="outlined"
+                        placeholder="Mô tả chi tiết sự cố hoặc yêu cầu sửa chữa..."
+                        {...register('content', { required: true })}
+                        sx={{ bgcolor: 'white' }}
+                    />
+
+                    {/* Image Upload Section */}
+                    <Box>
+                        <Typography variant="subtitle2" gutterBottom fontWeight="bold" color="text.secondary">
+                            Hình ảnh/Video đính kèm
+                        </Typography>
+                        <Box sx={{
+                            border: '2px dashed',
+                            borderColor: uploading ? 'primary.main' : '#e0e0e0',
+                            p: 3,
+                            borderRadius: 2,
+                            bgcolor: 'white',
+                            textAlign: 'center',
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                                borderColor: 'primary.main',
+                                bgcolor: alpha(theme.palette.primary.main, 0.02)
+                            }
+                        }}>
+                            {!previewUrl ? (
+                                <Button
+                                    component="label"
+                                    variant="text"
+                                    fullWidth
+                                    sx={{ height: 100, flexDirection: 'column', color: 'text.secondary' }}
+                                    disabled={uploading}
+                                >
+                                    <CloudUploadIcon sx={{ fontSize: 40, mb: 1, color: 'primary.main' }} />
+                                    <Typography variant="body2">Nhấn để tải ảnh hoặc video lên</Typography>
+                                    <input
+                                        type="file"
+                                        hidden
+                                        accept="image/*,video/*"
+                                        onChange={handleFileChange}
+                                    />
+                                </Button>
+                            ) : (
+                                <Box sx={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+                                    {/* Preview Container */}
+                                    <Box sx={{
+                                        position: 'relative',
+                                        borderRadius: 2,
+                                        overflow: 'hidden',
+                                        boxShadow: 3,
+                                        maxHeight: 250
+                                    }}>
+                                        {isVideo(imageFile) || isVideo(previewUrl) ? (
+                                            <video
+                                                src={previewUrl}
+                                                controls
+                                                style={{ maxWidth: '100%', maxHeight: 250, display: 'block' }}
+                                            />
+                                        ) : (
+                                            <img
+                                                src={previewUrl}
+                                                alt="Preview"
+                                                style={{ maxWidth: '100%', maxHeight: 250, display: 'block' }}
+                                            />
+                                        )}
+                                    </Box>
+
+                                    {/* Remove Button */}
+                                    <IconButton
+                                        size="small"
+                                        onClick={handleRemoveImage}
+                                        disabled={uploading}
+                                        sx={{
+                                            position: 'absolute',
+                                            top: 8,
+                                            right: 8,
+                                            bgcolor: 'rgba(0,0,0,0.6)',
+                                            color: 'white',
+                                            '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' }
+                                        }}
+                                    >
+                                        <DeleteIcon />
+                                    </IconButton>
+                                </Box>
+                            )}
+
+                            {/* Progress Indicator */}
+                            {uploading && (
+                                <Box sx={{ mt: 2, width: '100%', maxWidth: 400, mx: 'auto' }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                        <Typography variant="caption" color="primary">{statusMessage}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{compressProgress > 0 ? `${compressProgress}%` : ''}</Typography>
+                                    </Box>
+                                    <LinearProgress
+                                        variant={compressProgress > 0 ? "determinate" : "indeterminate"}
+                                        value={compressProgress}
+                                        sx={{ borderRadius: 1, height: 6 }}
+                                    />
+                                </Box>
+                            )}
+                        </Box>
+                    </Box>
+                </Stack>
+            </DialogContent>
+
+            <DialogActions sx={{
+                p: 2.5,
+                bgcolor: '#f8f9fa',
+                borderTop: '1px solid #eee',
+                flexShrink: 0
+            }}>
+                {initialData?.id && (
                     <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={uploading}
-                        startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : null}
-                        sx={{
-                            px: 4,
-                            textTransform: 'none',
-                            fontWeight: 'bold',
-                            boxShadow: 2,
-                            background: 'linear-gradient(45deg, #1976d2 30%, #2196f3 90%)',
-                        }}
+                        onClick={handlePrint}
+                        color="inherit"
+                        startIcon={<PrintIcon />}
+                        sx={{ mr: 'auto', textTransform: 'none' }}
                     >
-                        {uploading ? 'Đang lưu...' : 'Lưu Đề Xuất'}
+                        In Phiếu
                     </Button>
-                </DialogActions>
-            </form>
+                )}
+                <Button onClick={onClose} disabled={uploading} sx={{ textTransform: 'none', px: 3 }}>
+                    Hủy bỏ
+                </Button>
+                <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={uploading}
+                    startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : null}
+                    sx={{
+                        px: 4,
+                        textTransform: 'none',
+                        fontWeight: 'bold',
+                        boxShadow: 2,
+                        background: 'linear-gradient(45deg, #1976d2 30%, #2196f3 90%)',
+                    }}
+                >
+                    {uploading ? 'Đang lưu...' : 'Lưu Đề Xuất'}
+                </Button>
+            </DialogActions>
         </Dialog>
     );
 };

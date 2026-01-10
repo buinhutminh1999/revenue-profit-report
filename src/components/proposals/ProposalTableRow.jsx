@@ -167,7 +167,7 @@ const ProposalTableRow = React.memo(({
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <CheckCircleIcon color="success" sx={{ fontSize: 16 }} />
                             <Typography variant="caption" color="success.main" fontWeight="bold">
-                                {formatDateSafe(item.confirmations.viceDirector.time)} bởi {item.confirmations.viceDirector.user}
+                                {item.confirmations.viceDirector.user}
                             </Typography>
                         </Box>
                     )}
@@ -193,6 +193,31 @@ const ProposalTableRow = React.memo(({
                         isViceDirector={isViceDirector}
                     />
                 </Stack>
+            </TableCell>
+
+            {/* Completion Date / Estimated Date Column */}
+            <TableCell>
+                {step === 6 && item.confirmations?.viceDirector ? (
+                    <Stack spacing={0.5}>
+                        <Typography variant="body2" fontWeight="bold" color="success.main">
+                            {formatDateSafe(item.confirmations.viceDirector.time).split(' ')[0]}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            {formatDateSafe(item.confirmations.viceDirector.time).split(' ').slice(1).join(' ')}
+                        </Typography>
+                    </Stack>
+                ) : item.estimatedCompletion ? (
+                    <Stack spacing={0.5}>
+                        <Typography variant="body2" fontWeight="bold" color="primary.main">
+                            {formatDateSafe(item.estimatedCompletion).split(' ')[0]}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            (Dự kiến)
+                        </Typography>
+                    </Stack>
+                ) : (
+                    <Typography variant="caption" color="text.disabled">---</Typography>
+                )}
             </TableCell>
 
             {/* Edit/Delete Actions */}
