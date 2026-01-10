@@ -298,7 +298,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                                 <BuildIcon sx={{ fontSize: 14, mr: 0.5 }} />
                                                 Ý kiến bảo trì:
                                             </Typography>
-                                            <Typography variant="body2" fontSize="0.85rem">
+                                            <Typography variant="body1" fontSize="1rem" fontWeight={500} color="text.primary">
                                                 {item.maintenanceOpinion}
                                             </Typography>
                                         </Box>
