@@ -345,7 +345,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         {formatDateSafe(proposal.proposalTime)} bởi <strong>{proposal.proposer}</strong>
                     </Typography>
                     {proposal.content && (
-                        <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#f1f5f9', fontSize: '0.95rem', border: '1px dashed #cbd5e1' }}>
+                        <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
                             "{proposal.content}"
                         </Paper>
                     )}
@@ -361,7 +361,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                     </TimelineSeparator>
                     <TimelineContent sx={{ py: '12px', px: 2 }}>
                         <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
-                            Cập nhật phương án bảo trì
+                            Phương án sửa chữa
                         </Typography>
                         <Typography variant="body2" display="block" color="text.secondary">
                             {formatDateSafe(proposal.maintenanceOpinionTime)} bởi <strong>{proposal.maintenanceOpinionUser || 'Mặc định'}</strong>
@@ -382,13 +382,13 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                     </TimelineSeparator>
                     <TimelineContent sx={{ py: '12px', px: 2 }}>
                         <Typography variant="h6" fontWeight={600} color={proposal.approval.status === 'approved' ? 'success.main' : 'error.main'} sx={{ fontSize: '1.05rem' }}>
-                            {proposal.approval.status === 'approved' ? 'Đã duyệt' : 'Từ chối'}
+                            {proposal.approval.status === 'approved' ? 'Duyệt phương án sửa chữa' : 'Từ chối'}
                         </Typography>
                         <Typography variant="body2" display="block" color="text.secondary">
                             {formatDateSafe(proposal.approval.time)} bởi <strong>{proposal.approval.user}</strong>
                         </Typography>
                         {proposal.approval.comment && (
-                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fafafa', fontSize: '0.95rem' }}>
+                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
                                 "{proposal.approval.comment}"
                             </Paper>
                         )}
@@ -434,13 +434,13 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         {entry.type === 'completed' ? (
                             <>
                                 <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>
-                                    🔧 Hoàn thành sửa chữa (Lần {entry.attempt || index + 1})
+                                    🔧 Hoàn thành sửa chữa {(entry.attempt || index + 1) > 1 ? `(Lần ${entry.attempt || index + 1})` : ''}
                                 </Typography>
                                 <Typography variant="body2" display="block" color="text.secondary">
                                     {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
                                 </Typography>
                                 {entry.comment && (
-                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
+                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
                                         "{entry.comment}"
                                     </Paper>
                                 )}
@@ -455,7 +455,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                                     {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
                                 </Typography>
                                 {entry.comment && (
-                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
+                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
                                         "{entry.comment}"
                                     </Paper>
                                 )}
@@ -479,7 +479,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                             {formatDateSafe(proposal.confirmations.maintenance.time)} bởi <strong>{proposal.confirmations.maintenance.user}</strong>
                         </Typography>
                         {proposal.confirmations.maintenance.comment && (
-                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
+                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
                                 "{proposal.confirmations.maintenance.comment}"
                             </Paper>
                         )}
@@ -496,12 +496,12 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         <TimelineConnector />
                     </TimelineSeparator>
                     <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Nghiệm thu</Typography>
+                        <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Người đề xuất nghiệm thu</Typography>
                         <Typography variant="body2" display="block" color="text.secondary">
                             {formatDateSafe(proposal.confirmations.proposer.time)} bởi <strong>{proposal.confirmations.proposer.user}</strong>
                         </Typography>
                         {proposal.confirmations.proposer.comment && (
-                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e8f5e9', fontSize: '0.95rem', border: '1px dashed #a5d6a7' }}>
+                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
                                 "{proposal.confirmations.proposer.comment}"
                             </Paper>
                         )}
@@ -517,10 +517,15 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         <TimelineDot color="success" sx={{ width: 14, height: 14 }} />
                     </TimelineSeparator>
                     <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="h6" fontWeight={600} color="success.main" sx={{ fontSize: '1.05rem' }}>P.GĐ xác nhận</Typography>
+                        <Typography variant="h6" fontWeight={600} color="success.main" sx={{ fontSize: '1.05rem' }}>P.GĐ xác nhận hoàn thành</Typography>
                         <Typography variant="body2" display="block" color="text.secondary">
                             {formatDateSafe(proposal.confirmations.viceDirector.time)} bởi <strong>{proposal.confirmations.viceDirector.user}</strong>
                         </Typography>
+                        {proposal.confirmations.viceDirector.comment && (
+                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e8f5e9', fontSize: '0.95rem', border: '1px dashed #a5d6a7' }}>
+                                "{proposal.confirmations.viceDirector.comment}"
+                            </Paper>
+                        )}
                         {renderImages(proposal.confirmations.viceDirector.images, "Ảnh xác nhận")}
                     </TimelineContent>
                 </TimelineItem>
