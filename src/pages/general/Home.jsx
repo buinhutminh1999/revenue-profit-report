@@ -295,7 +295,7 @@ const Home = () => {
                         sx={{
                             background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                             borderRadius: { xs: 3, sm: 4 },
-                            p: { xs: 2.5, sm: 4, md: 5 },
+                            p: { xs: 2, sm: 4, md: 5 },
                             mb: { xs: 3, sm: 4 },
                             position: 'relative',
                             overflow: 'hidden',
@@ -368,21 +368,21 @@ const Home = () => {
                                     { icon: <BarChart3 sx={{ fontSize: 24 }} />, count: stats.reports, label: "Báo cáo" }
                                 ].map((stat, index) => (
                                     <Box key={index} sx={{
-                                        minWidth: { xs: 160, sm: 200, md: 'auto' },
+                                        minWidth: { xs: 150, sm: 200, md: 'auto' },
                                         flex: { md: 1 },
                                         scrollSnapAlign: 'start'
                                     }}>
                                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                                             <StatCard color="#ffffff" sx={{ bgcolor: alpha('#fff', 0.15), borderColor: alpha('#fff', 0.3) }}>
-                                                <Stack direction="row" spacing={2} alignItems="center">
-                                                    <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 44, height: 44 }}>
+                                                <Stack direction="row" spacing={1.5} alignItems="center">
+                                                    <Avatar sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', borderRadius: '12px', width: 40, height: 40 }}>
                                                         {stat.icon}
                                                     </Avatar>
                                                     <Box>
-                                                        <Typography variant="h5" sx={{ fontWeight: 800, color: 'white' }}>
+                                                        <Typography variant="h5" sx={{ fontWeight: 800, color: 'white', fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
                                                             {stat.count}
                                                         </Typography>
-                                                        <Typography variant="body2" sx={{ color: alpha('#fff', 0.9), fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                                        <Typography variant="body2" sx={{ color: alpha('#fff', 0.95), fontWeight: 500, fontSize: '0.75rem', lineHeight: 1.2 }}>
                                                             {stat.label}
                                                         </Typography>
                                                     </Box>
@@ -461,19 +461,23 @@ const Home = () => {
                                             onClick={() => setSelectedCategory(cat)}
                                             icon={cat === selectedCategory ? <Filter sx={{ fontSize: 16 }} /> : undefined}
                                             sx={{
-                                                flexShrink: 0, // Prevent shrinking
+                                                flexShrink: 0,
                                                 bgcolor: cat === selectedCategory
                                                     ? 'white'
                                                     : alpha('#fff', 0.15),
                                                 color: cat === selectedCategory ? theme.palette.primary.main : 'white',
                                                 fontWeight: cat === selectedCategory ? 700 : 500,
-                                                border: `1.5px solid ${cat === selectedCategory ? 'transparent' : alpha('#fff', 0.3)}`,
+                                                border: `1px solid ${cat === selectedCategory ? 'white' : alpha('#fff', 0.3)}`,
                                                 borderRadius: '12px',
-                                                height: 36,
+                                                height: { xs: 36, sm: 40 },
+                                                px: 1,
+                                                boxShadow: cat === selectedCategory ? '0 4px 12px rgba(0,0,0,0.1)' : 'none',
+                                                transition: 'all 0.2s ease',
                                                 '&:hover': {
                                                     bgcolor: cat === selectedCategory
-                                                        ? alpha('#fff', 0.95)
+                                                        ? alpha('#fff', 0.9)
                                                         : alpha('#fff', 0.25),
+                                                    transform: 'translateY(-1px)'
                                                 },
                                             }}
                                         />

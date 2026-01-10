@@ -243,7 +243,9 @@ const RepairProposalPage = () => {
         } else if (actionDialog.type === 'maintenance_opinion') {
             updateData = {
                 maintenanceOpinion: statusOrPayload.comment,
-                estimatedCompletion: statusOrPayload.estimatedCompletion
+                estimatedCompletion: statusOrPayload.estimatedCompletion,
+                maintenanceOpinionUser: statusOrPayload.maintenanceUser || user.displayName || user.email,
+                maintenanceOpinionTime: statusOrPayload.time
             };
         } else if (actionDialog.type.startsWith('confirm_')) {
             const key = actionDialog.type.replace('confirm_', '');
@@ -827,10 +829,12 @@ const RepairProposalPage = () => {
                             aria-label="add"
                             sx={{
                                 position: 'fixed',
-                                bottom: 24,
-                                right: 24,
+                                bottom: 40,
+                                right: 30,
                                 zIndex: 1000,
-                                boxShadow: 4
+                                boxShadow: 6, // Increased shadow for better visibility
+                                width: 56, // Explicit size
+                                height: 56
                             }}
                             onClick={handleOpenAdd}
                         >

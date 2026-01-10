@@ -212,7 +212,7 @@ const ProposalTableRow = React.memo(({
                             {formatDateSafe(item.estimatedCompletion).split(' ')[0]}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                            (Dự kiến)
+                            {formatDateSafe(item.estimatedCompletion).split(' ').slice(1).join(' ')} (DK)
                         </Typography>
                     </Stack>
                 ) : (

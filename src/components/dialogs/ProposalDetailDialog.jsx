@@ -308,6 +308,11 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         <Typography variant="body2" gutterBottom>
                             <strong>Phương án:</strong> {proposal.maintenanceOpinion}
                         </Typography>
+                        {proposal.maintenanceOpinionUser && (
+                            <Typography variant="body2" gutterBottom>
+                                <strong>Người bảo trì:</strong> {proposal.maintenanceOpinionUser}
+                            </Typography>
+                        )}
                         {proposal.estimatedCompletion && (
                             <Typography variant="caption" color="primary.main" fontWeight={600} display="block" gutterBottom>
                                 ⏱️ Dự kiến xong: {formatDateSafe(proposal.estimatedCompletion)}
@@ -341,6 +346,27 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                     </Typography>
                 </TimelineContent>
             </TimelineItem>
+
+            {/* Maintenance Opinion Updated */}
+            {proposal.maintenanceOpinion && (
+                <TimelineItem>
+                    <TimelineSeparator>
+                        <TimelineDot color="warning" sx={{ width: 12, height: 12 }} variant="outlined" />
+                        <TimelineConnector />
+                    </TimelineSeparator>
+                    <TimelineContent sx={{ py: '12px', px: 2 }}>
+                        <Typography variant="subtitle2" fontWeight={600} color="warning.main">
+                            Cập nhật phương án bảo trì
+                        </Typography>
+                        <Typography variant="caption" display="block" color="text.secondary">
+                            {formatDateSafe(proposal.maintenanceOpinionTime)} bởi <strong>{proposal.maintenanceOpinionUser || 'Mặc định'}</strong>
+                        </Typography>
+                        <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.75rem', border: '1px dashed #ffb74d' }}>
+                            "{proposal.maintenanceOpinion}"
+                        </Paper>
+                    </TimelineContent>
+                </TimelineItem>
+            )}
 
             {/* Approval */}
             {proposal.approval?.status && (proposal.approval.status === 'approved' || proposal.approval.status === 'rejected') && (

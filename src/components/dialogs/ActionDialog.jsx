@@ -161,6 +161,8 @@ const ActionDialog = ({ open, onClose, onAction, title, actionType, initialData 
                         required
                     />
 
+
+
                     {/* Image Upload Section - Only for specific action types */}
                     {supportsImageUpload && (
                         <Box sx={{ border: '1px dashed #ccc', p: 2, borderRadius: 1 }}>

@@ -122,27 +122,31 @@ const ProposalDiscussion = ({ proposal, onAddComment, user }) => {
                     <Box
                         sx={{
                             position: 'relative',
-                            bgcolor: isMe ? 'primary.main' : '#f0f2f5', // Modern gray
+                            bgcolor: isMe ? 'primary.main' : '#f0f2f5',
                             color: isMe ? '#fff' : 'text.primary',
-                            px: 2, py: 1.25,
+                            px: 2, py: 1.5,
                             borderRadius: 2.5,
                             borderBottomRightRadius: isMe ? 4 : 20,
                             borderBottomLeftRadius: !isMe ? 4 : 20,
                             boxShadow: isMe ? '0 2px 8px rgba(33, 150, 243, 0.2)' : '0 1px 2px rgba(0,0,0,0.05)',
-                            transition: 'all 0.2s'
+                            transition: 'all 0.2s',
+                            minWidth: 140, // Prevent too narrow bubbles
+                            maxWidth: '75%' // Limit max width
                         }}
                     >
                         {/* Reply Context */}
                         {replyingTo && (
                             <Box sx={{
-                                mb: 0.5, pl: 1, borderLeft: '2px solid',
-                                borderColor: isMe ? 'rgba(255,255,255,0.5)' : 'primary.main',
-                                fontSize: '0.75rem', opacity: 0.8
+                                mb: 1, p: 1,
+                                bgcolor: isMe ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.04)',
+                                borderRadius: 2,
+                                borderLeft: '3px solid',
+                                borderColor: isMe ? 'rgba(255,255,255,0.7)' : 'primary.main',
                             }}>
-                                <Typography variant="caption" display="block" fontWeight="bold">
+                                <Typography variant="caption" display="block" fontWeight="bold" sx={{ opacity: 0.9 }}>
                                     {replyingTo.userName}
                                 </Typography>
-                                <Typography variant="caption" noWrap sx={{ maxWidth: 150, display: 'block' }}>
+                                <Typography variant="caption" noWrap sx={{ maxWidth: 180, display: 'block', opacity: 0.8 }}>
                                     {replyingTo.content}
                                 </Typography>
                             </Box>

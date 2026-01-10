@@ -248,14 +248,14 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                 <AccessTimeIcon sx={{ fontSize: 14, mr: 0.5 }} />
                                 {step === 6 && item.confirmations?.viceDirector?.time ? (
                                     <Box component="span" sx={{ color: 'success.main', fontWeight: 'bold' }}>
-                                        Xong: {formatDateSafe(item.confirmations.viceDirector.time).split(' ')[2]}
+                                        Xong: {formatDateSafe(item.confirmations.viceDirector.time)}
                                     </Box>
                                 ) : item.estimatedCompletion ? (
                                     <Box component="span" sx={{ color: 'primary.main', fontWeight: 'bold' }}>
-                                        Dự kiến: {formatDateSafe(item.estimatedCompletion).split(' ')[2]}
+                                        Dự kiến: {formatDateSafe(item.estimatedCompletion)}
                                     </Box>
                                 ) : (
-                                    formatDateSafe(item.proposalTime).split(' ')[0]
+                                    formatDateSafe(item.proposalTime)
                                 )}
                             </Typography>
                         </Stack>
