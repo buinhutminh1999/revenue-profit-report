@@ -346,7 +346,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                             <TimelineConnector />
                         </TimelineSeparator>
                         <TimelineContent sx={{ py: '12px', px: 2 }}>
-                            <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Tạo đề xuất</Typography>
+                            <Typography variant="h6" fontWeight={600} color="primary.main" sx={{ fontSize: '1.05rem' }}>Tạo đề xuất</Typography>
                             <Typography variant="body2" display="block" color="text.secondary">
                                 {formatDateSafe(proposal.proposalTime)} bởi <strong>{proposal.proposer}</strong>
                             </Typography>
@@ -439,7 +439,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                             <TimelineContent sx={{ py: '12px', px: 2 }}>
                                 {entry.type === 'completed' ? (
                                     <>
-                                        <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>
+                                        <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
                                             🔧 Hoàn thành sửa chữa {(entry.attempt || index + 1) > 1 ? `(Lần ${entry.attempt || index + 1})` : ''}
                                         </Typography>
                                         <Typography variant="body2" display="block" color="text.secondary">
@@ -479,7 +479,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                                 <TimelineDot color="info" sx={{ width: 12, height: 12 }} />
                             </TimelineSeparator>
                             <TimelineContent sx={{ py: '12px', px: 2 }}>
-                                <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Hoàn thành sửa chữa</Typography>
+                                <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>Hoàn thành sửa chữa</Typography>
                                 <Typography variant="body2" display="block" color="text.secondary">
                                     {formatDateSafe(proposal.confirmations.maintenance.time)} bởi <strong>{proposal.confirmations.maintenance.user}</strong>
                                 </Typography>
@@ -511,7 +511,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                                         <TimelineConnector />
                                     </TimelineSeparator>
                                     <TimelineContent sx={{ py: '12px', px: 2 }}>
-                                        <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Người đề xuất nghiệm thu</Typography>
+                                        <Typography variant="h6" fontWeight={600} color="primary.main" sx={{ fontSize: '1.05rem' }}>Người đề xuất nghiệm thu</Typography>
                                         <Typography variant="body2" display="block" color="text.secondary">
                                             {formatDateSafe(proposal.confirmations.proposer.time)} bởi <strong>{proposal.confirmations.proposer.user}</strong>
                                         </Typography>
