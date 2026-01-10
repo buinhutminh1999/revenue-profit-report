@@ -160,7 +160,7 @@ const ProposalActions = React.memo(({ item, canDoAction, setActionDialog, user, 
             }
             {
                 step === 5 && !canDoAction('confirm_vice_director') && (
-                    <Chip label="Chờ P.GĐ XN" color="warning" size="small" variant="outlined" />
+                    <Chip label="Chờ P.GĐ xác nhận" color="warning" size="small" variant="outlined" />
                 )
             }
 
