@@ -394,7 +394,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                                     {formatDateSafe(proposal.approval.time)} bởi <strong>{proposal.approval.user}</strong>
                                 </Typography>
                                 {proposal.approval.comment && (
-                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
+                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e8f5e9', fontSize: '0.95rem', border: '1px dashed #a5d6a7' }}>
                                         "{proposal.approval.comment}"
                                     </Paper>
                                 )}
