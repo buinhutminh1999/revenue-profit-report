@@ -294,11 +294,11 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                             borderRadius: 2,
                                             borderLeft: `3px solid ${theme.palette.warning.main}`
                                         }}>
-                                            <Typography variant="caption" fontWeight="bold" display="flex" alignItems="center" color="warning.main" mb={0.5}>
-                                                <BuildIcon sx={{ fontSize: 14, mr: 0.5 }} />
+                                            <Typography variant="subtitle2" fontSize="1rem" fontWeight={700} display="flex" alignItems="center" color="warning.main" mb={0.5}>
+                                                <BuildIcon sx={{ fontSize: 18, mr: 1 }} />
                                                 Ý kiến bảo trì:
                                             </Typography>
-                                            <Typography variant="body1" fontSize="1rem" fontWeight={500} color="text.primary">
+                                            <Typography variant="body1" fontSize="1.1rem" fontWeight={500} color="text.primary">
                                                 {item.maintenanceOpinion}
                                             </Typography>
                                         </Box>
