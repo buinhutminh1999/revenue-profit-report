@@ -178,7 +178,7 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                     <Box sx={{ p: 2, pb: 1 }} onClick={(e) => { e.stopPropagation(); onViewDetails(item); }}>
                         {/* Header Row: Content & Actions */}
                         <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start" mb={1}>
-                            <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.05rem', lineHeight: 1.4, flex: 1, color: 'text.primary' }}>
+                            <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.2rem', lineHeight: 1.3, flex: 1, color: 'text.primary' }}>
                                 {item.content}
                             </Typography>
 
@@ -229,23 +229,23 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                 label={`#${item.code}`}
                                 size="small"
                                 sx={{
-                                    height: 20, fontSize: '0.65rem', fontWeight: 700,
+                                    height: 24, fontSize: '0.75rem', fontWeight: 700,
                                     bgcolor: alpha(theme.palette.text.secondary, 0.1), color: 'text.secondary',
-                                    borderRadius: 1
+                                    borderRadius: 1.5
                                 }}
                             />
                             <Chip
                                 label={statusText}
                                 size="small"
                                 sx={{
-                                    height: 20, fontSize: '0.65rem', fontWeight: 700,
+                                    height: 24, fontSize: '0.75rem', fontWeight: 700,
                                     bgcolor: alpha(theme.palette[statusColor].main, 0.1),
                                     color: theme.palette[statusColor].main,
-                                    borderRadius: 1
+                                    borderRadius: 1.5
                                 }}
                             />
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', ml: 'auto !important' }}>
-                                <AccessTimeIcon sx={{ fontSize: 14, mr: 0.5 }} />
+                            <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', ml: 'auto !important' }}>
+                                <AccessTimeIcon sx={{ fontSize: 16, mr: 0.5 }} />
                                 {step === 6 && item.confirmations?.viceDirector?.time ? (
                                     <Box component="span" sx={{ color: 'success.main', fontWeight: 'bold' }}>
                                         Xong: {formatDateSafe(item.confirmations.viceDirector.time)}
@@ -267,9 +267,9 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                     <Stack direction="row" spacing={1.5} alignItems="center">
                                         <Avatar
                                             sx={{
-                                                width: 28, height: 28,
-                                                bgcolor: theme.palette.primary.main, // Updated to main color for better visibility
-                                                fontSize: '0.8rem',
+                                                width: 36, height: 36,
+                                                bgcolor: theme.palette.primary.main,
+                                                fontSize: '0.95rem',
                                                 fontWeight: 'bold',
                                                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                                             }}
@@ -277,10 +277,10 @@ const MobileProposalCard = React.memo(({ item, canDoAction, setActionDialog, set
                                             {item.proposer?.charAt(0)}
                                         </Avatar>
                                         <Box>
-                                            <Typography variant="body2" fontWeight={700} lineHeight={1.2}>
+                                            <Typography variant="body1" fontWeight={700} lineHeight={1.2}>
                                                 {item.proposer}
                                             </Typography>
-                                            <Typography variant="caption" color="text.secondary">
+                                            <Typography variant="body2" color="text.secondary">
                                                 {item.department}
                                             </Typography>
                                         </Box>
