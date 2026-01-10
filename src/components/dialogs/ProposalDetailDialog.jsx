@@ -433,7 +433,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
             {(proposal.confirmations?.maintenance?.confirmed || proposal.maintenanceHistory?.length > 0 || proposal.confirmations?.proposer?.confirmed || proposal.confirmations?.viceDirector?.confirmed) && (
                 <>
                     <Typography variant="h6" color="success.main" gutterBottom sx={{ mt: 3, mb: 0, fontWeight: 700 }}>
-                        2. Giai đoạn sửa chữa hoàn thành, nghiệm thu
+                        2. Giai đoạn nghiệm thu hoàn thành
                     </Typography>
                     <Box sx={{ pl: 2, borderLeft: '1px dashed #e0e0e0', ml: 1 }}>
                         <Timeline sx={{ [`& .MuiTimelineItem-root:before`]: { flex: 0, padding: 0 }, p: 0, m: 0 }}>
