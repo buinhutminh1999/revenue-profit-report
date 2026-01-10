@@ -404,14 +404,14 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         <TimelineConnector />
                     </TimelineSeparator>
                     <TimelineContent sx={{ py: '12px', px: 2, opacity: 0.7 }}>
-                        <Typography variant="subtitle2" fontWeight={600} sx={{ textDecoration: 'line-through' }}>
+                        <Typography variant="h6" fontWeight={600} sx={{ textDecoration: 'line-through', fontSize: '1.05rem' }}>
                             Hoàn thành sửa chữa (Cũ)
                         </Typography>
-                        <Typography variant="caption" display="block" color="text.secondary">
+                        <Typography variant="body2" display="block" color="text.secondary">
                             {formatDateSafe(proposal.lastReworkRequest.previousMaintenance.time)} bởi <strong>{proposal.lastReworkRequest.previousMaintenance.user}</strong>
                         </Typography>
                         {proposal.lastReworkRequest.previousMaintenance.comment && (
-                            <Typography variant="caption" display="block" fontStyle="italic">"{proposal.lastReworkRequest.previousMaintenance.comment}"</Typography>
+                            <Typography variant="body1" display="block" fontStyle="italic">"{proposal.lastReworkRequest.previousMaintenance.comment}"</Typography>
                         )}
                         {renderImages(proposal.lastReworkRequest.previousMaintenance.images, "Ảnh bảo trì (cũ)")}
                     </TimelineContent>
@@ -431,27 +431,27 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                     <TimelineContent sx={{ py: '12px', px: 2 }}>
                         {entry.type === 'completed' ? (
                             <>
-                                <Typography variant="subtitle2" fontWeight={600}>
+                                <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>
                                     🔧 Hoàn thành sửa chữa (Lần {entry.attempt || index + 1})
                                 </Typography>
-                                <Typography variant="caption" display="block" color="text.secondary">
+                                <Typography variant="body2" display="block" color="text.secondary">
                                     {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
                                 </Typography>
                                 {entry.comment && (
-                                    <Typography variant="caption" display="block" fontStyle="italic">"{entry.comment}"</Typography>
+                                    <Typography variant="body1" display="block" fontStyle="italic" sx={{ fontSize: '0.95rem', color: 'text.secondary' }}>"{entry.comment}"</Typography>
                                 )}
                                 {renderImages(entry.images, "Ảnh hoàn thành")}
                             </>
                         ) : (
                             <>
-                                <Typography variant="subtitle2" fontWeight={600} color="warning.main">
+                                <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
                                     ⚠️ Yêu cầu làm lại
                                 </Typography>
-                                <Typography variant="caption" display="block" color="text.secondary">
+                                <Typography variant="body2" display="block" color="text.secondary">
                                     {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
                                 </Typography>
                                 {entry.comment && (
-                                    <Typography variant="body2" sx={{ mt: 0.5, fontStyle: 'italic', fontSize: '0.8rem' }}>
+                                    <Typography variant="body1" sx={{ mt: 0.5, fontStyle: 'italic', fontSize: '0.95rem', color: 'text.secondary' }}>
                                         "{entry.comment}"
                                     </Typography>
                                 )}
