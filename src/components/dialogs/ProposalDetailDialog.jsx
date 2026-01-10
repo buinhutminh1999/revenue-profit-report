@@ -56,12 +56,12 @@ const InfoCard = ({ title, icon, children, sx = {} }) => (
                 sx={{
                     bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
                     color: 'primary.main',
-                    width: 32, height: 32
+                    width: 40, height: 40
                 }}
             >
                 {icon}
             </Avatar>
-            <Typography variant="subtitle2" fontWeight={700} textTransform="uppercase" letterSpacing={0.5}>
+            <Typography variant="h6" fontWeight={700} textTransform="uppercase" letterSpacing={0.5}>
                 {title}
             </Typography>
         </Stack>
@@ -248,9 +248,9 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                     <Stack direction="row" spacing={2} alignItems="flex-start">
                         <ErrorIcon color="error" />
                         <Box>
-                            <Typography variant="subtitle2" color="error" fontWeight="bold">Đã bị từ chối</Typography>
-                            <Typography variant="body2">{proposal.lastRejection.comment}</Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography variant="h6" color="error" fontWeight="bold">Đã bị từ chối</Typography>
+                            <Typography variant="body1">{proposal.lastRejection.comment}</Typography>
+                            <Typography variant="body2" color="text.secondary">
                                 {formatDateSafe(proposal.lastRejection.time)} bởi {proposal.lastRejection.user}
                             </Typography>
                         </Box>
@@ -263,9 +263,9 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                     <Stack direction="row" spacing={2} alignItems="flex-start">
                         <HistoryIcon color="warning" />
                         <Box>
-                            <Typography variant="subtitle2" color="warning.main" fontWeight="bold">Yêu cầu làm lại</Typography>
-                            <Typography variant="body2">{proposal.lastReworkRequest.comment}</Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography variant="h6" color="warning.main" fontWeight="bold">Yêu cầu làm lại</Typography>
+                            <Typography variant="body1">{proposal.lastReworkRequest.comment}</Typography>
+                            <Typography variant="body2" color="text.secondary">
                                 {formatDateSafe(proposal.lastReworkRequest.time)} bởi {proposal.lastReworkRequest.user}
                             </Typography>
                             {renderImages(proposal.lastReworkRequest.images, "Ảnh minh chứng:")}
@@ -278,16 +278,16 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
             <InfoCard title="Thông tin chung" icon={<PersonIcon />}>
                 <Grid container spacing={2}>
                     <Grid size={{ xs: 6 }}>
-                        <Typography variant="caption" color="text.secondary">Người đề xuất</Typography>
-                        <Typography variant="body2" fontWeight={600}>{proposal.proposer}</Typography>
+                        <Typography variant="body1" color="text.secondary">Người đề xuất</Typography>
+                        <Typography variant="h6" fontWeight={600}>{proposal.proposer}</Typography>
                     </Grid>
                     <Grid size={{ xs: 6 }}>
-                        <Typography variant="caption" color="text.secondary">Bộ phận</Typography>
-                        <Typography variant="body2" fontWeight={600}>{proposal.department}</Typography>
+                        <Typography variant="body1" color="text.secondary">Bộ phận</Typography>
+                        <Typography variant="h6" fontWeight={600}>{proposal.department}</Typography>
                     </Grid>
                     <Grid size={{ xs: 6 }}>
-                        <Typography variant="caption" color="text.secondary">Ngày tạo</Typography>
-                        <Typography variant="body2" fontWeight={600}>{formatDateSafe(proposal.proposalTime)}</Typography>
+                        <Typography variant="body1" color="text.secondary">Ngày tạo</Typography>
+                        <Typography variant="h6" fontWeight={600}>{formatDateSafe(proposal.proposalTime)}</Typography>
                     </Grid>
 
                 </Grid>
@@ -295,7 +295,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
 
             {/* Content */}
             <InfoCard title="Nội dung đề xuất" icon={<DescriptionIcon />}>
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-line', lineHeight: 1.6 }}>
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-line', lineHeight: 1.8, fontSize: '1.1rem' }}>
                     {proposal.content}
                 </Typography>
                 {renderImages(proposal.images, "📸 Ảnh hiện trường")}
@@ -305,7 +305,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
             {
                 proposal.maintenanceOpinion && (
                     <InfoCard title="Phương án bảo trì" icon={<BuildIcon />}>
-                        <Typography variant="body2" gutterBottom>
+                        <Typography variant="body1" gutterBottom sx={{ fontSize: '1.1rem', lineHeight: 1.6 }}>
                             <strong>Phương án:</strong> {proposal.maintenanceOpinion}
                         </Typography>
                         {proposal.maintenanceOpinionUser && (
@@ -314,7 +314,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                             </Typography>
                         )}
                         {proposal.estimatedCompletion && (
-                            <Typography variant="caption" color="primary.main" fontWeight={600} display="block" gutterBottom>
+                            <Typography variant="body2" color="primary.main" fontWeight={600} display="block" gutterBottom sx={{ fontSize: '1rem' }}>
                                 ⏱️ Dự kiến xong: {formatDateSafe(proposal.estimatedCompletion)}
                             </Typography>
                         )}
@@ -340,10 +340,15 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                     <TimelineConnector />
                 </TimelineSeparator>
                 <TimelineContent sx={{ py: '12px', px: 2 }}>
-                    <Typography variant="subtitle2" fontWeight={600}>Tạo đề xuất</Typography>
-                    <Typography variant="caption" display="block" color="text.secondary">
+                    <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Tạo đề xuất</Typography>
+                    <Typography variant="body2" display="block" color="text.secondary">
                         {formatDateSafe(proposal.proposalTime)} bởi <strong>{proposal.proposer}</strong>
                     </Typography>
+                    {proposal.content && (
+                        <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#f1f5f9', fontSize: '0.95rem', border: '1px dashed #cbd5e1' }}>
+                            "{proposal.content}"
+                        </Paper>
+                    )}
                 </TimelineContent>
             </TimelineItem>
 
@@ -355,13 +360,13 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         <TimelineConnector />
                     </TimelineSeparator>
                     <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="subtitle2" fontWeight={600} color="warning.main">
+                        <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
                             Cập nhật phương án bảo trì
                         </Typography>
-                        <Typography variant="caption" display="block" color="text.secondary">
+                        <Typography variant="body2" display="block" color="text.secondary">
                             {formatDateSafe(proposal.maintenanceOpinionTime)} bởi <strong>{proposal.maintenanceOpinionUser || 'Mặc định'}</strong>
                         </Typography>
-                        <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.75rem', border: '1px dashed #ffb74d' }}>
+                        <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
                             "{proposal.maintenanceOpinion}"
                         </Paper>
                     </TimelineContent>
@@ -376,14 +381,14 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         <TimelineConnector />
                     </TimelineSeparator>
                     <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="subtitle2" fontWeight={600} color={proposal.approval.status === 'approved' ? 'success.main' : 'error.main'}>
+                        <Typography variant="h6" fontWeight={600} color={proposal.approval.status === 'approved' ? 'success.main' : 'error.main'} sx={{ fontSize: '1.05rem' }}>
                             {proposal.approval.status === 'approved' ? 'Đã duyệt' : 'Từ chối'}
                         </Typography>
-                        <Typography variant="caption" display="block" color="text.secondary">
+                        <Typography variant="body2" display="block" color="text.secondary">
                             {formatDateSafe(proposal.approval.time)} bởi <strong>{proposal.approval.user}</strong>
                         </Typography>
                         {proposal.approval.comment && (
-                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fafafa', fontSize: '0.75rem' }}>
+                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fafafa', fontSize: '0.95rem' }}>
                                 "{proposal.approval.comment}"
                             </Paper>
                         )}
@@ -544,10 +549,10 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         {headerIcon}
                     </Avatar>
                     <Box>
-                        <Typography variant="h6" fontWeight={700} lineHeight={1.2}>
+                        <Typography variant="h5" fontWeight={700} lineHeight={1.2}>
                             Đề Xuất #{proposal.code}
                         </Typography>
-                        <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                        <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>
                             {STEPS[activeStep - 1]?.label || 'Hoàn tất'}
                         </Typography>
                     </Box>
@@ -568,7 +573,8 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         '& .MuiTab-root': {
                             textTransform: 'none',
                             fontWeight: 600,
-                            minHeight: 48
+                            minHeight: 48,
+                            fontSize: '1rem'
                         }
                     }}
                 >
@@ -622,7 +628,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                                         connector={<QontoConnector />}
                                         orientation="vertical"
                                         sx={{
-                                            '& .MuiStepLabel-label': { fontSize: '0.85rem', fontWeight: 500 },
+                                            '& .MuiStepLabel-label': { fontSize: '1rem', fontWeight: 500 },
                                             '& .MuiStepContent-root': { paddingLeft: 2.5, borderLeft: '1px solid #e0e0e0', marginLeft: 1.5 },
                                             '& .MuiStepConnector-line': { minHeight: 16 }
                                         }}

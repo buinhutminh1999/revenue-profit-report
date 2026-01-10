@@ -93,8 +93,8 @@ const ProposalDiscussion = ({ proposal, onAddComment, user }) => {
                     <Tooltip title={msg.userName}>
                         <Avatar
                             sx={{
-                                width: 28, height: 28,
-                                fontSize: '0.75rem',
+                                width: 32, height: 32,
+                                fontSize: '0.9rem',
                                 bgcolor: avatarColor,
                                 mb: 0.5,
                                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
@@ -113,7 +113,7 @@ const ProposalDiscussion = ({ proposal, onAddComment, user }) => {
                 }}>
                     {/* Name (Only for others) */}
                     {!isMe && !isReply && (
-                        <Typography variant="caption" sx={{ ml: 1, mb: 0.5, color: 'text.secondary', fontSize: '0.7rem' }}>
+                        <Typography variant="body2" sx={{ ml: 1, mb: 0.5, color: 'text.secondary', fontSize: '0.85rem', fontWeight: 600 }}>
                             {msg.userName}
                         </Typography>
                     )}
@@ -143,23 +143,23 @@ const ProposalDiscussion = ({ proposal, onAddComment, user }) => {
                                 borderLeft: '3px solid',
                                 borderColor: isMe ? 'rgba(255,255,255,0.7)' : 'primary.main',
                             }}>
-                                <Typography variant="caption" display="block" fontWeight="bold" sx={{ opacity: 0.9 }}>
+                                <Typography variant="body2" display="block" fontWeight="bold" sx={{ opacity: 0.9 }}>
                                     {replyingTo.userName}
                                 </Typography>
-                                <Typography variant="caption" noWrap sx={{ maxWidth: 180, display: 'block', opacity: 0.8 }}>
+                                <Typography variant="body2" noWrap sx={{ maxWidth: 200, display: 'block', opacity: 0.8 }}>
                                     {replyingTo.content}
                                 </Typography>
                             </Box>
                         )}
 
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.92rem', lineHeight: 1.4 }}>
+                        <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '1.05rem', lineHeight: 1.5 }}>
                             {msg.content}
                         </Typography>
                     </Box>
 
                     {/* Meta: Time & Reply Action */}
                     <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5, px: 0.5, opacity: 0.7 }}>
-                        <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>
+                        <Typography variant="caption" sx={{ fontSize: '0.8rem' }}>
                             {formatDateSafe(msg.time)}
                         </Typography>
                         <Typography
@@ -207,8 +207,8 @@ const ProposalDiscussion = ({ proposal, onAddComment, user }) => {
                         <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: '50%', mb: 2 }}>
                             <CommentIcon sx={{ fontSize: 32, color: 'text.disabled' }} />
                         </Box>
-                        <Typography variant="body2" fontWeight={500}>Chưa có thảo luận nào</Typography>
-                        <Typography variant="caption">Bắt đầu cuộc trò chuyện ngay!</Typography>
+                        <Typography variant="h6" fontWeight={500}>Chưa có thảo luận nào</Typography>
+                        <Typography variant="body1" color="text.secondary">Bắt đầu cuộc trò chuyện ngay!</Typography>
                     </Box>
                 ) : (
                     <Box>
@@ -241,11 +241,11 @@ const ProposalDiscussion = ({ proposal, onAddComment, user }) => {
                             borderLeft: `3px solid ${theme.palette.primary.main}`
                         }}>
                             <Box sx={{ overflow: 'hidden' }}>
-                                <Typography variant="caption" color="primary" fontWeight="bold" display="flex" alignItems="center">
-                                    <ReplyIcon sx={{ fontSize: 14, mr: 0.5 }} />
+                                <Typography variant="body2" color="primary" fontWeight="bold" display="flex" alignItems="center">
+                                    <ReplyIcon sx={{ fontSize: 16, mr: 0.5 }} />
                                     Trả lời {replyTo.userName}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary" noWrap display="block">
+                                <Typography variant="body2" color="text.secondary" noWrap display="block">
                                     {replyTo.content}
                                 </Typography>
                             </Box>
@@ -275,7 +275,7 @@ const ProposalDiscussion = ({ proposal, onAddComment, user }) => {
                     }}
                 >
                     <InputBase
-                        sx={{ ml: 1, flex: 1, fontSize: '0.95rem' }}
+                        sx={{ ml: 1, flex: 1, fontSize: '1rem' }}
                         placeholder="Nhập bình luận..."
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}

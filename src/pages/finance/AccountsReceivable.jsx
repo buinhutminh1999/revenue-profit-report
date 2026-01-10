@@ -5,7 +5,7 @@ import {
     Box, Typography, Paper, Select, MenuItem, Stack, Grid, Skeleton,
     Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, TextField,
-    useTheme, alpha, Tooltip, Divider, Fab, Fade
+    useTheme, alpha, Tooltip, Divider, Fab, Fade, Collapse
 } from "@mui/material";
 import {
     ArchiveOutlined, TrendingUp, TrendingDown, AttachMoney,
@@ -16,6 +16,7 @@ import {
     FullscreenExit as FullscreenExitIcon,
     FilterListOff as FilterListOffIcon,
     FilterList as FilterListIcon,
+    Visibility, VisibilityOff
 } from "@mui/icons-material";
 import { keyframes } from "@emotion/react"; // Import keyframes separately if needed or use MUI styled keyframes
 import { NumericFormat } from "react-number-format";
@@ -39,50 +40,45 @@ const getPremiumStyles = (theme, isTvMode) => {
     if (!isTvMode) return {};
 
     return {
-        // Animated Deep Space Background
+        // Bright & Clean Background for TV
         wrapper: {
-            background: `linear-gradient(-45deg, #020617, #0f172a, #1e1b4b, #172554)`,
-            backgroundSize: '400% 400%',
-            animation: `${moveGradient} 15s ease infinite`,
+            background: '#f8fafc', // Slate-50
+            minHeight: '100vh',
         },
         text: {
-            primary: '#f8fafc',
-            secondary: '#94a3b8',
-            gold: '#fcd34d', // Sáng hơn chút
-            emerald: '#34d399',
-            rose: '#fb7185',
-            blue: '#60a5fa',
-            neonGlow: '0 0 10px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.3), 0 0 30px rgba(255, 255, 255, 0.1)',
+            primary: '#0f172a', // Slate-900 (High Contrast)
+            secondary: '#475569', // Slate-600
+            gold: '#1e40af', // Deep Blue for headers/highlights
+            emerald: '#15803d', // Dark Green
+            rose: '#b91c1c', // Dark Red
+            blue: '#2563eb',
+            highlight: '#ffffff', // For text on dark backgrounds
         },
         glass: {
-            background: 'rgba(15, 23, 42, 0.4)', // Trong suốt hơn
-            backdropFilter: 'blur(24px)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.5)',
+            background: '#ffffff',
+            border: '1px solid #cbd5e1', // Slate-300
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
         },
         glassCard: {
-            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%)',
-            backdropFilter: 'blur(16px) saturate(180%)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 4px 24px -1px rgba(0, 0, 0, 0.25)',
+            background: '#ffffff',
+            border: '1px solid #e2e8f0', // Slate-200
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
             transition: 'all 0.3s ease',
             '&:hover': {
-                background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%)',
-                transform: 'translateY(-4px)',
-                boxShadow: '0 12px 32px -1px rgba(0, 0, 0, 0.4), 0 0 15px rgba(255,255,255,0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                borderColor: '#cbd5e1',
             }
         },
         stickyHeader: {
-            background: 'rgba(2, 6, 23, 0.85)', // Darker alignment
-            backdropFilter: 'blur(20px)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+            background: '#f1f5f9', // Slate-100
+            borderBottom: '2px solid #cbd5e1',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
         },
         stickyColumn: {
-            background: '#020617', // Match background
-            borderRight: '1px solid rgba(255, 255, 255, 0.2)', // Brighter border
-            boxShadow: '4px 0 24px rgba(0,0,0,0.5)', // Drop shadow to separate
+            background: '#ffffff',
+            borderRight: '2px solid #e2e8f0',
+            boxShadow: '4px 0 12px rgba(0,0,0,0.05)',
         }
     };
 };
@@ -124,17 +120,17 @@ const EditableCell = ({ value, rowId, field, type, onUpdate, onCancel, isTvMode 
     const commonSx = {
         width: '100%',
         '& .MuiInputBase-root': {
-            fontSize: isTvMode ? '1.1rem' : 'inherit',
+            fontSize: isTvMode ? '1.3rem' : 'inherit',
             fontFamily: type === 'number' ? 'Consolas, Monaco, "Andale Mono", monospace' : 'inherit',
             fontWeight: 500,
             p: 0,
-            color: isTvMode ? '#fff' : 'inherit',
+            color: isTvMode ? '#0f172a' : 'inherit',
         },
         '& .MuiInputBase-input': {
             p: '4px 8px',
             textAlign: type === 'number' ? 'right' : 'left',
             borderRadius: 1,
-            bgcolor: isTvMode ? 'rgba(255,255,255,0.1)' : alpha(theme.palette.primary.main, 0.08),
+            bgcolor: isTvMode ? '#f1f5f9' : alpha(theme.palette.primary.main, 0.08),
         }
     };
 
@@ -249,32 +245,18 @@ const MetricCard = ({ title, value, icon, colorName, loading, index, isTvMode })
                     overflow: 'hidden',
                 }}
             >
-                {/* Glow Effect for TV Mode */}
-                {isTvMode && (
-                    <Box sx={{
-                        position: 'absolute',
-                        top: '-50%',
-                        right: '-50%',
-                        width: '100%',
-                        height: '100%',
-                        background: `radial-gradient(circle, ${alpha(colorObj.main, 0.2)} 0%, transparent 70%)`,
-                        filter: 'blur(40px)',
-                        zIndex: 0,
-                    }} />
-                )}
-
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 0, gap: isTvMode ? 3 : 2, position: 'relative', zIndex: 1 }}>
                     <Box
                         sx={{
                             p: isTvMode ? 2 : 1.25,
                             borderRadius: '50%',
-                            bgcolor: isTvMode ? alpha(colorObj.main, 0.2) : alpha(theme.palette[colorName || 'primary'].main, 0.15),
-                            color: colorObj.main,
+                            bgcolor: isTvMode ? alpha(colorObj.main, 0.1) : alpha(theme.palette[colorName || 'primary'].main, 0.15),
+                            color: isTvMode ? colorObj.main : colorObj.main,
                             display: 'flex',
-                            boxShadow: isTvMode ? `0 0 20px ${alpha(colorObj.main, 0.4)}` : 'none',
+                            boxShadow: 'none',
                         }}
                     >
-                        {React.cloneElement(icon, { fontSize: isTvMode ? "large" : "medium" })}
+                        {React.cloneElement(icon, { sx: { fontSize: isTvMode ? 40 : "medium" } })}
                     </Box>
                     <Box sx={{ flex: 1 }}>
                         <Typography
@@ -284,20 +266,21 @@ const MetricCard = ({ title, value, icon, colorName, loading, index, isTvMode })
                                 fontWeight: 600,
                                 textTransform: 'uppercase',
                                 letterSpacing: isTvMode ? 1.5 : 1,
-                                mb: 0.5
+                                mb: 0.5,
+                                fontSize: isTvMode ? '1.1rem' : '0.75rem'
                             }}
                         >
                             {title}
                         </Typography>
                         {loading ? (
-                            <Skeleton width="80%" height={28} sx={{ bgcolor: isTvMode ? 'rgba(255,255,255,0.1)' : undefined }} />
+                            <Skeleton width="80%" height={28} sx={{ bgcolor: isTvMode ? 'rgba(0,0,0,0.05)' : undefined }} />
                         ) : (
                             <Typography variant="h6" fontWeight={isTvMode ? 800 : 700} sx={{
                                 fontFamily: 'Consolas, Monaco, monospace',
-                                fontSize: isTvMode ? '1.5rem' : '1.25rem', // Reduced from 2.2rem to 1.5rem for compact view
+                                fontSize: isTvMode ? '2.5rem' : '1.25rem', // LARGE text for TV
                                 color: isTvMode ? premium.text.primary : theme.palette[colorName || 'primary'].dark,
                                 lineHeight: 1.2,
-                                textShadow: isTvMode ? `0 0 20px ${alpha(colorObj.main, 0.3)}` : 'none'
+                                letterSpacing: isTvMode ? -1 : 0
                             }}>
                                 <NumericFormat value={toNum(value)} displayType="text" thousandSeparator="," />
                             </Typography>
@@ -322,73 +305,76 @@ const TableRowItem = React.memo(({ row, tableColumns, editingCell, setEditingCel
     let rowSx = {
         transition: 'all 0.15s ease',
         '& td': {
-            fontSize: isTvMode ? '1.25rem' : 'inherit', // Increased font size
-            py: isTvMode ? 2 : 0.75, // Increased padding
-            borderBottom: isTvMode ? `1px solid rgba(255,255,255,0.05)` : undefined,
-            color: isTvMode ? '#e2e8f0' : 'inherit', // Brighter text (Slate-200)
+            fontSize: isTvMode ? '0.95rem' : 'inherit', // Standardized small size for fit
+            py: isTvMode ? 1.25 : 0.75,
+            borderBottom: isTvMode ? `1px solid #e2e8f0` : undefined,
+            color: isTvMode ? '#0f172a' : 'inherit',
+            fontWeight: isTvMode ? 500 : 400,
         }
     };
 
     // Hover effect
     if (isDataRow) {
         rowSx['&:hover'] = {
-            bgcolor: isTvMode ? alpha('#fff', 0.05) : alpha(theme.palette.primary.main, 0.02)
+            bgcolor: isTvMode ? '#e2e8f0' : alpha(theme.palette.primary.main, 0.02)
         };
     }
 
     // Zebra Striping for Data Rows in TV Mode
     if (isTvMode && isDataRow) {
         if (row.rowIndex % 2 !== 0) {
-            rowSx.bgcolor = alpha('#fff', 0.02);
+            rowSx.bgcolor = '#f1f5f9'; // Stronger stripe (Slate-100)
         }
     }
 
     if (isGrandTotal) {
         rowSx = {
-            bgcolor: isTvMode ? alpha(premium.text.gold, 0.15) : alpha(theme.palette.primary.main, 0.1),
+            bgcolor: isTvMode ? '#fff7ed' : alpha(theme.palette.primary.main, 0.1), // Orange-50 for TV
             position: 'relative',
             bottom: 0,
             zIndex: 10,
-            backdropFilter: isTvMode ? 'blur(10px)' : 'none',
-            boxShadow: isTvMode ? '0 -4px 20px rgba(0,0,0,0.2)' : 'none',
+            boxShadow: isTvMode ? '0 -4px 15px rgba(0,0,0,0.1)' : 'none',
             '& td': {
-                color: isTvMode ? premium.text.gold : theme.palette.primary.dark,
+                color: isTvMode ? '#c2410c' : theme.palette.primary.dark, // Orange-700
                 fontWeight: 900,
-                fontSize: isTvMode ? '1.4rem' : '1rem',
-                borderTop: `2px solid ${isTvMode ? premium.text.gold : theme.palette.primary.main}`,
+                fontSize: isTvMode ? '1.1rem' : '1rem', // Slightly larger than data
+                borderTop: isTvMode ? '3px solid #ea580c' : `2px solid ${theme.palette.primary.main}`, // Orange-600
                 borderBottom: 'none',
-                py: isTvMode ? 2.5 : 0.75
+                py: isTvMode ? 2.0 : 0.75,
+                fontFamily: isTvMode ? 'Consolas, Monaco, monospace' : 'inherit'
             }
         };
     } else if (isParentHeader) {
         rowSx = {
-            bgcolor: isTvMode ? alpha('#020617', 0.95) : alpha(theme.palette.background.paper, 1),
+            bgcolor: isTvMode ? '#94a3b8' : alpha(theme.palette.background.paper, 1), // Slate-400 (Distinct but Light)
             '& td': {
-                color: isTvMode ? '#fff' : theme.palette.text.primary,
+                color: isTvMode ? '#0f172a' : theme.palette.text.primary, // Dark Text
                 fontWeight: 800,
-                fontSize: isTvMode ? '1.2rem' : '0.9rem',
-                borderBottom: isTvMode ? `1px solid ${alpha(theme.palette.divider, 0.1)}` : undefined,
-                borderTop: isTvMode ? `1px solid ${alpha(theme.palette.divider, 0.1)}` : undefined,
-                py: isTvMode ? 2 : 0.75,
+                fontSize: isTvMode ? '1.0rem' : '0.9rem', // Consistent size
+                borderBottom: isTvMode ? `1px solid #475569` : undefined,
+                borderTop: isTvMode ? `1px solid #475569` : undefined,
+                py: isTvMode ? 1.5 : 0.75,
                 textTransform: 'uppercase',
-                letterSpacing: 1
+                letterSpacing: 0.5
             }
         };
     } else if (isGroupHeader) {
         rowSx = {
             bgcolor: isSelected
-                ? (isTvMode ? alpha(premium.text.gold, 0.2) : alpha(theme.palette.primary.main, 0.15))
-                : (isTvMode ? alpha('#fff', 0.05) : alpha(theme.palette.background.paper, 0.6)),
+                ? (isTvMode ? '#e0e7ff' : alpha(theme.palette.primary.main, 0.15))
+                : (isTvMode ? '#cbd5e1' : alpha(theme.palette.background.paper, 0.6)), // Slate-300
             cursor: 'pointer',
+            borderTop: isTvMode ? '1px solid #94a3b8' : 'none',
+            borderBottom: isTvMode ? '1px solid #94a3b8' : 'none',
             '& td': {
                 color: isSelected
                     ? (isTvMode ? premium.text.gold : theme.palette.primary.main)
-                    : (isTvMode ? '#cbd5e1' : theme.palette.text.secondary),
-                fontWeight: 700,
-                fontSize: isTvMode ? '1.1rem' : '0.85rem',
-                fontStyle: 'italic',
+                    : (isTvMode ? '#1e293b' : theme.palette.text.secondary), // Slate-800
+                fontWeight: 800,
+                fontSize: isTvMode ? '1.0rem' : '0.85rem', // Consistent size
+                fontStyle: isTvMode ? 'normal' : 'italic',
                 pl: 4,
-                py: isTvMode ? 1.5 : 0.75
+                py: isTvMode ? 1.25 : 0.75
             }
         };
     }
@@ -416,16 +402,18 @@ const TableRowItem = React.memo(({ row, tableColumns, editingCell, setEditingCel
                 const cellSx = {
                     fontFamily: (isDataRow || isGrandTotal) && isNumber ? 'Consolas, Monaco, monospace' : 'inherit',
                     cursor: isEditable ? 'pointer' : 'default',
-                    color: (isClosingDebit && isTvMode && isDataRow) ? premium.text.rose :
-                        (isNumber && cellValue < 0 ? (isTvMode ? premium.text.rose : theme.palette.error.main) : 'inherit'),
-                    fontWeight: (isClosingDebit && isTvMode) ? 700 : 'inherit',
-                    bgcolor: (isClosingDebit && isTvMode && isDataRow) ? alpha(premium.text.rose, 0.05) : 'inherit',
+                    color: (isClosingDebit && isTvMode && isDataRow) ? '#b91c1c' : // Red for closing debit
+                        (isNumber && cellValue < 0 ? (isTvMode ? '#dc2626' : theme.palette.error.main) : 'inherit'),
+                    fontWeight: (isClosingDebit && isTvMode) ? 800 : (isTvMode ? 600 : 'inherit'),
+                    bgcolor: (isClosingDebit && isTvMode && isDataRow) ? '#fef2f2' : 'inherit', // Red-50
+                    whiteSpace: isNumber ? 'nowrap' : (isTvMode ? 'normal' : 'nowrap'),
+                    wordBreak: isNumber ? 'normal' : (isTvMode ? 'break-word' : 'normal'),
                 };
 
-                // Neon Text Shadow for Grand Totals in TV Mode
-                if (isTvMode && isGrandTotal && isNumber && cellValue !== 0) {
-                    cellSx.textShadow = `0 0 10px ${alpha(premium.text.gold, 0.5)}`;
-                }
+                // Neon Text Shadow for Grand Totals in TV Mode (Removed for clarity, kept clean)
+                // if (isTvMode && isGrandTotal && isNumber && cellValue !== 0) {
+                //    cellSx.textShadow = `0 0 10px ${alpha(premium.text.gold, 0.5)}`;
+                // }
 
                 if (field === 'project') {
                     // Logic xác định background color cho Sticky Cell
@@ -433,7 +421,7 @@ const TableRowItem = React.memo(({ row, tableColumns, editingCell, setEditingCel
 
                     if (!stickyBgColor) {
                         // Cho Data Row
-                        if (isTvMode) stickyBgColor = '#020617'; // Màu nền TV mode
+                        if (isTvMode) stickyBgColor = '#ffffff'; // Màu nền TV mode
                         else stickyBgColor = theme.palette.background.paper; // Màu nền thường
                     }
 
@@ -448,7 +436,12 @@ const TableRowItem = React.memo(({ row, tableColumns, editingCell, setEditingCel
                                 bgcolor: stickyBgColor,
                                 borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                                 // Premium Sticky Column Style for TV Mode
-                                ...(isTvMode && premium.stickyColumn),
+                                ...(isTvMode && {
+                                    ...premium.stickyColumn,
+                                    background: stickyBgColor || '#ffffff', // Force override CSS background
+                                    bgcolor: stickyBgColor || '#ffffff',
+                                    borderRight: '2px solid #cbd5e1'
+                                }),
 
                                 // Fix hover effect for data rows in normal mode
                                 ...(isDataRow && !isTvMode && {
@@ -543,6 +536,7 @@ export default function AccountsReceivable() {
 
     // TV Mode State
     const [isTvMode, setIsTvMode] = useState(false);
+    const [showTvMetrics, setShowTvMetrics] = useState(true);
 
     // Filter Empty Rows State
     const [hideEmptyRows, setHideEmptyRows] = useState(false);
@@ -877,16 +871,19 @@ export default function AccountsReceivable() {
                 {/* HEADER */}
                 <Stack direction="row" justifyContent="space-between" alignItems="center" mb={isMockFullMode ? 2 : 4} sx={{ pt: isMockFullMode ? 2 : 0 }}>
                     <Box>
-                        <Typography variant={isMockFullMode ? "h4" : "h4"} fontWeight={800} sx={{
+                        <Typography variant={isMockFullMode ? "h2" : "h4"} fontWeight={800} sx={{
+                            color: isMockFullMode ? premium.text.gold : 'inherit',
                             background: isMockFullMode
-                                ? `linear-gradient(45deg, ${premium.text?.gold || '#fbbf24'}, #ffffff)`
+                                ? 'none'
                                 : `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                            backgroundClip: "text", WebkitTextFillColor: "transparent",
+                            backgroundClip: isMockFullMode ? 'border-box' : "text",
+                            WebkitTextFillColor: isMockFullMode ? 'currentColor' : "transparent",
                             textTransform: isMockFullMode ? 'uppercase' : 'none',
                             textAlign: isMockFullMode ? 'center' : 'left',
                             width: '100%',
-                            letterSpacing: isMockFullMode ? 2 : 0,
-                            filter: isMockFullMode ? `drop-shadow(0 0 10px ${alpha(premium.text?.gold || '#fbbf24', 0.3)})` : 'none'
+                            letterSpacing: isMockFullMode ? 4 : 0,
+                            mb: isMockFullMode ? 3 : 0,
+                            textShadow: isMockFullMode ? '2px 2px 0px rgba(0,0,0,0.1)' : 'none'
                         }}>
                             {isMockFullMode ? `BÁO CÁO CÔNG NỢ QUÝ ${selectedQuarter}/${selectedYear}` : "Báo Cáo Công Nợ"}
                         </Typography>
@@ -903,6 +900,11 @@ export default function AccountsReceivable() {
                                 transition: 'opacity 0.3s',
                                 '&:hover': { opacity: 1 }
                             }}>
+                                <Tooltip title={showTvMetrics ? "Ẩn tổng quan" : "Hiện tổng quan"}>
+                                    <Fab color="primary" size="medium" onClick={() => setShowTvMetrics(!showTvMetrics)}>
+                                        {showTvMetrics ? <VisibilityOff /> : <Visibility />}
+                                    </Fab>
+                                </Tooltip>
 
                                 <Tooltip title="Thoát chế độ TV">
                                     <Fab color="inherit" size="medium" onClick={() => setIsTvMode(false)}>
@@ -974,33 +976,35 @@ export default function AccountsReceivable() {
 
                 {/* Use Flexbox with nowrap for TV Mode: 2 rows x 3 cards for better readability */}
                 {isTvMode ? (
-                    <Box mb={1} px={2}>
-                        <Stack
-                            direction="row"
-                            spacing={1.5}
-                            mb={1}
-                            sx={{
-                                flexWrap: 'nowrap',
-                                '& > *': { flex: '1 1 0', minWidth: 0 }
-                            }}
-                        >
-                            <MetricCard title="Phải Thu ĐK" value={summaryData.openingDebit} icon={<ArchiveOutlined />} colorName="info" loading={isLoading} index={0} isTvMode={isTvMode} />
-                            <MetricCard title="KH Ứng Trước ĐK" value={summaryData.openingCredit} icon={<AccountBalanceWallet />} colorName="warning" loading={isLoading} index={1} isTvMode={isTvMode} />
-                            <MetricCard title="Phát Sinh Tăng" value={summaryData.debitIncrease} icon={<TrendingUp />} colorName="primary" loading={isLoading} index={2} isTvMode={isTvMode} />
-                        </Stack>
-                        <Stack
-                            direction="row"
-                            spacing={1.5}
-                            sx={{
-                                flexWrap: 'nowrap',
-                                '& > *': { flex: '1 1 0', minWidth: 0 }
-                            }}
-                        >
-                            <MetricCard title="Phát Sinh Giảm" value={summaryData.creditDecrease} icon={<TrendingDown />} colorName="success" loading={isLoading} index={3} isTvMode={isTvMode} />
-                            <MetricCard title="Phải Thu CK" value={summaryData.closingDebit} icon={<AttachMoney />} colorName="error" loading={isLoading} index={4} isTvMode={isTvMode} />
-                            <MetricCard title="KH Trả Trước CK" value={summaryData.closingCredit} icon={<Savings />} colorName="secondary" loading={isLoading} index={5} isTvMode={isTvMode} />
-                        </Stack>
-                    </Box>
+                    <Collapse in={showTvMetrics}>
+                        <Box mb={1} px={2}>
+                            <Stack
+                                direction="row"
+                                spacing={1.5}
+                                mb={1}
+                                sx={{
+                                    flexWrap: 'nowrap',
+                                    '& > *': { flex: '1 1 0', minWidth: 0 }
+                                }}
+                            >
+                                <MetricCard title="Phải Thu ĐK" value={summaryData.openingDebit} icon={<ArchiveOutlined />} colorName="info" loading={isLoading} index={0} isTvMode={isTvMode} />
+                                <MetricCard title="KH Ứng Trước ĐK" value={summaryData.openingCredit} icon={<AccountBalanceWallet />} colorName="warning" loading={isLoading} index={1} isTvMode={isTvMode} />
+                                <MetricCard title="Phát Sinh Tăng" value={summaryData.debitIncrease} icon={<TrendingUp />} colorName="primary" loading={isLoading} index={2} isTvMode={isTvMode} />
+                            </Stack>
+                            <Stack
+                                direction="row"
+                                spacing={1.5}
+                                sx={{
+                                    flexWrap: 'nowrap',
+                                    '& > *': { flex: '1 1 0', minWidth: 0 }
+                                }}
+                            >
+                                <MetricCard title="Phát Sinh Giảm" value={summaryData.creditDecrease} icon={<TrendingDown />} colorName="success" loading={isLoading} index={3} isTvMode={isTvMode} />
+                                <MetricCard title="Phải Thu CK" value={summaryData.closingDebit} icon={<AttachMoney />} colorName="error" loading={isLoading} index={4} isTvMode={isTvMode} />
+                                <MetricCard title="KH Trả Trước CK" value={summaryData.closingCredit} icon={<Savings />} colorName="secondary" loading={isLoading} index={5} isTvMode={isTvMode} />
+                            </Stack>
+                        </Box>
+                    </Collapse>
                 ) : (
                     <Grid container spacing={2} mb={3}>
                         <Grid item xs={12} sm={6} md={4} lg={2}>
@@ -1033,8 +1037,10 @@ export default function AccountsReceivable() {
                         border: isMockFullMode ? 'none' : `1px solid ${theme.palette.divider}`,
                         overflow: 'hidden',
                         // In TV Mode, use full height minus header/metrics, or auto if content is small.
-                        // We use a fixed height for auto-scroll to work effectively.
-                        height: isMockFullMode ? '78vh' : 'auto', // Increased from 65vh to 78vh
+                        // We use flex: 1 to fill available vertical space when metrics are hidden.
+                        height: isMockFullMode ? 'auto' : 'auto',
+                        flex: isMockFullMode ? 1 : 'none',
+                        minHeight: 0, // Critical for flex scrolling
                         display: 'flex', flexDirection: 'column',
                         p: isMockFullMode ? 2 : 0,
                         ...(isMockFullMode ? premium.glass : { bgcolor: 'background.paper' }),
@@ -1044,21 +1050,28 @@ export default function AccountsReceivable() {
                         '&::-webkit-scrollbar': isMockFullMode ? { display: 'none' } : undefined,
                     }}
                 >
-                    <TableContainer sx={{ flexGrow: 1 }}>
-                        <Table stickyHeader size={isMockFullMode ? "medium" : "medium"}>
+                    <TableContainer sx={{ flexGrow: 1, overflowX: isMockFullMode ? 'hidden' : 'auto' }}>
+                        <Table stickyHeader size={isMockFullMode ? "medium" : "medium"} sx={{ tableLayout: isMockFullMode ? 'fixed' : 'auto', width: '100%' }}>
                             <TableHead>
-                                <TableRow sx={{
-                                    '& th': {
-                                        bgcolor: isMockFullMode ? 'rgba(15, 23, 42, 0.8)' : undefined,
-                                        backdropFilter: isMockFullMode ? 'blur(10px)' : undefined
-                                    }
-                                }}>
-                                    {tableColumns.map(col => (
-                                        !isMockFullMode || col.field !== 'actions' ? (
+                                <TableRow>
+                                    {tableColumns.map(col => {
+                                        // TV Mode Width Calculation
+                                        let tvWidth = 'auto';
+                                        if (isMockFullMode) {
+                                            if (col.field === 'project') tvWidth = '20%';
+                                            else if (col.field === 'notes') tvWidth = '8%';
+                                            else tvWidth = '12%';
+                                        }
+
+                                        return !isMockFullMode || col.field !== 'actions' ? (
                                             <TableCell
                                                 key={col.field}
                                                 align={col.align || (col.type === 'number' ? 'right' : 'left')}
-                                                style={{ minWidth: col.minWidth }}
+                                                style={{
+                                                    minWidth: isMockFullMode ? 'auto' : col.minWidth,
+                                                    width: isMockFullMode ? tvWidth : 'auto',
+                                                    whiteSpace: 'normal' // Wrap text
+                                                }}
                                                 sx={{
                                                     ...(col.field === 'project' && {
                                                         position: 'sticky',
@@ -1072,7 +1085,8 @@ export default function AccountsReceivable() {
 
                                                         borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                                                         // Ensure text is readable
-                                                        color: isMockFullMode ? '#fff' : 'inherit',
+                                                        color: isMockFullMode ? (premium.text?.gold || '#1e40af') : 'inherit',
+                                                        fontSize: isMockFullMode ? '1.1rem' : 'inherit',
                                                     })
                                                 }}
                                             >
@@ -1083,8 +1097,8 @@ export default function AccountsReceivable() {
                                                     {col.headerName}
                                                 </Typography>
                                             </TableCell>
-                                        ) : null
-                                    ))}
+                                        ) : null;
+                                    })}
                                     {!isMockFullMode && <TableCell align="center" width={80}>Thao tác</TableCell>}
                                 </TableRow>
                             </TableHead>
