@@ -335,7 +335,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
         <Box>
             {/* Phase 1: Repair */}
             <Typography variant="h6" color="primary.main" gutterBottom sx={{ mt: 1, mb: 0, fontWeight: 700 }}>
-                1. Giai đoạn sửa chữa
+                1. Giai đoạn đề xuất - sửa chữa
             </Typography>
             <Box sx={{ pl: 2, borderLeft: '1px dashed #e0e0e0', ml: 1 }}>
                 <Timeline sx={{ [`& .MuiTimelineItem-root:before`]: { flex: 0, padding: 0 }, p: 0, m: 0 }}>
@@ -346,7 +346,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                             <TimelineConnector />
                         </TimelineSeparator>
                         <TimelineContent sx={{ py: '12px', px: 2 }}>
-                            <Typography variant="h6" fontWeight={600} color="primary.main" sx={{ fontSize: '1.05rem' }}>Tạo đề xuất</Typography>
+                            <Typography variant="h6" fontWeight={600} color="primary.main" sx={{ fontSize: '1.05rem' }}>Tạo đề xuất - {proposal.department}</Typography>
                             <Typography variant="body2" display="block" color="text.secondary">
                                 {formatDateSafe(proposal.proposalTime)} bởi <strong>{proposal.proposer}</strong>
                             </Typography>
@@ -426,83 +426,85 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         </TimelineItem>
                     )}
 
-                    {/* Maintenance History (New - renders all attempts) */}
-                    {proposal.maintenanceHistory?.map((entry, index) => (
-                        <TimelineItem key={`history-${index}`}>
-                            <TimelineSeparator>
-                                <TimelineDot
-                                    color={entry.type === 'completed' ? 'info' : 'warning'}
-                                    sx={{ width: 12, height: 12 }}
-                                />
-                                <TimelineConnector />
-                            </TimelineSeparator>
-                            <TimelineContent sx={{ py: '12px', px: 2 }}>
-                                {entry.type === 'completed' ? (
-                                    <>
-                                        <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
-                                            🔧 Hoàn thành sửa chữa {(entry.attempt || index + 1) > 1 ? `(Lần ${entry.attempt || index + 1})` : ''}
-                                        </Typography>
-                                        <Typography variant="body2" display="block" color="text.secondary">
-                                            {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
-                                        </Typography>
-                                        {entry.comment && (
-                                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
-                                                "{entry.comment}"
-                                            </Paper>
-                                        )}
-                                        {renderImages(entry.images, "Ảnh hoàn thành")}
-                                    </>
-                                ) : (
-                                    <>
-                                        <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
-                                            ⚠️ Yêu cầu làm lại
-                                        </Typography>
-                                        <Typography variant="body2" display="block" color="text.secondary">
-                                            {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
-                                        </Typography>
-                                        {entry.comment && (
-                                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
-                                                "{entry.comment}"
-                                            </Paper>
-                                        )}
-                                        {renderImages(entry.images, "Ảnh minh chứng")}
-                                    </>
-                                )}
-                            </TimelineContent>
-                        </TimelineItem>
-                    ))}
-
-                    {/* Current Maintenance Confirm (if not in history yet) */}
-                    {proposal.confirmations?.maintenance?.confirmed && !proposal.maintenanceHistory?.length && (
-                        <TimelineItem>
-                            <TimelineSeparator>
-                                <TimelineDot color="info" sx={{ width: 12, height: 12 }} />
-                            </TimelineSeparator>
-                            <TimelineContent sx={{ py: '12px', px: 2 }}>
-                                <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>Hoàn thành sửa chữa</Typography>
-                                <Typography variant="body2" display="block" color="text.secondary">
-                                    {formatDateSafe(proposal.confirmations.maintenance.time)} bởi <strong>{proposal.confirmations.maintenance.user}</strong>
-                                </Typography>
-                                {proposal.confirmations.maintenance.comment && (
-                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
-                                        "{proposal.confirmations.maintenance.comment}"
-                                    </Paper>
-                                )}
-                                {renderImages(proposal.confirmations.maintenance.images, "Ảnh hoàn thành")}
-                            </TimelineContent>
-                        </TimelineItem>
-                    )}
                 </Timeline>
             </Box>
 
-            {/* Phase 2: Acceptance */}
-            {(proposal.confirmations?.proposer?.confirmed || proposal.confirmations?.viceDirector?.confirmed) && (
+            {/* Phase 2: Completion & Acceptance */}
+            {(proposal.confirmations?.maintenance?.confirmed || proposal.maintenanceHistory?.length > 0 || proposal.confirmations?.proposer?.confirmed || proposal.confirmations?.viceDirector?.confirmed) && (
                 <>
                     <Typography variant="h6" color="success.main" gutterBottom sx={{ mt: 3, mb: 0, fontWeight: 700 }}>
-                        2. Giai đoạn nghiệm thu hoàn thành sửa chữa
+                        2. Giai đoạn sửa chữa hoàn thành, nghiệm thu
                     </Typography>
                     <Box sx={{ pl: 2, borderLeft: '1px dashed #e0e0e0', ml: 1 }}>
                         <Timeline sx={{ [`& .MuiTimelineItem-root:before`]: { flex: 0, padding: 0 }, p: 0, m: 0 }}>
+                            {/* Maintenance History (renders all attempts) */}
+                            {proposal.maintenanceHistory?.map((entry, index) => (
+                                <TimelineItem key={`history-${index}`}>
+                                    <TimelineSeparator>
+                                        <TimelineDot
+                                            color={entry.type === 'completed' ? 'info' : 'warning'}
+                                            sx={{ width: 12, height: 12 }}
+                                        />
+                                        <TimelineConnector />
+                                    </TimelineSeparator>
+                                    <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                        {entry.type === 'completed' ? (
+                                            <>
+                                                <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
+                                                    🔧 Hoàn thành sửa chữa {(entry.attempt || index + 1) > 1 ? `(Lần ${entry.attempt || index + 1})` : ''}
+                                                </Typography>
+                                                <Typography variant="body2" display="block" color="text.secondary">
+                                                    {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
+                                                </Typography>
+                                                {entry.comment && (
+                                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
+                                                        "{entry.comment}"
+                                                    </Paper>
+                                                )}
+                                                {renderImages(entry.images, "Ảnh hoàn thành")}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
+                                                    ⚠️ Yêu cầu làm lại
+                                                </Typography>
+                                                <Typography variant="body2" display="block" color="text.secondary">
+                                                    {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
+                                                </Typography>
+                                                {entry.comment && (
+                                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
+                                                        "{entry.comment}"
+                                                    </Paper>
+                                                )}
+                                                {renderImages(entry.images, "Ảnh minh chứng")}
+                                            </>
+                                        )}
+                                    </TimelineContent>
+                                </TimelineItem>
+                            ))}
+
+                            {/* Current Maintenance Confirm (if not in history yet) */}
+                            {proposal.confirmations?.maintenance?.confirmed && !proposal.maintenanceHistory?.length && (
+                                <TimelineItem>
+                                    <TimelineSeparator>
+                                        <TimelineDot color="info" sx={{ width: 12, height: 12 }} />
+                                        <TimelineConnector />
+                                    </TimelineSeparator>
+                                    <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                        <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>Hoàn thành sửa chữa</Typography>
+                                        <Typography variant="body2" display="block" color="text.secondary">
+                                            {formatDateSafe(proposal.confirmations.maintenance.time)} bởi <strong>{proposal.confirmations.maintenance.user}</strong>
+                                        </Typography>
+                                        {proposal.confirmations.maintenance.comment && (
+                                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
+                                                "{proposal.confirmations.maintenance.comment}"
+                                            </Paper>
+                                        )}
+                                        {renderImages(proposal.confirmations.maintenance.images, "Ảnh hoàn thành")}
+                                    </TimelineContent>
+                                </TimelineItem>
+                            )}
+
                             {/* Proposer Confirm */}
                             {proposal.confirmations?.proposer?.confirmed && (
                                 <TimelineItem>
