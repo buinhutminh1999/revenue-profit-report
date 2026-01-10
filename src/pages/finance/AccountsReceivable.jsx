@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useReactToPrint } from "react-to-print";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from 'react-hot-toast';
 import {
@@ -16,13 +17,15 @@ import {
     FullscreenExit as FullscreenExitIcon,
     FilterListOff as FilterListOffIcon,
     FilterList as FilterListIcon,
-    Visibility, VisibilityOff
+    Visibility, VisibilityOff,
+    Print as PrintIcon
 } from "@mui/icons-material";
 import { keyframes } from "@emotion/react"; // Import keyframes separately if needed or use MUI styled keyframes
 import { NumericFormat } from "react-number-format";
 import { useAccountsReceivable } from "../../hooks/useAccountsReceivable";
 import { toNum } from "../../utils/numberUtils";
 import { EmptyState, SkeletonTable } from "../../components/common";
+import AccountsReceivablePrintTemplate from "../../components/finance/AccountsReceivablePrintTemplate";
 
 // =================================================================
 // PREMIUM THEME HELPERS
@@ -541,6 +544,11 @@ export default function AccountsReceivable() {
     // Filter Empty Rows State
     const [hideEmptyRows, setHideEmptyRows] = useState(false);
 
+    // Print State
+    const [printSectionDialogOpen, setPrintSectionDialogOpen] = useState(false);
+    const [selectedPrintSection, setSelectedPrintSection] = useState('all');
+    const printRef = useRef(null);
+
 
     // Hooks
     const {
@@ -861,6 +869,56 @@ export default function AccountsReceivable() {
         });
     }, [displayRows, hideEmptyRows]);
 
+    // Print Handler
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `NoPhaiThu_${selectedQuarter}_${selectedYear}`,
+    });
+
+    // Filter data for printing based on selectedPrintSection
+    const printData = useMemo(() => {
+        if (!displayRows || displayRows.length === 0) return [];
+
+        let rowsToInclude = [...displayRows];
+
+        // If a specific section is selected, filter to that section only
+        if (selectedPrintSection !== 'all') {
+            const sectionStartIndex = rowsToInclude.findIndex(r =>
+                (r.type === 'parent-header' || r.type === 'group-header') &&
+                (r.categoryId === selectedPrintSection || r.id === `p-header-${selectedPrintSection}` || r.id === `header-${selectedPrintSection}`)
+            );
+
+            if (sectionStartIndex !== -1) {
+                // Find the next parent header or grand total to determine section end
+                let sectionEndIndex = rowsToInclude.findIndex((r, idx) =>
+                    idx > sectionStartIndex &&
+                    (r.type === 'parent-header' || r.type === 'grand-total')
+                );
+                if (sectionEndIndex === -1) sectionEndIndex = rowsToInclude.length;
+
+                rowsToInclude = rowsToInclude.slice(sectionStartIndex, sectionEndIndex);
+            }
+        }
+
+        // Filter out empty rows (only closingDebit, closingCredit, and notes matter for print)
+        return rowsToInclude.filter(row => {
+            if (row.type !== 'data') return true;
+            const hasData =
+                toNum(row.closingDebit) !== 0 ||
+                toNum(row.closingCredit) !== 0 ||
+                (row.notes && row.notes.trim() !== '');
+            return hasData;
+        });
+    }, [displayRows, selectedPrintSection]);
+
+    // Get selected section label for print title
+    const selectedPrintSectionLabel = useMemo(() => {
+        if (selectedPrintSection === 'all') return 'all';
+        const flatCategories = categories.flatMap(c => c.children ? [c, ...c.children] : [c]);
+        const found = flatCategories.find(c => c.id === selectedPrintSection);
+        return found ? found.label : 'all';
+    }, [selectedPrintSection]);
+
     // RENDER CONTENT FUNCTION
     const renderContent = (isMockFullMode = false) => {
         // Shadowing the outer 'premium' variable to ensure styles match the requested mode
@@ -967,6 +1025,23 @@ export default function AccountsReceivable() {
                                         }}
                                     >
                                         TV Mode
+                                    </Button>
+                                </Tooltip>
+                                <Divider orientation="vertical" flexItem />
+                                <Tooltip title="In báo cáo">
+                                    <Button
+                                        onClick={() => setPrintSectionDialogOpen(true)}
+                                        startIcon={<PrintIcon />}
+                                        variant="outlined"
+                                        size="small"
+                                        sx={{
+                                            borderRadius: 2,
+                                            ml: 1,
+                                            mr: 0.5,
+                                            textTransform: 'none'
+                                        }}
+                                    >
+                                        In
                                     </Button>
                                 </Tooltip>
                             </Paper>
@@ -1209,6 +1284,48 @@ export default function AccountsReceivable() {
                     <Button onClick={confirmDeleteGroup} color="error" variant="contained" autoFocus>Xóa Tất Cả</Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Print Section Selection Dialog */}
+            <Dialog open={printSectionDialogOpen} onClose={() => setPrintSectionDialogOpen(false)} maxWidth="xs" fullWidth>
+                <DialogTitle>Chọn mục in</DialogTitle>
+                <DialogContent>
+                    <Select
+                        value={selectedPrintSection}
+                        onChange={(e) => setSelectedPrintSection(e.target.value)}
+                        fullWidth
+                        sx={{ mt: 1 }}
+                    >
+                        <MenuItem value="all">In toàn bộ</MenuItem>
+                        {categories.map(cat => (
+                            <MenuItem key={cat.id} value={cat.id}>{cat.label}</MenuItem>
+                        ))}
+                    </Select>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPrintSectionDialogOpen(false)}>Hủy</Button>
+                    <Button
+                        variant="contained"
+                        startIcon={<PrintIcon />}
+                        onClick={() => {
+                            setPrintSectionDialogOpen(false);
+                            setTimeout(() => handlePrint(), 100);
+                        }}
+                    >
+                        In
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Hidden Print Template */}
+            <Box sx={{ display: 'none' }}>
+                <AccountsReceivablePrintTemplate
+                    ref={printRef}
+                    data={printData}
+                    year={selectedYear}
+                    quarter={selectedQuarter}
+                    selectedSectionLabel={selectedPrintSectionLabel}
+                />
+            </Box>
         </Box>
     );
 }
