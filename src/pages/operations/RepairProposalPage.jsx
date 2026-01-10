@@ -400,7 +400,7 @@ const RepairProposalPage = () => {
 
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
-            <Box sx={{ p: 3 }}>
+            <Box sx={{ p: 3, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'background.default' : '#f4f6f8', minHeight: '100vh', mx: { xs: -1, sm: -2 }, mt: { xs: -1, sm: -2 }, mb: -2 }}>
                 {/* Offline Indicator */}
                 {!isOnline && (
                     <Paper
@@ -829,7 +829,7 @@ const RepairProposalPage = () => {
                             aria-label="add"
                             sx={{
                                 position: 'fixed',
-                                bottom: 40,
+                                bottom: 90,
                                 right: 30,
                                 zIndex: 1000,
                                 boxShadow: 6, // Increased shadow for better visibility

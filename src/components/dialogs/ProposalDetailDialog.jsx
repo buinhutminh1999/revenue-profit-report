@@ -451,7 +451,7 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                                         {entry.type === 'completed' ? (
                                             <>
                                                 <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
-                                                    🔧 Hoàn thành sửa chữa {(entry.attempt || index + 1) > 1 ? `(Lần ${entry.attempt || index + 1})` : ''}
+                                                    Hoàn thành sửa chữa {(entry.attempt || index + 1) > 1 ? `(Lần ${entry.attempt || index + 1})` : ''}
                                                 </Typography>
                                                 <Typography variant="body2" display="block" color="text.secondary">
                                                     {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
