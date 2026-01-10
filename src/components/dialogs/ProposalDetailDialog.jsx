@@ -332,205 +332,224 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
 
     // Tab: Lịch sử
     const renderHistoryTab = () => (
-        <Timeline sx={{ [`& .MuiTimelineItem-root:before`]: { flex: 0, padding: 0 }, p: 0, m: 0 }}>
-            {/* Created */}
-            <TimelineItem>
-                <TimelineSeparator>
-                    <TimelineDot color="primary" sx={{ width: 12, height: 12, borderWidth: 2 }} variant="outlined" />
-                    <TimelineConnector />
-                </TimelineSeparator>
-                <TimelineContent sx={{ py: '12px', px: 2 }}>
-                    <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Tạo đề xuất</Typography>
-                    <Typography variant="body2" display="block" color="text.secondary">
-                        {formatDateSafe(proposal.proposalTime)} bởi <strong>{proposal.proposer}</strong>
-                    </Typography>
-                    {proposal.content && (
-                        <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
-                            "{proposal.content}"
-                        </Paper>
-                    )}
-                </TimelineContent>
-            </TimelineItem>
+        <Box>
+            {/* Phase 1: Repair */}
+            <Typography variant="h6" color="primary.main" gutterBottom sx={{ mt: 1, mb: 0, fontWeight: 700 }}>
+                1. Giai đoạn sửa chữa
+            </Typography>
+            <Box sx={{ pl: 2, borderLeft: '1px dashed #e0e0e0', ml: 1 }}>
+                <Timeline sx={{ [`& .MuiTimelineItem-root:before`]: { flex: 0, padding: 0 }, p: 0, m: 0 }}>
+                    {/* Created */}
+                    <TimelineItem>
+                        <TimelineSeparator>
+                            <TimelineDot color="primary" sx={{ width: 12, height: 12, borderWidth: 2 }} variant="outlined" />
+                            <TimelineConnector />
+                        </TimelineSeparator>
+                        <TimelineContent sx={{ py: '12px', px: 2 }}>
+                            <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Tạo đề xuất</Typography>
+                            <Typography variant="body2" display="block" color="text.secondary">
+                                {formatDateSafe(proposal.proposalTime)} bởi <strong>{proposal.proposer}</strong>
+                            </Typography>
+                            {proposal.content && (
+                                <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
+                                    "{proposal.content}"
+                                </Paper>
+                            )}
+                        </TimelineContent>
+                    </TimelineItem>
 
-            {/* Maintenance Opinion Updated */}
-            {proposal.maintenanceOpinion && (
-                <TimelineItem>
-                    <TimelineSeparator>
-                        <TimelineDot color="warning" sx={{ width: 12, height: 12 }} variant="outlined" />
-                        <TimelineConnector />
-                    </TimelineSeparator>
-                    <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
-                            Phương án sửa chữa
-                        </Typography>
-                        <Typography variant="body2" display="block" color="text.secondary">
-                            {formatDateSafe(proposal.maintenanceOpinionTime)} bởi <strong>{proposal.maintenanceOpinionUser || 'Mặc định'}</strong>
-                        </Typography>
-                        <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
-                            "{proposal.maintenanceOpinion}"
-                        </Paper>
-                    </TimelineContent>
-                </TimelineItem>
-            )}
-
-            {/* Approval */}
-            {proposal.approval?.status && (proposal.approval.status === 'approved' || proposal.approval.status === 'rejected') && (
-                <TimelineItem>
-                    <TimelineSeparator>
-                        <TimelineDot color={proposal.approval.status === 'approved' ? 'success' : 'error'} sx={{ width: 12, height: 12 }} />
-                        <TimelineConnector />
-                    </TimelineSeparator>
-                    <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="h6" fontWeight={600} color={proposal.approval.status === 'approved' ? 'success.main' : 'error.main'} sx={{ fontSize: '1.05rem' }}>
-                            {proposal.approval.status === 'approved' ? 'Duyệt phương án sửa chữa' : 'Từ chối'}
-                        </Typography>
-                        <Typography variant="body2" display="block" color="text.secondary">
-                            {formatDateSafe(proposal.approval.time)} bởi <strong>{proposal.approval.user}</strong>
-                        </Typography>
-                        {proposal.approval.comment && (
-                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
-                                "{proposal.approval.comment}"
-                            </Paper>
-                        )}
-                    </TimelineContent>
-                </TimelineItem>
-            )}
-
-            {/* Previous Maintenance (if rework) */}
-            {proposal.lastReworkRequest?.previousMaintenance && (
-                <TimelineItem>
-                    <TimelineSeparator>
-                        <TimelineDot sx={{ width: 12, height: 12, bgcolor: 'action.disabled' }} />
-                        <TimelineConnector />
-                    </TimelineSeparator>
-                    <TimelineContent sx={{ py: '12px', px: 2, opacity: 0.7 }}>
-                        <Typography variant="h6" fontWeight={600} sx={{ textDecoration: 'line-through', fontSize: '1.05rem' }}>
-                            Hoàn thành sửa chữa (Cũ)
-                        </Typography>
-                        <Typography variant="body2" display="block" color="text.secondary">
-                            {formatDateSafe(proposal.lastReworkRequest.previousMaintenance.time)} bởi <strong>{proposal.lastReworkRequest.previousMaintenance.user}</strong>
-                        </Typography>
-                        {proposal.lastReworkRequest.previousMaintenance.comment && (
-                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#f5f5f5', fontSize: '0.95rem', border: '1px dashed #bdbdbd' }}>
-                                "{proposal.lastReworkRequest.previousMaintenance.comment}"
-                            </Paper>
-                        )}
-                        {renderImages(proposal.lastReworkRequest.previousMaintenance.images, "Ảnh bảo trì (cũ)")}
-                    </TimelineContent>
-                </TimelineItem>
-            )}
-
-            {/* Maintenance History (New - renders all attempts) */}
-            {proposal.maintenanceHistory?.map((entry, index) => (
-                <TimelineItem key={`history-${index}`}>
-                    <TimelineSeparator>
-                        <TimelineDot
-                            color={entry.type === 'completed' ? 'info' : 'warning'}
-                            sx={{ width: 12, height: 12 }}
-                        />
-                        <TimelineConnector />
-                    </TimelineSeparator>
-                    <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        {entry.type === 'completed' ? (
-                            <>
-                                <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>
-                                    🔧 Hoàn thành sửa chữa {(entry.attempt || index + 1) > 1 ? `(Lần ${entry.attempt || index + 1})` : ''}
-                                </Typography>
-                                <Typography variant="body2" display="block" color="text.secondary">
-                                    {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
-                                </Typography>
-                                {entry.comment && (
-                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
-                                        "{entry.comment}"
-                                    </Paper>
-                                )}
-                                {renderImages(entry.images, "Ảnh hoàn thành")}
-                            </>
-                        ) : (
-                            <>
+                    {/* Maintenance Opinion Updated */}
+                    {proposal.maintenanceOpinion && (
+                        <TimelineItem>
+                            <TimelineSeparator>
+                                <TimelineDot color="warning" sx={{ width: 12, height: 12 }} variant="outlined" />
+                                <TimelineConnector />
+                            </TimelineSeparator>
+                            <TimelineContent sx={{ py: '12px', px: 2 }}>
                                 <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
-                                    ⚠️ Yêu cầu làm lại
+                                    Phương án sửa chữa
                                 </Typography>
                                 <Typography variant="body2" display="block" color="text.secondary">
-                                    {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
+                                    {formatDateSafe(proposal.maintenanceOpinionTime)} bởi <strong>{proposal.maintenanceOpinionUser || 'Mặc định'}</strong>
                                 </Typography>
-                                {entry.comment && (
+                                <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
+                                    "{proposal.maintenanceOpinion}"
+                                </Paper>
+                            </TimelineContent>
+                        </TimelineItem>
+                    )}
+
+                    {/* Approval */}
+                    {proposal.approval?.status && (proposal.approval.status === 'approved' || proposal.approval.status === 'rejected') && (
+                        <TimelineItem>
+                            <TimelineSeparator>
+                                <TimelineDot color={proposal.approval.status === 'approved' ? 'success' : 'error'} sx={{ width: 12, height: 12 }} />
+                                <TimelineConnector />
+                            </TimelineSeparator>
+                            <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                <Typography variant="h6" fontWeight={600} color={proposal.approval.status === 'approved' ? 'success.main' : 'error.main'} sx={{ fontSize: '1.05rem' }}>
+                                    {proposal.approval.status === 'approved' ? 'Duyệt phương án sửa chữa' : 'Từ chối'}
+                                </Typography>
+                                <Typography variant="body2" display="block" color="text.secondary">
+                                    {formatDateSafe(proposal.approval.time)} bởi <strong>{proposal.approval.user}</strong>
+                                </Typography>
+                                {proposal.approval.comment && (
                                     <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
-                                        "{entry.comment}"
+                                        "{proposal.approval.comment}"
                                     </Paper>
                                 )}
-                                {renderImages(entry.images, "Ảnh minh chứng")}
-                            </>
-                        )}
-                    </TimelineContent>
-                </TimelineItem>
-            ))}
+                            </TimelineContent>
+                        </TimelineItem>
+                    )}
 
-            {/* Current Maintenance Confirm (if not in history yet - for proposals without history array) */}
-            {proposal.confirmations?.maintenance?.confirmed && !proposal.maintenanceHistory?.length && (
-                <TimelineItem>
-                    <TimelineSeparator>
-                        <TimelineDot color="info" sx={{ width: 12, height: 12 }} />
-                        <TimelineConnector />
-                    </TimelineSeparator>
-                    <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Hoàn thành sửa chữa</Typography>
-                        <Typography variant="body2" display="block" color="text.secondary">
-                            {formatDateSafe(proposal.confirmations.maintenance.time)} bởi <strong>{proposal.confirmations.maintenance.user}</strong>
-                        </Typography>
-                        {proposal.confirmations.maintenance.comment && (
-                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
-                                "{proposal.confirmations.maintenance.comment}"
-                            </Paper>
-                        )}
-                        {renderImages(proposal.confirmations.maintenance.images, "Ảnh hoàn thành")}
-                    </TimelineContent>
-                </TimelineItem>
-            )}
+                    {/* Previous Maintenance (if rework) */}
+                    {proposal.lastReworkRequest?.previousMaintenance && (
+                        <TimelineItem>
+                            <TimelineSeparator>
+                                <TimelineDot sx={{ width: 12, height: 12, bgcolor: 'action.disabled' }} />
+                                <TimelineConnector />
+                            </TimelineSeparator>
+                            <TimelineContent sx={{ py: '12px', px: 2, opacity: 0.7 }}>
+                                <Typography variant="h6" fontWeight={600} sx={{ textDecoration: 'line-through', fontSize: '1.05rem' }}>
+                                    Hoàn thành sửa chữa (Cũ)
+                                </Typography>
+                                <Typography variant="body2" display="block" color="text.secondary">
+                                    {formatDateSafe(proposal.lastReworkRequest.previousMaintenance.time)} bởi <strong>{proposal.lastReworkRequest.previousMaintenance.user}</strong>
+                                </Typography>
+                                {proposal.lastReworkRequest.previousMaintenance.comment && (
+                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#f5f5f5', fontSize: '0.95rem', border: '1px dashed #bdbdbd' }}>
+                                        "{proposal.lastReworkRequest.previousMaintenance.comment}"
+                                    </Paper>
+                                )}
+                                {renderImages(proposal.lastReworkRequest.previousMaintenance.images, "Ảnh bảo trì (cũ)")}
+                            </TimelineContent>
+                        </TimelineItem>
+                    )}
 
-            {/* Proposer Confirm */}
-            {proposal.confirmations?.proposer?.confirmed && (
-                <TimelineItem>
-                    <TimelineSeparator>
-                        <TimelineDot color="primary" sx={{ width: 12, height: 12 }} />
-                        <TimelineConnector />
-                    </TimelineSeparator>
-                    <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Người đề xuất nghiệm thu</Typography>
-                        <Typography variant="body2" display="block" color="text.secondary">
-                            {formatDateSafe(proposal.confirmations.proposer.time)} bởi <strong>{proposal.confirmations.proposer.user}</strong>
-                        </Typography>
-                        {proposal.confirmations.proposer.comment && (
-                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
-                                "{proposal.confirmations.proposer.comment}"
-                            </Paper>
-                        )}
-                        {renderImages(proposal.confirmations.proposer.images, "Ảnh nghiệm thu")}
-                    </TimelineContent>
-                </TimelineItem>
-            )}
+                    {/* Maintenance History (New - renders all attempts) */}
+                    {proposal.maintenanceHistory?.map((entry, index) => (
+                        <TimelineItem key={`history-${index}`}>
+                            <TimelineSeparator>
+                                <TimelineDot
+                                    color={entry.type === 'completed' ? 'info' : 'warning'}
+                                    sx={{ width: 12, height: 12 }}
+                                />
+                                <TimelineConnector />
+                            </TimelineSeparator>
+                            <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                {entry.type === 'completed' ? (
+                                    <>
+                                        <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>
+                                            🔧 Hoàn thành sửa chữa {(entry.attempt || index + 1) > 1 ? `(Lần ${entry.attempt || index + 1})` : ''}
+                                        </Typography>
+                                        <Typography variant="body2" display="block" color="text.secondary">
+                                            {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
+                                        </Typography>
+                                        {entry.comment && (
+                                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
+                                                "{entry.comment}"
+                                            </Paper>
+                                        )}
+                                        {renderImages(entry.images, "Ảnh hoàn thành")}
+                                    </>
+                                ) : (
+                                    <>
+                                        <Typography variant="h6" fontWeight={600} color="warning.main" sx={{ fontSize: '1.05rem' }}>
+                                            ⚠️ Yêu cầu làm lại
+                                        </Typography>
+                                        <Typography variant="body2" display="block" color="text.secondary">
+                                            {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
+                                        </Typography>
+                                        {entry.comment && (
+                                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
+                                                "{entry.comment}"
+                                            </Paper>
+                                        )}
+                                        {renderImages(entry.images, "Ảnh minh chứng")}
+                                    </>
+                                )}
+                            </TimelineContent>
+                        </TimelineItem>
+                    ))}
 
-            {/* Vice Director Confirm */}
-            {proposal.confirmations?.viceDirector?.confirmed && (
-                <TimelineItem>
-                    <TimelineSeparator>
-                        <TimelineDot color="success" sx={{ width: 14, height: 14 }} />
-                    </TimelineSeparator>
-                    <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="h6" fontWeight={600} color="success.main" sx={{ fontSize: '1.05rem' }}>P.GĐ xác nhận hoàn thành</Typography>
-                        <Typography variant="body2" display="block" color="text.secondary">
-                            {formatDateSafe(proposal.confirmations.viceDirector.time)} bởi <strong>{proposal.confirmations.viceDirector.user}</strong>
-                        </Typography>
-                        {proposal.confirmations.viceDirector.comment && (
-                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e8f5e9', fontSize: '0.95rem', border: '1px dashed #a5d6a7' }}>
-                                "{proposal.confirmations.viceDirector.comment}"
-                            </Paper>
-                        )}
-                        {renderImages(proposal.confirmations.viceDirector.images, "Ảnh xác nhận")}
-                    </TimelineContent>
-                </TimelineItem>
+                    {/* Current Maintenance Confirm (if not in history yet) */}
+                    {proposal.confirmations?.maintenance?.confirmed && !proposal.maintenanceHistory?.length && (
+                        <TimelineItem>
+                            <TimelineSeparator>
+                                <TimelineDot color="info" sx={{ width: 12, height: 12 }} />
+                            </TimelineSeparator>
+                            <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Hoàn thành sửa chữa</Typography>
+                                <Typography variant="body2" display="block" color="text.secondary">
+                                    {formatDateSafe(proposal.confirmations.maintenance.time)} bởi <strong>{proposal.confirmations.maintenance.user}</strong>
+                                </Typography>
+                                {proposal.confirmations.maintenance.comment && (
+                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
+                                        "{proposal.confirmations.maintenance.comment}"
+                                    </Paper>
+                                )}
+                                {renderImages(proposal.confirmations.maintenance.images, "Ảnh hoàn thành")}
+                            </TimelineContent>
+                        </TimelineItem>
+                    )}
+                </Timeline>
+            </Box>
+
+            {/* Phase 2: Acceptance */}
+            {(proposal.confirmations?.proposer?.confirmed || proposal.confirmations?.viceDirector?.confirmed) && (
+                <>
+                    <Typography variant="h6" color="success.main" gutterBottom sx={{ mt: 3, mb: 0, fontWeight: 700 }}>
+                        2. Giai đoạn nghiệm thu hoàn thành sửa chữa
+                    </Typography>
+                    <Box sx={{ pl: 2, borderLeft: '1px dashed #e0e0e0', ml: 1 }}>
+                        <Timeline sx={{ [`& .MuiTimelineItem-root:before`]: { flex: 0, padding: 0 }, p: 0, m: 0 }}>
+                            {/* Proposer Confirm */}
+                            {proposal.confirmations?.proposer?.confirmed && (
+                                <TimelineItem>
+                                    <TimelineSeparator>
+                                        <TimelineDot color="primary" sx={{ width: 12, height: 12 }} />
+                                        <TimelineConnector />
+                                    </TimelineSeparator>
+                                    <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                        <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Người đề xuất nghiệm thu</Typography>
+                                        <Typography variant="body2" display="block" color="text.secondary">
+                                            {formatDateSafe(proposal.confirmations.proposer.time)} bởi <strong>{proposal.confirmations.proposer.user}</strong>
+                                        </Typography>
+                                        {proposal.confirmations.proposer.comment && (
+                                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
+                                                "{proposal.confirmations.proposer.comment}"
+                                            </Paper>
+                                        )}
+                                        {renderImages(proposal.confirmations.proposer.images, "Ảnh nghiệm thu")}
+                                    </TimelineContent>
+                                </TimelineItem>
+                            )}
+
+                            {/* Vice Director Confirm */}
+                            {proposal.confirmations?.viceDirector?.confirmed && (
+                                <TimelineItem>
+                                    <TimelineSeparator>
+                                        <TimelineDot color="success" sx={{ width: 14, height: 14 }} />
+                                    </TimelineSeparator>
+                                    <TimelineContent sx={{ py: '12px', px: 2 }}>
+                                        <Typography variant="h6" fontWeight={600} color="success.main" sx={{ fontSize: '1.05rem' }}>P.GĐ xác nhận hoàn thành</Typography>
+                                        <Typography variant="body2" display="block" color="text.secondary">
+                                            {formatDateSafe(proposal.confirmations.viceDirector.time)} bởi <strong>{proposal.confirmations.viceDirector.user}</strong>
+                                        </Typography>
+                                        {proposal.confirmations.viceDirector.comment && (
+                                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e8f5e9', fontSize: '0.95rem', border: '1px dashed #a5d6a7' }}>
+                                                "{proposal.confirmations.viceDirector.comment}"
+                                            </Paper>
+                                        )}
+                                        {renderImages(proposal.confirmations.viceDirector.images, "Ảnh xác nhận")}
+                                    </TimelineContent>
+                                </TimelineItem>
+                            )}
+                        </Timeline>
+                    </Box>
+                </>
             )}
-        </Timeline>
+        </Box>
     );
 
     return (
@@ -591,8 +610,8 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         }
                     }}
                 >
-                    <Tab icon={<InfoIcon />} iconPosition="start" label="Chi tiết" />
-                    <Tab icon={<HistoryIcon />} iconPosition="start" label="Lịch sử" />
+                    <Tab icon={<InfoIcon />} iconPosition="start" label="Thông tin chung" />
+                    <Tab icon={<HistoryIcon />} iconPosition="start" label="Chi tiết" />
                     <Tab
                         icon={
                             <Badge badgeContent={commentCount} color="error" max={99}>
