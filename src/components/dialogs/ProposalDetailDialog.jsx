@@ -319,8 +319,8 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                             </Typography>
                         )}
                         {proposal.confirmations?.maintenance?.time && (
-                            <Typography variant="caption" color="success.main" fontWeight={600} display="block">
-                                ✅ Hoàn thành lúc: {formatDateSafe(proposal.confirmations.maintenance.time)}
+                            <Typography variant="body2" color="success.main" fontWeight={600} display="block" sx={{ fontSize: '1rem' }}>
+                                ✅ Đã sửa xong lúc: {formatDateSafe(proposal.confirmations.maintenance.time)}
                             </Typography>
                         )}
                         {renderImages(proposal.confirmations?.maintenance?.images, "📸 Ảnh bảo trì")}
@@ -411,7 +411,9 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                             {formatDateSafe(proposal.lastReworkRequest.previousMaintenance.time)} bởi <strong>{proposal.lastReworkRequest.previousMaintenance.user}</strong>
                         </Typography>
                         {proposal.lastReworkRequest.previousMaintenance.comment && (
-                            <Typography variant="body1" display="block" fontStyle="italic">"{proposal.lastReworkRequest.previousMaintenance.comment}"</Typography>
+                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#f5f5f5', fontSize: '0.95rem', border: '1px dashed #bdbdbd' }}>
+                                "{proposal.lastReworkRequest.previousMaintenance.comment}"
+                            </Paper>
                         )}
                         {renderImages(proposal.lastReworkRequest.previousMaintenance.images, "Ảnh bảo trì (cũ)")}
                     </TimelineContent>
@@ -438,7 +440,9 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                                     {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
                                 </Typography>
                                 {entry.comment && (
-                                    <Typography variant="body1" display="block" fontStyle="italic" sx={{ fontSize: '0.95rem', color: 'text.secondary' }}>"{entry.comment}"</Typography>
+                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
+                                        "{entry.comment}"
+                                    </Paper>
                                 )}
                                 {renderImages(entry.images, "Ảnh hoàn thành")}
                             </>
@@ -451,9 +455,9 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                                     {formatDateSafe(entry.time)} bởi <strong>{entry.user}</strong>
                                 </Typography>
                                 {entry.comment && (
-                                    <Typography variant="body1" sx={{ mt: 0.5, fontStyle: 'italic', fontSize: '0.95rem', color: 'text.secondary' }}>
+                                    <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#fff3e0', fontSize: '0.95rem', border: '1px dashed #ffb74d' }}>
                                         "{entry.comment}"
-                                    </Typography>
+                                    </Paper>
                                 )}
                                 {renderImages(entry.images, "Ảnh minh chứng")}
                             </>
@@ -470,12 +474,14 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         <TimelineConnector />
                     </TimelineSeparator>
                     <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="subtitle2" fontWeight={600}>Hoàn thành sửa chữa</Typography>
-                        <Typography variant="caption" display="block" color="text.secondary">
+                        <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Hoàn thành sửa chữa</Typography>
+                        <Typography variant="body2" display="block" color="text.secondary">
                             {formatDateSafe(proposal.confirmations.maintenance.time)} bởi <strong>{proposal.confirmations.maintenance.user}</strong>
                         </Typography>
                         {proposal.confirmations.maintenance.comment && (
-                            <Typography variant="caption" display="block" fontStyle="italic">"{proposal.confirmations.maintenance.comment}"</Typography>
+                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e3f2fd', fontSize: '0.95rem', border: '1px dashed #90caf9' }}>
+                                "{proposal.confirmations.maintenance.comment}"
+                            </Paper>
                         )}
                         {renderImages(proposal.confirmations.maintenance.images, "Ảnh hoàn thành")}
                     </TimelineContent>
@@ -490,12 +496,14 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         <TimelineConnector />
                     </TimelineSeparator>
                     <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="subtitle2" fontWeight={600}>Nghiệm thu</Typography>
-                        <Typography variant="caption" display="block" color="text.secondary">
+                        <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.05rem' }}>Nghiệm thu</Typography>
+                        <Typography variant="body2" display="block" color="text.secondary">
                             {formatDateSafe(proposal.confirmations.proposer.time)} bởi <strong>{proposal.confirmations.proposer.user}</strong>
                         </Typography>
                         {proposal.confirmations.proposer.comment && (
-                            <Typography variant="caption" display="block" fontStyle="italic">"{proposal.confirmations.proposer.comment}"</Typography>
+                            <Paper variant="outlined" sx={{ mt: 1, p: 1, bgcolor: '#e8f5e9', fontSize: '0.95rem', border: '1px dashed #a5d6a7' }}>
+                                "{proposal.confirmations.proposer.comment}"
+                            </Paper>
                         )}
                         {renderImages(proposal.confirmations.proposer.images, "Ảnh nghiệm thu")}
                     </TimelineContent>
@@ -509,8 +517,8 @@ const ProposalDetailDialog = ({ open, onClose, proposal, setPreviewImage, onAddC
                         <TimelineDot color="success" sx={{ width: 14, height: 14 }} />
                     </TimelineSeparator>
                     <TimelineContent sx={{ py: '12px', px: 2 }}>
-                        <Typography variant="subtitle2" fontWeight={600} color="success.main">P.GĐ xác nhận</Typography>
-                        <Typography variant="caption" display="block" color="text.secondary">
+                        <Typography variant="h6" fontWeight={600} color="success.main" sx={{ fontSize: '1.05rem' }}>P.GĐ xác nhận</Typography>
+                        <Typography variant="body2" display="block" color="text.secondary">
                             {formatDateSafe(proposal.confirmations.viceDirector.time)} bởi <strong>{proposal.confirmations.viceDirector.user}</strong>
                         </Typography>
                         {renderImages(proposal.confirmations.viceDirector.images, "Ảnh xác nhận")}
